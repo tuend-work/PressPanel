@@ -62,7 +62,8 @@ int main(int argc, char *argv[]) {
 
         char *buffer = malloc(sz + 1);
         if (buffer) {
-            fread(buffer, 1, sz, fin);
+            size_t r = fread(buffer, 1, sz, fin);
+            (void)r;
             buffer[sz] = '\0';
 
             // Xử lý thay thế các placeholder {{KEY}} với K=V từ argv[6...]
@@ -74,7 +75,7 @@ int main(int argc, char *argv[]) {
         fclose(fin);
         fclose(fout);
 
-        char extra[512];
+        char extra[2048];
         snprintf(extra, sizeof(extra), "\"out_path\":\"%s\",\"template_used\":\"%s\"", out_path, tpl_path);
         send_json_ok(extra);
         return 0;

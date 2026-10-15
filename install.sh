@@ -133,14 +133,7 @@ fi
 # 10. Khởi tạo Database SQLite
 echo "[+] Khởi tạo cơ sở dữ liệu SQLite..."
 cd "$INSTALL_DIR"
-PYTHONPATH="$INSTALL_DIR" "$INSTALL_DIR/venv/bin/python" -c "
-import sys, os
-sys.path.insert(0, '$INSTALL_DIR')
-sys.path.insert(0, os.path.join('$INSTALL_DIR', 'app'))
-import asyncio
-from app.db.init_db import init_database
-asyncio.run(init_database())
-"
+"$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/app/db/init_db.py"
 
 # 11. Cài đặt Systemd Service
 echo "[+] Đăng ký dịch vụ systemd presspanel..."

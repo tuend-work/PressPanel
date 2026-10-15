@@ -103,9 +103,10 @@ int main(int argc, char *argv[]) {
 
     // Chuyen den thu muc /home/<user>/httpdocs neu ton tai
     char user_home[256];
-    snprintf(user_home, sizeof(user_home), "/home/%s/httpdocs", username);
     if (chdir(user_home) != 0) {
-        chdir(pw->pw_dir);
+        if (chdir(pw->pw_dir) != 0) {
+            (void)chdir("/");
+        }
     }
 
     // Thuc thi lenh muc tieu

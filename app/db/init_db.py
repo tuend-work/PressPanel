@@ -1,3 +1,11 @@
+import sys
+import os
+
+# Tự động thêm thư mục gốc dự án vào sys.path để chạy trực tiếp không bị ModuleNotFoundError
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
 import asyncio
 import aiosqlite
 from app.core.config import settings
