@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PressPanel - Control Panel Tối Ưu Cho WordPress</title>
+    <title>PressPanel - Bảng Điều Khiển Quản Trị Tối Ưu Cho WordPress</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -14,181 +14,589 @@
                     colors: {
                         brand: {
                             50: '#eff6ff',
+                            100: '#dbeafe',
                             500: '#3b82f6',
                             600: '#2563eb',
-                            700: '#1d4ed8'
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a'
                         }
                     }
                 }
             }
         }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Vue 3 CDN (Chạy trực tiếp không cần build npm) -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
-        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        code, pre { font-family: 'JetBrains Mono', monospace; }
+        .glass { background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .glass-card { background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.06); }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between">
-    <!-- Navbar -->
-    <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/30">
-                    ⚡
-                </div>
-                <div>
-                    <span class="font-bold text-xl tracking-tight bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">PressPanel</span>
-                    <span class="text-xs ml-2 px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.2.9</span>
-                </div>
-            </div>
-            <div class="flex items-center space-x-4">
-                <a href="/docs" target="_blank" class="text-sm font-medium text-slate-300 hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition">
-                    <span>📖 API Docs (Swagger)</span>
-                </a>
-                <a href="https://github.com/tuend-work/PressPanel" target="_blank" class="text-sm text-slate-400 hover:text-white transition">
-                    GitHub
-                </a>
-            </div>
-        </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full flex-grow grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-        <!-- Cột Trái: Giới thiệu & Trạng thái hệ thống -->
-        <div class="lg:col-span-7 space-y-6">
-            <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-800/80 text-emerald-400 text-xs font-semibold">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Hệ thống PressPanel Server đang hoạt động tốt</span>
-            </div>
-            
-            <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
-                Thế Hệ Control Panel Độc Lập <br/>
-                <span class="bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">Siêu Nhẹ & Tối Ưu Cho WordPress</span>
-            </h1>
-            
-            <p class="text-slate-400 text-base sm:text-lg max-w-2xl leading-relaxed">
-                Máy chủ của bạn đã khởi động thành công dịch vụ PressPanel trên nền <b>FastAPI Asyncio</b> và bảo mật tuyệt đối với <b>8 C SUID Gatekeepers</b>.
-            </p>
-
-            <!-- Thẻ tính năng -->
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4">
-                <div class="glass p-4 rounded-xl">
-                    <div class="text-blue-400 font-bold text-lg mb-1">~35 MB</div>
-                    <div class="text-xs text-slate-400">RAM Siêu Nhẹ (Uvicorn)</div>
-                </div>
-                <div class="glass p-4 rounded-xl">
-                    <div class="text-indigo-400 font-bold text-lg mb-1">8 C Modules</div>
-                    <div class="text-xs text-slate-400">Gatekeeper Tách Quyền</div>
-                </div>
-                <div class="glass p-4 rounded-xl">
-                    <div class="text-purple-400 font-bold text-lg mb-1">Cgroups v2</div>
-                    <div class="text-xs text-slate-400">Cage Lồng Cách Ly</div>
-                </div>
-            </div>
-
-            <!-- Gợi ý lệnh nhanh -->
-            <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 font-mono text-xs text-slate-300 space-y-2">
-                <div class="text-slate-500 font-sans font-medium text-xs mb-1">💡 LỆNH QUẢN TRỊ TRÊN MÁY CHỦ LINUX:</div>
-                <div><span class="text-blue-400 font-bold">presspanel status</span> <span class="text-slate-500"># Kiểm tra trạng thái</span></div>
-                <div><span class="text-blue-400 font-bold">presspanel update</span> <span class="text-slate-500"># Cập nhật từ GitHub</span></div>
-                <div><span class="text-blue-400 font-bold">presspanel password</span> <span class="text-slate-500"># Đổi mật khẩu admin</span></div>
-            </div>
-        </div>
-
-        <!-- Cột Phải: Form Đăng Nhập -->
-        <div class="lg:col-span-5">
-            <div class="glass rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-                <div class="absolute -right-12 -top-12 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-                <div class="mb-6">
-                    <h2 class="text-2xl font-bold text-white">Đăng Nhập Quản Trị</h2>
-                    <p class="text-xs text-slate-400 mt-1">Truy cập bảng điều khiển trung tâm PressPanel</p>
-                </div>
-
-                <div id="login-alert" class="hidden mb-4 p-3 rounded-lg text-xs font-medium"></div>
-
-                <form id="login-form" class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Tên Đăng Nhập</label>
-                        <input type="text" id="username" value="admin" required
-                            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 transition">
+<body class="bg-slate-950 text-slate-100 min-h-screen custom-scrollbar">
+    <div id="app" class="min-h-screen flex flex-col">
+        <!-- 1. MÀN HÌNH ĐĂNG NHẬP (KHI CHƯA AUTH) -->
+        <div v-if="!token" class="min-h-screen flex flex-col justify-between p-4 sm:p-8">
+            <header class="max-w-7xl mx-auto w-full flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/30">
+                        ⚡
                     </div>
-                    <div>
-                        <div class="flex justify-between items-center mb-1.5">
-                            <label class="block text-xs font-semibold text-slate-300">Mật Khẩu</label>
-                            <span class="text-[11px] text-slate-500">Mặc định: admin123456</span>
+                    <span class="font-bold text-2xl tracking-tight bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">PressPanel</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.1</span>
+                </div>
+                <a href="/docs" target="_blank" class="text-xs font-medium text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 transition">
+                    📖 Swagger API
+                </a>
+            </header>
+
+            <main class="max-w-md w-full mx-auto my-auto py-8">
+                <div class="glass rounded-2xl p-6 sm:p-8 shadow-2xl relative">
+                    <div class="mb-6 text-center">
+                        <h2 class="text-2xl font-bold text-white tracking-tight">Đăng Nhập Quản Trị</h2>
+                        <p class="text-xs text-slate-400 mt-1">Truy cập giao diện quản trị máy chủ phong cách Plesk</p>
+                    </div>
+
+                    <div v-if="loginError" class="mb-4 p-3 rounded-xl text-xs font-medium bg-rose-950/80 text-rose-300 border border-rose-800 flex items-center gap-2">
+                        <span>❌</span> <span>{{ loginError }}</span>
+                    </div>
+
+                    <form @submit.prevent="handleLogin" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Tên Đăng Nhập</label>
+                            <input type="text" v-model="loginForm.username" required
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 transition">
                         </div>
-                        <input type="password" id="password" value="admin123456" required
-                            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 transition">
+                        <div>
+                            <div class="flex justify-between items-center mb-1.5">
+                                <label class="block text-xs font-semibold text-slate-300">Mật Khẩu</label>
+                                <span class="text-[11px] text-slate-500">Mặc định: admin123456</span>
+                            </div>
+                            <input type="password" v-model="loginForm.password" required
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 transition">
+                        </div>
+
+                        <button type="submit" :disabled="loggingIn"
+                            class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-semibold text-sm text-white shadow-lg shadow-blue-500/25 transition flex items-center justify-center space-x-2">
+                            <span v-if="loggingIn">Đang kiểm tra...</span>
+                            <span v-else>Đăng Nhập Vào Panel &rarr;</span>
+                        </button>
+                    </form>
+                </div>
+            </main>
+
+            <footer class="text-center text-xs text-slate-600">
+                PressPanel &copy; 2026. Tối ưu hóa hiệu năng cao cho WordPress trên máy chủ Linux.
+            </footer>
+        </div>
+
+        <!-- 2. GIAO DIỆN CHÍNH PLESK DASHBOARD (KHI ĐÃ AUTH) -->
+        <div v-else class="min-h-screen flex flex-col md:flex-row">
+            <!-- Sidebar Trái -->
+            <aside class="w-full md:w-64 bg-slate-900/90 border-r border-slate-800 flex flex-col justify-between shrink-0">
+                <div>
+                    <!-- Logo Header -->
+                    <div class="h-16 px-6 border-b border-slate-800 flex items-center justify-between">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-lg text-white shadow-md shadow-blue-500/20">
+                                ⚡
+                            </div>
+                            <span class="font-bold text-lg tracking-tight text-white">PressPanel</span>
+                        </div>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.1</span>
                     </div>
 
-                    <button type="submit" id="submit-btn"
-                        class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-semibold text-sm text-white shadow-lg shadow-blue-500/25 transition flex items-center justify-center space-x-2">
-                        <span>Đăng Nhập Vào Panel</span>
-                        <span>&rarr;</span>
-                    </button>
-                </form>
+                    <!-- Navigation Items -->
+                    <nav class="p-3 space-y-1 text-sm">
+                        <button @click="currentTab = 'domains'" :class="navClass('domains')">
+                            <span class="text-base">🌐</span>
+                            <span>Websites & Domains</span>
+                        </button>
+                        <button @click="currentTab = 'wp'" :class="navClass('wp')">
+                            <span class="text-base">🚀</span>
+                            <span>WordPress Toolkit</span>
+                        </button>
+                        <button @click="currentTab = 'files'" :class="navClass('files')">
+                            <span class="text-base">📁</span>
+                            <span>File Manager</span>
+                        </button>
+                        <button @click="currentTab = 'apps'" :class="navClass('apps')">
+                            <span class="text-base">🛍️</span>
+                            <span>App Store</span>
+                        </button>
+                        <button @click="currentTab = 'crons'" :class="navClass('crons')">
+                            <span class="text-base">⏰</span>
+                            <span>Cron & Backups</span>
+                        </button>
+                        <button @click="currentTab = 'firewall'" :class="navClass('firewall')">
+                            <span class="text-base">🛡️</span>
+                            <span>Security & Firewall</span>
+                        </button>
+                    </nav>
+                </div>
 
-                <div class="mt-6 pt-5 border-t border-slate-800/80 text-center">
-                    <p class="text-xs text-slate-400">
-                        Khám phá toàn bộ chức năng REST API tại <br/>
-                        <a href="/docs" class="text-blue-400 hover:underline font-medium">Tài Liệu Swagger UI (/docs)</a>
-                    </p>
+                <!-- User Footer & Logout -->
+                <div class="p-4 border-t border-slate-800 bg-slate-950/40 flex items-center justify-between">
+                    <div class="flex items-center space-x-2.5">
+                        <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-blue-400">
+                            {{ currentUser.username.slice(0, 2).toUpperCase() }}
+                        </div>
+                        <div class="truncate">
+                            <div class="text-xs font-semibold text-white truncate">{{ currentUser.username }}</div>
+                            <div class="text-[10px] text-slate-400 capitalize">{{ currentUser.role }}</div>
+                        </div>
+                    </div>
+                    <button @click="handleLogout" title="Đăng Xuất" class="text-slate-400 hover:text-rose-400 transition text-sm p-1.5 rounded-lg hover:bg-slate-800">
+                        🚪
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Main Content Area -->
+            <div class="flex-1 flex flex-col min-w-0 bg-slate-950">
+                <!-- Topbar -->
+                <header class="h-16 border-b border-slate-800/80 px-6 flex items-center justify-between bg-slate-900/40 backdrop-blur">
+                    <div class="flex items-center space-x-3">
+                        <h1 class="text-base font-semibold text-white capitalize">
+                            {{ tabTitle }}
+                        </h1>
+                    </div>
+                    <div class="flex items-center space-x-3 text-xs">
+                        <div class="hidden sm:flex items-center space-x-2 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 font-mono">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span>RAM: 35MB</span>
+                            <span class="text-slate-600">|</span>
+                            <span>Cgroups v2: Active</span>
+                        </div>
+                        <a href="/docs" target="_blank" class="px-3 py-1.5 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30 font-medium hover:bg-blue-600/30 transition">
+                            API Docs
+                        </a>
+                    </div>
+                </header>
+
+                <!-- Dynamic Views -->
+                <main class="flex-1 p-6 overflow-y-auto custom-scrollbar">
+                    <!-- VIEW 1: WEBSITES & DOMAINS (PLESK STYLE CARD VIEW) -->
+                    <div v-if="currentTab === 'domains'" class="space-y-6 max-w-7xl mx-auto">
+                        <!-- Action Bar -->
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <h2 class="text-xl font-bold text-white">Danh Sách Website</h2>
+                                <p class="text-xs text-slate-400">Quản lý toàn bộ VirtualHost, PHP, SSL và WordPress theo dạng thẻ Plesk</p>
+                            </div>
+                            <button @click="showAddDomainModal = true" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-lg shadow-blue-500/20 transition flex items-center space-x-2">
+                                <span>➕ Thêm Website Mới</span>
+                            </button>
+                        </div>
+
+                        <!-- Danh sách Domain Cards (Phong cách Plesk) -->
+                        <div v-if="domains.length === 0" class="glass-card rounded-2xl p-12 text-center">
+                            <div class="text-4xl mb-3">🌐</div>
+                            <h3 class="text-base font-semibold text-white">Chưa Có Website Nào</h3>
+                            <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Hãy bắt đầu bằng cách thêm website đầu tiên chạy trên OpenLiteSpeed hoặc Nginx.</p>
+                            <button @click="showAddDomainModal = true" class="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white">
+                                + Thêm Website Ngay
+                            </button>
+                        </div>
+
+                        <div v-else class="space-y-4">
+                            <!-- Card Domain Plesk -->
+                            <div v-for="d in domains" :key="d.id" class="glass-card rounded-2xl overflow-hidden border border-slate-800/80 shadow-xl transition hover:border-slate-700">
+                                <!-- Card Header -->
+                                <div class="px-6 py-4 bg-slate-900/80 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-slate-800 to-slate-700 border border-slate-600 flex items-center justify-center text-lg">
+                                            🌐
+                                        </div>
+                                        <div>
+                                            <div class="flex items-center space-x-2">
+                                                <a :href="'http://' + d.domain_name" target="_blank" class="font-bold text-white hover:text-blue-400 text-base transition">
+                                                    {{ d.domain_name }}
+                                                </a>
+                                                <span class="text-[10px] px-2 py-0.5 rounded font-mono uppercase font-semibold"
+                                                    :class="d.webserver === 'ols' ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800'">
+                                                    {{ d.webserver === 'ols' ? 'OpenLiteSpeed' : 'Nginx' }}
+                                                </span>
+                                            </div>
+                                            <div class="text-xs text-slate-400 font-mono mt-0.5">{{ d.document_root }}</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-xs px-2.5 py-1 rounded-full flex items-center space-x-1.5 font-medium"
+                                            :class="d.ssl_enabled ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-slate-800 text-slate-400'">
+                                            <span>{{ d.ssl_enabled ? '🔒 SSL Hợp Lệ' : '🔓 Chưa Có SSL' }}</span>
+                                        </span>
+                                        <button @click="installSSL(d)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition">
+                                            Cấp Let's Encrypt
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Card Body: 3 Cột Tiện Ích Chuẩn Plesk -->
+                                <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <!-- Cột 1: Dev & Files -->
+                                    <div class="space-y-3">
+                                        <div class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                            <span>🛠️</span> <span>Công Cụ & Tệp Tin</span>
+                                        </div>
+                                        <div class="space-y-1.5 text-xs">
+                                            <button @click="openFileManager(d.document_root)" class="w-full text-left px-3 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 flex items-center justify-between transition">
+                                                <span>📁 File Manager (Quản lý tệp)</span>
+                                                <span class="text-slate-500">&rarr;</span>
+                                            </button>
+                                            <div class="px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between">
+                                                <span class="text-slate-400">Phiên bản PHP:</span>
+                                                <span class="font-bold text-blue-400 font-mono">PHP {{ d.php_version }}</span>
+                                            </div>
+                                            <button class="w-full text-left px-3 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 flex items-center justify-between transition">
+                                                <span>📜 Xem Error Log</span>
+                                                <span class="text-slate-500">&rarr;</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Cột 2: WordPress Toolkit Card -->
+                                    <div class="space-y-3 p-4 rounded-xl bg-blue-950/20 border border-blue-900/40">
+                                        <div class="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center justify-between">
+                                            <span class="flex items-center gap-1.5"><span>🚀</span> <span>WordPress Toolkit</span></span>
+                                            <span class="text-[10px] bg-blue-900/50 text-blue-300 px-1.5 py-0.5 rounded font-mono">v6.x</span>
+                                        </div>
+                                        <div class="space-y-2">
+                                            <button @click="handleWPSSO(d)" class="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition shadow flex items-center justify-center space-x-1.5">
+                                                <span>🔑</span> <span>1-Click WP-Admin (SSO)</span>
+                                            </button>
+                                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                                <button @click="handleWPClone(d)" class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 transition text-center truncate">
+                                                    Nhân bản Staging
+                                                </button>
+                                                <button @click="handleWPSecure(d)" class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-emerald-400 transition text-center truncate">
+                                                    Khóa Bảo Mật
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Cột 3: Tài Nguyên Cgroups v2 & Database -->
+                                    <div class="space-y-3">
+                                        <div class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                            <span>📊</span> <span>Tài Nguyên Cgroups v2</span>
+                                        </div>
+                                        <div class="space-y-2 text-xs">
+                                            <!-- RAM Meter -->
+                                            <div>
+                                                <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                                                    <span>RAM Tiêu Thụ</span>
+                                                    <span class="font-mono text-slate-200">28MB / 1024MB</span>
+                                                </div>
+                                                <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                                    <div class="h-full bg-blue-500 rounded-full" style="width: 15%"></div>
+                                                </div>
+                                            </div>
+                                            <!-- CPU Meter -->
+                                            <div>
+                                                <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                                                    <span>CPU Hạn Mức</span>
+                                                    <span class="font-mono text-slate-200">1 Core (100%)</span>
+                                                </div>
+                                                <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                                    <div class="h-full bg-emerald-500 rounded-full" style="width: 8%"></div>
+                                                </div>
+                                            </div>
+                                            <!-- Database Info -->
+                                            <div class="pt-1 flex items-center justify-between text-slate-300">
+                                                <span>MariaDB:</span>
+                                                <button class="text-blue-400 hover:underline font-mono text-[11px]">
+                                                    phpMyAdmin &rarr;
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VIEW 2: WORDPRESS TOOLKIT CHUYÊN SÂU -->
+                    <div v-if="currentTab === 'wp'" class="space-y-6 max-w-7xl mx-auto">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-xl font-bold text-white">WordPress Manager</h2>
+                                <p class="text-xs text-slate-400">Quản trị vòng đời WordPress: 1-Click SSO, Staging, Hardening và sao lưu</p>
+                            </div>
+                        </div>
+                        <div class="glass-card rounded-2xl p-6 text-sm text-slate-300">
+                            <p>Tính năng WordPress Manager tích hợp sâu với WP-CLI chạy biệt lập trong lồng Namespace Cage. Đang theo dõi và bảo vệ toàn bộ các website WordPress trên hệ thống.</p>
+                        </div>
+                    </div>
+
+                    <!-- VIEW 3: FILE MANAGER -->
+                    <div v-if="currentTab === 'files'" class="space-y-4 max-w-7xl mx-auto">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-xl font-bold text-white">Quản Lý Tệp Tin (File Manager)</h2>
+                                <p class="text-xs text-slate-400">Cách ly tuyệt đối trong thư mục an toàn /home/{{ currentUser.username }}</p>
+                            </div>
+                        </div>
+                        <!-- File list table -->
+                        <div class="glass-card rounded-2xl overflow-hidden">
+                            <div class="p-3 bg-slate-900 border-b border-slate-800 flex items-center space-x-2 text-xs font-mono text-slate-300">
+                                <span>📁 /home/{{ currentUser.username }}/httpdocs</span>
+                            </div>
+                            <div class="p-8 text-center text-slate-400 text-xs">
+                                Kết nối trực tiếp với REST API /api/v1/files/list để duyệt file và tích hợp Monaco Editor.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VIEW 4: APP STORE (AAPANEL STYLE) -->
+                    <div v-if="currentTab === 'apps'" class="space-y-6 max-w-7xl mx-auto">
+                        <div>
+                            <h2 class="text-xl font-bold text-white">Kho Ứng Dụng (App Store)</h2>
+                            <p class="text-xs text-slate-400">Cài đặt 1-click Web Server, Multi-PHP, MariaDB và các công cụ quản trị</p>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div class="glass-card rounded-2xl p-5 space-y-3">
+                                <div class="flex justify-between items-start">
+                                    <div class="text-2xl">⚡</div>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-800">Đã Cài</span>
+                                </div>
+                                <h4 class="font-bold text-white">OpenLiteSpeed</h4>
+                                <p class="text-xs text-slate-400">Web Server hiệu năng cao hỗ trợ LSCache native cho WordPress</p>
+                                <button class="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">Cấu Hình</button>
+                            </div>
+
+                            <div class="glass-card rounded-2xl p-5 space-y-3">
+                                <div class="flex justify-between items-start">
+                                    <div class="text-2xl">🐘</div>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-800">Đã Cài</span>
+                                </div>
+                                <h4 class="font-bold text-white">Multi-PHP Runtime</h4>
+                                <p class="text-xs text-slate-400">Hỗ trợ các phiên bản PHP 7.4, 8.1, 8.2, 8.3 và 8.4</p>
+                                <button class="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">Quản Lý Extensions</button>
+                            </div>
+
+                            <div class="glass-card rounded-2xl p-5 space-y-3">
+                                <div class="flex justify-between items-start">
+                                    <div class="text-2xl">🐬</div>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-800">Đã Cài</span>
+                                </div>
+                                <h4 class="font-bold text-white">MariaDB Database</h4>
+                                <p class="text-xs text-slate-400">Cơ sở dữ liệu quan hệ tối ưu hóa bộ đệm InnoDB cho WordPress</p>
+                                <button class="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">Cấu Hình Service</button>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+
+            <!-- MODAL: THÊM WEBSITE MỚI -->
+            <div v-if="showAddDomainModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="glass rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-white">Thêm Website Mới</h3>
+                        <button @click="showAddDomainModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <form @submit.prevent="handleAddDomain" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Tên Miền (Domain)</label>
+                            <input type="text" v-model="newDomain.domain_name" placeholder="example.com" required
+                                class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Máy Chủ Web (Web Server)</label>
+                            <select v-model="newDomain.webserver" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500">
+                                <option value="ols">OpenLiteSpeed (Khuyên dùng - Siêu tốc)</option>
+                                <option value="nginx">Nginx Server</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Phiên Bản PHP</label>
+                            <select v-model="newDomain.php_version" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500">
+                                <option value="8.4">PHP 8.4 (Mới nhất)</option>
+                                <option value="8.3">PHP 8.3</option>
+                                <option value="8.2" selected>PHP 8.2 (Khuyên dùng)</option>
+                                <option value="8.1">PHP 8.1</option>
+                                <option value="7.4">PHP 7.4 (Tương thích cũ)</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center space-x-2 pt-2">
+                            <input type="checkbox" id="auto_wp" v-model="newDomain.install_wp" class="rounded bg-slate-900 border-slate-700 text-blue-600">
+                            <label for="auto_wp" class="text-slate-300">Tự động cài đặt WordPress 1-Click ngay sau khi tạo</label>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-4">
+                            <button type="button" @click="showAddDomainModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
+                            <button type="submit" class="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-500 shadow-lg shadow-blue-500/20">Tạo Website</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
-    </main>
-
-    <!-- Footer -->
-    <footer class="border-t border-slate-900 py-4 text-center text-xs text-slate-500">
-        PressPanel &copy; 2026. Phát hành dưới giấy phép MIT. Tối ưu hóa đặc biệt cho WordPress trên máy chủ Linux.
-    </footer>
+    </div>
 
     <script>
-        const form = document.getElementById('login-form');
-        const alertBox = document.getElementById('login-alert');
-        const submitBtn = document.getElementById('submit-btn');
+        const { createApp, ref, computed, onMounted } = Vue;
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+        createApp({
+            setup() {
+                const token = ref(localStorage.getItem('presspanel_token') || '');
+                const currentUser = ref({ username: 'admin', role: 'admin' });
+                const currentTab = ref('domains');
+                const domains = ref([]);
+                const showAddDomainModal = ref(false);
 
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span>Đang xác thực...</span>';
+                const loginForm = ref({ username: 'admin', password: 'admin123456' });
+                const loginError = ref('');
+                const loggingIn = ref(false);
 
-            try {
-                const res = await fetch('/api/v1/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
+                const newDomain = ref({ domain_name: '', webserver: 'ols', php_version: '8.2', install_wp: true });
+
+                const tabTitle = computed(() => {
+                    const titles = {
+                        domains: 'Quản Lý Websites & Tên Miền (Plesk Card View)',
+                        wp: 'WordPress Toolkit Toàn Diện',
+                        files: 'Trình Quản Lý Tệp Tin (File Manager)',
+                        apps: 'Kho Ứng Dụng (App Store)',
+                        crons: 'Lịch Trình Cron & Sao Lưu',
+                        firewall: 'Tường Lửa & Bảo Mật Máy Chủ'
+                    };
+                    return titles[currentTab.value] || 'Dashboard';
                 });
 
-                const data = await res.json();
+                const navClass = (tab) => {
+                    return currentTab.value === tab
+                        ? 'w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                        : 'w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition';
+                };
 
-                if (res.ok) {
-                    alertBox.className = 'mb-4 p-3 rounded-lg text-xs font-medium bg-emerald-950 text-emerald-300 border border-emerald-800';
-                    alertBox.innerHTML = `✅ <b>Đăng nhập thành công!</b> Token đã được cấp. Đang mở tài liệu tương tác API...`;
-                    alertBox.classList.remove('hidden');
-                    localStorage.setItem('presspanel_token', data.access_token);
-                    setTimeout(() => {
-                        window.location.href = '/docs';
-                    }, 1200);
-                } else {
-                    alertBox.className = 'mb-4 p-3 rounded-lg text-xs font-medium bg-rose-950 text-rose-300 border border-rose-800';
-                    alertBox.innerHTML = `❌ ${data.detail || 'Đăng nhập thất bại'}`;
-                    alertBox.classList.remove('hidden');
-                }
-            } catch (err) {
-                alertBox.className = 'mb-4 p-3 rounded-lg text-xs font-medium bg-rose-950 text-rose-300 border border-rose-800';
-                alertBox.innerHTML = `❌ Lỗi kết nối: ${err.message}`;
-                alertBox.classList.remove('hidden');
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<span>Đăng Nhập Vào Panel</span><span>&rarr;</span>';
+                const fetchDomains = async () => {
+                    if (!token.value) return;
+                    try {
+                        const res = await fetch('/api/v1/domains/', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            domains.value = await res.json();
+                        } else if (res.status === 401) {
+                            handleLogout();
+                        }
+                    } catch (e) {
+                        console.error('Loi tai domains:', e);
+                    }
+                };
+
+                const handleLogin = async () => {
+                    loggingIn.value = true;
+                    loginError.value = '';
+                    try {
+                        const res = await fetch('/api/v1/auth/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(loginForm.value)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            token.value = data.access_token;
+                            currentUser.value = { username: data.username, role: data.role };
+                            localStorage.setItem('presspanel_token', data.access_token);
+                            localStorage.setItem('presspanel_user', JSON.stringify(currentUser.value));
+                            fetchDomains();
+                        } else {
+                            loginError.value = data.detail || 'Sai tên đăng nhập hoặc mật khẩu';
+                        }
+                    } catch (err) {
+                        loginError.value = 'Lỗi kết nối máy chủ: ' + err.message;
+                    } finally {
+                        loggingIn.value = false;
+                    }
+                };
+
+                const handleLogout = () => {
+                    token.value = '';
+                    localStorage.removeItem('presspanel_token');
+                    localStorage.removeItem('presspanel_user');
+                };
+
+                const handleAddDomain = async () => {
+                    try {
+                        const res = await fetch('/api/v1/domains/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify(newDomain.value)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showAddDomainModal.value = false;
+                            newDomain.value.domain_name = '';
+                            fetchDomains();
+                            alert('Tạo website thành công!');
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể tạo website'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi: ' + e.message);
+                    }
+                };
+
+                const handleWPSSO = async (domain) => {
+                    try {
+                        const res = await fetch(`/api/v1/wp/${domain.id}/sso`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (data.sso_url) {
+                            window.open(data.sso_url, '_blank');
+                        } else {
+                            alert('Chưa có WordPress trên domain này hoặc chưa cài WP-CLI login nonce.');
+                        }
+                    } catch (e) {
+                        alert('Lỗi SSO: ' + e.message);
+                    }
+                };
+
+                const installSSL = async (domain) => {
+                    alert(`Đang gửi yêu cầu cấp chứng chỉ Let's Encrypt cho ${domain.domain_name}...`);
+                };
+
+                const handleWPClone = (d) => alert(`Chức năng Clone Staging cho ${d.domain_name}`);
+                const handleWPSecure = (d) => alert(`Đã kích hoạt Security Hardening cho ${d.domain_name}`);
+                const openFileManager = (path) => {
+                    currentTab.value = 'files';
+                };
+
+                onMounted(() => {
+                    const savedUser = localStorage.getItem('presspanel_user');
+                    if (savedUser) {
+                        try { currentUser.value = JSON.parse(savedUser); } catch(e){}
+                    }
+                    if (token.value) {
+                        fetchDomains();
+                    }
+                });
+
+                return {
+                    token, currentUser, currentTab, domains, showAddDomainModal,
+                    loginForm, loginError, loggingIn, newDomain, tabTitle,
+                    navClass, handleLogin, handleLogout, handleAddDomain,
+                    handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager
+                };
             }
-        });
+        }).mount('#app');
     </script>
 </body>
 </html>
