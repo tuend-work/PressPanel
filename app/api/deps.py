@@ -17,7 +17,13 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     
     user_id = int(payload["sub"])
     db = await get_db_connection()
-    cursor = await db.execute("SELECT id, username, email, role, parent_id, status FROM users WHERE id = ?", (user_id,))
+    cursor = await db.execute("""
+        SELECT u.id, u.username, u.email, u.role, u.parent_id, u.status, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb,
+               p.name as package_name, p.max_domains, p.max_databases
+        FROM users u
+        LEFT JOIN packages p ON u.package_id = p.id
+        WHERE u.id = ?
+    """, (user_id,))
     user = await cursor.fetchone()
     await db.close()
 

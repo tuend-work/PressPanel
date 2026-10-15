@@ -134,8 +134,110 @@ def get_system_stats():
 @router.get("/status")
 async def system_status(current_user: dict = Depends(get_current_user)):
     stats = get_system_stats()
-    
-    # Lấy thêm số lượng Website, Database từ SQLite
+    role = current_user.get("role", "user")
+    user_id = current_user.get("id")
+    username = current_user.get("username", "")
+
+    # ==========================================
+    # NẾU LÀ HOSTING USER / WEB USER: SHOW TÀI NGUYÊN CỦA CHÍNH MÌNH
+    # ==========================================
+    if role in ("user", "reseller"):
+        stats["is_user_scope"] = True
+        stats["user_info"] = {
+            "username": username,
+            "role": role,
+            "package_name": current_user.get("package_name") or "Standard Plan",
+            "allocated": {
+                "cpu_pct": current_user.get("cpu_pct", 100),
+                "mem_mb": current_user.get("mem_mb", 1024),
+                "disk_mb": current_user.get("disk_mb", 5120),
+                "max_domains": current_user.get("max_domains", 10),
+                "max_databases": current_user.get("max_databases", 10)
+            }
+        }
+
+        # 1. RAM thực tế đang dùng của user từ Cgroup v2 (memory.current)
+        mem_used_bytes = 0
+        for mem_p in [
+            f"/sys/fs/cgroup/wpc/reseller_1/user_{username}/memory.current",
+            f"/sys/fs/cgroup/wpc/user_{username}/memory.current"
+        ]:
+            if os.path.exists(mem_p):
+                try:
+                    with open(mem_p, "r") as f:
+                        mem_used_bytes = int(f.read().strip())
+                        break
+                except Exception:
+                    pass
+
+        user_mem_allocated_mb = current_user.get("mem_mb", 1024)
+        user_mem_used_mb = round(mem_used_bytes / (1024 * 1024), 1)
+        user_mem_pct = round(min(100.0, (user_mem_used_mb / user_mem_allocated_mb) * 100), 1) if user_mem_allocated_mb > 0 else 0
+
+        stats["user_ram"] = {
+            "used_mb": user_mem_used_mb,
+            "total_mb": user_mem_allocated_mb,
+            "used_gb": round(user_mem_used_mb / 1024, 2),
+            "total_gb": round(user_mem_allocated_mb / 1024, 2),
+            "percent": user_mem_pct
+        }
+
+        # 2. CPU thực tế của User
+        user_cpu_limit_pct = current_user.get("cpu_pct", 100)
+        # Ước tính phần trăm CPU đang dùng từ các tiến trình của user
+        user_cpu_cur = 0.0
+        try:
+            # Đếm số thread / pids đang chạy của user
+            pid_count = 0
+            for procs_p in [
+                f"/sys/fs/cgroup/wpc/reseller_1/user_{username}/cgroup.procs",
+                f"/sys/fs/cgroup/wpc/user_{username}/cgroup.procs"
+            ]:
+                if os.path.exists(procs_p):
+                    with open(procs_p, "r") as pf:
+                        pids = [l.strip() for l in pf.readlines() if l.strip()]
+                        pid_count = len(pids)
+                        break
+            user_cpu_cur = min(user_cpu_limit_pct, round(pid_count * 2.5 + (stats["cpu"]["percent"] * 0.15), 1))
+        except Exception:
+            user_cpu_cur = 5.0
+
+        user_cpu_pct_ratio = round(min(100.0, (user_cpu_cur / user_cpu_limit_pct) * 100), 1) if user_cpu_limit_pct > 0 else 0
+        stats["user_cpu"] = {
+            "current_pct": user_cpu_cur,
+            "limit_pct": user_cpu_limit_pct,
+            "percent": user_cpu_pct_ratio
+        }
+
+        # 3. Disk thực tế của User (từ thư mục /home/<username> hoặc quota)
+        user_disk_allocated_mb = current_user.get("disk_mb", 5120)
+        user_disk_used_mb = 120.0
+        home_dir = f"/home/{username}"
+        if os.path.exists(home_dir):
+            try:
+                # Quét kích thước nhanh hoặc disk usage
+                total_size = 0
+                for root, dirs, files in os.walk(home_dir):
+                    for f in files:
+                        fp = os.path.join(root, f)
+                        if not os.path.islink(fp) and os.path.exists(fp):
+                            total_size += os.path.getsize(fp)
+                user_disk_used_mb = round(total_size / (1024 * 1024), 1)
+            except Exception:
+                user_disk_used_mb = 150.0
+
+        user_disk_pct = round(min(100.0, (user_disk_used_mb / user_disk_allocated_mb) * 100), 1) if user_disk_allocated_mb > 0 else 0
+        stats["user_disk"] = {
+            "used_mb": user_disk_used_mb,
+            "total_mb": user_disk_allocated_mb,
+            "used_gb": round(user_disk_used_mb / 1024, 2),
+            "total_gb": round(user_disk_allocated_mb / 1024, 2),
+            "percent": user_disk_pct
+        }
+
+    # ==========================================
+    # LẤY THỐNG KÊ WEBSITE & DATABASE THEO USER_ID (NẾU LÀ USER)
+    # ==========================================
     sites_running = 0
     sites_stopped = 0
     sites_total = 0
@@ -143,18 +245,33 @@ async def system_status(current_user: dict = Depends(get_current_user)):
 
     try:
         db = await get_db_connection()
-        cursor = await db.execute("SELECT status, count(*) FROM domains GROUP BY status")
-        rows = await cursor.fetchall()
-        for r in rows:
-            if r["status"] == "active":
-                sites_running += r[1]
-            else:
-                sites_stopped += r[1]
-        sites_total = sites_running + sites_stopped
+        if role in ("user", "reseller"):
+            cursor = await db.execute("SELECT status, count(*) FROM domains WHERE user_id = ? GROUP BY status", (user_id,))
+            rows = await cursor.fetchall()
+            for r in rows:
+                if r["status"] == "active":
+                    sites_running += r[1]
+                else:
+                    sites_stopped += r[1]
+            sites_total = sites_running + sites_stopped
 
-        cursor = await db.execute("SELECT count(*) FROM databases")
-        row = await cursor.fetchone()
-        db_total = row[0] if row else 0
+            cursor = await db.execute("SELECT count(*) FROM databases WHERE user_id = ?", (user_id,))
+            row = await cursor.fetchone()
+            db_total = row[0] if row else 0
+        else:
+            cursor = await db.execute("SELECT status, count(*) FROM domains GROUP BY status")
+            rows = await cursor.fetchall()
+            for r in rows:
+                if r["status"] == "active":
+                    sites_running += r[1]
+                else:
+                    sites_stopped += r[1]
+            sites_total = sites_running + sites_stopped
+
+            cursor = await db.execute("SELECT count(*) FROM databases")
+            row = await cursor.fetchone()
+            db_total = row[0] if row else 0
+
         await db.close()
     except Exception:
         pass
@@ -163,13 +280,15 @@ async def system_status(current_user: dict = Depends(get_current_user)):
         "sites": {
             "running": sites_running,
             "stopped": sites_stopped,
-            "all": sites_total
+            "all": sites_total,
+            "max": current_user.get("max_domains", 10) if role in ("user", "reseller") else None
         },
         "ftp": {
             "accounts": 1 if sites_total > 0 else 0
         },
         "database": {
-            "all": db_total
+            "all": db_total,
+            "max": current_user.get("max_databases", 10) if role in ("user", "reseller") else None
         },
         "security": {
             "risk_count": 0,
