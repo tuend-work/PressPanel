@@ -144,8 +144,21 @@ EOF
         # Cấu hình Nginx nếu có Nginx
         if [ -d "/etc/nginx/conf.d" ]; then
             if [ -f "$PRESSPANEL_DIR/templates/vhost_nginx/default.tpl" ]; then
+                # Kiểm tra và đảm bảo dịch vụ php-fpm tương ứng đang hoạt động
+                if command -v systemctl &>/dev/null; then
+                    systemctl is-active --quiet "php${PHP_VER}-fpm" || systemctl start "php${PHP_VER}-fpm" 2>/dev/null || true
+                fi
+
+                # Tìm socket PHP-FPM đang tồn tại
                 PHP_SOCK="/run/php/php${PHP_VER}-fpm.sock"
-                [ ! -e "$PHP_SOCK" ] && PHP_SOCK="/var/run/php/php${PHP_VER}-fpm.sock"
+                if [ ! -e "$PHP_SOCK" ]; then
+                    if [ -e "/var/run/php/php${PHP_VER}-fpm.sock" ]; then
+                        PHP_SOCK="/var/run/php/php${PHP_VER}-fpm.sock"
+                    elif [ -e "/run/php-fpm/www.sock" ]; then
+                        PHP_SOCK="/run/php-fpm/www.sock"
+                    fi
+                fi
+
                 sed -e "s/{{DOMAIN}}/$DOMAIN/g" \
                     -e "s/{{PHP_VERSION}}/$PHP_VER/g" \
                     -e "s/{{USERNAME}}/$USERNAME/g" \
@@ -179,9 +192,20 @@ EOF
     set-php)
         echo "[+] Chuyen PHP sang $PHP_VER cho $DOMAIN..."
         PHP_NUM=$(echo "$PHP_VER" | tr -d '.')
+        # OpenLiteSpeed
         if [ -f "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf" ]; then
             sed -i -E "s/lsapi:lsphp[0-9]+/lsapi:lsphp$PHP_NUM/" "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf"
             /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lsws 2>/dev/null || true
+        fi
+        # Nginx
+        if [ -f "/etc/nginx/conf.d/$DOMAIN.conf" ]; then
+            if command -v systemctl &>/dev/null; then
+                systemctl is-active --quiet "php${PHP_VER}-fpm" || systemctl start "php${PHP_VER}-fpm" 2>/dev/null || true
+            fi
+            NEW_SOCK="/run/php/php${PHP_VER}-fpm.sock"
+            [ ! -e "$NEW_SOCK" ] && [ -e "/var/run/php/php${PHP_VER}-fpm.sock" ] && NEW_SOCK="/var/run/php/php${PHP_VER}-fpm.sock"
+            sed -i -E "s|fastcgi_pass unix:[^;]+;|fastcgi_pass unix:${NEW_SOCK};|" "/etc/nginx/conf.d/$DOMAIN.conf"
+            nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
         fi
         exit 0
         ;;
@@ -216,6 +240,11 @@ EOF
                 
                 # Khởi động lại lsws
                 /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
+            fi
+        elif [ "$WEBSERVER" = "nginx" ]; then
+            # Kiểm tra cú pháp nginx và reload
+            if command -v nginx &>/dev/null; then
+                nginx -t 2>/dev/null && nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
             fi
         fi
         exit 0

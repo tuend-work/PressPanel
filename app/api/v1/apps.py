@@ -248,6 +248,7 @@ from app.api.v1.tasks import add_system_task
 class ConfigUpdateRequest(BaseModel):
     app_id: str
     content: str
+    file_type: str = "main"
 
 class AutorestartRequest(BaseModel):
     app_id: str
@@ -391,14 +392,25 @@ APP_CONFIG_PATHS = {
     "php83": "/etc/php/8.3/fpm/php.ini",
     "php81": "/etc/php/8.1/fpm/php.ini",
     "php74": "/etc/php/7.4/fpm/php.ini",
+    "php82_pool": "/etc/php/8.2/fpm/pool.d/www.conf",
+    "php83_pool": "/etc/php/8.3/fpm/pool.d/www.conf",
+    "php81_pool": "/etc/php/8.1/fpm/pool.d/www.conf",
+    "php74_pool": "/etc/php/7.4/fpm/pool.d/www.conf",
     "pure-ftpd": "/etc/pure-ftpd/pure-ftpd.conf",
     "fail2ban": "/etc/fail2ban/jail.local"
 }
 
 @router.get("/config")
-async def get_app_config(app_id: str, current_user: dict = Depends(get_current_user)):
-    """Đọc file cấu hình thực tế của ứng dụng để hiển thị trong Popup Settings"""
-    conf_path = APP_CONFIG_PATHS.get(app_id)
+async def get_app_config(app_id: str, file_type: str = "main", current_user: dict = Depends(get_current_user)):
+    """Đọc file cấu hình thực tế của ứng dụng để hiển thị trong Popup Settings (hỗ trợ cả php.ini và pool www.conf)"""
+    lookup_id = f"{app_id}_pool" if file_type == "pool" and app_id.startswith("php") else app_id
+    conf_path = APP_CONFIG_PATHS.get(lookup_id)
+    
+    # Lấy phiên bản PHP nếu là app PHP
+    php_ver = None
+    if app_id.startswith("php") and len(app_id) >= 5:
+        php_ver = f"{app_id[3]}.{app_id[4]}"
+
     alternatives = {
         "ols": ["/usr/local/lsws/conf/httpd_config.conf", "/usr/local/lsws/conf/httpd_config.xml"],
         "mysql": ["/etc/mysql/my.cnf", "/etc/mysql/mysql.conf.d/mysqld.cnf", "/etc/my.cnf"],
@@ -407,6 +419,10 @@ async def get_app_config(app_id: str, current_user: dict = Depends(get_current_u
         "php83": ["/etc/php/8.3/fpm/php.ini", "/usr/local/lsws/lsphp83/etc/php/8.3/litespeed/php.ini"],
         "php81": ["/etc/php/8.1/fpm/php.ini"],
         "php74": ["/etc/php/7.4/fpm/php.ini"],
+        "php82_pool": ["/etc/php/8.2/fpm/pool.d/www.conf"],
+        "php83_pool": ["/etc/php/8.3/fpm/pool.d/www.conf"],
+        "php81_pool": ["/etc/php/8.1/fpm/pool.d/www.conf"],
+        "php74_pool": ["/etc/php/7.4/fpm/pool.d/www.conf"],
         "fail2ban": ["/etc/fail2ban/jail.local", "/etc/fail2ban/jail.conf"]
     }
 
@@ -492,12 +508,13 @@ async def get_app_config(app_id: str, current_user: dict = Depends(get_current_u
 @router.post("/config")
 async def save_app_config(req: ConfigUpdateRequest, current_user: dict = Depends(get_current_user)):
     """Lưu chỉnh sửa file cấu hình từ Popup Settings"""
-    conf_path = APP_CONFIG_PATHS.get(req.app_id)
+    lookup_id = f"{req.app_id}_pool" if req.file_type == "pool" and req.app_id.startswith("php") else req.app_id
+    conf_path = APP_CONFIG_PATHS.get(lookup_id)
     if not conf_path:
         raise HTTPException(status_code=400, detail="Không tìm thấy cấu hình của ứng dụng này.")
 
     # Ghi nội dung an toàn qua file tạm và move
-    tmp_path = f"/tmp/presspanel_{req.app_id}_conf.tmp"
+    tmp_path = f"/tmp/presspanel_{lookup_id}_conf.tmp"
     gatekeeper_bin = "/opt/presspanel/bin/app"
 
     try:

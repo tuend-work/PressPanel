@@ -2130,11 +2130,18 @@
                                 <span>⚡</span>
                                 <span>Service</span>
                             </button>
-                            <button @click="appSettingTab = 'config'"
+                            <button @click="appSettingTab = 'config'; loadAppConfig(selectedSettingApp.id, 'main')"
                                 class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
                                 :class="appSettingTab === 'config' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
                                 <span>📝</span>
-                                <span>Configuration</span>
+                                <span>{{ selectedSettingApp?.category === 'php' ? 'php.ini' : 'Configuration' }}</span>
+                            </button>
+                            <!-- TAB DÀNH RIÊNG CHO PHP: PHP-FPM POOL & BACKEND -->
+                            <button v-if="selectedSettingApp?.category === 'php'" @click="appSettingTab = 'fpm_pool'; loadAppConfig(selectedSettingApp.id, 'pool')"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'fpm_pool' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>⚙️</span>
+                                <span>PHP-FPM Pool</span>
                             </button>
                             <button @click="appSettingTab = 'autorestart'"
                                 class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
@@ -2207,7 +2214,7 @@
                                             <span v-else>🛠️</span>
                                             <span>{{ rewritingConfig ? 'Đang Tái Tạo...' : 'Rewrite Webserver Config' }}</span>
                                         </button>
-                                        <button @click="loadAppConfig(selectedSettingApp.id)" class="text-cyan-400 hover:underline text-[11px]">
+                                        <button @click="loadAppConfig(selectedSettingApp.id, 'main')" class="text-cyan-400 hover:underline text-[11px]">
                                             Tải lại nội dung
                                         </button>
                                     </div>
@@ -2221,10 +2228,52 @@
                                             💡 Bấm <b>Rewrite Webserver Config</b> để tự động backup và build lại toàn bộ Vhost từ template & database.
                                         </span>
                                     </div>
-                                    <button @click="saveCurrentAppConfig" :disabled="savingConfig"
+                                    <button @click="saveCurrentAppConfig('main')" :disabled="savingConfig"
                                         class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-white shadow-lg shadow-cyan-500/20 flex items-center space-x-1.5">
                                         <span v-if="savingConfig" class="animate-spin">⏳</span>
                                         <span>{{ savingConfig ? 'Đang lưu...' : 'Lưu File Cấu Hình' }}</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- TAB 2.5: PHP-FPM POOL & BACKEND MANAGER (DÀNH CHO NGINX & FASTCGI) -->
+                            <div v-if="appSettingTab === 'fpm_pool'" class="flex-1 flex flex-col space-y-3 min-h-[400px]">
+                                <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-base">🐘</span>
+                                            <span class="font-bold text-white text-xs">Cấu Hình PHP-FPM Pool & Nginx Backend Socket</span>
+                                        </div>
+                                        <button @click="handleAppAction(selectedSettingApp.id, 'restart')"
+                                            class="px-2.5 py-1 rounded-lg bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold hover:bg-emerald-600/40 transition">
+                                            🔄 Khởi động lại PHP-FPM
+                                        </button>
+                                    </div>
+                                    <div class="text-[11px] text-slate-400 leading-relaxed">
+                                        Nginx giao tiếp với PHP thông qua UNIX domain socket (<code class="text-cyan-300 font-mono">/run/php/php{{ selectedSettingApp?.default_version }}-fpm.sock</code>).
+                                        File cấu hình pool <code class="text-amber-300 font-mono">www.conf</code> bên dưới quản lý tiến trình con (<code class="text-slate-300 font-mono">pm.max_children</code>), người dùng thực thi (<code class="text-slate-300 font-mono">listen.owner = www-data</code>) và hạn mức tài nguyên FastCGI.
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 font-mono text-[11px] truncate max-w-md">
+                                        📁 {{ appConfigPath }}
+                                    </span>
+                                    <button @click="loadAppConfig(selectedSettingApp.id, 'pool')" class="text-cyan-400 hover:underline text-[11px]">
+                                        Tải lại nội dung
+                                    </button>
+                                </div>
+                                <textarea v-model="appConfigContent"
+                                    class="flex-1 w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs focus:outline-none focus:border-cyan-500 resize-none h-72 custom-scrollbar leading-relaxed">
+                                </textarea>
+                                <div class="flex justify-between items-center pt-1">
+                                    <div class="text-[10px] text-slate-500 italic">
+                                        💡 Sau khi lưu pool config, hãy bấm nút "Khởi động lại PHP-FPM" để các thay đổi socket & worker có hiệu lực ngay lập tức.
+                                    </div>
+                                    <button @click="saveCurrentAppConfig('pool')" :disabled="savingConfig"
+                                        class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-white shadow-lg shadow-cyan-500/20 flex items-center space-x-1.5">
+                                        <span v-if="savingConfig" class="animate-spin">⏳</span>
+                                        <span>{{ savingConfig ? 'Đang lưu...' : 'Lưu Cấu Hình Pool' }}</span>
                                     </button>
                                 </div>
                             </div>
@@ -2700,10 +2749,10 @@
                     loadAppConfig(app.id);
                 };
 
-                const loadAppConfig = async (appId) => {
+                const loadAppConfig = async (appId, fileType = 'main') => {
                     appConfigContent.value = '# Đang tải file cấu hình...';
                     try {
-                        const res = await fetch(`/api/v1/apps/config?app_id=${appId}`, {
+                        const res = await fetch(`/api/v1/apps/config?app_id=${appId}&file_type=${fileType}`, {
                             headers: { 'Authorization': `Bearer ${token.value}` }
                         });
                         if (res.ok) {
@@ -2719,7 +2768,7 @@
                     }
                 };
 
-                const saveCurrentAppConfig = async () => {
+                const saveCurrentAppConfig = async (fileType = 'main') => {
                     if (!selectedSettingApp.value) return;
                     savingConfig.value = true;
                     try {
@@ -2731,7 +2780,8 @@
                             },
                             body: JSON.stringify({
                                 app_id: selectedSettingApp.value.id,
-                                content: appConfigContent.value
+                                content: appConfigContent.value,
+                                file_type: fileType
                             })
                         });
                         const data = await res.json();
