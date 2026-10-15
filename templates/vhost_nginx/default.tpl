@@ -4,8 +4,8 @@ server {
     root {{DOCUMENT_ROOT}};
     index index.php index.html index.htm;
 
-    access_log /home/{{USERNAME}}/logs/{{DOMAIN}}.access.log;
-    error_log /home/{{USERNAME}}/logs/{{DOMAIN}}.error.log;
+    access_log /home/{{USERNAME}}/domains/{{DOMAIN}}/logs/access.log;
+    error_log /home/{{USERNAME}}/domains/{{DOMAIN}}/logs/error.log;
 
     location / {
         try_files $uri $uri/ /index.php?$args;

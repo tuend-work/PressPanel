@@ -182,7 +182,7 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
                 # Loại bỏ tiền tố www. hoặc http:// nếu người dùng vô tình dán vào
                 # Mỗi website là một Linux user độc lập: domain viết liền không dấu chấm
                 clean_d = re.sub(r"[^a-z0-9]", "", d_name)[:30] or "webuser"
-                doc_root = f"/home/{clean_d}/httpdocs/{d_name}"
+                doc_root = f"/home/{clean_d}/domains/{d_name}/public_html"
                 ws = req.webserver or "ols"
                 php_v = req.php_version or "8.2"
 

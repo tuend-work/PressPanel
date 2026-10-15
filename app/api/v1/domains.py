@@ -81,7 +81,7 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
     # MỖI WEBSITE LÀ MỘT LINUX USER ĐỘC LẬP
     # Tên user Linux là domain viết liền không dấu chấm (vd: presspanel.org -> presspanelorg)
     isolated_user = domain_to_linux_user(clean_domain)
-    doc_root = f"/home/{isolated_user}/httpdocs/{clean_domain}"
+    doc_root = f"/home/{isolated_user}/domains/{clean_domain}/public_html"
 
     # TỰ ĐỘNG CHỌN WEBSERVER TẦNG SERVER:
     # QTV cấu hình/bật webserver nào (OLS hoặc Nginx) thì hệ thống sử dụng webserver đó cho tất cả web.

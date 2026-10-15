@@ -29,13 +29,29 @@ case "$ACTION" in
         echo "[+] Tao vhost cho $DOMAIN ($WEBSERVER, PHP $PHP_VER) cua user $USERNAME..."
         ensure_linux_user "$USERNAME"
 
-        # Tạo cây thư mục chuẩn
-        DOC_ROOT="/home/$USERNAME/httpdocs/$DOMAIN"
+        # Tạo cây thư mục chuẩn: /home/$USERNAME/domains/$DOMAIN/{public_html, logs, ssl, backups}
+        DOMAIN_DIR="/home/$USERNAME/domains/$DOMAIN"
+        DOC_ROOT="$DOMAIN_DIR/public_html"
         mkdir -p "$DOC_ROOT"
+        mkdir -p "$DOMAIN_DIR/logs"
+        mkdir -p "$DOMAIN_DIR/ssl"
+        mkdir -p "$DOMAIN_DIR/backups"
+
+        # Các thư mục hệ thống của user
         mkdir -p "/home/$USERNAME/logs"
         mkdir -p "/home/$USERNAME/ssl"
         mkdir -p "/home/$USERNAME/tmp"
         mkdir -p "/home/$USERNAME/backups"
+        mkdir -p "/home/$USERNAME/.tmp"
+        mkdir -p "/home/$USERNAME/.sessions"
+
+        # Tạo symlink /home/$USERNAME/public_html trỏ tới domain chính (hoặc domain đầu tiên)
+        if [ ! -L "/home/$USERNAME/public_html" ] && [ ! -d "/home/$USERNAME/public_html" ]; then
+            ln -s "$DOC_ROOT" "/home/$USERNAME/public_html" 2>/dev/null || true
+        elif [ -L "/home/$USERNAME/public_html" ]; then
+            # Cập nhật symlink nếu chưa trỏ đúng
+            ln -snf "$DOC_ROOT" "/home/$USERNAME/public_html" 2>/dev/null || true
+        fi
 
         # Phân quyền an toàn: Thư mục thuộc sở hữu của Linux Web User
         if id "$USERNAME" &>/dev/null; then
@@ -47,7 +63,7 @@ case "$ACTION" in
         else
             chown -R presspanel:presspanel "/home/$USERNAME" 2>/dev/null || true
         fi
-        chmod 755 "/home/$USERNAME" "/home/$USERNAME/httpdocs" "$DOC_ROOT" 2>/dev/null || true
+        chmod 755 "/home/$USERNAME" "/home/$USERNAME/domains" "$DOMAIN_DIR" "$DOC_ROOT" 2>/dev/null || true
 
         # Tạo file index.html mẫu nếu thư mục đang trống
         if [ ! -f "$DOC_ROOT/index.html" ] && [ ! -f "$DOC_ROOT/index.php" ]; then
@@ -72,7 +88,7 @@ case "$ACTION" in
         <span class="badge">PressPanel Powered</span>
         <h1>$DOMAIN</h1>
         <p>Website đã được khởi tạo thành công trên máy chủ Linux tối ưu WordPress.</p>
-        <p>Tải mã nguồn lên thư mục: <code>/home/$USERNAME/httpdocs/$DOMAIN</code> hoặc kích hoạt <b>WordPress Toolkit</b> để bắt đầu.</p>
+        <p>Tải mã nguồn lên thư mục: <code>/home/$USERNAME/domains/$DOMAIN/public_html</code> (hoặc <code>/home/$USERNAME/public_html</code>) để bắt đầu.</p>
     </div>
 </body>
 </html>
@@ -192,7 +208,15 @@ EOF
 
     remove)
         echo "[+] Xoa vhost $DOMAIN cua user $USERNAME..."
+        rm -rf "/home/$USERNAME/domains/$DOMAIN" 2>/dev/null || true
         rm -rf "/home/$USERNAME/httpdocs/$DOMAIN" 2>/dev/null || true
+        # Xóa symlink public_html nếu đang trỏ tới domain này
+        if [ -L "/home/$USERNAME/public_html" ]; then
+            TARGET_LNK=$(readlink "/home/$USERNAME/public_html" || true)
+            if echo "$TARGET_LNK" | grep -q "$DOMAIN"; then
+                rm -f "/home/$USERNAME/public_html" 2>/dev/null || true
+            fi
+        fi
         rm -rf "/usr/local/lsws/conf/vhosts/$DOMAIN" 2>/dev/null || true
         rm -f "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
         # Xoá pool PHP-FPM riêng của user trên tất cả các phiên bản PHP
@@ -253,8 +277,10 @@ EOF
 
     ssl)
         echo "[+] Cap phat SSL Let's Encrypt cho $DOMAIN..."
+        SSL_WEBROOT="/home/$USERNAME/domains/$DOMAIN/public_html"
+        [ ! -d "$SSL_WEBROOT" ] && SSL_WEBROOT="/home/$USERNAME/httpdocs/$DOMAIN"
         if command -v certbot &>/dev/null; then
-            certbot certonly --webroot -w "/home/$USERNAME/httpdocs/$DOMAIN" -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" || true
+            certbot certonly --webroot -w "$SSL_WEBROOT" -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" || true
         fi
         exit 0
         ;;

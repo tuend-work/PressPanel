@@ -47,10 +47,10 @@ int main(int argc, char *argv[]) {
 
         // Tạo cấu trúc thư mục chuẩn (liệt kê rõ ràng từng thư mục vì /bin/sh không hỗ trợ brace expansion {})
         snprintf(cmd, sizeof(cmd), 
-            "mkdir -p /home/%s/httpdocs /home/%s/logs /home/%s/tmp /home/%s/ssl /home/%s/backups && "
+            "mkdir -p /home/%s/domains /home/%s/logs /home/%s/tmp /home/%s/ssl /home/%s/backups && "
             "chown -R %s:%s /home/%s 2>/dev/null || true && "
             "chmod 0750 /home/%s && "
-            "chmod 0755 /home/%s/httpdocs && "
+            "chmod 0755 /home/%s/domains && "
             "chmod 0700 /home/%s/logs /home/%s/tmp /home/%s/ssl /home/%s/backups",
             username, username, username, username, username,
             username, username, username,

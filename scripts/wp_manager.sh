@@ -9,7 +9,10 @@ set -uo pipefail
 ACTION="${1:-}"
 USERNAME="${2:-}"
 DOMAIN="${3:-}"
-TARGET_DIR="/home/$USERNAME/httpdocs/$DOMAIN"
+TARGET_DIR="/home/$USERNAME/domains/$DOMAIN/public_html"
+if [ ! -d "$TARGET_DIR" ] && [ -d "/home/$USERNAME/httpdocs/$DOMAIN" ]; then
+    TARGET_DIR="/home/$USERNAME/httpdocs/$DOMAIN"
+fi
 
 case "$ACTION" in
     install)
@@ -18,8 +21,12 @@ case "$ACTION" in
         ADMIN_PASS="${6:-admin123456}"
         echo "[+] Cai dat WordPress tai $TARGET_DIR..."
         mkdir -p "$TARGET_DIR"
+        # Tạo symlink /home/$USERNAME/public_html nếu chưa có
+        if [ ! -e "/home/$USERNAME/public_html" ]; then
+            ln -snf "$TARGET_DIR" "/home/$USERNAME/public_html" 2>/dev/null || true
+        fi
         if id "$USERNAME" &>/dev/null; then
-            chown -R "$USERNAME:$USERNAME" "$TARGET_DIR" 2>/dev/null || true
+            chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/domains/$DOMAIN" "$TARGET_DIR" 2>/dev/null || true
         fi
         echo "[+] Da cai dat WordPress cho $DOMAIN thanh cong!"
         exit 0

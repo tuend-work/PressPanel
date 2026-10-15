@@ -101,11 +101,12 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    // Chuyen den thu muc /home/<user>/httpdocs neu ton tai
+    // Chuyen den thu muc /home/<user>/public_html hoac /home/<user>/domains neu ton tai
     char user_home[256];
-    snprintf(user_home, sizeof(user_home), "/home/%s/httpdocs", pw->pw_name);
+    snprintf(user_home, sizeof(user_home), "/home/%s/public_html", pw->pw_name);
     if (chdir(user_home) != 0) {
-        if (chdir(pw->pw_dir) != 0) {
+        snprintf(user_home, sizeof(user_home), "/home/%s/domains", pw->pw_name);
+        if (chdir(user_home) != 0 && chdir(pw->pw_dir) != 0) {
             IGNORE_RESULT(chdir("/"));
         }
     }
