@@ -172,37 +172,14 @@ EOF
                 chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
                 chmod 700 "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
 
-                # 1. Tạo file PHP-FPM Pool độc lập riêng cho User này (/etc/php/{ver}/fpm/pool.d/{user}.conf)
-                POOL_DIR="/etc/php/${PHP_VER}/fpm/pool.d"
+                # 1. Tạo file PHP-FPM Pool & Systemd Template Service độc lập riêng cho User này
                 USER_POOL_SOCK="/run/php/php${PHP_VER}-fpm-${USERNAME}.sock"
                 PHP_SOCK="$USER_POOL_SOCK"
 
-                if [ -d "$POOL_DIR" ] && [ -f "$PRESSPANEL_DIR/templates/vhost_nginx/php_fpm_pool.tpl" ]; then
-                    sed -e "s/{{USERNAME}}/$USERNAME/g" \
-                        -e "s/{{PHP_VER}}/$PHP_VER/g" \
-                        "$PRESSPANEL_DIR/templates/vhost_nginx/php_fpm_pool.tpl" > "$POOL_DIR/${USERNAME}.conf"
-
-                    # Đảm bảo PHP-FPM service có drop-in ExecStartPost tự động attach worker vào Cgroups v2
-                    PHP_DROPIN="/etc/systemd/system/php${PHP_VER}-fpm.service.d"
-                    if [ ! -f "$PHP_DROPIN/cgroup_attach.conf" ]; then
-                        mkdir -p "$PHP_DROPIN"
-                        cat << 'EOF' > "$PHP_DROPIN/cgroup_attach.conf"
-[Service]
-ExecStartPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
-ExecReloadPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
-EOF
-                        systemctl daemon-reload 2>/dev/null || true
-                    fi
-
-                    # Khởi động lại hoặc reload php-fpm để nhận pool mới
-                    systemctl reload "php${PHP_VER}-fpm" 2>/dev/null || systemctl restart "php${PHP_VER}-fpm" 2>/dev/null || true
-                    # Tự động gán các tiến trình worker của user vào đúng nhánh Cgroups v2
-                    (sleep 1 && /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true) &>/dev/null &
-                fi
-
-                # Kiểm tra và đảm bảo dịch vụ php-fpm tương ứng đang hoạt động
-                if command -v systemctl &>/dev/null; then
-                    systemctl is-active --quiet "php${PHP_VER}-fpm" || systemctl start "php${PHP_VER}-fpm" 2>/dev/null || true
+                if [ -f "$PRESSPANEL_DIR/scripts/php_fpm_service.sh" ]; then
+                    bash "$PRESSPANEL_DIR/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" 2>/dev/null || true
+                elif [ -f "/opt/wpc/scripts/php_fpm_service.sh" ]; then
+                    bash "/opt/wpc/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" 2>/dev/null || true
                 fi
 
                 # Nếu pool sock chưa sinh ra kịp (fallback sang pool mặc định nếu cần)
@@ -241,7 +218,12 @@ EOF
         fi
         rm -rf "/usr/local/lsws/conf/vhosts/$DOMAIN" 2>/dev/null || true
         rm -f "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
-        # Xoá pool PHP-FPM riêng của user trên tất cả các phiên bản PHP
+        # Xoá pool & dừng các standalone PHP-FPM service riêng của user trên tất cả các phiên bản PHP
+        for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+            systemctl stop "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+            systemctl disable "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+            rm -f "/etc/php/${pver}/fpm/users/${USERNAME}.conf" "/run/php/php${pver}-fpm-${USERNAME}.pid" "/run/php/php${pver}-fpm-${USERNAME}.sock" 2>/dev/null || true
+        done
         for pdir in /etc/php/*/fpm/pool.d; do
             [ -d "$pdir" ] && rm -f "$pdir/${USERNAME}.conf" 2>/dev/null || true
         done
@@ -280,35 +262,19 @@ EOF
         # Nginx
         if [ -f "/etc/nginx/conf.d/$DOMAIN.conf" ]; then
             # Xoá pool cũ ở các phiên bản khác nếu có
+            # Xoá service / pool cũ ở các phiên bản khác
+            for pdir in /etc/php/*/fpm/users; do
+                [ -d "$pdir" ] && rm -f "$pdir/${USERNAME}.conf" 2>/dev/null || true
+            done
             for pdir in /etc/php/*/fpm/pool.d; do
                 [ -d "$pdir" ] && rm -f "$pdir/${USERNAME}.conf" 2>/dev/null || true
             done
-            # Tạo pool mới cho phiên bản này
-            NEW_POOL_DIR="/etc/php/${PHP_VER}/fpm/pool.d"
-            if [ -d "$NEW_POOL_DIR" ] && [ -f "$PRESSPANEL_DIR/templates/vhost_nginx/php_fpm_pool.tpl" ]; then
-                sed -e "s/{{USERNAME}}/$USERNAME/g" \
-                    -e "s/{{PHP_VER}}/$PHP_VER/g" \
-                    "$PRESSPANEL_DIR/templates/vhost_nginx/php_fpm_pool.tpl" > "$NEW_POOL_DIR/${USERNAME}.conf"
 
-                # Đảm bảo PHP-FPM service có drop-in ExecStartPost tự động attach worker vào Cgroups v2
-                PHP_DROPIN="/etc/systemd/system/php${PHP_VER}-fpm.service.d"
-                if [ ! -f "$PHP_DROPIN/cgroup_attach.conf" ]; then
-                    mkdir -p "$PHP_DROPIN"
-                    cat << 'EOF' > "$PHP_DROPIN/cgroup_attach.conf"
-[Service]
-ExecStartPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
-ExecReloadPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
-EOF
-                    systemctl daemon-reload 2>/dev/null || true
-                fi
-
-                systemctl reload "php${PHP_VER}-fpm" 2>/dev/null || systemctl restart "php${PHP_VER}-fpm" 2>/dev/null || true
-                # Tự động gán các tiến trình worker của user vào đúng nhánh Cgroups v2
-                (sleep 1 && /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true) &>/dev/null &
-            fi
-
-            if command -v systemctl &>/dev/null; then
-                systemctl is-active --quiet "php${PHP_VER}-fpm" || systemctl start "php${PHP_VER}-fpm" 2>/dev/null || true
+            # Tạo và kích hoạt Systemd Template Service độc lập cho phiên bản PHP mới
+            if [ -f "$PRESSPANEL_DIR/scripts/php_fpm_service.sh" ]; then
+                bash "$PRESSPANEL_DIR/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" 2>/dev/null || true
+            elif [ -f "/opt/wpc/scripts/php_fpm_service.sh" ]; then
+                bash "/opt/wpc/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" 2>/dev/null || true
             fi
             NEW_SOCK="/run/php/php${PHP_VER}-fpm-${USERNAME}.sock"
             if [ ! -e "$NEW_SOCK" ]; then

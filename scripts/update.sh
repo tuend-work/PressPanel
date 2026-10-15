@@ -124,6 +124,43 @@ systemctl daemon-reload
 systemctl enable presspanel
 systemctl restart presspanel
 
+# Khởi tạo các Systemd Template Service wpc-php<ver>-fpm@.service cho tất cả các bản PHP
+for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+    if [ -x "/usr/sbin/php-fpm${pver}" ]; then
+        TPL="/etc/systemd/system/wpc-php${pver}-fpm@.service"
+        cat << EOF > "$TPL"
+[Unit]
+Description=WPCloud PHP-FPM Service for user %i
+After=network.target
+
+[Service]
+Type=notify
+PIDFile=/run/php/php${pver}-fpm-%i.pid
+ExecStart=/usr/sbin/php-fpm${pver} --nodaemonize --fpm-config /etc/php/${pver}/fpm/users/%i.conf
+ExecReload=/bin/kill -USR2 \$MAINPID
+TimeoutSec=15
+Slice=wpc.slice
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
+done
+systemctl daemon-reload 2>/dev/null || true
+
+# Tự động di chuyển các pool hiện có (như presspanellocal) sang Standalone Service
+for pdir in /etc/php/*/fpm/pool.d; do
+    [ -d "$pdir" ] || continue
+    PVER=$(echo "$pdir" | cut -d'/' -f4)
+    for conf in "$pdir"/*.conf; do
+        [ -f "$conf" ] || continue
+        UNAME=$(basename "$conf" .conf)
+        [ "$UNAME" != "www" ] || continue
+        echo "[+] Di chuyển pool user $UNAME (PHP $PVER) sang Systemd Template Service..."
+        bash "$INSTALL_DIR/scripts/php_fpm_service.sh" create "$UNAME" "$PVER" 2>/dev/null || true
+    done
+done
+
 # Khởi động lại các PHP-FPM để nhận drop-in và gán ngay PID vào Cgroups v2
 for php_ver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
     if systemctl is-active --quiet "php${php_ver}-fpm" 2>/dev/null; then
