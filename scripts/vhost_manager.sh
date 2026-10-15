@@ -238,6 +238,13 @@ EOF
     set-php)
         echo "[+] Chuyen PHP sang $PHP_VER cho $DOMAIN..."
         PHP_NUM=$(echo "$PHP_VER" | tr -d '.')
+        ensure_linux_user "$USERNAME"
+
+        # Đảm bảo các thư mục cần thiết của user tồn tại và đúng quyền trước khi kích hoạt pool
+        mkdir -p "/home/$USERNAME/logs" "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions"
+        chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/logs" "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
+        chmod 700 "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
+
         # OpenLiteSpeed
         if [ -f "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf" ]; then
             sed -i -E "s/lsapi:lsphp[0-9]+/lsapi:lsphp$PHP_NUM/" "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf"
