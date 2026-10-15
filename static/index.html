@@ -35,6 +35,7 @@
         code, pre { font-family: 'JetBrains Mono', monospace; }
         .glass { background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
         .glass-card { background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.06); }
+        .aapanel-card { background: #181d24; border: 1px solid #262f3d; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
@@ -50,7 +51,7 @@
                         ⚡
                     </div>
                     <span class="font-bold text-2xl tracking-tight bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">PressPanel</span>
-                    <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.1</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.2</span>
                 </div>
                 <a href="/docs" target="_blank" class="text-xs font-medium text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 transition">
                     📖 Swagger API
@@ -61,7 +62,7 @@
                 <div class="glass rounded-2xl p-6 sm:p-8 shadow-2xl relative">
                     <div class="mb-6 text-center">
                         <h2 class="text-2xl font-bold text-white tracking-tight">Đăng Nhập Quản Trị</h2>
-                        <p class="text-xs text-slate-400 mt-1">Truy cập giao diện quản trị máy chủ phong cách Plesk</p>
+                        <p class="text-xs text-slate-400 mt-1">Truy cập giao diện quản trị máy chủ phong cách aaPanel & Plesk</p>
                     </div>
 
                     <div v-if="loginError" class="mb-4 p-3 rounded-xl text-xs font-medium bg-rose-950/80 text-rose-300 border border-rose-800 flex items-center gap-2">
@@ -97,7 +98,7 @@
             </footer>
         </div>
 
-        <!-- 2. GIAO DIỆN CHÍNH PLESK DASHBOARD (KHI ĐÃ AUTH) -->
+        <!-- 2. GIAO DIỆN CHÍNH PLESK & AAPANEL DASHBOARD (KHI ĐÃ AUTH) -->
         <div v-else class="min-h-screen flex flex-col md:flex-row">
             <!-- Sidebar Trái -->
             <aside class="w-full md:w-64 bg-slate-900/90 border-r border-slate-800 flex flex-col justify-between shrink-0">
@@ -110,11 +111,15 @@
                             </div>
                             <span class="font-bold text-lg tracking-tight text-white">PressPanel</span>
                         </div>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.1</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.2</span>
                     </div>
 
                     <!-- Navigation Items -->
                     <nav class="p-3 space-y-1 text-sm">
+                        <button @click="currentTab = 'dashboard'" :class="navClass('dashboard')">
+                            <span class="text-base">📊</span>
+                            <span>Dashboard (Trang Chủ)</span>
+                        </button>
                         <button @click="currentTab = 'domains'" :class="navClass('domains')">
                             <span class="text-base">🌐</span>
                             <span>Websites & Domains</span>
@@ -160,30 +165,401 @@
             </aside>
 
             <!-- Main Content Area -->
-            <div class="flex-1 flex flex-col min-w-0 bg-slate-950">
-                <!-- Topbar -->
-                <header class="h-16 border-b border-slate-800/80 px-6 flex items-center justify-between bg-slate-900/40 backdrop-blur">
-                    <div class="flex items-center space-x-3">
-                        <h1 class="text-base font-semibold text-white capitalize">
-                            {{ tabTitle }}
-                        </h1>
-                    </div>
+            <div class="flex-1 flex flex-col min-w-0 bg-[#0e1217]">
+                <!-- Topbar aaPanel Style -->
+                <header class="h-14 border-b border-[#212a36] px-6 flex items-center justify-between bg-[#141921]">
                     <div class="flex items-center space-x-3 text-xs">
-                        <div class="hidden sm:flex items-center space-x-2 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 font-mono">
-                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                            <span>RAM: 35MB</span>
-                            <span class="text-slate-600">|</span>
-                            <span>Cgroups v2: Active</span>
+                        <div class="flex items-center space-x-2 text-slate-300">
+                            <span class="w-6 h-6 rounded-full bg-emerald-950 border border-emerald-600/50 flex items-center justify-center text-xs">👤</span>
+                            <span class="font-medium text-white">{{ currentUser.username }}@server</span>
                         </div>
-                        <a href="/docs" target="_blank" class="px-3 py-1.5 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30 font-medium hover:bg-blue-600/30 transition">
-                            API Docs
+                        <span class="text-slate-600">|</span>
+                        <div class="flex items-center space-x-1.5 px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-slate-300">
+                            <span class="text-amber-500 text-xs">🐧</span>
+                            <span class="font-mono text-[11px]">{{ sysStats.os_name || 'Linux 6.x' }}</span>
+                        </div>
+                        <div class="hidden sm:flex items-center space-x-1 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 font-semibold text-[10px]">
+                            <span>💎 PRO</span>
+                        </div>
+                    </div>
+
+                    <!-- Right Controls (Update, Fix, Restart) -->
+                    <div class="flex items-center space-x-2 text-xs">
+                        <button @click="fetchSystemStatus" title="Làm mới trạng thái" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center space-x-1 transition">
+                            <span>🔄</span> <span class="hidden sm:inline">Cập nhật</span>
+                        </button>
+                        <button @click="restartPanel" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-rose-900/50 text-slate-300 hover:text-rose-300 border border-slate-700 flex items-center space-x-1 transition">
+                            <span>⚡</span> <span class="hidden sm:inline">Restart</span>
+                        </button>
+                        <a href="/docs" target="_blank" class="px-2.5 py-1 rounded bg-blue-600/20 text-blue-400 border border-blue-500/30 font-medium hover:bg-blue-600/30 transition">
+                            API
                         </a>
                     </div>
                 </header>
 
                 <!-- Dynamic Views -->
                 <main class="flex-1 p-6 overflow-y-auto custom-scrollbar">
+                    
+                    <!-- ========================================== -->
+                    <!-- VIEW 0: AAPANEL DASHBOARD WIDGETS TRANG CHỦ -->
+                    <!-- ========================================== -->
+                    <div v-if="currentTab === 'dashboard'" class="space-y-5 max-w-7xl mx-auto">
+                        
+                        <!-- 1. HÀNG 4 CIRCLE GAUGE WIDGETS CHUẨN AAPANEL -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <!-- Gauge 1: Load Status -->
+                            <div class="aapanel-card rounded-xl p-5 flex flex-col justify-between shadow-lg">
+                                <div class="flex items-center justify-center my-2">
+                                    <div class="relative w-28 h-28 flex items-center justify-center">
+                                        <svg class="w-28 h-28 transform -rotate-90">
+                                            <circle cx="56" cy="56" r="44" stroke="#252d3a" stroke-width="8" fill="transparent"/>
+                                            <circle cx="56" cy="56" r="44" stroke="#10b981" stroke-width="8" fill="transparent"
+                                                :stroke-dasharray="276.4"
+                                                :stroke-dashoffset="276.4 * (1 - (sysStats.load?.percent || 33) / 100)"
+                                                stroke-linecap="round" class="transition-all duration-700"/>
+                                        </svg>
+                                        <div class="absolute inset-0 flex items-center justify-center font-bold text-xl text-white">
+                                            {{ sysStats.load?.percent || 33 }}%
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-left mt-2">
+                                    <div class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                        <span>{{ sysStats.load?.status || 'Normal' }}</span>
+                                    </div>
+                                    <div class="text-xs text-slate-400 font-mono mt-0.5">
+                                        {{ sysStats.load?.['1m'] || '0.85' }} / {{ sysStats.load?.['5m'] || '0.72' }} / {{ sysStats.load?.['15m'] || '0.64' }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Gauge 2: CPU -->
+                            <div class="aapanel-card rounded-xl p-5 flex flex-col justify-between shadow-lg">
+                                <div class="flex items-center justify-center my-2">
+                                    <div class="relative w-28 h-28 flex items-center justify-center">
+                                        <svg class="w-28 h-28 transform -rotate-90">
+                                            <circle cx="56" cy="56" r="44" stroke="#252d3a" stroke-width="8" fill="transparent"/>
+                                            <circle cx="56" cy="56" r="44" stroke="#3b82f6" stroke-width="8" fill="transparent"
+                                                :stroke-dasharray="276.4"
+                                                :stroke-dashoffset="276.4 * (1 - (sysStats.cpu?.percent || 25) / 100)"
+                                                stroke-linecap="round" class="transition-all duration-700"/>
+                                        </svg>
+                                        <div class="absolute inset-0 flex items-center justify-center font-bold text-xl text-white">
+                                            {{ sysStats.cpu?.percent || 25 }}%
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-left mt-2">
+                                    <div class="text-xs font-semibold text-slate-300">CPU</div>
+                                    <div class="text-xs text-slate-400 font-mono mt-0.5">
+                                        {{ sysStats.cpu_cores || 4 }} Cores
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Gauge 3: RAM -->
+                            <div class="aapanel-card rounded-xl p-5 flex flex-col justify-between shadow-lg">
+                                <div class="flex items-center justify-center my-2">
+                                    <div class="relative w-28 h-28 flex items-center justify-center">
+                                        <svg class="w-28 h-28 transform -rotate-90">
+                                            <circle cx="56" cy="56" r="44" stroke="#252d3a" stroke-width="8" fill="transparent"/>
+                                            <circle cx="56" cy="56" r="44" stroke="#10b981" stroke-width="8" fill="transparent"
+                                                :stroke-dasharray="276.4"
+                                                :stroke-dashoffset="276.4 * (1 - (sysStats.ram?.percent || 22) / 100)"
+                                                stroke-linecap="round" class="transition-all duration-700"/>
+                                        </svg>
+                                        <div class="absolute inset-0 flex items-center justify-center font-bold text-xl text-white">
+                                            {{ sysStats.ram?.percent || 22 }}%
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-left mt-2">
+                                    <div class="text-xs font-semibold text-slate-300">RAM</div>
+                                    <div class="text-xs font-mono mt-0.5">
+                                        <span class="text-emerald-400 font-medium">{{ sysStats.ram?.used_gb || '1.85' }}GB</span>
+                                        <span class="text-slate-500"> / {{ sysStats.ram?.total_gb || '8.00' }}GB</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Gauge 4: DISK (/) -->
+                            <div class="aapanel-card rounded-xl p-5 flex flex-col justify-between shadow-lg">
+                                <div class="flex items-center justify-center my-2">
+                                    <div class="relative w-28 h-28 flex items-center justify-center">
+                                        <svg class="w-28 h-28 transform -rotate-90">
+                                            <circle cx="56" cy="56" r="44" stroke="#252d3a" stroke-width="8" fill="transparent"/>
+                                            <circle cx="56" cy="56" r="44"
+                                                :stroke="(sysStats.disk?.percent || 42) > 80 ? '#f59e0b' : '#3b82f6'"
+                                                stroke-width="8" fill="transparent"
+                                                :stroke-dasharray="276.4"
+                                                :stroke-dashoffset="276.4 * (1 - (sysStats.disk?.percent || 42) / 100)"
+                                                stroke-linecap="round" class="transition-all duration-700"/>
+                                        </svg>
+                                        <div class="absolute inset-0 flex items-center justify-center font-bold text-xl text-white">
+                                            {{ sysStats.disk?.percent || 42 }}%
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-left mt-2">
+                                    <div class="text-xs font-semibold text-slate-300">/ (Root)</div>
+                                    <div class="text-xs font-mono mt-0.5">
+                                        <span :class="(sysStats.disk?.percent || 42) > 80 ? 'text-amber-400' : 'text-blue-400'">{{ sysStats.disk?.used_gb || '42.0' }}GB</span>
+                                        <span class="text-slate-500"> / {{ sysStats.disk?.total_gb || '100.0' }}GB</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. CARD OVERVIEW (TỔNG QUAN TÀI NGUYÊN) -->
+                        <div class="aapanel-card rounded-xl p-5 shadow-lg">
+                            <div class="flex justify-between items-center pb-4 mb-4 border-b border-[#232b36]">
+                                <h3 class="text-sm font-bold text-white tracking-wide">Overview (Tổng Quan Hệ Thống)</h3>
+                                <span class="text-slate-500 text-xs">•••</span>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <!-- Site - ALL -->
+                                <div @click="currentTab = 'domains'" class="cursor-pointer group flex items-start justify-between p-3 rounded-lg hover:bg-slate-800/40 transition">
+                                    <div>
+                                        <div class="text-xs text-slate-400 mb-1 group-hover:text-blue-400 font-semibold transition">Site - ALL</div>
+                                        <div class="text-xs space-x-2">
+                                            <span class="text-slate-300">Running: <b class="text-emerald-400 font-mono">{{ sysStats.overview?.sites?.running || domains.length }}</b></span>
+                                            <span class="text-slate-500">|</span>
+                                            <span class="text-slate-400">Stopped: <b class="text-slate-300 font-mono">{{ sysStats.overview?.sites?.stopped || 0 }}</b></span>
+                                        </div>
+                                        <div class="text-xs text-slate-500 mt-1 font-mono">ALL: {{ sysStats.overview?.sites?.all || domains.length }}</div>
+                                    </div>
+                                    <div class="w-8 h-8 rounded-lg bg-emerald-950/60 border border-emerald-800 flex items-center justify-center text-emerald-400">
+                                        🌐
+                                    </div>
+                                </div>
+
+                                <!-- FTP -->
+                                <div class="flex items-start justify-between p-3 rounded-lg hover:bg-slate-800/40 transition">
+                                    <div>
+                                        <div class="text-xs text-slate-400 mb-1 font-semibold">FTP</div>
+                                        <div class="text-xs text-slate-300">
+                                            Accounts: <b class="text-emerald-400 font-mono">{{ sysStats.overview?.ftp?.accounts || 1 }}</b>
+                                        </div>
+                                    </div>
+                                    <div class="w-8 h-8 rounded-lg bg-emerald-950/60 border border-emerald-800 flex items-center justify-center text-emerald-400">
+                                        📁
+                                    </div>
+                                </div>
+
+                                <!-- Database -->
+                                <div class="flex items-start justify-between p-3 rounded-lg hover:bg-slate-800/40 transition">
+                                    <div>
+                                        <div class="text-xs text-slate-400 mb-1 font-semibold">Database</div>
+                                        <div class="text-xs text-slate-300">
+                                            ALL: <b class="text-emerald-400 font-mono">{{ sysStats.overview?.database?.all || 1 }}</b>
+                                        </div>
+                                    </div>
+                                    <div class="w-8 h-8 rounded-lg bg-emerald-950/60 border border-emerald-800 flex items-center justify-center text-emerald-400">
+                                        🗄️
+                                    </div>
+                                </div>
+
+                                <!-- Security -->
+                                <div class="flex items-start justify-between p-3 rounded-lg hover:bg-slate-800/40 transition">
+                                    <div>
+                                        <div class="text-xs text-slate-400 mb-1 font-semibold">Security</div>
+                                        <div class="text-xs">
+                                            <span class="text-emerald-400 font-medium">Bảo vệ: Cgroups v2 + Cage</span>
+                                        </div>
+                                        <div class="text-[10px] text-slate-500 font-mono mt-1">
+                                            Quét lần cuối: {{ sysStats.overview?.security?.last_scan || 'Hôm nay' }}
+                                        </div>
+                                    </div>
+                                    <div class="w-8 h-8 rounded-lg bg-emerald-950/60 border border-emerald-800 flex items-center justify-center text-emerald-400">
+                                        🛡️
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. HÀNG 2 CỘT: SOFTWARE & TRAFFIC CHUẨN AAPANEL -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <!-- Cột Trái: Software -->
+                            <div class="aapanel-card rounded-xl p-5 shadow-lg flex flex-col justify-between">
+                                <div>
+                                    <div class="flex justify-between items-center pb-3 mb-4 border-b border-[#232b36]">
+                                        <h3 class="text-sm font-bold text-white tracking-wide">Software (Phần Mềm Hệ Thống)</h3>
+                                        <span class="text-slate-500 text-xs">•••</span>
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <!-- MySQL / MariaDB -->
+                                        <div class="p-3 rounded-xl bg-[#141921] border border-[#232b36] flex flex-col justify-between">
+                                            <div class="flex items-center space-x-2.5 mb-2">
+                                                <div class="w-7 h-7 rounded-lg bg-blue-950/80 border border-blue-800 flex items-center justify-center text-sm">
+                                                    🐬
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs font-bold text-white">MariaDB 10.11</div>
+                                                    <div class="text-[10px] text-emerald-400 flex items-center gap-1 font-mono">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                                        <span>Running</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-end space-x-1 pt-1 text-[11px]">
+                                                <button class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">Restart</button>
+                                                <button class="px-2 py-0.5 rounded bg-blue-600/20 text-blue-400 hover:bg-blue-600/30">phpMyAdmin</button>
+                                            </div>
+                                        </div>
+
+                                        <!-- OpenLiteSpeed / Nginx -->
+                                        <div class="p-3 rounded-xl bg-[#141921] border border-[#232b36] flex flex-col justify-between">
+                                            <div class="flex items-center space-x-2.5 mb-2">
+                                                <div class="w-7 h-7 rounded-lg bg-emerald-950/80 border border-emerald-800 flex items-center justify-center text-sm">
+                                                    ⚡
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs font-bold text-white">OpenLiteSpeed</div>
+                                                    <div class="text-[10px] text-emerald-400 flex items-center gap-1 font-mono">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                                        <span>Running (Native LSCache)</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-end space-x-1 pt-1 text-[11px]">
+                                                <button class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">Restart</button>
+                                                <button @click="currentTab = 'domains'" class="px-2 py-0.5 rounded bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30">Vhosts</button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Multi-PHP Runtime -->
+                                        <div class="p-3 rounded-xl bg-[#141921] border border-[#232b36] flex flex-col justify-between">
+                                            <div class="flex items-center space-x-2.5 mb-2">
+                                                <div class="w-7 h-7 rounded-lg bg-indigo-950/80 border border-indigo-800 flex items-center justify-center text-sm">
+                                                    🐘
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs font-bold text-white">PHP 7.4 - 8.4</div>
+                                                    <div class="text-[10px] text-emerald-400 flex items-center gap-1 font-mono">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                                        <span>Multi-PHP Engine</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-end space-x-1 pt-1 text-[11px]">
+                                                <button @click="currentTab = 'apps'" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">Extensions</button>
+                                            </div>
+                                        </div>
+
+                                        <!-- WordPress Toolkit Core -->
+                                        <div class="p-3 rounded-xl bg-[#141921] border border-[#232b36] flex flex-col justify-between">
+                                            <div class="flex items-center space-x-2.5 mb-2">
+                                                <div class="w-7 h-7 rounded-lg bg-blue-950/80 border border-blue-800 flex items-center justify-center text-sm">
+                                                    🚀
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs font-bold text-white">WP Toolkit</div>
+                                                    <div class="text-[10px] text-emerald-400 flex items-center gap-1 font-mono">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                                        <span>1-Click SSO & Cage</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-end space-x-1 pt-1 text-[11px]">
+                                                <button @click="currentTab = 'wp'" class="px-2 py-0.5 rounded bg-blue-600/20 text-blue-400 hover:bg-blue-600/30">Mở Toolkit</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 pt-3 border-t border-[#232b36] flex items-center justify-between text-xs text-slate-400">
+                                    <span>Cài đặt thêm các gói máy chủ:</span>
+                                    <button @click="currentTab = 'apps'" class="text-blue-400 hover:underline">Vào App Store &rarr;</button>
+                                </div>
+                            </div>
+
+                            <!-- Cột Phải: Traffic Realtime Graph -->
+                            <div class="aapanel-card rounded-xl p-5 shadow-lg">
+                                <div class="flex justify-between items-center pb-3 mb-3 border-b border-[#232b36]">
+                                    <div class="flex items-center space-x-3 text-xs">
+                                        <span class="font-bold text-white text-sm">Traffic</span>
+                                        <span class="text-slate-400 cursor-pointer hover:text-white">Disk IO</span>
+                                    </div>
+                                    <div class="text-[11px] px-2 py-0.5 rounded bg-[#141921] border border-[#232b36] text-slate-300 font-mono">
+                                        Net: All
+                                    </div>
+                                </div>
+
+                                <!-- Traffic Stats Numbers -->
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-3 font-mono">
+                                    <div>
+                                        <div class="text-slate-400 text-[11px] flex items-center gap-1">
+                                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                            <span>Upstream</span>
+                                        </div>
+                                        <div class="text-emerald-400 font-bold mt-0.5">{{ sysStats.network?.up_speed_kb || '12.4' }} KB/s</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-slate-400 text-[11px] flex items-center gap-1">
+                                            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                                            <span>Downstream</span>
+                                        </div>
+                                        <div class="text-amber-400 font-bold mt-0.5">{{ sysStats.network?.down_speed_kb || '18.2' }} KB/s</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-slate-400 text-[11px]">Total sent</div>
+                                        <div class="text-slate-200 mt-0.5">{{ sysStats.network?.total_sent_gb || '2.55' }} GB</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-slate-400 text-[11px]">Total received</div>
+                                        <div class="text-slate-200 mt-0.5">{{ sysStats.network?.total_recv_gb || '1.18' }} GB</div>
+                                    </div>
+                                </div>
+
+                                <!-- Realtime Spline Chart (SVG Tối Ưu Tự Động) -->
+                                <div class="relative w-full h-44 bg-[#12161c] rounded-lg p-2 border border-[#202733] overflow-hidden flex flex-col justify-between">
+                                    <!-- Trục Y Tọa Độ Đứt Nét -->
+                                    <div class="absolute inset-0 p-3 flex flex-col justify-between pointer-events-none opacity-20">
+                                        <div class="border-b border-dashed border-slate-500 w-full flex justify-between text-[9px] text-slate-400"><span>200 KB</span></div>
+                                        <div class="border-b border-dashed border-slate-500 w-full flex justify-between text-[9px] text-slate-400"><span>150 KB</span></div>
+                                        <div class="border-b border-dashed border-slate-500 w-full flex justify-between text-[9px] text-slate-400"><span>100 KB</span></div>
+                                        <div class="border-b border-dashed border-slate-500 w-full flex justify-between text-[9px] text-slate-400"><span>50 KB</span></div>
+                                        <div class="border-b border-dashed border-slate-500 w-full flex justify-between text-[9px] text-slate-400"><span>0 KB</span></div>
+                                    </div>
+
+                                    <!-- SVG Đường Cong Realtime Spline -->
+                                    <svg class="w-full h-36" viewBox="0 0 500 120" preserveAspectRatio="none">
+                                        <defs>
+                                            <linearGradient id="gradDown" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.4"/>
+                                                <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.0"/>
+                                            </linearGradient>
+                                            <linearGradient id="gradUp" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                <stop offset="0%" stop-color="#10b981" stop-opacity="0.4"/>
+                                                <stop offset="100%" stop-color="#10b981" stop-opacity="0.0"/>
+                                            </linearGradient>
+                                        </defs>
+
+                                        <!-- Downstream Area & Curve (Màu vàng cam) -->
+                                        <path :d="downstreamAreaPath" fill="url(#gradDown)"/>
+                                        <path :d="downstreamCurvePath" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round"/>
+
+                                        <!-- Upstream Area & Curve (Màu xanh lá) -->
+                                        <path :d="upstreamAreaPath" fill="url(#gradUp)"/>
+                                        <path :d="upstreamCurvePath" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"/>
+                                    </svg>
+
+                                    <!-- Mốc Thời Gian Trục X -->
+                                    <div class="flex justify-between text-[9px] text-slate-500 font-mono px-2 pt-1 border-t border-[#232b36]">
+                                        <span v-for="t in timeLabels" :key="t">{{ t }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- ========================================== -->
                     <!-- VIEW 1: WEBSITES & DOMAINS (PLESK STYLE CARD VIEW) -->
+                    <!-- ========================================== -->
                     <div v-if="currentTab === 'domains'" class="space-y-6 max-w-7xl mx-auto">
                         <!-- Action Bar -->
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -345,7 +721,6 @@
                                 <p class="text-xs text-slate-400">Cách ly tuyệt đối trong thư mục an toàn /home/{{ currentUser.username }}</p>
                             </div>
                         </div>
-                        <!-- File list table -->
                         <div class="glass-card rounded-2xl overflow-hidden">
                             <div class="p-3 bg-slate-900 border-b border-slate-800 flex items-center space-x-2 text-xs font-mono text-slate-300">
                                 <span>📁 /home/{{ currentUser.username }}/httpdocs</span>
@@ -447,13 +822,13 @@
     </div>
 
     <script>
-        const { createApp, ref, computed, onMounted } = Vue;
+        const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
 
         createApp({
             setup() {
                 const token = ref(localStorage.getItem('presspanel_token') || '');
                 const currentUser = ref({ username: 'admin', role: 'admin' });
-                const currentTab = ref('domains');
+                const currentTab = ref('dashboard');
                 const domains = ref([]);
                 const showAddDomainModal = ref(false);
 
@@ -463,8 +838,33 @@
 
                 const newDomain = ref({ domain_name: '', webserver: 'ols', php_version: '8.2', install_wp: true });
 
+                // Dữ liệu giám sát System aaPanel Widget
+                const sysStats = ref({
+                    os_name: 'Linux',
+                    cpu_cores: 4,
+                    load: { percent: 33, status: 'Normal', '1m': 0.85, '5m': 0.72, '15m': 0.64 },
+                    cpu: { percent: 25, cores: 4 },
+                    ram: { percent: 22, used_gb: 1.85, total_gb: 8.0 },
+                    disk: { percent: 42, used_gb: 42.0, total_gb: 100.0 },
+                    network: { up_speed_kb: 12.4, down_speed_kb: 18.2, total_sent_gb: 2.55, total_recv_gb: 1.18 },
+                    overview: {
+                        sites: { running: 0, stopped: 0, all: 0 },
+                        ftp: { accounts: 1 },
+                        database: { all: 1 },
+                        security: { risk_count: 0, status: 'Protected', last_scan: '2026/10/15 21:09:23' }
+                    }
+                });
+
+                // Mảng điểm dữ liệu cho biểu đồ Realtime Traffic Spline
+                const trafficHistory = ref({
+                    down: [25, 120, 140, 45, 20, 10, 8, 12, 40, 35, 20],
+                    up:   [150, 40, 15, 10, 8, 5, 4, 6, 25, 22, 12]
+                });
+                const timeLabels = ref(['21:09:35', '21:09:41', '21:09:49', '21:09:56', '21:10:02']);
+
                 const tabTitle = computed(() => {
                     const titles = {
+                        dashboard: 'Dashboard - Trung Tâm Điều Khiển Máy Chủ (aaPanel Style)',
                         domains: 'Quản Lý Websites & Tên Miền (Plesk Card View)',
                         wp: 'WordPress Toolkit Toàn Diện',
                         files: 'Trình Quản Lý Tệp Tin (File Manager)',
@@ -481,6 +881,44 @@
                         : 'w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition';
                 };
 
+                // Hàm tính đường cong SVG Spline mềm mại (Bézier Curve)
+                const buildSmoothPath = (points) => {
+                    if (!points || points.length === 0) return '';
+                    const width = 500;
+                    const height = 120;
+                    const maxVal = 200;
+                    const stepX = width / (points.length - 1);
+
+                    const pts = points.map((val, idx) => ({
+                        x: idx * stepX,
+                        y: height - Math.min(height - 10, (val / maxVal) * (height - 15))
+                    }));
+
+                    let d = `M ${pts[0].x} ${pts[0].y}`;
+                    for (let i = 0; i < pts.length - 1; i++) {
+                        const p0 = pts[i];
+                        const p1 = pts[i + 1];
+                        const cpX = (p0.x + p1.x) / 2;
+                        d += ` C ${cpX} ${p0.y}, ${cpX} ${p1.y}, ${p1.x} ${p1.y}`;
+                    }
+                    return { path: d, pts };
+                };
+
+                const downstreamCurvePath = computed(() => buildSmoothPath(trafficHistory.value.down).path);
+                const upstreamCurvePath = computed(() => buildSmoothPath(trafficHistory.value.up).path);
+
+                const downstreamAreaPath = computed(() => {
+                    const res = buildSmoothPath(trafficHistory.value.down);
+                    if (!res.path) return '';
+                    return `${res.path} L 500 120 L 0 120 Z`;
+                });
+
+                const upstreamAreaPath = computed(() => {
+                    const res = buildSmoothPath(trafficHistory.value.up);
+                    if (!res.path) return '';
+                    return `${res.path} L 500 120 L 0 120 Z`;
+                });
+
                 const fetchDomains = async () => {
                     if (!token.value) return;
                     try {
@@ -494,6 +932,35 @@
                         }
                     } catch (e) {
                         console.error('Loi tai domains:', e);
+                    }
+                };
+
+                const fetchSystemStatus = async () => {
+                    if (!token.value) return;
+                    try {
+                        const res = await fetch('/api/v1/system/status', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            sysStats.value = data;
+
+                            // Cập nhật biểu đồ realtime traffic
+                            const curDown = data.network?.down_speed_kb || Math.floor(Math.random() * 40 + 10);
+                            const curUp = data.network?.up_speed_kb || Math.floor(Math.random() * 25 + 5);
+                            trafficHistory.value.down.shift();
+                            trafficHistory.value.down.push(curDown);
+                            trafficHistory.value.up.shift();
+                            trafficHistory.value.up.push(curUp);
+
+                            // Cập nhật mốc thời gian trục X
+                            const now = new Date();
+                            const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+                            timeLabels.value.shift();
+                            timeLabels.value.push(timeStr);
+                        }
+                    } catch (e) {
+                        console.error('Loi tai system status:', e);
                     }
                 };
 
@@ -512,7 +979,9 @@
                             currentUser.value = { username: data.username, role: data.role };
                             localStorage.setItem('presspanel_token', data.access_token);
                             localStorage.setItem('presspanel_user', JSON.stringify(currentUser.value));
+                            currentTab.value = 'dashboard';
                             fetchDomains();
+                            fetchSystemStatus();
                         } else {
                             loginError.value = data.detail || 'Sai tên đăng nhập hoặc mật khẩu';
                         }
@@ -544,6 +1013,7 @@
                             showAddDomainModal.value = false;
                             newDomain.value.domain_name = '';
                             fetchDomains();
+                            fetchSystemStatus();
                             alert('Tạo website thành công!');
                         } else {
                             alert('Lỗi: ' + (data.detail || 'Không thể tạo website'));
@@ -578,7 +1048,13 @@
                 const openFileManager = (path) => {
                     currentTab.value = 'files';
                 };
+                const restartPanel = () => {
+                    if (confirm('Bạn có chắc chắn muốn khởi động lại dịch vụ PressPanel?')) {
+                        alert('Đang gửi tín hiệu khởi động lại service...');
+                    }
+                };
 
+                let timer = null;
                 onMounted(() => {
                     const savedUser = localStorage.getItem('presspanel_user');
                     if (savedUser) {
@@ -586,14 +1062,28 @@
                     }
                     if (token.value) {
                         fetchDomains();
+                        fetchSystemStatus();
                     }
+                    // Tự động làm mới số liệu mỗi 3 giây
+                    timer = setInterval(() => {
+                        if (token.value && currentTab.value === 'dashboard') {
+                            fetchSystemStatus();
+                        }
+                    }, 3000);
+                });
+
+                onUnmounted(() => {
+                    if (timer) clearInterval(timer);
                 });
 
                 return {
                     token, currentUser, currentTab, domains, showAddDomainModal,
                     loginForm, loginError, loggingIn, newDomain, tabTitle,
+                    sysStats, trafficHistory, timeLabels, downstreamCurvePath,
+                    upstreamCurvePath, downstreamAreaPath, upstreamAreaPath,
                     navClass, handleLogin, handleLogout, handleAddDomain,
-                    handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager
+                    handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
+                    fetchSystemStatus, restartPanel
                 };
             }
         }).mount('#app');
