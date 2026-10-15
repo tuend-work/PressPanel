@@ -116,7 +116,7 @@
                             </span>
                             <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800/60 font-mono font-bold">PressPanel</span>
                         </div>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">v0.4.4</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">v0.4.5</span>
 
 
 
@@ -216,8 +216,8 @@
                                 </button>
                                 <button @click="currentTab = 'apps'" :class="navClass('apps')">
                                     <div class="flex items-center space-x-2.5">
-                                        <span class="text-sm opacity-80">🧩</span>
-                                        <span>Extensions</span>
+                                        <span class="text-sm opacity-80">🛍️</span>
+                                        <span>App Store</span>
                                     </div>
                                     <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-blue-900/60 text-blue-300 font-semibold">{{ installedAppsCount }}</span>
                                 </button>
@@ -1020,21 +1020,40 @@
                                         </button>
                                     </div>
 
-                                    <div v-else class="w-full flex items-center justify-between gap-2">
-                                        <button v-if="app.service" @click="handleAppAction(app.id, 'restart')"
-                                            class="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition">
-                                            Khởi động lại
-                                        </button>
-                                        <button v-if="app.service" @click="handleAppAction(app.id, app.running ? 'stop' : 'start')"
-                                            class="flex-1 py-1.5 rounded-lg transition"
-                                            :class="app.running ? 'bg-amber-950/70 text-amber-300 hover:bg-amber-900 border border-amber-800/60' : 'bg-emerald-950/70 text-emerald-300 hover:bg-emerald-900 border border-emerald-800/60'">
-                                            {{ app.running ? 'Dừng' : 'Bật' }}
-                                        </button>
-                                        <button @click="handleAppAction(app.id, 'uninstall')"
-                                            class="px-2.5 py-1.5 rounded-lg bg-rose-950/40 text-rose-400 hover:bg-rose-900/60 border border-rose-900/60 transition"
-                                            title="Gỡ cài đặt">
-                                            🗑️
-                                        </button>
+                                    <div v-else class="space-y-2">
+                                        <!-- Hàng 1: Nút Setting (Cấu hình aaPanel style) & Tự khởi động -->
+                                        <div class="flex items-center justify-between gap-2">
+                                            <button @click="openAppSettings(app)"
+                                                class="flex-1 py-1.5 px-2 rounded-lg bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-800/60 transition flex items-center justify-center space-x-1.5 font-medium text-xs">
+                                                <span>⚙️</span>
+                                                <span>Cài Đặt (Setting)</span>
+                                            </button>
+                                            
+                                            <!-- Checkbox Tự khởi động lại khi bị tắt -->
+                                            <label v-if="app.service" class="flex items-center space-x-1.5 text-[11px] text-slate-300 cursor-pointer select-none bg-slate-900/80 px-2 py-1 rounded-lg border border-slate-800 hover:border-slate-700">
+                                                <input type="checkbox" :checked="app.autorestart" @change="toggleAppAutorestart(app, $event.target.checked)"
+                                                    class="rounded border-slate-700 text-blue-600 focus:ring-0">
+                                                <span>Tự khởi động</span>
+                                            </label>
+                                        </div>
+
+                                        <!-- Hàng 2: Bật / Tắt / Restart / Gỡ cài đặt -->
+                                        <div class="w-full flex items-center justify-between gap-1.5 pt-1">
+                                            <button v-if="app.service" @click="handleAppAction(app.id, 'restart')"
+                                                class="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition text-[11px]">
+                                                Khởi động lại
+                                            </button>
+                                            <button v-if="app.service" @click="handleAppAction(app.id, app.running ? 'stop' : 'start')"
+                                                class="flex-1 py-1.5 rounded-lg transition text-[11px] font-medium"
+                                                :class="app.running ? 'bg-amber-950/70 text-amber-300 hover:bg-amber-900 border border-amber-800/60' : 'bg-emerald-950/70 text-emerald-300 hover:bg-emerald-900 border border-emerald-800/60'">
+                                                {{ app.running ? 'Dừng' : 'Bật' }}
+                                            </button>
+                                            <button @click="handleAppAction(app.id, 'uninstall')"
+                                                class="px-2.5 py-1.5 rounded-lg bg-rose-950/40 text-rose-400 hover:bg-rose-900/60 border border-rose-900/60 transition text-[11px]"
+                                                title="Gỡ cài đặt">
+                                                🗑️
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1403,6 +1422,147 @@
                 </div>
             </div>
 
+            <!-- MODAL: CẤU HÌNH APP & DỊCH VỤ (AAPANEL EXACT STYLE SETTING POPUP) -->
+            <div v-if="showAppSettingModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="aapanel-card rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col border border-[#2b3545] h-[600px]">
+                    <!-- Header -->
+                    <div class="h-12 px-5 border-b border-[#232b36] flex items-center justify-between bg-[#151a22] shrink-0">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="text-xl">{{ selectedSettingApp?.icon || '⚙️' }}</span>
+                            <h3 class="text-sm font-bold text-white tracking-wide">{{ selectedSettingApp?.name }} - Manage</h3>
+                            <span class="text-[10px] px-2 py-0.5 rounded font-mono bg-cyan-950 text-cyan-400 border border-cyan-800">
+                                v{{ selectedSettingApp?.default_version }}
+                            </span>
+                        </div>
+                        <button @click="showAppSettingModal = false" class="text-slate-400 hover:text-white text-xl p-1 leading-none">&times;</button>
+                    </div>
+
+                    <!-- Body: 2 Columns Layout (aaPanel sidebar tabs style) -->
+                    <div class="flex-1 flex min-h-0 bg-[#0f131a]">
+                        <!-- Left Sidebar Tabs -->
+                        <div class="w-48 bg-[#131720] border-r border-[#232b36] p-2 space-y-1 shrink-0 text-xs font-medium">
+                            <button @click="appSettingTab = 'service'"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'service' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>⚡</span>
+                                <span>Service</span>
+                            </button>
+                            <button @click="appSettingTab = 'config'"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'config' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>📝</span>
+                                <span>Configuration</span>
+                            </button>
+                            <button @click="appSettingTab = 'autorestart'"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'autorestart' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>🔄</span>
+                                <span>Tự Khởi Động</span>
+                            </button>
+                            <button @click="appSettingTab = 'logs'"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'logs' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>📜</span>
+                                <span>Service Status</span>
+                            </button>
+                        </div>
+
+                        <!-- Right Content Area -->
+                        <div class="flex-1 p-5 overflow-y-auto custom-scrollbar flex flex-col justify-between text-xs">
+                            <!-- TAB 1: SERVICE CONTROLS -->
+                            <div v-if="appSettingTab === 'service'" class="space-y-4">
+                                <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-slate-400">Trạng thái dịch vụ:</span>
+                                        <span v-if="selectedSettingApp?.running" class="px-2.5 py-1 rounded text-xs font-mono bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1.5">
+                                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                            <span>Running (Đang hoạt động)</span>
+                                        </span>
+                                        <span v-else class="px-2.5 py-1 rounded text-xs font-mono bg-amber-950 text-amber-400 border border-amber-800">
+                                            Stopped (Đã dừng)
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center justify-between text-slate-400">
+                                        <span>Tên Daemon Service:</span>
+                                        <span class="font-mono text-white font-bold">{{ selectedSettingApp?.service || 'Không có service' }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-wrap gap-3 pt-2">
+                                    <button v-if="selectedSettingApp?.service" @click="handleAppAction(selectedSettingApp.id, 'restart')"
+                                        class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold flex items-center space-x-1.5 shadow">
+                                        <span>🔄</span>
+                                        <span>Khởi Động Lại (Restart)</span>
+                                    </button>
+                                    <button v-if="selectedSettingApp?.service" @click="handleAppAction(selectedSettingApp.id, selectedSettingApp.running ? 'stop' : 'start')"
+                                        class="px-4 py-2 rounded-xl font-semibold flex items-center space-x-1.5 shadow"
+                                        :class="selectedSettingApp?.running ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'">
+                                        <span>{{ selectedSettingApp?.running ? '⏹️ Dừng Dịch Vụ' : '▶️ Bật Dịch Vụ' }}</span>
+                                    </button>
+                                    <button v-if="selectedSettingApp?.service" @click="handleAppAction(selectedSettingApp.id, 'reload')"
+                                        class="px-4 py-2 rounded-xl bg-blue-600/30 text-blue-300 hover:bg-blue-600/40 border border-blue-500/40 font-semibold flex items-center space-x-1.5">
+                                        <span>⚡</span>
+                                        <span>Reload Config</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- TAB 2: CONFIGURATION FILE EDITOR -->
+                            <div v-if="appSettingTab === 'config'" class="flex-1 flex flex-col space-y-3 min-h-[400px]">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 font-mono text-[11px] truncate max-w-md">
+                                        📁 {{ appConfigPath }}
+                                    </span>
+                                    <button @click="loadAppConfig(selectedSettingApp.id)" class="text-cyan-400 hover:underline text-[11px]">
+                                        Tải lại nội dung
+                                    </button>
+                                </div>
+                                <textarea v-model="appConfigContent"
+                                    class="flex-1 w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs focus:outline-none focus:border-cyan-500 resize-none h-80 custom-scrollbar leading-relaxed">
+                                </textarea>
+                                <div class="flex justify-end space-x-2 pt-1">
+                                    <button @click="saveCurrentAppConfig" :disabled="savingConfig"
+                                        class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-white shadow-lg shadow-cyan-500/20 flex items-center space-x-1.5">
+                                        <span v-if="savingConfig" class="animate-spin">⏳</span>
+                                        <span>{{ savingConfig ? 'Đang lưu...' : 'Lưu File Cấu Hình' }}</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- TAB 3: TỰ KHỞI ĐỘNG LẠI (AUTORESTART) -->
+                            <div v-if="appSettingTab === 'autorestart'" class="space-y-4">
+                                <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                    <h4 class="font-bold text-white text-sm">Chế độ tự động phục hồi dịch vụ (Systemd Auto-Restart)</h4>
+                                    <p class="text-slate-400 text-xs leading-relaxed">
+                                        Khi được kích hoạt, máy chủ Linux sẽ tự động khởi động lại dịch vụ này khi hệ thống reboot hoặc khi ứng dụng bị crash / tắt đột ngột (systemctl enable).
+                                    </p>
+                                    <div class="pt-2 flex items-center space-x-3">
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" :checked="selectedSettingApp?.autorestart" @change="toggleAppAutorestart(selectedSettingApp, $event.target.checked)" class="sr-only peer">
+                                            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                                        </label>
+                                        <span class="text-white font-medium">
+                                            {{ selectedSettingApp?.autorestart ? 'Đang BẬT tự khởi động cùng hệ thống' : 'Đang TẮT tự khởi động' }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- TAB 4: SERVICE LOGS / STATUS -->
+                            <div v-if="appSettingTab === 'logs'" class="space-y-3">
+                                <div class="text-slate-400">Trạng thái chi tiết dịch vụ:</div>
+                                <div class="p-3 rounded-xl bg-slate-950 font-mono text-[11px] text-slate-300 border border-slate-800 space-y-1">
+                                    <div>● Service: {{ selectedSettingApp?.service }}</div>
+                                    <div>● Status: {{ selectedSettingApp?.running ? 'active (running)' : 'inactive (dead)' }}</div>
+                                    <div>● Version: {{ selectedSettingApp?.default_version }}</div>
+                                    <div>● Binary checks: {{ selectedSettingApp?.binary_checks?.join(', ') }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- MODAL: CẬP NHẬT PHIÊN BẢN PRESSPANEL (AAPANEL STYLE UPDATE MODAL) -->
             <div v-if="showUpdateModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
 
@@ -1419,7 +1579,7 @@
                         <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Phiên bản hiện tại:</span>
-                                <span class="font-mono text-white font-bold bg-blue-950 px-2 py-0.5 rounded border border-blue-800">v0.4.4</span>
+                                <span class="font-mono text-white font-bold bg-blue-950 px-2 py-0.5 rounded border border-blue-800">v0.4.5</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Kênh cập nhật:</span>
@@ -1729,9 +1889,99 @@
 
                 const appVersions = ref({});
 
+                // Dữ liệu Popup Quản lý / Cấu hình App (aaPanel Manage Setting Modal)
+                const showAppSettingModal = ref(false);
+                const selectedSettingApp = ref(null);
+                const appSettingTab = ref('service');
+                const appConfigPath = ref('');
+                const appConfigContent = ref('');
+                const savingConfig = ref(false);
+
+                const openAppSettings = async (app) => {
+                    selectedSettingApp.value = app;
+                    appSettingTab.value = 'service';
+                    showAppSettingModal.value = true;
+                    loadAppConfig(app.id);
+                };
+
+                const loadAppConfig = async (appId) => {
+                    appConfigContent.value = '# Đang tải file cấu hình...';
+                    try {
+                        const res = await fetch(`/api/v1/apps/config?app_id=${appId}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            appConfigPath.value = data.config_path || '';
+                            appConfigContent.value = data.content || '';
+                            if (selectedSettingApp.value && selectedSettingApp.value.id === appId) {
+                                selectedSettingApp.value.autorestart = data.autorestart;
+                            }
+                        }
+                    } catch (e) {
+                        appConfigContent.value = '# Lỗi tải cấu hình: ' + e.message;
+                    }
+                };
+
+                const saveCurrentAppConfig = async () => {
+                    if (!selectedSettingApp.value) return;
+                    savingConfig.value = true;
+                    try {
+                        const res = await fetch('/api/v1/apps/config', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                app_id: selectedSettingApp.value.id,
+                                content: appConfigContent.value
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Lưu file cấu hình thành công!');
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể lưu file cấu hình'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        savingConfig.value = false;
+                    }
+                };
+
+                const toggleAppAutorestart = async (app, enabled) => {
+                    try {
+                        const res = await fetch('/api/v1/apps/autorestart', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                app_id: app.id,
+                                enabled
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            app.autorestart = enabled;
+                            alert(data.message || 'Cập nhật tự khởi động thành công!');
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể cập nhật'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
                 const handleAppAction = async (appId, action) => {
                     if (action === 'install') {
                         installingAppId.value = appId;
+                    }
+                    if (action === 'uninstall') {
+                        if (!confirm(`Bạn có chắc chắn muốn gỡ cài đặt ứng dụng này khỏi máy chủ?`)) return;
                     }
                     const version = appVersions.value[appId] || 'default';
                     try {
@@ -2263,6 +2513,9 @@
                     upstreamCurvePath, downstreamAreaPath, upstreamAreaPath,
                     appsList, appsCategory, installingAppId, installedAppsCount, filteredApps,
                     getApp, fetchAppsList, handleAppAction, appVersions,
+                    showAppSettingModal, selectedSettingApp, appSettingTab, appConfigPath,
+                    appConfigContent, savingConfig, openAppSettings, loadAppConfig,
+                    saveCurrentAppConfig, toggleAppAutorestart,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain,
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
                     fetchSystemStatus, restartPanel

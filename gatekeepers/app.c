@@ -54,11 +54,15 @@ int main(int argc, char *argv[]) {
     }
     else if (strcmp(action, "service") == 0) {
         if (argc < 4) {
-            send_json_error("app", "Cu phap: app service <start|stop|restart|reload> <app_name>");
+            send_json_error("app", "Cu phap: app service <start|stop|restart|reload|enable|disable> <service_name>");
             return 1;
         }
         const char *op = argv[2];
         const char *srv = argv[3];
+        if (!is_safe_id(op) || !is_safe_token(srv)) {
+            send_json_error("app", "Tham so service khong hop le");
+            return 1;
+        }
         snprintf(cmd, sizeof(cmd), "systemctl %s %s", op, srv);
     }
     else if (strcmp(action, "php-ext") == 0) {

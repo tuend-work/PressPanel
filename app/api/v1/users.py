@@ -168,7 +168,7 @@ async def impersonate_customer(user_id: int, current_user: dict = Depends(requir
 # ==========================================
 class PlanCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=64)
-    package_type: str = Field("user", regex="^(user|reseller)$")
+    package_type: str = Field("user", pattern="^(user|reseller)$")
     disk_mb: int = Field(5120, ge=500, le=500000)
     mem_mb: int = Field(1024, ge=256, le=65536)
     cpu_pct: int = Field(100, ge=10, le=400)

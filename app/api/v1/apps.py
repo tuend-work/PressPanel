@@ -245,24 +245,33 @@ async def run_install_task(app_id: str):
 
 from app.api.v1.tasks import add_system_task
 
+class ConfigUpdateRequest(BaseModel):
+    app_id: str
+    content: str
+
+class AutorestartRequest(BaseModel):
+    app_id: str
+    enabled: bool
+
 @router.post("/action")
 async def app_action(
     req: AppActionRequest,
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
-    """Thực thi Cài đặt / Restart / Stop / Start ứng dụng"""
+    """Thực thi Cài đặt / Restart / Stop / Start / Gỡ bỏ ứng dụng"""
     app = next((a for a in SUPPORTED_APPS if a["id"] == req.app_id), None)
     if not app:
         raise HTTPException(status_code=404, detail="Ứng dụng không tồn tại trong danh mục")
 
+    gatekeeper_bin = "/opt/presspanel/bin/app"
+
+    # 1. HÀNH ĐỘNG CÀI ĐẶT (INSTALL)
     if req.action == "install":
-        gatekeeper_bin = "/opt/presspanel/bin/app"
         script_path = f"/opt/presspanel/scripts/apps/{req.app_id}.sh"
         version_param = req.version if req.version and req.version != "default" else app.get("default_version", "latest")
         
         if os.path.isfile(gatekeeper_bin):
-            # C Gatekeeper đã có cờ SUID root (chmod 4750), truyền tham số version
             cmd = f"{gatekeeper_bin} install {req.app_id} {version_param}"
         elif os.path.exists(script_path):
             cmd = f"sudo bash {script_path} install {version_param}"
@@ -286,27 +295,208 @@ async def app_action(
             background_tasks=background_tasks
         )
 
-
         return {
             "status": "ok",
             "task_id": task_id,
             "message": f"Đã thêm tác vụ cài đặt {app['name']} vào danh sách tiến trình chạy ngầm (Task list)."
         }
-    
-    if req.action in ["start", "stop", "restart"]:
-        if not app["service"]:
+
+    # 2. HÀNH ĐỘNG GỠ CÀI ĐẶT (UNINSTALL / REMOVE)
+    if req.action in ["uninstall", "remove"]:
+        script_path = f"/opt/presspanel/scripts/apps/{req.app_id}.sh"
+        if os.path.isfile(gatekeeper_bin):
+            cmd = f"{gatekeeper_bin} remove {req.app_id}"
+        elif os.path.exists(script_path):
+            cmd = f"sudo bash {script_path} remove"
+        else:
+            pkg_map = {
+                "nginx": "nginx",
+                "mysql": "mariadb-server mariadb-client",
+                "mariadb": "mariadb-server mariadb-client",
+                "redis": "redis-server",
+                "pure-ftpd": "pure-ftpd",
+                "fail2ban": "fail2ban"
+            }
+            pkg = pkg_map.get(req.app_id, req.app_id)
+            cmd = f"sudo apt-get remove -y {pkg}"
+
+        task_id = await add_system_task(
+            user_id=current_user["id"],
+            action_name=f"Uninstall [{app['name']}]",
+            cmd=cmd,
+            background_tasks=background_tasks
+        )
+
+        return {
+            "status": "ok",
+            "task_id": task_id,
+            "message": f"Đã thêm tác vụ gỡ cài đặt {app['name']} vào danh sách tiến trình chạy ngầm (Task list)."
+        }
+
+    # 3. HÀNH ĐỘNG ĐIỀU KHIỂN DỊCH VỤ (START / STOP / RESTART / RELOAD)
+    if req.action in ["start", "stop", "restart", "reload"]:
+        if not app.get("service"):
             raise HTTPException(status_code=400, detail="Ứng dụng này không chạy dạng dịch vụ daemon.")
+        
+        srv = app["service"]
+        # Ưu tiên thực thi qua C Gatekeeper SUID (tránh lỗi Polkit / Interactive authentication required)
+        if os.path.isfile(gatekeeper_bin):
+            proc = subprocess.run(
+                [gatekeeper_bin, "service", req.action, srv],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            if proc.returncode == 0:
+                return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} thành công!"}
+            else:
+                raise HTTPException(status_code=500, detail=f"Lỗi: {proc.stderr or proc.stdout}")
+
+        # Fallback sudo nếu chưa compile C Gatekeeper
         try:
             res = subprocess.run(
-                ["systemctl", req.action, app["service"]],
+                ["sudo", "systemctl", req.action, srv],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                stderr=subprocess.PIPE,
+                text=True
             )
             if res.returncode == 0:
-                return {"status": "ok", "message": f"Đã thực hiện {req.action} dịch vụ {app['name']} thành công!"}
+                return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} thành công!"}
             else:
-                raise HTTPException(status_code=500, detail=f"Lỗi: {res.stderr.decode('utf-8')}")
+                # Thử lại bằng systemctl trực tiếp
+                res2 = subprocess.run(
+                    ["systemctl", req.action, srv],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                if res2.returncode == 0:
+                    return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} thành công!"}
+                raise HTTPException(status_code=500, detail=f"Lỗi: {res.stderr or res2.stderr}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Lỗi thao tác service: {str(e)}")
 
     raise HTTPException(status_code=400, detail="Hành động không hợp lệ.")
+
+# ==========================================
+# CẤU HÌNH POPUP SETTINGS & TỰ KHỞI ĐỘNG LẠI (AUTORESTART)
+# ==========================================
+APP_CONFIG_PATHS = {
+    "nginx": "/etc/nginx/nginx.conf",
+    "ols": "/usr/local/lsws/conf/httpd_config.conf",
+    "mysql": "/etc/mysql/my.cnf",
+    "mariadb": "/etc/mysql/mariadb.conf.d/50-server.cnf",
+    "redis": "/etc/redis/redis.conf",
+    "php82": "/etc/php/8.2/fpm/php.ini",
+    "php83": "/etc/php/8.3/fpm/php.ini",
+    "php81": "/etc/php/8.1/fpm/php.ini",
+    "php74": "/etc/php/7.4/fpm/php.ini",
+    "pure-ftpd": "/etc/pure-ftpd/pure-ftpd.conf",
+    "fail2ban": "/etc/fail2ban/jail.local"
+}
+
+@router.get("/config")
+async def get_app_config(app_id: str, current_user: dict = Depends(get_current_user)):
+    """Đọc file cấu hình thực tế của ứng dụng để hiển thị trong Popup Settings"""
+    conf_path = APP_CONFIG_PATHS.get(app_id)
+    if not conf_path or not os.path.exists(conf_path):
+        # Fallback thử các đường dẫn phụ
+        alternatives = {
+            "ols": ["/usr/local/lsws/conf/httpd_config.xml"],
+            "mysql": ["/etc/mysql/mysql.conf.d/mysqld.cnf", "/etc/my.cnf"],
+            "php82": ["/usr/local/lsws/lsphp82/etc/php/8.2/litespeed/php.ini"],
+            "php83": ["/usr/local/lsws/lsphp83/etc/php/8.3/litespeed/php.ini"],
+            "fail2ban": ["/etc/fail2ban/jail.conf"]
+        }
+        for alt in alternatives.get(app_id, []):
+            if os.path.exists(alt):
+                conf_path = alt
+                break
+
+    content = ""
+    if conf_path and os.path.exists(conf_path):
+        try:
+            with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+        except Exception as e:
+            content = f"# Lỗi đọc file cấu hình: {str(e)}"
+    else:
+        content = f"# Chưa tìm thấy file cấu hình cho ứng dụng {app_id}.\n# Đường dẫn dự kiến: {conf_path or 'Mặc định hệ thống'}"
+
+    # Kiểm tra trạng thái tự khởi động lại (systemctl is-enabled)
+    app = next((a for a in SUPPORTED_APPS if a["id"] == app_id), None)
+    autorestart = False
+    if app and app.get("service") and os.name != "nt":
+        try:
+            check_enabled = subprocess.run(
+                ["systemctl", "is-enabled", "--quiet", app["service"]],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            autorestart = (check_enabled.returncode == 0)
+        except Exception:
+            pass
+
+    return {
+        "status": "ok",
+        "app_id": app_id,
+        "config_path": conf_path or "Chưa xác định",
+        "content": content,
+        "autorestart": autorestart
+    }
+
+@router.post("/config")
+async def save_app_config(req: ConfigUpdateRequest, current_user: dict = Depends(get_current_user)):
+    """Lưu chỉnh sửa file cấu hình từ Popup Settings"""
+    conf_path = APP_CONFIG_PATHS.get(req.app_id)
+    if not conf_path:
+        raise HTTPException(status_code=400, detail="Không tìm thấy cấu hình của ứng dụng này.")
+
+    # Ghi nội dung an toàn qua file tạm và move
+    tmp_path = f"/tmp/presspanel_{req.app_id}_conf.tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(req.content)
+        
+        # Di chuyển đè vào file cấu hình chính
+        if os.path.exists("/opt/presspanel/bin/template"):
+            # Dùng template gatekeeper hoặc sudo cp
+            subprocess.run(["sudo", "cp", tmp_path, conf_path], check=True)
+        else:
+            with open(conf_path, "w", encoding="utf-8") as f:
+                f.write(req.content)
+        
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+        return {"status": "ok", "message": f"Đã lưu file cấu hình {conf_path} thành công!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Không thể lưu file cấu hình: {str(e)}")
+
+@router.post("/autorestart")
+async def toggle_autorestart(req: AutorestartRequest, current_user: dict = Depends(get_current_user)):
+    """Bật/Tắt chế độ tự khởi động lại (systemctl enable/disable) cho ứng dụng khi bị tắt"""
+    app = next((a for a in SUPPORTED_APPS if a["id"] == req.app_id), None)
+    if not app or not app.get("service"):
+        raise HTTPException(status_code=400, detail="Ứng dụng này không có dịch vụ daemon để cấu hình tự khởi động.")
+
+    srv = app["service"]
+    op = "enable" if req.enabled else "disable"
+    gatekeeper_bin = "/opt/presspanel/bin/app"
+
+    if os.path.isfile(gatekeeper_bin):
+        proc = subprocess.run([gatekeeper_bin, "service", op, srv], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if proc.returncode == 0:
+            return {"status": "ok", "message": f"Đã {'bật' if req.enabled else 'tắt'} tự khởi động cho {app['name']} thành công!"}
+
+    try:
+        res = subprocess.run(["sudo", "systemctl", op, srv], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode == 0:
+            return {"status": "ok", "message": f"Đã {'bật' if req.enabled else 'tắt'} tự khởi động cho {app['name']} thành công!"}
+        else:
+            # Fallback không sudo
+            subprocess.run(["systemctl", op, srv], check=True)
+            return {"status": "ok", "message": f"Đã {'bật' if req.enabled else 'tắt'} tự khởi động cho {app['name']} thành công!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi: {str(e)}")
+
