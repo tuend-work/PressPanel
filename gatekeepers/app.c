@@ -220,6 +220,48 @@ int main(int argc, char *argv[]) {
         send_json_error("app", "Khong the xoa muc");
         return 1;
     }
+    else if (strcmp(action, "file-archive") == 0) {
+        // Cu phap: app file-archive <work_dir> <archive_name> <format> <item1,item2,...>
+        if (argc < 6) {
+            send_json_error("app", "Cu phap: app file-archive <work_dir> <archive_name> <zip|tar|tar.gz> <items>");
+            return 1;
+        }
+        const char *work_dir = argv[2];
+        const char *archive_name = argv[3];
+        const char *format = argv[4];
+        const char *items = argv[5];
+
+        if (strstr(work_dir, "..") || strstr(archive_name, "..") || strstr(items, "..")) {
+            send_json_error("app", "Duong dan khong hop le");
+            return 1;
+        }
+
+        char archive_cmd[4096];
+        if (strcmp(format, "zip") == 0) {
+            snprintf(archive_cmd, sizeof(archive_cmd), "cd '%s' && zip -r -q '%s' %s", work_dir, archive_name, items);
+        } else if (strcmp(format, "tar") == 0) {
+            snprintf(archive_cmd, sizeof(archive_cmd), "cd '%s' && tar -cf '%s' %s", work_dir, archive_name, items);
+        } else if (strcmp(format, "tar.gz") == 0 || strcmp(format, "tgz") == 0 || strcmp(format, "gz") == 0) {
+            snprintf(archive_cmd, sizeof(archive_cmd), "cd '%s' && tar -czf '%s' %s", work_dir, archive_name, items);
+        } else {
+            send_json_error("app", "Dinh dang nen khong duoc ho tro");
+            return 1;
+        }
+
+        if (system(archive_cmd) == 0) {
+            char archive_full[1024];
+            snprintf(archive_full, sizeof(archive_full), "%s/%s", work_dir, archive_name);
+            struct stat st_work;
+            if (stat(work_dir, &st_work) == 0) {
+                chown(archive_full, st_work.st_uid, st_work.st_gid);
+                chmod(archive_full, 0644);
+            }
+            send_json_ok("\"message\":\"Nen tap tin thanh cong\"");
+            return 0;
+        }
+        send_json_error("app", "Khong the thuc hien lenh nen");
+        return 1;
+    }
     else {
         send_json_error("app", "Hanh dong khong hop le");
         return 1;

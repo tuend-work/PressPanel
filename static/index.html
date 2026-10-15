@@ -1492,6 +1492,11 @@
                             </div>
                             <!-- Action Buttons -->
                             <div class="flex items-center space-x-2">
+                                <!-- Nút Nén Tệp Tin (Khi có chọn mục) -->
+                                <button v-if="selectedFileNames.length > 0" @click="openCompressModal" class="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs shadow-sm transition flex items-center space-x-1.5 animate-fadeIn">
+                                    <i data-lucide="archive" class="w-4 h-4"></i>
+                                    <span>Nén ({{ selectedFileNames.length }})</span>
+                                </button>
                                 <button @click="openCreateItemModal('file')" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition flex items-center space-x-1.5">
                                     <i data-lucide="file-plus" class="w-4 h-4"></i>
                                     <span>Tạo Tệp Tin</span>
@@ -1520,9 +1525,14 @@
                                     </button>
                                 </template>
                             </div>
-                            <span class="text-[11px] text-slate-400 font-mono shrink-0 pl-3">
-                                {{ filesList.length }} mục
-                            </span>
+                            <div class="flex items-center space-x-3 text-[11px] font-mono shrink-0 pl-3">
+                                <span v-if="selectedFileNames.length > 0" class="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                                    Đã chọn {{ selectedFileNames.length }}
+                                </span>
+                                <span class="text-slate-400">
+                                    {{ filesList.length }} mục
+                                </span>
+                            </div>
                         </div>
 
                         <!-- Files Table / Explorer -->
@@ -1531,6 +1541,10 @@
                                 <table class="w-full text-left text-xs text-slate-600">
                                     <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase text-[11px] tracking-wider">
                                         <tr>
+                                            <th class="py-3 px-4 w-10">
+                                                <input type="checkbox" :checked="isAllFilesSelected" @change="toggleSelectAllFiles"
+                                                    class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500 w-4 h-4 cursor-pointer">
+                                            </th>
                                             <th class="py-3 px-4">Tên Tệp / Thư Mục</th>
                                             <th class="py-3 px-4">Dung Lượng</th>
                                             <th class="py-3 px-4">Phân Quyền</th>
@@ -1541,7 +1555,7 @@
                                     <tbody class="divide-y divide-slate-100">
                                         <!-- Back to parent directory row -->
                                         <tr v-if="fileCurrentPath" @click="goUpDirectory" class="hover:bg-slate-50 cursor-pointer font-bold text-slate-700 transition">
-                                            <td colspan="5" class="py-3 px-4 flex items-center space-x-2">
+                                            <td colspan="6" class="py-3 px-4 flex items-center space-x-2">
                                                 <i data-lucide="corner-left-up" class="w-4 h-4 text-blue-600"></i>
                                                 <span>.. (Lên thư mục cấp cha)</span>
                                             </td>
@@ -1549,7 +1563,7 @@
 
                                         <!-- Empty folder state -->
                                         <tr v-if="filesList.length === 0 && !loadingFiles">
-                                            <td colspan="5" class="py-12 text-center text-slate-400">
+                                            <td colspan="6" class="py-12 text-center text-slate-400">
                                                 <i data-lucide="folder-open" class="w-10 h-10 mx-auto text-slate-300 mb-2"></i>
                                                 <div class="font-semibold text-slate-600">Thư mục đang trống</div>
                                                 <p class="text-[11px] text-slate-400 mt-0.5">Chưa có tệp tin hoặc thư mục nào ở đây.</p>
@@ -1558,14 +1572,20 @@
 
                                         <!-- Loading state -->
                                         <tr v-if="loadingFiles">
-                                            <td colspan="5" class="py-8 text-center text-slate-500 font-medium">
+                                            <td colspan="6" class="py-8 text-center text-slate-500 font-medium">
                                                 <i data-lucide="loader" class="w-6 h-6 mx-auto animate-spin text-blue-600 mb-1"></i>
                                                 <span>Đang tải danh sách tệp tin...</span>
                                             </td>
                                         </tr>
 
                                         <!-- Files list -->
-                                        <tr v-for="item in filesList" :key="item.name" class="hover:bg-slate-50/80 transition group">
+                                        <tr v-for="item in filesList" :key="item.name"
+                                            :class="selectedFileNames.includes(item.name) ? 'bg-blue-50/50' : ''"
+                                            class="hover:bg-slate-50/80 transition group">
+                                            <td class="py-3.5 px-4">
+                                                <input type="checkbox" :value="item.name" v-model="selectedFileNames"
+                                                    class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500 w-4 h-4 cursor-pointer">
+                                            </td>
                                             <td class="py-3.5 px-4 font-medium text-slate-800 flex items-center space-x-2.5">
                                                 <div @click="item.is_dir ? enterDirectory(item.name) : openEditFileModal(item.name)" class="flex items-center space-x-2.5 cursor-pointer">
                                                     <i v-if="item.is_dir" data-lucide="folder" class="w-5 h-5 text-amber-500 fill-amber-500/20 shrink-0"></i>
@@ -1653,6 +1673,66 @@
                                 <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
                                     <button @click="showCreateItemModal = false" class="px-3.5 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-medium transition">Hủy</button>
                                     <button @click="confirmCreateItem" class="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition">Xác Nhận Tạo</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MODAL: NÉN TỆP TIN / THƯ MỤC (COMPRESS ARCHIVE) -->
+                    <div v-if="showCompressModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200">
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                    <i data-lucide="archive" class="w-4 h-4 text-amber-600"></i>
+                                    <span>Nén Tệp Tin & Thư Mục</span>
+                                </h3>
+                                <button @click="showCompressModal = false" class="text-slate-400 hover:text-slate-700 text-lg font-bold">&times;</button>
+                            </div>
+
+                            <p class="text-xs text-slate-500 mb-4">
+                                Đang nén <b>{{ selectedFileNames.length }}</b> mục đã chọn trong thư mục hiện tại.
+                            </p>
+
+                            <div class="space-y-4 text-xs">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1">Tên tệp nén</label>
+                                    <input type="text" v-model="compressArchiveName" placeholder="vd: backup_code, data_archive"
+                                        class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-mono text-xs focus:outline-none focus:border-blue-500 shadow-sm">
+                                </div>
+
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1">Định dạng nén</label>
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <button type="button" @click="compressFormat = 'zip'"
+                                            :class="compressFormat === 'zip' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'"
+                                            class="py-2 px-3 rounded-xl border text-center font-bold font-mono transition">
+                                            .zip
+                                        </button>
+                                        <button type="button" @click="compressFormat = 'tar.gz'"
+                                            :class="compressFormat === 'tar.gz' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'"
+                                            class="py-2 px-3 rounded-xl border text-center font-bold font-mono transition">
+                                            .tar.gz
+                                        </button>
+                                        <button type="button" @click="compressFormat = 'tar'"
+                                            :class="compressFormat === 'tar' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'"
+                                            class="py-2 px-3 rounded-xl border text-center font-bold font-mono transition">
+                                            .tar
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 max-h-28 overflow-y-auto font-mono text-[11px] text-slate-500 divide-y divide-slate-100">
+                                    <div v-for="item in selectedFileNames" :key="item" class="py-1 truncate">
+                                        📦 {{ item }}
+                                    </div>
+                                </div>
+
+                                <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+                                    <button @click="showCompressModal = false" :disabled="compressingFiles" class="px-3.5 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-medium transition">Hủy</button>
+                                    <button @click="confirmCompressFiles" :disabled="compressingFiles" class="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow-sm transition flex items-center space-x-1.5">
+                                        <span v-if="compressingFiles" class="animate-spin">⏳</span>
+                                        <span>{{ compressingFiles ? 'Đang Nén...' : 'Bắt Đầu Nén' }}</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -3296,6 +3376,7 @@
                 const fileCurrentPath = ref('');
                 const fileTargetUser = ref('');
                 const loadingFiles = ref(false);
+                const selectedFileNames = ref([]);
                 const showEditFileModal = ref(false);
                 const editingFileName = ref('');
                 const editingFilePath = ref('');
@@ -3304,6 +3385,75 @@
                 const showCreateItemModal = ref(false);
                 const newItemType = ref('file'); // 'file' | 'folder'
                 const newItemName = ref('');
+                
+                // Compress Archive State
+                const showCompressModal = ref(false);
+                const compressArchiveName = ref('');
+                const compressFormat = ref('zip'); // 'zip' | 'tar.gz' | 'tar'
+                const compressingFiles = ref(false);
+
+                const isAllFilesSelected = computed(() => {
+                    return filesList.value.length > 0 && selectedFileNames.value.length === filesList.value.length;
+                });
+
+                const toggleSelectAllFiles = () => {
+                    if (isAllFilesSelected.value) {
+                        selectedFileNames.value = [];
+                    } else {
+                        selectedFileNames.value = filesList.value.map(f => f.name);
+                    }
+                };
+
+                const openCompressModal = () => {
+                    if (selectedFileNames.value.length === 0) {
+                        alert('Vui lòng chọn ít nhất một tệp hoặc thư mục để nén!');
+                        return;
+                    }
+                    const defaultName = selectedFileNames.value.length === 1 
+                        ? selectedFileNames.value[0].replace(/\.[^/.]+$/, "") + "_archive"
+                        : "archive_" + Math.floor(Date.now() / 1000);
+                    compressArchiveName.value = defaultName;
+                    compressFormat.value = 'zip';
+                    showCompressModal.value = true;
+                    refreshLucideIcons();
+                };
+
+                const confirmCompressFiles = async () => {
+                    if (!compressArchiveName.value.trim()) {
+                        alert('Vui lòng nhập tên tệp nén!');
+                        return;
+                    }
+                    compressingFiles.value = true;
+                    try {
+                        const res = await fetch('/api/v1/files/compress', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                current_path: fileCurrentPath.value,
+                                archive_name: compressArchiveName.value.trim(),
+                                format: compressFormat.value,
+                                items: selectedFileNames.value,
+                                target_user: fileTargetUser.value || undefined
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showCompressModal.value = false;
+                            selectedFileNames.value = [];
+                            fetchFilesList(fileCurrentPath.value);
+                            alert(data.message || 'Nén tệp tin thành công!');
+                        } else {
+                            alert('Lỗi nén tệp: ' + (data.detail || 'Không thể tạo file nén'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        compressingFiles.value = false;
+                    }
+                };
 
                 const pathParts = computed(() => {
                     if (!fileCurrentPath.value) return [];
@@ -3636,6 +3786,9 @@
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
                     fetchSystemStatus, restartPanel, refreshLucideIcons,
                     filesList, fileCurrentPath, fileTargetUser, loadingFiles, pathParts,
+                    selectedFileNames, isAllFilesSelected, toggleSelectAllFiles,
+                    showCompressModal, compressArchiveName, compressFormat, compressingFiles,
+                    openCompressModal, confirmCompressFiles,
                     showEditFileModal, editingFileName, editingFilePath, editingFileContent, savingFile,
                     showCreateItemModal, newItemType, newItemName,
                     fetchFilesList, enterDirectory, goUpDirectory, navigateBreadcrumb,

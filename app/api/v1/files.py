@@ -1,5 +1,6 @@
 import os
 import shutil
+import re
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from pydantic import BaseModel
 from typing import Optional
@@ -262,3 +263,77 @@ async def delete_file_or_dir(
             raise HTTPException(status_code=403, detail=f"Không có quyền xóa: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi khi xóa: {str(e)}")
+
+class ArchiveRequest(BaseModel):
+    current_path: str = ""
+    archive_name: str
+    format: str = "zip"  # zip | tar | tar.gz
+    items: list[str]
+    target_user: Optional[str] = None
+
+@router.post("/compress")
+async def compress_files(
+    req: ArchiveRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    if not req.items:
+        raise HTTPException(status_code=400, detail="Vui lòng chọn ít nhất một tệp hoặc thư mục để nén.")
+
+    work_dir = resolve_target_path(current_user, req.target_user, req.current_path)
+    if not os.path.isdir(work_dir):
+        raise HTTPException(status_code=404, detail="Thư mục làm việc không tồn tại.")
+
+    # Đảm bảo tên file nén có đuôi mở rộng phù hợp
+    archive_name = req.archive_name.strip()
+    if req.format == "zip" and not archive_name.endswith(".zip"):
+        archive_name += ".zip"
+    elif req.format == "tar" and not archive_name.endswith(".tar"):
+        archive_name += ".tar"
+    elif req.format in ("tar.gz", "tgz", "gz") and not (archive_name.endswith(".tar.gz") or archive_name.endswith(".tgz")):
+        archive_name += ".tar.gz"
+
+    archive_full_path = os.path.join(work_dir, archive_name)
+
+    # 1. Thử dùng zipfile hoặc tarfile thuần của Python
+    try:
+        if req.format == "zip":
+            import zipfile
+            with zipfile.ZipFile(archive_full_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                for item_name in req.items:
+                    item_full = os.path.join(work_dir, item_name)
+                    if os.path.isdir(item_full):
+                        for root, _, files in os.walk(item_full):
+                            for f in files:
+                                f_path = os.path.join(root, f)
+                                arcname = os.path.relpath(f_path, work_dir)
+                                zf.write(f_path, arcname)
+                    elif os.path.isfile(item_full):
+                        zf.write(item_full, item_name)
+            return {"status": "ok", "message": f"Nén thành công tệp {archive_name}!", "archive_name": archive_name}
+        elif req.format in ("tar", "tar.gz", "tgz", "gz"):
+            import tarfile
+            mode = "w:gz" if req.format in ("tar.gz", "tgz", "gz") else "w"
+            with tarfile.open(archive_full_path, mode) as tf:
+                for item_name in req.items:
+                    item_full = os.path.join(work_dir, item_name)
+                    if os.path.exists(item_full):
+                        tf.add(item_full, arcname=item_name)
+            return {"status": "ok", "message": f"Nén thành công tệp {archive_name}!", "archive_name": archive_name}
+    except PermissionError:
+        # 2. Nếu thiếu quyền ghi hoặc đọc, gọi qua Gatekeeper SUID
+        gatekeeper_app = "/opt/presspanel/bin/app"
+        clean_items = " ".join([f"'{item}'" for item in req.items if not re.search(r"[';`$&|]", item)])
+        try:
+            import subprocess
+            if os.path.isfile(gatekeeper_app):
+                proc = subprocess.run(
+                    [gatekeeper_app, "file-archive", work_dir, archive_name, req.format, clean_items],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+                if proc.returncode == 0:
+                    return {"status": "ok", "message": f"Nén thành công tệp {archive_name}!", "archive_name": archive_name}
+            raise HTTPException(status_code=500, detail="Không thể thực hiện nén tệp tin qua Gatekeeper.")
+        except Exception as ge:
+            raise HTTPException(status_code=500, detail=f"Lỗi nén tệp: {str(ge)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi nén tệp: {str(e)}")
