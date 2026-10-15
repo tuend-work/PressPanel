@@ -1667,15 +1667,24 @@
                                 <button class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white shadow-sm transition flex items-center space-x-1.5">
                                     <span>➕ Add Database</span>
                                 </button>
-                                <button class="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 font-medium text-xs text-slate-700 border border-slate-200 transition flex items-center space-x-1.5">
-                                    <span>👤 User Privileges</span>
-                                </button>
-                                <a href="http://localhost:8888/phpmyadmin" target="_blank" class="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 font-semibold text-xs text-amber-700 border border-amber-200 transition flex items-center space-x-1.5">
-                                    <span>🐬 phpMyAdmin</span>
-                                </a>
+                                <div class="flex items-center gap-1.5">
+                                    <button v-if="getApp('phpmyadmin').installed" @click="openPhpMyAdmin" class="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 font-semibold text-xs text-amber-700 border border-amber-200 transition flex items-center space-x-1.5 shadow-sm" title="Mở giao diện quản trị phpMyAdmin">
+                                        <span>🐬 Mở phpMyAdmin</span>
+                                    </button>
+                                    <button v-else @click="handleAppAction('phpmyadmin', 'install')" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-sm transition flex items-center space-x-1.5" title="Cài đặt phpMyAdmin 1-Click">
+                                        <span>⚡ Cài đặt phpMyAdmin</span>
+                                    </button>
+                                    <button v-if="getApp('phpmyadmin').installed" @click="handleAppAction('phpmyadmin', 'install')" class="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 font-medium text-xs text-slate-600 border border-slate-200 transition flex items-center justify-center" title="Cài lại / Nâng cấp phpMyAdmin">
+                                        <span>🔄 Cài lại</span>
+                                    </button>
+                                    <button v-if="getApp('phpmyadmin').installed" @click="handleAppAction('phpmyadmin', 'uninstall')" class="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 font-medium text-xs text-rose-600 border border-rose-200 transition flex items-center justify-center" title="Gỡ cài đặt phpMyAdmin">
+                                        <span>🗑️ Gỡ</span>
+                                    </button>
+                                </div>
                             </div>
-                            <div class="text-xs text-slate-500 font-mono">
-                                MariaDB 10.11 LTS (Port 3306)
+                            <div class="text-xs text-slate-500 font-mono flex items-center gap-2">
+                                <span>MariaDB 10.11 (Port 3306)</span>
+                                <span v-if="getApp('phpmyadmin').installed" class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px]">PMA: Port 888</span>
                             </div>
                         </div>
 
@@ -3524,6 +3533,14 @@
                     }
                 };
 
+                const openPhpMyAdmin = () => {
+                    const host = window.location.hostname || 'localhost';
+                    const protocol = window.location.protocol || 'http:';
+                    // phpMyAdmin được cấu hình chạy vhost riêng port 888 trên Nginx/OLS
+                    const pmaUrl = `${protocol}//${host}:888`;
+                    window.open(pmaUrl, '_blank');
+                };
+
 
                 // Dữ liệu giám sát System aaPanel Widget
                 const sysStats = ref({
@@ -4531,7 +4548,7 @@
                     sysStats, trafficHistory, timeLabels, downstreamCurvePath,
                     upstreamCurvePath, downstreamAreaPath, upstreamAreaPath,
                     appsList, appsCategory, installingAppId, installedAppsCount, filteredApps,
-                    getApp, fetchAppsList, handleAppAction, appVersions,
+                    getApp, fetchAppsList, handleAppAction, openPhpMyAdmin, appVersions,
                     showAppSettingModal, selectedSettingApp, appSettingTab, appConfigPath,
                     appConfigContent, savingConfig, rewritingConfig, handleRewriteWebserverConfig,
                     openAppSettings, loadAppConfig,
