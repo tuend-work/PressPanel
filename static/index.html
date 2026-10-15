@@ -2123,26 +2123,93 @@
                     <!-- Body: 2 Columns Layout (aaPanel sidebar tabs style) -->
                     <div class="flex-1 flex min-h-0 bg-[#0f131a]">
                         <!-- Left Sidebar Tabs -->
-                        <div class="w-48 bg-[#131720] border-r border-[#232b36] p-2 space-y-1 shrink-0 text-xs font-medium">
+                        <div class="w-52 bg-[#131720] border-r border-[#232b36] p-2 space-y-0.5 shrink-0 text-xs font-medium overflow-y-auto custom-scrollbar">
+                            <!-- COMMON: SERVICE -->
                             <button @click="appSettingTab = 'service'"
                                 class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
                                 :class="appSettingTab === 'service' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                <span>⚡</span>
                                 <span>Service</span>
                             </button>
-                            <button @click="appSettingTab = 'config'; loadAppConfig(selectedSettingApp.id, 'main')"
-                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                :class="appSettingTab === 'config' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                <span>📝</span>
-                                <span>{{ selectedSettingApp?.category === 'php' ? 'php.ini' : 'Configuration' }}</span>
-                            </button>
-                            <!-- TAB DÀNH RIÊNG CHO PHP: PHP-FPM POOL & BACKEND -->
-                            <button v-if="selectedSettingApp?.category === 'php'" @click="appSettingTab = 'fpm_pool'; loadAppConfig(selectedSettingApp.id, 'pool')"
-                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                :class="appSettingTab === 'fpm_pool' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                <span>⚙️</span>
-                                <span>PHP-FPM Pool</span>
-                            </button>
+
+                            <!-- PHP-SPECIFIC TABS (THEO HÌNH AAPANEL) -->
+                            <template v-if="selectedSettingApp?.category === 'php'">
+                                <button @click="appSettingTab = 'extensions'; fetchPhpExtensions(selectedSettingApp.id)"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'extensions' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Install extensions</span>
+                                </button>
+                                <button @click="appSettingTab = 'php_config'; fetchPhpDirectives(selectedSettingApp.id)"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'php_config' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Configuration</span>
+                                </button>
+                                <button @click="appSettingTab = 'limit_upload'; fetchPhpDirectives(selectedSettingApp.id)"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'limit_upload' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Limit of upload</span>
+                                </button>
+                                <button @click="appSettingTab = 'limit_timeout'; fetchPhpDirectives(selectedSettingApp.id)"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'limit_timeout' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Limit of timeout</span>
+                                </button>
+                                <button @click="appSettingTab = 'config'; loadAppConfig(selectedSettingApp.id, 'main')"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'config' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Configuration file</span>
+                                </button>
+                                <button @click="appSettingTab = 'fpm_pool'; loadAppConfig(selectedSettingApp.id, 'pool')"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'fpm_pool' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>FPM profile</span>
+                                </button>
+                                <button @click="appSettingTab = 'disabled_functions'; fetchPhpDirectives(selectedSettingApp.id)"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'disabled_functions' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Disabled functions</span>
+                                </button>
+                                <button @click="appSettingTab = 'optimization'; fetchPhpDirectives(selectedSettingApp.id)"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'optimization' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Optimization</span>
+                                </button>
+                                <button @click="appSettingTab = 'load_average'"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'load_average' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Load average</span>
+                                </button>
+                                <button @click="appSettingTab = 'session_config'"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'session_config' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Session configuration</span>
+                                </button>
+                                <button @click="appSettingTab = 'php_logs'"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'php_logs' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Logs</span>
+                                </button>
+                                <button @click="appSettingTab = 'slow_log'"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'slow_log' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Slow log</span>
+                                </button>
+                                <button @click="appSettingTab = 'phpinfo'; fetchPhpInfo(selectedSettingApp.id)"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'phpinfo' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>phpinfo</span>
+                                </button>
+                            </template>
+
+                            <!-- NON-PHP APPS DEFAULT TABS -->
+                            <template v-else>
+                                <button @click="appSettingTab = 'config'; loadAppConfig(selectedSettingApp.id, 'main')"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'config' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>📝</span>
+                                    <span>Configuration</span>
+                                </button>
+                            </template>
+
                             <button @click="appSettingTab = 'autorestart'"
                                 class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
                                 :class="appSettingTab === 'autorestart' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
@@ -2276,6 +2343,137 @@
                                         <span>{{ savingConfig ? 'Đang lưu...' : 'Lưu Cấu Hình Pool' }}</span>
                                     </button>
                                 </div>
+                            </div>
+
+                            <!-- TAB: INSTALL EXTENSIONS (CHUẨN HÌNH AAPANEL) -->
+                            <div v-if="appSettingTab === 'extensions'" class="flex-1 flex flex-col space-y-3 min-h-[400px]">
+                                <div class="flex-1 overflow-y-auto custom-scrollbar border border-slate-800/80 rounded-xl bg-slate-950/60">
+                                    <table class="w-full text-left border-collapse text-xs">
+                                        <thead>
+                                            <tr class="border-b border-slate-800 bg-[#131720] text-slate-400 font-semibold">
+                                                <th class="py-2.5 px-4 w-32">Name</th>
+                                                <th class="py-2.5 px-4 w-40">Type</th>
+                                                <th class="py-2.5 px-4">Description</th>
+                                                <th class="py-2.5 px-4 w-20 text-center">Status</th>
+                                                <th class="py-2.5 px-4 w-24 text-right">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-800/60 font-normal text-slate-300">
+                                            <tr v-for="ext in phpExtensions" :key="ext.name" class="hover:bg-slate-900/40 transition">
+                                                <td class="py-2.5 px-4 font-bold text-white">{{ ext.name }}</td>
+                                                <td class="py-2.5 px-4 text-slate-400">{{ ext.type }}</td>
+                                                <td class="py-2.5 px-4 text-slate-400">{{ ext.desc }}</td>
+                                                <td class="py-2.5 px-4 text-center">
+                                                    <span v-if="ext.installed" class="text-emerald-400 font-bold text-sm">✔</span>
+                                                    <span v-else class="text-slate-500 font-bold text-sm">✖</span>
+                                                </td>
+                                                <td class="py-2.5 px-4 text-right">
+                                                    <button v-if="ext.installed" @click="togglePhpExtensionAction(selectedSettingApp.id, ext.pkg, 'remove')"
+                                                        class="text-rose-400 hover:text-rose-300 font-semibold hover:underline">
+                                                        Uninstall
+                                                    </button>
+                                                    <button v-else @click="togglePhpExtensionAction(selectedSettingApp.id, ext.pkg, 'install')"
+                                                        class="text-emerald-400 hover:text-emerald-300 font-semibold hover:underline">
+                                                        Install
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="text-[11px] text-slate-500 leading-relaxed pt-1">
+                                    • Pls install the extension according to the actual demand, do NOT install unnecessary PHP extension, this will affect the efficiency of PHP execution, and may even cause an exception.
+                                </div>
+                            </div>
+
+                            <!-- TAB: CONFIGURATION (DIRECTIVES FORM) -->
+                            <div v-if="appSettingTab === 'php_config' || appSettingTab === 'limit_upload' || appSettingTab === 'limit_timeout' || appSettingTab === 'optimization'" class="flex-1 flex flex-col justify-between space-y-4">
+                                <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-slate-300 font-bold mb-1">upload_max_filesize (Dung lượng tải lên tối đa)</label>
+                                            <input type="text" v-model="phpDirectives.upload_max_filesize" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-500">Mặc định: 50M hoặc 128M</span>
+                                        </div>
+                                        <div>
+                                            <label class="block text-slate-300 font-bold mb-1">post_max_size (Dung lượng dữ liệu POST)</label>
+                                            <input type="text" v-model="phpDirectives.post_max_size" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-500">Nên bằng hoặc lớn hơn upload_max_filesize</span>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-slate-300 font-bold mb-1">max_execution_time (Thời gian thực thi tối đa - giây)</label>
+                                            <input type="text" v-model="phpDirectives.max_execution_time" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-500">Khuyên dùng cho WordPress: 60 - 300</span>
+                                        </div>
+                                        <div>
+                                            <label class="block text-slate-300 font-bold mb-1">memory_limit (Giới hạn bộ nhớ RAM)</label>
+                                            <input type="text" v-model="phpDirectives.memory_limit" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-500">Khuyên dùng: 256M hoặc 512M</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex justify-end">
+                                    <button @click="savePhpDirectives(selectedSettingApp.id)" :disabled="savingDirectives"
+                                        class="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-white shadow-lg shadow-cyan-500/20">
+                                        {{ savingDirectives ? 'Đang lưu...' : 'Lưu Thay Đổi (Save)' }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- TAB: DISABLED FUNCTIONS -->
+                            <div v-if="appSettingTab === 'disabled_functions'" class="flex-1 flex flex-col justify-between space-y-4">
+                                <div class="space-y-2">
+                                    <label class="block text-slate-300 font-bold">Danh sách các hàm bị vô hiệu hóa (disable_functions):</label>
+                                    <textarea v-model="phpDirectives.disable_functions" rows="8"
+                                        class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs focus:border-cyan-500 custom-scrollbar leading-relaxed">
+                                    </textarea>
+                                    <p class="text-[10px] text-slate-500 leading-relaxed">
+                                        Các hàm phân cách bằng dấu phẩy. Vô hiệu hóa các hàm nhạy cảm (như passthru, exec, system, shell_exec, proc_open) giúp ngăn chặn hacker chiếm quyền server khi website bị khai thác lỗ hổng.
+                                    </p>
+                                </div>
+                                <div class="flex justify-end">
+                                    <button @click="savePhpDirectives(selectedSettingApp.id)" :disabled="savingDirectives"
+                                        class="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-white shadow-lg shadow-cyan-500/20">
+                                        {{ savingDirectives ? 'Đang lưu...' : 'Lưu Thay Đổi' }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- TAB: SESSION CONFIGURATION & LOAD AVERAGE -->
+                            <div v-if="appSettingTab === 'session_config' || appSettingTab === 'load_average'" class="space-y-4">
+                                <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                                    <div class="text-sm font-bold text-white">Cấu hình Session & Runtime Storage</div>
+                                    <div class="text-slate-400 text-xs">
+                                        • Session save handler: <span class="text-cyan-400 font-mono">files</span> (hoặc redis)<br>
+                                        • Session save path: <span class="text-cyan-400 font-mono">/var/lib/php/sessions</span><br>
+                                        • Session GC maxlifetime: <span class="text-cyan-400 font-mono">1440 giây (24 phút)</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- TAB: LOGS & SLOW LOG -->
+                            <div v-if="appSettingTab === 'php_logs' || appSettingTab === 'slow_log'" class="space-y-3">
+                                <div class="text-slate-400 font-mono text-[11px]">📁 /var/log/php{{ selectedSettingApp?.default_version }}-fpm.log</div>
+                                <div class="p-3 rounded-xl bg-slate-950 font-mono text-[11px] text-slate-300 border border-slate-800 h-80 overflow-y-auto custom-scrollbar">
+                                    <div>[notice] fpm is running, pid 1120</div>
+                                    <div>[notice] ready to handle connections</div>
+                                    <div>[notice] systemd monitor operational</div>
+                                </div>
+                            </div>
+
+                            <!-- TAB: PHPINFO -->
+                            <div v-if="appSettingTab === 'phpinfo'" class="flex-1 flex flex-col space-y-3 min-h-[400px]">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 font-mono text-[11px]">PHP Info Dump (CLI / FPM Runtime)</span>
+                                    <button @click="fetchPhpInfo(selectedSettingApp.id)" class="text-cyan-400 hover:underline text-[11px]">
+                                        Tải lại
+                                    </button>
+                                </div>
+                                <textarea :value="phpInfoContent" readonly
+                                    class="flex-1 w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[11px] h-80 resize-none custom-scrollbar leading-relaxed">
+                                </textarea>
                             </div>
 
                             <!-- TAB 3: TỰ KHỞI ĐỘNG LẠI (AUTORESTART) -->
@@ -2742,11 +2940,137 @@
                     }
                 };
 
+                // Dữ liệu Cấu hình chi tiết PHP (aaPanel Style)
+                const phpExtensions = ref([]);
+                const loadingExtensions = ref(false);
+                const phpDirectives = ref({
+                    upload_max_filesize: '50M',
+                    post_max_size: '50M',
+                    max_execution_time: '60',
+                    max_input_time: '60',
+                    memory_limit: '256M',
+                    disable_functions: ''
+                });
+                const savingDirectives = ref(false);
+                const phpInfoContent = ref('');
+                const loadingPhpInfo = ref(false);
+
+                const fetchPhpExtensions = async (appId) => {
+                    loadingExtensions.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/apps/php/extensions?version=${appId}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            phpExtensions.value = data.extensions || [];
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải php extensions:', e);
+                    } finally {
+                        loadingExtensions.value = false;
+                    }
+                };
+
+                const togglePhpExtensionAction = async (appId, extName, action) => {
+                    const actionName = action === 'install' ? 'cài đặt' : 'gỡ bỏ';
+                    if (!confirm(`Bạn có chắc chắn muốn ${actionName} extension [${extName}]?`)) return;
+                    try {
+                        const res = await fetch('/api/v1/apps/php/extension-action', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                version: appId,
+                                extension: extName,
+                                action: action
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || `Đã gửi lệnh ${actionName} extension!`);
+                            fetchTasks();
+                            setTimeout(() => fetchPhpExtensions(appId), 2500);
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể thực thi'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
+                const fetchPhpDirectives = async (appId) => {
+                    try {
+                        const res = await fetch(`/api/v1/apps/php/directives?version=${appId}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data.directives) {
+                                phpDirectives.value = { ...phpDirectives.value, ...data.directives };
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải directives:', e);
+                    }
+                };
+
+                const savePhpDirectives = async (appId) => {
+                    savingDirectives.value = true;
+                    try {
+                        const res = await fetch('/api/v1/apps/php/directives', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                version: appId,
+                                directives: phpDirectives.value
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Lưu cấu hình thành công!');
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể lưu'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        savingDirectives.value = false;
+                    }
+                };
+
+                const fetchPhpInfo = async (appId) => {
+                    loadingPhpInfo.value = true;
+                    phpInfoContent.value = 'Đang tải thông tin phpinfo...';
+                    try {
+                        const res = await fetch(`/api/v1/apps/php/info?version=${appId}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            phpInfoContent.value = data.phpinfo || data.message || 'Không có dữ liệu';
+                        }
+                    } catch (e) {
+                        phpInfoContent.value = 'Lỗi tải phpinfo: ' + e.message;
+                    } finally {
+                        loadingPhpInfo.value = false;
+                    }
+                };
+
                 const openAppSettings = async (app) => {
                     selectedSettingApp.value = app;
                     appSettingTab.value = 'service';
                     showAppSettingModal.value = true;
                     loadAppConfig(app.id);
+                    if (app.category === 'php') {
+                        fetchPhpExtensions(app.id);
+                        fetchPhpDirectives(app.id);
+                    }
                 };
 
                 const loadAppConfig = async (appId, fileType = 'main') => {
@@ -3832,6 +4156,9 @@
                     appConfigContent, savingConfig, rewritingConfig, handleRewriteWebserverConfig,
                     openAppSettings, loadAppConfig,
                     saveCurrentAppConfig, toggleAppAutorestart,
+                    phpExtensions, loadingExtensions, phpDirectives, savingDirectives,
+                    phpInfoContent, loadingPhpInfo, fetchPhpExtensions, togglePhpExtensionAction,
+                    fetchPhpDirectives, savePhpDirectives, fetchPhpInfo,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain,
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
                     fetchSystemStatus, restartPanel, refreshLucideIcons,

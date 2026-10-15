@@ -75,44 +75,124 @@ SUPPORTED_APPS = [
     },
 
     {
-        "id": "php82",
-        "name": "PHP 8.2 Runtime",
+        "id": "php85",
+        "name": "PHP 8.5 Runtime",
         "category": "php",
         "icon": "🐘",
-        "desc": "Phiên bản PHP tối ưu, khuyên dùng cho các phiên bản WordPress hiện hành.",
-        "service": "php8.2-fpm",
-        "binary_checks": ["/usr/bin/php8.2", "/usr/local/lsws/lsphp82/bin/php"],
-        "default_version": "8.2"
+        "desc": "Phiên bản PHP 8.5 thử nghiệm mới nhất của PHP Core Team.",
+        "service": "php8.5-fpm",
+        "binary_checks": ["/usr/bin/php8.5", "/usr/local/lsws/lsphp85/bin/php"],
+        "default_version": "8.5"
+    },
+    {
+        "id": "php84",
+        "name": "PHP 8.4 Runtime",
+        "category": "php",
+        "icon": "🐘",
+        "desc": "Phiên bản PHP 8.4 hiện đại nhất, hỗ trợ Property Hooks, Asymmetric Visibility.",
+        "service": "php8.4-fpm",
+        "binary_checks": ["/usr/bin/php8.4", "/usr/local/lsws/lsphp84/bin/php"],
+        "default_version": "8.4"
     },
     {
         "id": "php83",
         "name": "PHP 8.3 Runtime",
         "category": "php",
         "icon": "🐘",
-        "desc": "Phiên bản PHP hiện đại nhất, bổ sung Typed Class Constants và hiệu năng cao.",
+        "desc": "Phiên bản PHP 8.3 hiệu năng cao, bổ sung Typed Class Constants và json_validate.",
         "service": "php8.3-fpm",
         "binary_checks": ["/usr/bin/php8.3", "/usr/local/lsws/lsphp83/bin/php"],
         "default_version": "8.3"
+    },
+    {
+        "id": "php82",
+        "name": "PHP 8.2 Runtime",
+        "category": "php",
+        "icon": "🐘",
+        "desc": "Phiên bản PHP 8.2 ổn định cao, khuyên dùng cho hầu hết website WordPress.",
+        "service": "php8.2-fpm",
+        "binary_checks": ["/usr/bin/php8.2", "/usr/local/lsws/lsphp82/bin/php"],
+        "default_version": "8.2"
     },
     {
         "id": "php81",
         "name": "PHP 8.1 Runtime",
         "category": "php",
         "icon": "🐘",
-        "desc": "Hỗ trợ Enums, Readonly Properties và tương thích sâu với hầu hết theme/plugin.",
+        "desc": "PHP 8.1 hỗ trợ Enums, Readonly Properties, First-class Callables.",
         "service": "php8.1-fpm",
         "binary_checks": ["/usr/bin/php8.1", "/usr/local/lsws/lsphp81/bin/php"],
         "default_version": "8.1"
+    },
+    {
+        "id": "php80",
+        "name": "PHP 8.0 Runtime",
+        "category": "php",
+        "icon": "🐘",
+        "desc": "PHP 8.0 giới thiệu JIT Compiler, Named Arguments và Union Types.",
+        "service": "php8.0-fpm",
+        "binary_checks": ["/usr/bin/php8.0", "/usr/local/lsws/lsphp80/bin/php"],
+        "default_version": "8.0"
     },
     {
         "id": "php74",
         "name": "PHP 7.4 Runtime",
         "category": "php",
         "icon": "🐘",
-        "desc": "Phiên bản dành riêng cho các website cũ chưa kịp nâng cấp tương thích PHP 8.x.",
+        "desc": "Phiên bản PHP 7.4 Legacy ổn định nhất thế hệ PHP 7.x.",
         "service": "php7.4-fpm",
         "binary_checks": ["/usr/bin/php7.4", "/usr/local/lsws/lsphp74/bin/php"],
         "default_version": "7.4"
+    },
+    {
+        "id": "php73",
+        "name": "PHP 7.3 Runtime",
+        "category": "php",
+        "icon": "🐘",
+        "desc": "PHP 7.3 dành cho các dự án và theme WordPress cũ.",
+        "service": "php7.3-fpm",
+        "binary_checks": ["/usr/bin/php7.3", "/usr/local/lsws/lsphp73/bin/php"],
+        "default_version": "7.3"
+    },
+    {
+        "id": "php72",
+        "name": "PHP 7.2 Runtime",
+        "category": "php",
+        "icon": "🐘",
+        "desc": "PHP 7.2 hỗ trợ mã nguồn WordPress 4.x - 5.x.",
+        "service": "php7.2-fpm",
+        "binary_checks": ["/usr/bin/php7.2", "/usr/local/lsws/lsphp72/bin/php"],
+        "default_version": "7.2"
+    },
+    {
+        "id": "php71",
+        "name": "PHP 7.1 Runtime",
+        "category": "php",
+        "icon": "🐘",
+        "desc": "PHP 7.1 hỗ trợ tương thích mã nguồn cũ.",
+        "service": "php7.1-fpm",
+        "binary_checks": ["/usr/bin/php7.1", "/usr/local/lsws/lsphp71/bin/php"],
+        "default_version": "7.1"
+    },
+    {
+        "id": "php70",
+        "name": "PHP 7.0 Runtime",
+        "category": "php",
+        "icon": "🐘",
+        "desc": "PHP 7.0 phiên bản nâng cấp tốc độ đột phá so với PHP 5.6.",
+        "service": "php7.0-fpm",
+        "binary_checks": ["/usr/bin/php7.0", "/usr/local/lsws/lsphp70/bin/php"],
+        "default_version": "7.0"
+    },
+    {
+        "id": "php56",
+        "name": "PHP 5.6 Runtime",
+        "category": "php",
+        "icon": "🐘",
+        "desc": "PHP 5.6 Legacy dành cho các website cổ, tương thích cao với script cũ.",
+        "service": "php5.6-fpm",
+        "binary_checks": ["/usr/bin/php5.6", "/usr/local/lsws/lsphp56/bin/php"],
+        "default_version": "5.6"
     },
     {
         "id": "phpmyadmin",
@@ -388,14 +468,6 @@ APP_CONFIG_PATHS = {
     "mysql": "/etc/mysql/my.cnf",
     "mariadb": "/etc/mysql/mariadb.conf.d/50-server.cnf",
     "redis": "/etc/redis/redis.conf",
-    "php82": "/etc/php/8.2/fpm/php.ini",
-    "php83": "/etc/php/8.3/fpm/php.ini",
-    "php81": "/etc/php/8.1/fpm/php.ini",
-    "php74": "/etc/php/7.4/fpm/php.ini",
-    "php82_pool": "/etc/php/8.2/fpm/pool.d/www.conf",
-    "php83_pool": "/etc/php/8.3/fpm/pool.d/www.conf",
-    "php81_pool": "/etc/php/8.1/fpm/pool.d/www.conf",
-    "php74_pool": "/etc/php/7.4/fpm/pool.d/www.conf",
     "pure-ftpd": "/etc/pure-ftpd/pure-ftpd.conf",
     "fail2ban": "/etc/fail2ban/jail.local"
 }
@@ -406,29 +478,38 @@ async def get_app_config(app_id: str, file_type: str = "main", current_user: dic
     lookup_id = f"{app_id}_pool" if file_type == "pool" and app_id.startswith("php") else app_id
     conf_path = APP_CONFIG_PATHS.get(lookup_id)
     
-    # Lấy phiên bản PHP nếu là app PHP
+    # Lấy phiên bản PHP nếu là app PHP (vd: php84 -> 8.4, php56 -> 5.6)
     php_ver = None
     if app_id.startswith("php") and len(app_id) >= 5:
         php_ver = f"{app_id[3]}.{app_id[4]}"
+        if file_type == "pool":
+            conf_path = f"/etc/php/{php_ver}/fpm/pool.d/www.conf"
+        else:
+            conf_path = f"/etc/php/{php_ver}/fpm/php.ini"
 
     alternatives = {
         "ols": ["/usr/local/lsws/conf/httpd_config.conf", "/usr/local/lsws/conf/httpd_config.xml"],
         "mysql": ["/etc/mysql/my.cnf", "/etc/mysql/mysql.conf.d/mysqld.cnf", "/etc/my.cnf"],
         "mariadb": ["/etc/mysql/mariadb.conf.d/50-server.cnf", "/etc/mysql/my.cnf"],
-        "php82": ["/etc/php/8.2/fpm/php.ini", "/usr/local/lsws/lsphp82/etc/php/8.2/litespeed/php.ini"],
-        "php83": ["/etc/php/8.3/fpm/php.ini", "/usr/local/lsws/lsphp83/etc/php/8.3/litespeed/php.ini"],
-        "php81": ["/etc/php/8.1/fpm/php.ini"],
-        "php74": ["/etc/php/7.4/fpm/php.ini"],
-        "php82_pool": ["/etc/php/8.2/fpm/pool.d/www.conf"],
-        "php83_pool": ["/etc/php/8.3/fpm/pool.d/www.conf"],
-        "php81_pool": ["/etc/php/8.1/fpm/pool.d/www.conf"],
-        "php74_pool": ["/etc/php/7.4/fpm/pool.d/www.conf"],
         "fail2ban": ["/etc/fail2ban/jail.local", "/etc/fail2ban/jail.conf"]
     }
+    if php_ver:
+        php_num = php_ver.replace(".", "")
+        if file_type == "pool":
+            alternatives[lookup_id] = [
+                f"/etc/php/{php_ver}/fpm/pool.d/www.conf",
+                f"/etc/php-fpm.d/www.conf"
+            ]
+        else:
+            alternatives[lookup_id] = [
+                f"/etc/php/{php_ver}/fpm/php.ini",
+                f"/usr/local/lsws/lsphp{php_num}/etc/php/{php_ver}/litespeed/php.ini",
+                f"/etc/php.ini"
+            ]
 
     # Thử tìm file thực tế tồn tại trên hệ thống
     found_path = None
-    paths_to_check = [conf_path] + alternatives.get(app_id, []) if conf_path else alternatives.get(app_id, [])
+    paths_to_check = [conf_path] + alternatives.get(lookup_id, []) if conf_path else alternatives.get(lookup_id, [])
     
     # 1. Kiểm tra tồn tại bằng gatekeeper hoặc test -f (tránh permission error do thư mục cha 0700)
     for p in paths_to_check:
@@ -510,6 +591,15 @@ async def save_app_config(req: ConfigUpdateRequest, current_user: dict = Depends
     """Lưu chỉnh sửa file cấu hình từ Popup Settings"""
     lookup_id = f"{req.app_id}_pool" if req.file_type == "pool" and req.app_id.startswith("php") else req.app_id
     conf_path = APP_CONFIG_PATHS.get(lookup_id)
+    
+    # Xác định đường dẫn cấu hình PHP động cho mọi phiên bản (5.6 - 8.5)
+    if req.app_id.startswith("php") and len(req.app_id) >= 5:
+        php_ver = f"{req.app_id[3]}.{req.app_id[4]}"
+        if req.file_type == "pool":
+            conf_path = f"/etc/php/{php_ver}/fpm/pool.d/www.conf"
+        else:
+            conf_path = f"/etc/php/{php_ver}/fpm/php.ini"
+
     if not conf_path:
         raise HTTPException(status_code=400, detail="Không tìm thấy cấu hình của ứng dụng này.")
 
@@ -571,6 +661,200 @@ async def toggle_autorestart(req: AutorestartRequest, current_user: dict = Depen
             return {"status": "ok", "message": f"Đã {'bật' if req.enabled else 'tắt'} tự khởi động cho {app['name']} thành công!"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi: {str(e)}")
+
+# ==========================================
+# CẤU HÌNH NÂNG CAO PHP (aaPanel Style: Extensions, Directives, Logs, phpinfo)
+# ==========================================
+PHP_EXTENSIONS_LIST = [
+    {"name": "ionCube", "pkg": "ioncube-loader", "type": "Script decryption", "desc": "Used to decrypt ZendOptimizer/ionCube encryption scripts"},
+    {"name": "fileinfo", "pkg": "fileinfo", "type": "Universal Extensions", "desc": "For getting file MIME, encoding, etc.!"},
+    {"name": "opcache", "pkg": "opcache", "type": "cache", "desc": "for speeding up PHP scripts!"},
+    {"name": "memcache", "pkg": "memcache", "type": "cache", "desc": "powerful content cache"},
+    {"name": "memcached", "pkg": "memcached", "type": "Buffer", "desc": "More advanced features than memcache"},
+    {"name": "redis", "pkg": "redis", "type": "cache", "desc": "Key-Value database based on memory can also be persisted"},
+    {"name": "mcrypt", "pkg": "mcrypt", "type": "Universal Extensions", "desc": "mcrypt encryption library"},
+    {"name": "apcu", "pkg": "apcu", "type": "Buffer", "desc": "Userland and script buffer in memory"},
+    {"name": "imagemagick", "pkg": "imagick", "type": "Universal Extensions", "desc": "Imagick High Performance Graphics Library"},
+    {"name": "xdebug", "pkg": "xdebug", "type": "Debugger", "desc": "Powerful interactive debugging tool for developers"}
+]
+
+@router.get("/php/extensions")
+async def get_php_extensions(version: str = "8.2", current_user: dict = Depends(get_current_user)):
+    """Lấy danh sách extensions và trạng thái đã cài đặt của phiên bản PHP"""
+    ver_clean = version.replace("php", "")
+    if len(ver_clean) == 2:
+        ver_clean = f"{ver_clean[0]}.{ver_clean[1]}"
+
+    installed_modules = []
+    php_bin = f"/usr/bin/php{ver_clean}"
+    if os.path.exists(php_bin):
+        try:
+            res = subprocess.run([php_bin, "-m"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if res.returncode == 0:
+                installed_modules = [m.strip().lower() for m in res.stdout.splitlines() if m.strip()]
+        except Exception:
+            pass
+
+    extensions_status = []
+    for ext in PHP_EXTENSIONS_LIST:
+        pkg_name = ext["pkg"]
+        is_installed = False
+        # Kiểm tra qua php -m
+        if ext["name"].lower() in installed_modules or pkg_name.lower() in installed_modules:
+            is_installed = True
+        # Kiểm tra file ini module trong conf.d
+        elif os.path.exists(f"/etc/php/{ver_clean}/mods-available/{pkg_name}.ini") or \
+             os.path.exists(f"/etc/php/{ver_clean}/fpm/conf.d/20-{pkg_name}.ini"):
+            is_installed = True
+
+        extensions_status.append({
+            **ext,
+            "installed": is_installed
+        })
+
+    return {
+        "version": ver_clean,
+        "extensions": extensions_status
+    }
+
+class ExtensionActionRequest(BaseModel):
+    version: str
+    extension: str
+    action: str  # install | remove
+
+@router.post("/php/extension-action")
+async def toggle_php_extension(
+    req: ExtensionActionRequest,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user)
+):
+    """Cài đặt hoặc Gỡ bỏ Extension cho phiên bản PHP"""
+    ver_clean = req.version.replace("php", "")
+    if len(ver_clean) == 2:
+        ver_clean = f"{ver_clean[0]}.{ver_clean[1]}"
+
+    action_type = "install-ext" if req.action == "install" else "remove-ext"
+    gatekeeper_bin = "/opt/presspanel/bin/app"
+    script_path = "/opt/presspanel/scripts/apps/php.sh"
+
+    if os.path.isfile(gatekeeper_bin):
+        cmd = f"{gatekeeper_bin} php-ext {'install' if req.action == 'install' else 'remove'} {ver_clean} {req.extension}"
+    else:
+        cmd = f"sudo bash {script_path} {action_type} {ver_clean} {req.extension}"
+
+    task_id = await add_system_task(
+        user_id=current_user["id"],
+        action_name=f"{'Cài đặt' if req.action == 'install' else 'Gỡ bỏ'} extension {req.extension} cho PHP {ver_clean}",
+        cmd=cmd,
+        background_tasks=background_tasks
+    )
+
+    return {
+        "status": "ok",
+        "task_id": task_id,
+        "message": f"Đã bắt đầu tiến trình {'cài đặt' if req.action == 'install' else 'gỡ bỏ'} extension {req.extension}."
+    }
+
+@router.get("/php/directives")
+async def get_php_directives(version: str = "8.2", current_user: dict = Depends(get_current_user)):
+    """Đọc các thông số cấu hình cụ thể từ file php.ini (upload, timeout, memory, disabled_functions)"""
+    ver_clean = version.replace("php", "")
+    if len(ver_clean) == 2:
+        ver_clean = f"{ver_clean[0]}.{ver_clean[1]}"
+
+    ini_path = f"/etc/php/{ver_clean}/fpm/php.ini"
+    data = {
+        "upload_max_filesize": "50M",
+        "post_max_size": "50M",
+        "max_execution_time": "60",
+        "max_input_time": "60",
+        "memory_limit": "256M",
+        "disable_functions": "passthru,exec,system,chroot,chgrp,chown,shell_exec,proc_open,proc_get_status,popen,ini_alter,ini_restore,dl,openlog,syslog,readlink,symlink,popepassthru,stream_socket_server"
+    }
+
+    if os.path.exists(ini_path):
+        try:
+            with open(ini_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            import re
+            for k in ["upload_max_filesize", "post_max_size", "max_execution_time", "max_input_time", "memory_limit", "disable_functions"]:
+                m = re.search(rf"^\s*{k}\s*=\s*([^\r\n;]+)", content, re.MULTILINE)
+                if m:
+                    data[k] = m.group(1).strip()
+        except Exception:
+            pass
+
+    return {
+        "version": ver_clean,
+        "ini_path": ini_path,
+        "directives": data
+    }
+
+class DirectivesUpdateRequest(BaseModel):
+    version: str
+    directives: Dict[str, str]
+
+@router.post("/php/directives")
+async def save_php_directives(req: DirectivesUpdateRequest, current_user: dict = Depends(get_current_user)):
+    """Cập nhật các thông số trong php.ini và reload service"""
+    ver_clean = req.version.replace("php", "")
+    if len(ver_clean) == 2:
+        ver_clean = f"{ver_clean[0]}.{ver_clean[1]}"
+
+    ini_path = f"/etc/php/{ver_clean}/fpm/php.ini"
+    if not os.path.exists(ini_path):
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy file cấu hình {ini_path}")
+
+    try:
+        with open(ini_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+
+        import re
+        for k, v in req.directives.items():
+            if re.search(rf"^\s*{k}\s*=", content, re.MULTILINE):
+                content = re.sub(rf"^\s*{k}\s*=.*$", f"{k} = {v}", content, flags=re.MULTILINE)
+            else:
+                content += f"\n{k} = {v}\n"
+
+        # Ghi lại qua file tạm và gatekeeper
+        tmp_path = f"/tmp/presspanel_php{ver_clean}_ini.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        gatekeeper_bin = "/opt/presspanel/bin/app"
+        if os.path.isfile(gatekeeper_bin):
+            subprocess.run([gatekeeper_bin, "config-write", tmp_path, ini_path], check=False)
+            subprocess.run([gatekeeper_bin, "service", "reload", f"php{ver_clean}-fpm"], check=False)
+        else:
+            subprocess.run(["sudo", "cp", tmp_path, ini_path], check=False)
+            subprocess.run(["sudo", "systemctl", "reload", f"php{ver_clean}-fpm"], check=False)
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+        return {"status": "ok", "message": f"Cập nhật thông số PHP {ver_clean} thành công!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi cập nhật php.ini: {str(e)}")
+
+@router.get("/php/info")
+async def get_phpinfo(version: str = "8.2", current_user: dict = Depends(get_current_user)):
+    """Lấy kết quả php -i của phiên bản PHP được chọn"""
+    ver_clean = version.replace("php", "")
+    if len(ver_clean) == 2:
+        ver_clean = f"{ver_clean[0]}.{ver_clean[1]}"
+
+    php_bin = f"/usr/bin/php{ver_clean}"
+    if not os.path.exists(php_bin):
+        return {"status": "error", "message": f"Nhị phân {php_bin} chưa được cài đặt."}
+
+    try:
+        res = subprocess.run([php_bin, "-i"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return {
+            "status": "ok",
+            "version": ver_clean,
+            "phpinfo": res.stdout
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 # ==========================================
 # REWRITE WEBSERVER CONFIG (TÁI TẠO CẤU HÌNH TỪ TEMPLATE & DATABASE)
