@@ -564,7 +564,9 @@ async def rewrite_webserver_config(
     # 3. Tạo lại từng Vhost theo template chuẩn
     for row in domains:
         d_name = row["domain_name"]
-        u_name = row["username"]
+        # Mỗi website là một Linux user riêng biệt (domain không dấu chấm)
+        import re
+        u_name = re.sub(r"[^a-z0-9]", "", d_name)[:30] or row["username"]
         php_ver = row["php_version"] or "8.2"
 
         cmd = None

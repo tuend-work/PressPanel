@@ -26,26 +26,37 @@ class CustomerCreate(BaseModel):
     php_version: str = "8.2"
     install_wp: bool = False
 
+class CustomerStatusRequest(BaseModel):
+    user_ids: List[int]
+    status: str # "active" or "suspended"
+
+class CustomerDeleteRequest(BaseModel):
+    user_ids: List[int]
+
 @router.get("/customers")
 async def list_customers(current_user: dict = Depends(get_current_user)):
     """
-    Lấy danh sách các tài khoản Customer (kèm số lượng domains của từng customer).
+    Lấy danh sách các tài khoản Customer (kèm số lượng domains, tên gói plan của từng customer).
     Admin xem được tất cả customer; Reseller chỉ xem được customer của mình.
     """
     db = await get_db_connection()
     if current_user["role"] == "admin":
         cursor = await db.execute("""
-            SELECT u.id, u.username, u.email, u.role, u.disk_mb, u.cpu_pct, u.mem_mb, u.status, u.created_at,
+            SELECT u.id, u.username, u.email, u.role, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb, u.status, u.created_at,
+                   p.name as package_name,
                    (SELECT COUNT(*) FROM domains d WHERE d.user_id = u.id) as domain_count
             FROM users u
+            LEFT JOIN packages p ON u.package_id = p.id
             WHERE u.role = 'user'
             ORDER BY u.created_at DESC
         """)
     elif current_user["role"] == "reseller":
         cursor = await db.execute("""
-            SELECT u.id, u.username, u.email, u.role, u.disk_mb, u.cpu_pct, u.mem_mb, u.status, u.created_at,
+            SELECT u.id, u.username, u.email, u.role, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb, u.status, u.created_at,
+                   p.name as package_name,
                    (SELECT COUNT(*) FROM domains d WHERE d.user_id = u.id) as domain_count
             FROM users u
+            LEFT JOIN packages p ON u.package_id = p.id
             WHERE u.role = 'user' AND u.parent_id = ?
             ORDER BY u.created_at DESC
         """, (current_user["id"],))
@@ -56,6 +67,53 @@ async def list_customers(current_user: dict = Depends(get_current_user)):
     rows = await cursor.fetchall()
     await db.close()
     return [dict(r) for r in rows]
+
+@router.post("/customers/set-status")
+async def set_customers_status(req: CustomerStatusRequest, current_user: dict = Depends(require_role("admin", "reseller"))):
+    if not req.user_ids:
+        raise HTTPException(status_code=400, detail="Vui lòng chọn ít nhất một customer")
+    if req.status not in ["active", "suspended"]:
+        raise HTTPException(status_code=400, detail="Trạng thái không hợp lệ (chỉ chấp nhận active hoặc suspended)")
+    
+    db = await get_db_connection()
+    placeholders = ",".join(["?"] * len(req.user_ids))
+    if current_user["role"] == "admin":
+        await db.execute(f"UPDATE users SET status = ? WHERE id IN ({placeholders}) AND role = 'user'", [req.status] + req.user_ids)
+    else:
+        await db.execute(f"UPDATE users SET status = ? WHERE id IN ({placeholders}) AND parent_id = ? AND role = 'user'", [req.status] + req.user_ids + [current_user["id"]])
+    await db.commit()
+    await db.close()
+    return {"status": "ok", "message": f"Đã cập nhật trạng thái {req.status.upper()} cho {len(req.user_ids)} khách hàng."}
+
+@router.post("/customers/batch-delete")
+async def batch_delete_customers(req: CustomerDeleteRequest, current_user: dict = Depends(require_role("admin", "reseller"))):
+    if not req.user_ids:
+        raise HTTPException(status_code=400, detail="Vui lòng chọn ít nhất một customer")
+    
+    db = await get_db_connection()
+    placeholders = ",".join(["?"] * len(req.user_ids))
+    if current_user["role"] == "admin":
+        cur = await db.execute(f"SELECT id, username FROM users WHERE id IN ({placeholders}) AND role = 'user'", req.user_ids)
+    else:
+        cur = await db.execute(f"SELECT id, username FROM users WHERE id IN ({placeholders}) AND parent_id = ? AND role = 'user'", req.user_ids + [current_user["id"]])
+    users_to_del = await cur.fetchall()
+
+    for u in users_to_del:
+        u_name = u["username"]
+        # Lấy domains của user để dọn vhost
+        d_cur = await db.execute("SELECT domain_name, webserver FROM domains WHERE user_id = ?", (u["id"],))
+        u_domains = await d_cur.fetchall()
+        for d in u_domains:
+            await run_gatekeeper("vhost", "remove", u_name, d["domain_name"], d["webserver"])
+        # Xóa Linux user
+        await run_gatekeeper("user", "delete", u_name)
+        # Xóa DB
+        await db.execute("DELETE FROM domains WHERE user_id = ?", (u["id"],))
+        await db.execute("DELETE FROM users WHERE id = ?", (u["id"],))
+
+    await db.commit()
+    await db.close()
+    return {"status": "ok", "message": f"Đã xóa thành công {len(users_to_del)} tài khoản khách hàng và dọn dẹp hệ thống."}
 
 @router.post("/customers")
 async def create_customer(req: CustomerCreate, current_user: dict = Depends(require_role("admin", "reseller"))):
@@ -122,13 +180,14 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
 
             if d_name:
                 # Loại bỏ tiền tố www. hoặc http:// nếu người dùng vô tình dán vào
-                d_name = re.sub(r"^(https?://)?(www\.)?", "", d_name).rstrip("/")
-                doc_root = f"/home/{username}/httpdocs/{d_name}"
+                # Mỗi website là một Linux user độc lập: domain viết liền không dấu chấm
+                clean_d = re.sub(r"[^a-z0-9]", "", d_name)[:30] or "webuser"
+                doc_root = f"/home/{clean_d}/httpdocs/{d_name}"
                 ws = req.webserver or "ols"
                 php_v = req.php_version or "8.2"
 
-                # 1. Gọi Gatekeeper tạo Vhost
-                vhost_res = await run_gatekeeper("vhost", "add", username, d_name, ws, php_v)
+                # 1. Gọi Gatekeeper tạo Vhost & tạo isolated user
+                vhost_res = await run_gatekeeper("vhost", "add", clean_d, d_name, ws, php_v)
                 vhost_status = "success" if vhost_res.get("status") != "error" else "warning"
 
                 # 2. Lưu vào bảng domains
@@ -144,11 +203,12 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
                 # 3. Cài đặt WordPress nếu được yêu cầu
                 wp_installed = False
                 if req.install_wp:
-                    wp_res = await run_gatekeeper("wp", "install", username, d_name)
+                    wp_res = await run_gatekeeper("wp", "install", clean_d, d_name)
                     wp_installed = (wp_res.get("status") != "error")
 
                 subscription_info = {
                     "domain_name": d_name,
+                    "isolated_user": clean_d,
                     "webserver": ws,
                     "php_version": php_v,
                     "vhost_status": vhost_status,

@@ -13,53 +13,130 @@ class DomainCreate(BaseModel):
     php_version: str = "8.2"
     install_wp: bool = False
 
+import re
+from typing import Optional
+
+class DomainBatchDeleteRequest(BaseModel):
+    domain_ids: List[int]
+
 @router.get("/")
 async def list_domains(current_user: dict = Depends(get_current_user)):
     db = await get_db_connection()
     if current_user["role"] == "admin":
-        cursor = await db.execute("SELECT * FROM domains ORDER BY created_at DESC")
+        cursor = await db.execute("""
+            SELECT d.*, u.username as owner_username, u.email as owner_email, p.name as plan_name
+            FROM domains d
+            JOIN users u ON d.user_id = u.id
+            LEFT JOIN packages p ON u.package_id = p.id
+            ORDER BY d.created_at DESC
+        """)
     elif current_user["role"] == "reseller":
         cursor = await db.execute("""
-            SELECT d.* FROM domains d
+            SELECT d.*, u.username as owner_username, u.email as owner_email, p.name as plan_name
+            FROM domains d
             JOIN users u ON d.user_id = u.id
+            LEFT JOIN packages p ON u.package_id = p.id
             WHERE u.id = ? OR u.parent_id = ?
             ORDER BY d.created_at DESC
         """, (current_user["id"], current_user["id"]))
     else:
-        cursor = await db.execute("SELECT * FROM domains WHERE user_id = ? ORDER BY created_at DESC", (current_user["id"],))
+        cursor = await db.execute("""
+            SELECT d.*, u.username as owner_username, u.email as owner_email, p.name as plan_name
+            FROM domains d
+            JOIN users u ON d.user_id = u.id
+            LEFT JOIN packages p ON u.package_id = p.id
+            WHERE d.user_id = ?
+            ORDER BY d.created_at DESC
+        """, (current_user["id"],))
     
     rows = await cursor.fetchall()
     await db.close()
     return [dict(r) for r in rows]
 
+def domain_to_linux_user(domain: str) -> str:
+    # Bỏ www. và chuyển sang viết liền không dấu chấm
+    clean = re.sub(r"^(https?://)?(www\.)?", "", domain.strip().lower())
+    clean = re.sub(r"[^a-z0-9]", "", clean)
+    if not clean:
+        clean = "webuser"
+    # Giới hạn 30 ký tự để phù hợp giới hạn username của Linux (thường max 32)
+    return clean[:30]
+
 @router.post("/")
 async def create_domain(req: DomainCreate, current_user: dict = Depends(get_current_user)):
-    username = current_user["username"]
-    doc_root = f"/home/{username}/httpdocs/{req.domain_name}"
+    clean_domain = re.sub(r"^(https?://)?(www\.)?", "", req.domain_name.strip().lower()).rstrip("/")
+    if not clean_domain:
+        raise HTTPException(status_code=400, detail="Tên miền không hợp lệ")
+
+    # MỖI WEBSITE LÀ MỘT LINUX USER ĐỘC LẬP
+    # Tên user Linux là domain viết liền không dấu chấm (vd: presspanel.org -> presspanelorg)
+    isolated_user = domain_to_linux_user(clean_domain)
+    doc_root = f"/home/{isolated_user}/httpdocs/{clean_domain}"
 
     # Gọi C gatekeeper: vhost add <user> <domain> <ols|nginx> <php_ver>
-    res = await run_gatekeeper("vhost", "add", username, req.domain_name, req.webserver, req.php_version)
+    # Script vhost_manager.sh sẽ tự động gọi ensure_linux_user tạo isolated_user & phân quyền an toàn
+    res = await run_gatekeeper("vhost", "add", isolated_user, clean_domain, req.webserver, req.php_version)
     if res.get("status") == "error":
-        raise HTTPException(status_code=400, detail=res.get("message", "Khong the tao VirtualHost"))
+        raise HTTPException(status_code=400, detail=res.get("message", "Không thể tạo VirtualHost"))
 
     db = await get_db_connection()
     try:
         await db.execute("""
             INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version)
             VALUES (?, ?, ?, ?, ?)
-        """, (current_user["id"], req.domain_name, doc_root, req.webserver, req.php_version))
+        """, (current_user["id"], clean_domain, doc_root, req.webserver, req.php_version))
         await db.commit()
     except Exception as e:
         await db.close()
-        raise HTTPException(status_code=400, detail=f"Domain da ton tai: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Tên miền đã tồn tại: {str(e)}")
     
     await db.close()
 
     # Tự động khởi tạo WordPress nếu được yêu cầu
     if req.install_wp:
-        await run_gatekeeper("wp", "install", username, req.domain_name)
+        await run_gatekeeper("wp", "install", isolated_user, clean_domain)
 
-    return {"status": "ok", "message": f"Da tao website {req.domain_name} thanh cong!"}
+    return {
+        "status": "ok",
+        "message": f"Đã khởi tạo website {clean_domain} thành công với Linux user độc lập '{isolated_user}'!",
+        "isolated_user": isolated_user,
+        "domain": clean_domain
+    }
+
+@router.post("/batch-delete")
+async def batch_delete_domains(req: DomainBatchDeleteRequest, current_user: dict = Depends(get_current_user)):
+    if not req.domain_ids:
+        raise HTTPException(status_code=400, detail="Vui lòng chọn ít nhất một website để xóa")
+    
+    db = await get_db_connection()
+    placeholders = ",".join(["?"] * len(req.domain_ids))
+    if current_user["role"] == "admin":
+        cursor = await db.execute(f"""
+            SELECT d.id, d.domain_name, d.webserver, d.user_id, u.username
+            FROM domains d
+            JOIN users u ON d.user_id = u.id
+            WHERE d.id IN ({placeholders})
+        """, req.domain_ids)
+    else:
+        cursor = await db.execute(f"""
+            SELECT d.id, d.domain_name, d.webserver, d.user_id, u.username
+            FROM domains d
+            JOIN users u ON d.user_id = u.id
+            WHERE d.id IN ({placeholders}) AND (d.user_id = ? OR u.parent_id = ?)
+        """, req.domain_ids + [current_user["id"], current_user["id"]])
+    domains_to_del = await cursor.fetchall()
+
+    for d in domains_to_del:
+        clean_d = d["domain_name"]
+        isolated_u = domain_to_linux_user(clean_d)
+        await run_gatekeeper("vhost", "remove", isolated_u, clean_d, d["webserver"])
+        await db.execute("DELETE FROM wp_instances WHERE domain_id = ?", (d["id"],))
+        await db.execute("DELETE FROM ssl_certificates WHERE domain_id = ?", (d["id"],))
+        await db.execute("DELETE FROM domains WHERE id = ?", (d["id"],))
+
+    await db.commit()
+    await db.close()
+    return {"status": "ok", "message": f"Đã xóa thành công {len(domains_to_del)} website và dọn dẹp môi trường Linux."}
 
 @router.delete("/{domain_id}")
 async def delete_domain(domain_id: int, current_user: dict = Depends(get_current_user)):
@@ -95,8 +172,10 @@ async def delete_domain(domain_id: int, current_user: dict = Depends(get_current
             await db.close()
             raise HTTPException(status_code=403, detail="Bạn không có quyền xóa tên miền này")
 
-    # Gọi C gatekeeper: vhost remove <username> <domain> <webserver>
-    res = await run_gatekeeper("vhost", "remove", domain["username"], domain["domain_name"], domain["webserver"])
+    # Gọi C gatekeeper: vhost remove <isolated_user> <domain> <webserver>
+    clean_d = domain["domain_name"]
+    isolated_u = domain_to_linux_user(clean_d)
+    res = await run_gatekeeper("vhost", "remove", isolated_u, clean_d, domain["webserver"])
     
     # Xóa khỏi database SQLite
     try:

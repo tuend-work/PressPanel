@@ -116,7 +116,7 @@
                             </span>
                             <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800/60 font-mono font-bold">PressPanel</span>
                         </div>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">v0.4.8</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">v0.4.9</span>
 
 
 
@@ -751,6 +751,36 @@
                             </button>
                         </div>
 
+                        <!-- Plesk Style Toolbar for Domains -->
+                        <div class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-slate-900/80 border border-[#232b36]">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button v-if="currentUser.role !== 'admin'" @click="showAddDomainModal = true"
+                                    class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white shadow-lg shadow-blue-500/20 transition flex items-center space-x-1.5">
+                                    <span>➕ Add Domain</span>
+                                </button>
+                                <button v-if="currentUser.role === 'admin'" @click="showAddCustomerModal = true; fetchServicePlans();"
+                                    class="px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-xs text-white shadow-lg shadow-cyan-500/20 transition flex items-center space-x-1.5">
+                                    <span>➕ Add Customer & Domain</span>
+                                </button>
+
+                                <button @click="handleBatchDeleteDomains()"
+                                    :disabled="selectedDomainIds.length === 0"
+                                    :class="selectedDomainIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-800/50 text-slate-500' : 'bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/80'"
+                                    class="px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center space-x-1">
+                                    <span>🗑️ Remove</span>
+                                    <span v-if="selectedDomainIds.length > 0" class="text-[10px] font-mono font-bold">({{ selectedDomainIds.length }})</span>
+                                </button>
+
+                                <button @click="toggleSelectAllDomains"
+                                    class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium transition">
+                                    {{ isAllDomainsSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả' }}
+                                </button>
+                            </div>
+                            <div class="text-[11px] text-slate-400 font-mono">
+                                {{ domains.length }} websites total
+                            </div>
+                        </div>
+
                         <!-- Danh sách Domain Cards (Phong cách Plesk) -->
                         <div v-if="domains.length === 0" class="glass-card rounded-2xl p-12 text-center">
                             <div class="text-4xl mb-3">🌐</div>
@@ -767,13 +797,16 @@
                             </button>
                         </div>
 
-
                         <div v-else class="space-y-4">
                             <!-- Card Domain Plesk -->
-                            <div v-for="d in domains" :key="d.id" class="glass-card rounded-2xl overflow-hidden border border-slate-800/80 shadow-xl transition hover:border-slate-700">
+                            <div v-for="d in domains" :key="d.id"
+                                :class="selectedDomainIds.includes(d.id) ? 'border-cyan-500 ring-1 ring-cyan-500/50' : 'border-slate-800/80 hover:border-slate-700'"
+                                class="glass-card rounded-2xl overflow-hidden border shadow-xl transition">
                                 <!-- Card Header -->
                                 <div class="px-6 py-4 bg-slate-900/80 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
                                     <div class="flex items-center space-x-3">
+                                        <input type="checkbox" :value="d.id" v-model="selectedDomainIds"
+                                            class="rounded text-cyan-600 bg-slate-900 border-slate-700 focus:ring-cyan-500 w-4 h-4">
                                         <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-slate-800 to-slate-700 border border-slate-600 flex items-center justify-center text-lg">
                                             🌐
                                         </div>
@@ -1077,14 +1110,63 @@
                             </button>
                         </div>
 
+                        <!-- Plesk Style Toolbar for Customers -->
+                        <div class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-slate-900/80 border border-[#232b36]">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button @click="showAddCustomerModal = true; fetchServicePlans();"
+                                    class="px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-xs text-white shadow-lg shadow-cyan-500/20 transition flex items-center space-x-1.5">
+                                    <span>➕ Add Customer</span>
+                                </button>
+                                <button @click="currentTab = 'service_plans'"
+                                    class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 font-medium text-xs text-slate-300 border border-slate-700 transition flex items-center space-x-1.5">
+                                    <span>📋 Service Plans</span>
+                                </button>
+                                
+                                <!-- Set Status Dropdown -->
+                                <div class="relative">
+                                    <button @click="showCustomerStatusMenu = !showCustomerStatusMenu"
+                                        :disabled="selectedCustomerIds.length === 0"
+                                        :class="selectedCustomerIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-800/50 text-slate-500' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'"
+                                        class="px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center space-x-1">
+                                        <span>⚙️ Set Status</span>
+                                        <span class="text-[10px]">▼</span>
+                                    </button>
+                                    <div v-if="showCustomerStatusMenu" class="absolute left-0 mt-1 w-36 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 z-30">
+                                        <button @click="handleSetCustomerStatus('active')" class="w-full text-left px-3 py-1.5 text-xs text-emerald-400 hover:bg-slate-800 flex items-center space-x-1.5">
+                                            <span>●</span> <span>Active</span>
+                                        </button>
+                                        <button @click="handleSetCustomerStatus('suspended')" class="w-full text-left px-3 py-1.5 text-xs text-rose-400 hover:bg-slate-800 flex items-center space-x-1.5">
+                                            <span>●</span> <span>Suspended</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button @click="handleBatchDeleteCustomers"
+                                    :disabled="selectedCustomerIds.length === 0"
+                                    :class="selectedCustomerIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-800/50 text-slate-500' : 'bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/80'"
+                                    class="px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center space-x-1">
+                                    <span>🗑️ Remove</span>
+                                    <span v-if="selectedCustomerIds.length > 0" class="text-[10px] font-mono font-bold">({{ selectedCustomerIds.length }})</span>
+                                </button>
+                            </div>
+                            <div class="text-[11px] text-slate-400 font-mono">
+                                {{ customers.length }} items total
+                            </div>
+                        </div>
+
                         <!-- Bảng danh sách Customer -->
                         <div class="aapanel-card rounded-2xl overflow-hidden shadow-xl border border-[#232b36]">
                             <div class="overflow-x-auto">
                                 <table class="w-full text-left text-xs text-slate-300">
                                     <thead class="bg-[#141921] border-b border-[#232b36] text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                                         <tr>
+                                            <th class="py-3 px-3 w-10 text-center">
+                                                <input type="checkbox" :checked="isAllCustomersSelected" @change="toggleSelectAllCustomers"
+                                                    class="rounded text-cyan-600 bg-slate-900 border-slate-700 focus:ring-cyan-500">
+                                            </th>
                                             <th class="py-3 px-4">Tài Khoản</th>
-                                            <th class="py-3 px-4">Email</th>
+                                            <th class="py-3 px-4">Gói Dịch Vụ</th>
+                                            <th class="py-3 px-4">Email Liên Hệ</th>
                                             <th class="py-3 px-4">Số Websites</th>
                                             <th class="py-3 px-4">Hạn Mức Tài Nguyên</th>
                                             <th class="py-3 px-4">Trạng Thái</th>
@@ -1093,21 +1175,28 @@
                                     </thead>
                                     <tbody class="divide-y divide-[#232b36]">
                                         <tr v-if="customers.length === 0">
-                                            <td colspan="6" class="py-12 text-center text-slate-500">
+                                            <td colspan="8" class="py-12 text-center text-slate-500">
                                                 <div class="text-3xl mb-2">👥</div>
                                                 <div class="font-medium">Chưa có tài khoản Customer nào</div>
-                                                <div class="text-[11px] text-slate-500 mt-1">Bấm nút "➕ Thêm Customer Mới" ở trên để tạo người dùng đầu tiên.</div>
+                                                <div class="text-[11px] text-slate-500 mt-1">Bấm nút "➕ Add Customer" ở trên để tạo người dùng đầu tiên.</div>
                                             </td>
                                         </tr>
-                                        <tr v-for="c in customers" :key="c.id" class="hover:bg-[#151c26] transition">
+                                        <tr v-for="c in customers" :key="c.id" :class="selectedCustomerIds.includes(c.id) ? 'bg-cyan-950/20' : 'hover:bg-[#151c26]'" class="transition">
+                                            <td class="py-3.5 px-3 text-center">
+                                                <input type="checkbox" :value="c.id" v-model="selectedCustomerIds"
+                                                    class="rounded text-cyan-600 bg-slate-900 border-slate-700 focus:ring-cyan-500">
+                                            </td>
                                             <td class="py-3.5 px-4 font-medium text-white flex items-center space-x-2.5">
                                                 <div class="w-7 h-7 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-400 flex items-center justify-center font-bold text-xs">
                                                     {{ c.username.slice(0, 2).toUpperCase() }}
                                                 </div>
                                                 <div>
                                                     <div class="font-bold text-white">{{ c.username }}</div>
-                                                    <div class="text-[10px] text-slate-500 font-mono">Linux User: /home/{{ c.username }}</div>
+                                                    <div class="text-[10px] text-slate-500 font-mono">/home/{{ c.username }}</div>
                                                 </div>
+                                            </td>
+                                            <td class="py-3.5 px-4 font-medium text-cyan-300">
+                                                {{ c.package_name || 'Standard Plan' }}
                                             </td>
                                             <td class="py-3.5 px-4 text-slate-400">{{ c.email }}</td>
                                             <td class="py-3.5 px-4">
@@ -1216,8 +1305,132 @@
                         </div>
                     </div>
 
-                    <!-- VIEW 7: PLACEHOLDER CHO CÁC MỤC PLESK (Resellers, Subscriptions, SEO, Tools & Settings...) -->
-                    <div v-if="['resellers', 'subscriptions', 'seo', 'tools_settings', 'monitoring', 'laravel', 'nodejs', 'profile', 'password'].includes(currentTab)" class="space-y-6 max-w-7xl mx-auto">
+                    <!-- ========================================== -->
+                    <!-- VIEW 6.5: SUBSCRIPTIONS (CHUẨN GIAO DIỆN PLESK THEO ẢNH USER) -->
+                    <!-- ========================================== -->
+                    <div v-if="currentTab === 'subscriptions'" class="space-y-6 max-w-7xl mx-auto">
+                        <div>
+                            <h2 class="text-2xl font-bold text-white tracking-tight">Subscriptions</h2>
+                            <p class="text-xs text-slate-400 mt-1 max-w-4xl leading-relaxed">
+                                Customers obtain hosting services from you by subscribing to a hosting plan. You can manage these subscriptions here, as well as your own subscriptions you create to host your websites. To administer websites, mail or any other services provided with a subscription, go to the subscriber's Customer Panel by clicking the link in the right column of the list.
+                            </p>
+                        </div>
+
+                        <!-- Plesk Action Buttons Toolbar -->
+                        <div class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-slate-900/80 border border-[#232b36]">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <!-- Nút Add Subscription -->
+                                <button @click="showAddCustomerModal = true; fetchServicePlans();"
+                                    class="px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-xs text-white shadow-lg shadow-cyan-500/20 transition flex items-center space-x-1.5">
+                                    <span>➕ Add Subscription</span>
+                                </button>
+
+                                <button @click="currentTab = 'service_plans'"
+                                    class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 transition flex items-center space-x-1">
+                                    <span>📋 Change Plan</span>
+                                </button>
+
+                                <button @click="currentTab = 'customers'"
+                                    class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 transition flex items-center space-x-1">
+                                    <span>👤 Change Subscriber</span>
+                                </button>
+
+                                <!-- Set Status Dropdown -->
+                                <div class="relative">
+                                    <button @click="showSubStatusMenu = !showSubStatusMenu"
+                                        class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium transition flex items-center space-x-1">
+                                        <span>Set Status</span>
+                                        <span class="text-[10px]">▼</span>
+                                    </button>
+                                    <div v-if="showSubStatusMenu" class="absolute left-0 mt-1 w-36 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 z-30">
+                                        <button @click="showSubStatusMenu = false" class="w-full text-left px-3 py-1.5 text-xs text-emerald-400 hover:bg-slate-800 flex items-center space-x-1.5">
+                                            <span>●</span> <span>Active</span>
+                                        </button>
+                                        <button @click="showSubStatusMenu = false" class="w-full text-left px-3 py-1.5 text-xs text-rose-400 hover:bg-slate-800 flex items-center space-x-1.5">
+                                            <span>●</span> <span>Suspended</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button @click="handleBatchDeleteDomains(selectedSubIds)"
+                                    :disabled="selectedSubIds.length === 0"
+                                    :class="selectedSubIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-800/50 text-slate-500' : 'bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/80'"
+                                    class="px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center space-x-1">
+                                    <span>✕ Remove</span>
+                                    <span v-if="selectedSubIds.length > 0" class="text-[10px] font-mono font-bold">({{ selectedSubIds.length }})</span>
+                                </button>
+                            </div>
+
+                            <div class="text-[11px] text-slate-400 font-mono">
+                                {{ domains.length }} items total
+                            </div>
+                        </div>
+
+                        <!-- Subscriptions Table -->
+                        <div class="aapanel-card rounded-2xl overflow-hidden shadow-xl border border-[#232b36]">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs text-slate-300">
+                                    <thead class="bg-[#141921] border-b border-[#232b36] text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                        <tr>
+                                            <th class="py-3 px-3 w-10 text-center">
+                                                <input type="checkbox" :checked="isAllSubsSelected" @change="toggleSelectAllSubs"
+                                                    class="rounded text-cyan-600 bg-slate-900 border-slate-700 focus:ring-cyan-500">
+                                            </th>
+                                            <th class="py-3 px-4">Subscription ↑</th>
+                                            <th class="py-3 px-4">Subscriber</th>
+                                            <th class="py-3 px-4">Setup Date</th>
+                                            <th class="py-3 px-4">Expiration Date</th>
+                                            <th class="py-3 px-4 text-right">Customer Panel</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-[#232b36]">
+                                        <tr v-if="domains.length === 0">
+                                            <td colspan="6" class="py-12 text-center text-slate-500">
+                                                <div class="text-3xl mb-2">🗂️</div>
+                                                <div class="font-medium">Chưa có subscription nào</div>
+                                                <div class="text-[11px] text-slate-500 mt-1">Bấm nút "➕ Add Subscription" ở trên để tạo subscription đầu tiên.</div>
+                                            </td>
+                                        </tr>
+                                        <tr v-for="d in domains" :key="d.id" :class="selectedSubIds.includes(d.id) ? 'bg-cyan-950/20' : 'hover:bg-[#151c26]'" class="transition">
+                                            <td class="py-3.5 px-3 text-center">
+                                                <input type="checkbox" :value="d.id" v-model="selectedSubIds"
+                                                    class="rounded text-cyan-600 bg-slate-900 border-slate-700 focus:ring-cyan-500">
+                                            </td>
+                                            <td class="py-3.5 px-4 font-medium text-white flex items-center space-x-2">
+                                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400" title="Active"></span>
+                                                <a :href="'http://' + d.domain_name" target="_blank" class="font-bold text-white hover:text-cyan-400 transition">
+                                                    {{ d.domain_name }}
+                                                </a>
+                                                <span class="text-slate-400 font-mono text-[11px]">
+                                                    ({{ d.plan_name || 'HOSTING-PLAN' }})
+                                                </span>
+                                            </td>
+                                            <td class="py-3.5 px-4">
+                                                <div class="text-white font-medium">{{ d.owner_username || 'Administrator' }}</div>
+                                                <div class="text-[10px] text-slate-500">{{ d.owner_email || 'admin@presspanel.local' }}</div>
+                                            </td>
+                                            <td class="py-3.5 px-4 font-mono text-slate-400 text-[11px]">
+                                                {{ (d.created_at || '').slice(0, 10) || '2026-10-15' }}
+                                            </td>
+                                            <td class="py-3.5 px-4 font-mono text-slate-400 text-[11px]">
+                                                Never expires
+                                            </td>
+                                            <td class="py-3.5 px-4 text-right">
+                                                <button @click="currentTab = 'domains'"
+                                                    class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 font-medium text-xs transition inline-flex items-center space-x-1">
+                                                    <span>➡️</span>
+                                                    <span>Manage in Customer Panel</span>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VIEW 7: PLACEHOLDER CHO CÁC MỤC PLESK (Resellers, SEO, Tools & Settings...) -->
+                    <div v-if="['resellers', 'seo', 'tools_settings', 'monitoring', 'laravel', 'nodejs', 'profile', 'password'].includes(currentTab)" class="space-y-6 max-w-7xl mx-auto">
                         <div class="glass-card rounded-2xl p-8 text-center space-y-3">
                             <div class="text-4xl">⚡</div>
                             <h3 class="text-base font-bold text-white capitalize">{{ currentTab.replace('_', ' ') }}</h3>
@@ -1726,7 +1939,7 @@
                         <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Phiên bản hiện tại:</span>
-                                <span class="font-mono text-white font-bold bg-blue-950 px-2 py-0.5 rounded border border-blue-800">v0.4.8</span>
+                                <span class="font-mono text-white font-bold bg-blue-950 px-2 py-0.5 rounded border border-blue-800">v0.4.9</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Kênh cập nhật:</span>
@@ -1914,6 +2127,46 @@
                     install_wp: false
                 });
                 const isImpersonating = ref(!!sessionStorage.getItem('presspanel_admin_backup_token'));
+
+                // Selection & Batch Action State (Plesk Style)
+                const selectedCustomerIds = ref([]);
+                const selectedDomainIds = ref([]);
+                const selectedSubIds = ref([]);
+                const showCustomerStatusMenu = ref(false);
+                const showSubStatusMenu = ref(false);
+
+                const isAllCustomersSelected = computed(() => {
+                    return customers.value.length > 0 && selectedCustomerIds.value.length === customers.value.length;
+                });
+                const toggleSelectAllCustomers = () => {
+                    if (isAllCustomersSelected.value) {
+                        selectedCustomerIds.value = [];
+                    } else {
+                        selectedCustomerIds.value = customers.value.map(c => c.id);
+                    }
+                };
+
+                const isAllDomainsSelected = computed(() => {
+                    return domains.value.length > 0 && selectedDomainIds.value.length === domains.value.length;
+                });
+                const toggleSelectAllDomains = () => {
+                    if (isAllDomainsSelected.value) {
+                        selectedDomainIds.value = [];
+                    } else {
+                        selectedDomainIds.value = domains.value.map(d => d.id);
+                    }
+                };
+
+                const isAllSubsSelected = computed(() => {
+                    return domains.value.length > 0 && selectedSubIds.value.length === domains.value.length;
+                });
+                const toggleSelectAllSubs = () => {
+                    if (isAllSubsSelected.value) {
+                        selectedSubIds.value = [];
+                    } else {
+                        selectedSubIds.value = domains.value.map(d => d.id);
+                    }
+                };
 
                 // Gói Dịch Vụ Lưu Trữ (Service Plans / Hosting Packages)
                 const servicePlans = ref([]);
@@ -2525,6 +2778,95 @@
                     }
                 };
 
+                const handleSetCustomerStatus = async (status) => {
+                    showCustomerStatusMenu.value = false;
+                    if (!selectedCustomerIds.value.length) {
+                        alert('Vui lòng chọn ít nhất một Customer!');
+                        return;
+                    }
+                    try {
+                        const res = await fetch('/api/v1/users/customers/set-status', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ user_ids: selectedCustomerIds.value, status })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Cập nhật trạng thái thành công!');
+                            selectedCustomerIds.value = [];
+                            fetchCustomers();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể cập nhật trạng thái'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
+                const handleBatchDeleteCustomers = async () => {
+                    if (!selectedCustomerIds.value.length) {
+                        alert('Vui lòng chọn ít nhất một Customer!');
+                        return;
+                    }
+                    if (!confirm(`Bạn có chắc chắn muốn XÓA vĩnh viễn ${selectedCustomerIds.value.length} Customer đã chọn?\nMọi website và dữ liệu Linux liên quan sẽ bị dọn dẹp!`)) return;
+
+                    try {
+                        const res = await fetch('/api/v1/users/customers/batch-delete', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ user_ids: selectedCustomerIds.value })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Đã xóa thành công!');
+                            selectedCustomerIds.value = [];
+                            fetchCustomers();
+                            fetchDomains();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể xóa'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
+                const handleBatchDeleteDomains = async (ids) => {
+                    const targetIds = ids || selectedDomainIds.value;
+                    if (!targetIds.length) {
+                        alert('Vui lòng chọn ít nhất một website/subscription!');
+                        return;
+                    }
+                    if (!confirm(`Bạn có chắc chắn muốn XÓA ${targetIds.length} website/subscription đã chọn?\nMôi trường Linux user và cấu hình máy chủ sẽ được dọn dẹp an toàn.`)) return;
+
+                    try {
+                        const res = await fetch('/api/v1/domains/batch-delete', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ domain_ids: targetIds })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Đã xóa thành công!');
+                            selectedDomainIds.value = [];
+                            selectedSubIds.value = [];
+                            fetchDomains();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể xóa website'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
                 const impersonateUser = async (customer) => {
                     if (!confirm(`Bạn có chắc chắn muốn đăng nhập dưới quyền Customer "${customer.username}" để quản lý website?`)) return;
                     try {
@@ -2693,6 +3035,9 @@
                 return {
                     token, currentUser, currentTab, domains, showAddDomainModal,
                     customers, showAddCustomerModal, creatingCustomer, newCustomer, isImpersonating,
+                    selectedCustomerIds, selectedDomainIds, selectedSubIds, showCustomerStatusMenu, showSubStatusMenu,
+                    isAllCustomersSelected, toggleSelectAllCustomers, isAllDomainsSelected, toggleSelectAllDomains,
+                    isAllSubsSelected, toggleSelectAllSubs, handleSetCustomerStatus, handleBatchDeleteCustomers, handleBatchDeleteDomains,
                     fetchCustomers, handleAddCustomer, impersonateUser, exitImpersonation,
                     servicePlans, showAddPlanModal, creatingPlan, newPlan, fetchServicePlans, handleAddPlan,
                     showUpdateModal, isUpdating, updateCountdown, handlePanelUpdate,

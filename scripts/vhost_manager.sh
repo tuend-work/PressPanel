@@ -120,6 +120,11 @@ EOF
         rm -f "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
         /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lsws 2>/dev/null || true
         nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+        # Neu la user linux rieng biet cua domain (hoac user doc lap), xoa user va thu muc home neu can
+        if [ "$USERNAME" != "root" ] && [ "$USERNAME" != "presspanel" ] && id "$USERNAME" &>/dev/null; then
+            userdel -r "$USERNAME" 2>/dev/null || true
+            rm -rf "/home/$USERNAME" 2>/dev/null || true
+        fi
         echo "[+] Da xoa VirtualHost $DOMAIN thanh cong!"
         exit 0
         ;;
