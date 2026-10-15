@@ -51,7 +51,7 @@
                         ⚡
                     </div>
                     <span class="font-bold text-2xl tracking-tight bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">PressPanel</span>
-                    <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.7</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.8</span>
                 </div>
                 <a href="/docs" target="_blank" class="text-xs font-medium text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 transition">
                     📖 Swagger API
@@ -100,65 +100,180 @@
 
         <!-- 2. GIAO DIỆN CHÍNH PLESK & AAPANEL DASHBOARD (KHI ĐÃ AUTH) -->
         <div v-else class="min-h-screen flex flex-col md:flex-row">
-            <!-- Sidebar Trái -->
-            <aside class="w-full md:w-64 bg-slate-900/90 border-r border-slate-800 flex flex-col justify-between shrink-0">
-                <div>
-                    <!-- Logo Header -->
-                    <div class="h-16 px-6 border-b border-slate-800 flex items-center justify-between">
-                        <div class="flex items-center space-x-2.5">
-                            <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-lg text-white shadow-md shadow-blue-500/20">
-                                ⚡
-                            </div>
-                            <span class="font-bold text-lg tracking-tight text-white">PressPanel</span>
+            <!-- Sidebar Trái Phong Cách Plesk Service Provider View -->
+            <aside class="w-full md:w-64 bg-[#141d26] border-r border-[#202c38] flex flex-col justify-between shrink-0 shadow-2xl z-20">
+                <div class="overflow-y-auto custom-scrollbar flex-1">
+                    <!-- Logo Header Plesk -->
+                    <div class="h-14 px-5 border-b border-[#202c38] flex items-center justify-between bg-[#111820]">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-2xl font-black tracking-tight text-white flex items-center">
+                                ple<span class="text-cyan-400 border-b-2 border-cyan-400 leading-none">s</span>k
+                            </span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800/60 font-mono font-bold">PressPanel</span>
                         </div>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.7</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">v0.3.8</span>
                     </div>
 
-                    <!-- Navigation Items -->
-                    <nav class="p-3 space-y-1 text-sm">
-                        <button @click="currentTab = 'dashboard'" :class="navClass('dashboard')">
-                            <span class="text-base">📊</span>
-                            <span>Dashboard (Trang Chủ)</span>
-                        </button>
-                        <button @click="currentTab = 'domains'" :class="navClass('domains')">
-                            <span class="text-base">🌐</span>
-                            <span>Websites & Domains</span>
-                        </button>
-                        <button @click="currentTab = 'wp'" :class="navClass('wp')">
-                            <span class="text-base">🚀</span>
-                            <span>WordPress Toolkit</span>
-                        </button>
-                        <button @click="currentTab = 'files'" :class="navClass('files')">
-                            <span class="text-base">📁</span>
-                            <span>File Manager</span>
-                        </button>
-                        <button @click="currentTab = 'apps'" :class="navClass('apps')">
-                            <span class="text-base">🛍️</span>
-                            <span>App Store</span>
-                        </button>
-                        <button @click="currentTab = 'crons'" :class="navClass('crons')">
-                            <span class="text-base">⏰</span>
-                            <span>Cron & Backups</span>
-                        </button>
-                        <button @click="currentTab = 'firewall'" :class="navClass('firewall')">
-                            <span class="text-base">🛡️</span>
-                            <span>Security & Firewall</span>
-                        </button>
-                    </nav>
+                    <!-- Navigation Items Chuẩn Plesk Menu -->
+                    <div class="py-2 text-xs">
+                        <!-- Top Home Item -->
+                        <div class="px-2 mb-2">
+                            <button @click="currentTab = 'dashboard'" :class="navClass('dashboard')">
+                                <span class="text-sm">🏠</span>
+                                <span class="font-medium">Home</span>
+                            </button>
+                        </div>
+
+                        <!-- 1. GROUP: Hosting Services -->
+                        <div class="mb-2">
+                            <div class="px-4 py-1.5 text-[11px] font-semibold text-slate-400/90 flex items-center justify-between tracking-wide">
+                                <span>Hosting Services</span>
+                                <span class="text-[10px] text-slate-500">▲</span>
+                            </div>
+                            <div class="px-2 space-y-0.5">
+                                <button @click="currentTab = 'customers'" :class="navClass('customers')">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">👤</span>
+                                        <span>Customers</span>
+                                    </div>
+                                    <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-300 font-semibold">{{ customers.length }}</span>
+                                </button>
+                                <button @click="currentTab = 'resellers'" :class="navClass('resellers')">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">%</span>
+                                        <span>Resellers</span>
+                                    </div>
+                                </button>
+                                <button @click="currentTab = 'domains'" :class="navClass('domains')">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">🖥️</span>
+                                        <span>Domains</span>
+                                    </div>
+                                    <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-300 font-semibold">{{ domains.length }}</span>
+                                </button>
+                                <button @click="currentTab = 'subscriptions'" :class="navClass('subscriptions')">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">🗂️</span>
+                                        <span>Subscriptions</span>
+                                    </div>
+                                    <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-300 font-semibold">{{ domains.length }}</span>
+                                </button>
+                                <button @click="currentTab = 'service_plans'" :class="navClass('service_plans')">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">📖</span>
+                                        <span>Service Plans</span>
+                                    </div>
+                                    <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-300 font-semibold">1</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 2. GROUP: Links to Additional Services -->
+                        <div class="mb-2">
+                            <div class="px-4 py-1.5 text-[11px] font-semibold text-slate-400/90 flex items-center justify-between tracking-wide">
+                                <span>Links to Additional Services</span>
+                                <span class="text-[10px] text-slate-500">▲</span>
+                            </div>
+                            <div class="px-2 space-y-0.5">
+                                <button @click="currentTab = 'seo'" :class="navClass('seo')">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">📈</span>
+                                        <span>SEO</span>
+                                    </div>
+                                </button>
+                                <button @click="openMessageBox('tasks')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-[#1e2a38] transition">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">📋</span>
+                                        <span>Process List</span>
+                                    </div>
+                                    <span v-if="runningTasks.length > 0" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 3. GROUP: Server Management -->
+                        <div class="mb-2">
+                            <div class="px-4 py-1.5 text-[11px] font-semibold text-slate-400/90 flex items-center justify-between tracking-wide">
+                                <span>Server Management</span>
+                                <span class="text-[10px] text-slate-500">▲</span>
+                            </div>
+                            <div class="px-2 space-y-0.5">
+                                <button @click="currentTab = 'tools_settings'" :class="navClass('tools_settings')">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">⚙️</span>
+                                        <span>Tools & Settings</span>
+                                    </div>
+                                </button>
+                                <button @click="currentTab = 'apps'" :class="navClass('apps')">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">🧩</span>
+                                        <span>Extensions</span>
+                                    </div>
+                                    <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-blue-900/60 text-blue-300 font-semibold">{{ installedAppsCount }}</span>
+                                </button>
+                                <button @click="currentTab = 'wp'" :class="navClass('wp')">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">🌐</span>
+                                        <span>WordPress</span>
+                                    </div>
+                                </button>
+                                <button @click="currentTab = 'monitoring'" :class="navClass('monitoring')">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">🔍</span>
+                                        <span>Monitoring</span>
+                                    </div>
+                                </button>
+                                <button @click="currentTab = 'laravel'" :class="navClass('laravel')">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">🔴</span>
+                                        <span>Laravel</span>
+                                    </div>
+                                </button>
+                                <button @click="currentTab = 'nodejs'" :class="navClass('nodejs')">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">🟢</span>
+                                        <span>Node.js</span>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 4. GROUP: My Profile -->
+                        <div class="mb-1">
+                            <div class="px-4 py-1.5 text-[11px] font-semibold text-slate-400/90 flex items-center justify-between tracking-wide">
+                                <span>My Profile</span>
+                                <span class="text-[10px] text-slate-500">▲</span>
+                            </div>
+                            <div class="px-2 space-y-0.5">
+                                <button @click="currentTab = 'profile'" :class="navClass('profile')">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">👑</span>
+                                        <span>Profile & Preferences</span>
+                                    </div>
+                                </button>
+                                <button @click="currentTab = 'password'" :class="navClass('password')">
+                                    <div class="flex items-center space-x-2.5">
+                                        <span class="text-sm opacity-80">🔑</span>
+                                        <span>Change Password</span>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- User Footer & Logout -->
-                <div class="p-4 border-t border-slate-800 bg-slate-950/40 flex items-center justify-between">
-                    <div class="flex items-center space-x-2.5">
-                        <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-blue-400">
+                <div class="p-3 border-t border-[#202c38] bg-[#111820] flex items-center justify-between">
+                    <div class="flex items-center space-x-2.5 min-w-0">
+                        <div class="w-8 h-8 rounded-full bg-cyan-950 border border-cyan-800/80 flex items-center justify-center font-bold text-xs text-cyan-400 shrink-0">
                             {{ currentUser.username.slice(0, 2).toUpperCase() }}
                         </div>
                         <div class="truncate">
                             <div class="text-xs font-semibold text-white truncate">{{ currentUser.username }}</div>
-                            <div class="text-[10px] text-slate-400 capitalize">{{ currentUser.role }}</div>
+                            <div class="text-[10px] text-cyan-400 capitalize font-medium">{{ currentUser.role }}</div>
                         </div>
                     </div>
-                    <button @click="handleLogout" title="Đăng Xuất" class="text-slate-400 hover:text-rose-400 transition text-sm p-1.5 rounded-lg hover:bg-slate-800">
+                    <button @click="handleLogout" title="Đăng Xuất" class="text-slate-400 hover:text-rose-400 transition text-sm p-1.5 rounded-lg hover:bg-slate-800 shrink-0">
                         🚪
                     </button>
                 </div>
@@ -166,11 +281,22 @@
 
             <!-- Main Content Area -->
             <div class="flex-1 flex flex-col min-w-0 bg-[#0e1217]">
-                <!-- Topbar aaPanel Style -->
-                <header class="h-14 border-b border-[#212a36] px-6 flex items-center justify-between bg-[#141921]">
+                <!-- Impersonation Notice Bar (Khi Admin Login As User) -->
+                <div v-if="isImpersonating" class="bg-gradient-to-r from-amber-600 to-orange-600 text-white px-4 py-2 flex items-center justify-between text-xs shadow-md font-medium shrink-0 animate-fadeIn">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-base">⚠️</span>
+                        <span>Đang đăng nhập dưới quyền Customer: <b>{{ currentUser.username }}</b> (Chế độ Login as User)</span>
+                    </div>
+                    <button @click="exitImpersonation" class="px-3 py-1 rounded bg-slate-900/90 hover:bg-black text-white font-bold transition flex items-center space-x-1.5 shadow">
+                        <span>🔙</span> <span>Quay lại quyền Admin</span>
+                    </button>
+                </div>
+
+                <!-- Topbar aaPanel / Plesk Style -->
+                <header class="h-14 border-b border-[#212a36] px-6 flex items-center justify-between bg-[#141921] shrink-0">
                     <div class="flex items-center space-x-3 text-xs">
                         <div class="flex items-center space-x-2 text-slate-300">
-                            <span class="w-6 h-6 rounded-full bg-emerald-950 border border-emerald-600/50 flex items-center justify-center text-xs">👤</span>
+                            <span class="w-6 h-6 rounded-full bg-cyan-950 border border-cyan-600/50 flex items-center justify-center text-xs">👤</span>
                             <span class="font-medium text-white">{{ currentUser.username }}@server</span>
                         </div>
                         <span class="text-slate-600">|</span>
@@ -178,8 +304,8 @@
                             <span class="text-amber-500 text-xs">🐧</span>
                             <span class="font-mono text-[11px]">{{ sysStats.os_name || 'Linux 6.x' }}</span>
                         </div>
-                        <div class="hidden sm:flex items-center space-x-1 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 font-semibold text-[10px]">
-                            <span>💎 PRO</span>
+                        <div class="hidden sm:flex items-center space-x-1 px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-semibold text-[10px]">
+                            <span>PLESK VIEW</span>
                         </div>
                     </div>
 
@@ -206,6 +332,7 @@
                         </a>
                     </div>
                 </header>
+
 
                 <!-- Dynamic Views -->
                 <main class="flex-1 p-6 overflow-y-auto custom-scrollbar">
@@ -598,7 +725,18 @@
                                 <h2 class="text-xl font-bold text-white">Danh Sách Website</h2>
                                 <p class="text-xs text-slate-400">Quản lý toàn bộ VirtualHost, PHP, SSL và WordPress theo dạng thẻ Plesk</p>
                             </div>
-                            <button @click="showAddDomainModal = true" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-lg shadow-blue-500/20 transition flex items-center space-x-2">
+                            <!-- Nếu là Admin: Thông báo rõ quy tắc bảo mật & phân quyền -->
+                            <div v-if="currentUser.role === 'admin'" class="flex items-center space-x-2">
+                                <span class="text-xs text-amber-400 bg-amber-950/40 border border-amber-800/60 px-3 py-1.5 rounded-xl flex items-center space-x-1.5">
+                                    <span>🔒</span>
+                                    <span>Tài khoản Admin chỉ dùng để quản trị. Muốn tạo web, vui lòng vào <b>Customers</b> tạo/chọn User con & bấm <b>Login as user</b>!</span>
+                                </span>
+                                <button @click="currentTab = 'customers'" class="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-semibold text-xs text-white shadow-lg transition">
+                                    Vào Customers &rarr;
+                                </button>
+                            </div>
+                            <!-- Nếu là Customer (hoặc đang impersonate): Hiện nút thêm website -->
+                            <button v-else @click="showAddDomainModal = true" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-lg shadow-blue-500/20 transition flex items-center space-x-2">
                                 <span>➕ Thêm Website Mới</span>
                             </button>
                         </div>
@@ -607,11 +745,18 @@
                         <div v-if="domains.length === 0" class="glass-card rounded-2xl p-12 text-center">
                             <div class="text-4xl mb-3">🌐</div>
                             <h3 class="text-base font-semibold text-white">Chưa Có Website Nào</h3>
-                            <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Hãy bắt đầu bằng cách thêm website đầu tiên chạy trên OpenLiteSpeed hoặc Nginx.</p>
-                            <button @click="showAddDomainModal = true" class="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white">
+                            <p v-if="currentUser.role === 'admin'" class="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                                Hệ thống chưa có website nào. Vui lòng vào menu <b class="text-cyan-400">Customers</b> để tạo tài khoản người dùng con và bấm <b>Login As</b> để thêm website.
+                            </p>
+                            <p v-else class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Hãy bắt đầu bằng cách thêm website đầu tiên chạy trên OpenLiteSpeed hoặc Nginx.</p>
+                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'customers'" class="mt-4 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-semibold text-xs text-white">
+                                + Đi Đến Mục Customers
+                            </button>
+                            <button v-else @click="showAddDomainModal = true" class="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white">
                                 + Thêm Website Ngay
                             </button>
                         </div>
+
 
                         <div v-else class="space-y-4">
                             <!-- Card Domain Plesk -->
@@ -866,8 +1011,114 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- ========================================== -->
+                    <!-- VIEW 5: CUSTOMERS (QUẢN TRỊ TÀI KHOẢN KHÁCH HÀNG & LOGIN AS) -->
+                    <!-- ========================================== -->
+                    <div v-if="currentTab === 'customers'" class="space-y-6 max-w-7xl mx-auto">
+                        <!-- Action Bar -->
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                                    <span>👤</span> <span>Quản Lý Khách Hàng (Customers)</span>
+                                </h2>
+                                <p class="text-xs text-slate-400">Tài khoản Admin chỉ dùng để quản trị. Tạo User con để phân bổ tài nguyên và thêm website an toàn.</p>
+                            </div>
+                            <button @click="showAddCustomerModal = true" class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-semibold text-xs text-white shadow-lg shadow-cyan-500/20 transition flex items-center space-x-2">
+                                <span>➕ Thêm Customer Mới</span>
+                            </button>
+                        </div>
+
+                        <!-- Bảng danh sách Customer -->
+                        <div class="aapanel-card rounded-2xl overflow-hidden shadow-xl border border-[#232b36]">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs text-slate-300">
+                                    <thead class="bg-[#141921] border-b border-[#232b36] text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                        <tr>
+                                            <th class="py-3 px-4">Tài Khoản</th>
+                                            <th class="py-3 px-4">Email</th>
+                                            <th class="py-3 px-4">Số Websites</th>
+                                            <th class="py-3 px-4">Hạn Mức Tài Nguyên</th>
+                                            <th class="py-3 px-4">Trạng Thái</th>
+                                            <th class="py-3 px-4 text-right">Thao Tác</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-[#232b36]">
+                                        <tr v-if="customers.length === 0">
+                                            <td colspan="6" class="py-12 text-center text-slate-500">
+                                                <div class="text-3xl mb-2">👥</div>
+                                                <div class="font-medium">Chưa có tài khoản Customer nào</div>
+                                                <div class="text-[11px] text-slate-500 mt-1">Bấm nút "➕ Thêm Customer Mới" ở trên để tạo người dùng đầu tiên.</div>
+                                            </td>
+                                        </tr>
+                                        <tr v-for="c in customers" :key="c.id" class="hover:bg-[#151c26] transition">
+                                            <td class="py-3.5 px-4 font-medium text-white flex items-center space-x-2.5">
+                                                <div class="w-7 h-7 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-400 flex items-center justify-center font-bold text-xs">
+                                                    {{ c.username.slice(0, 2).toUpperCase() }}
+                                                </div>
+                                                <div>
+                                                    <div class="font-bold text-white">{{ c.username }}</div>
+                                                    <div class="text-[10px] text-slate-500 font-mono">Linux User: /home/{{ c.username }}</div>
+                                                </div>
+                                            </td>
+                                            <td class="py-3.5 px-4 text-slate-400">{{ c.email }}</td>
+                                            <td class="py-3.5 px-4">
+                                                <span class="px-2 py-0.5 rounded font-mono font-semibold"
+                                                    :class="c.domain_count > 0 ? 'bg-blue-950 text-blue-400 border border-blue-800' : 'bg-slate-800 text-slate-400'">
+                                                    {{ c.domain_count }} sites
+                                                </span>
+                                            </td>
+                                            <td class="py-3.5 px-4 font-mono text-[11px]">
+                                                <div class="flex items-center space-x-2">
+                                                    <span title="Dung lượng ổ cứng">💾 {{ (c.disk_mb / 1024).toFixed(1) }}GB</span>
+                                                    <span class="text-slate-600">|</span>
+                                                    <span title="RAM">⚡ {{ c.mem_mb }}MB</span>
+                                                    <span class="text-slate-600">|</span>
+                                                    <span title="CPU">🖥️ {{ c.cpu_pct }}%</span>
+                                                </div>
+                                            </td>
+                                            <td class="py-3.5 px-4">
+                                                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                                                    :class="c.status === 'active' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'">
+                                                    ● {{ c.status === 'active' ? 'Hoạt động' : 'Đã khóa' }}
+                                                </span>
+                                            </td>
+                                            <td class="py-3.5 px-4 text-right">
+                                                <!-- Nút Chức Năng Cốt Lõi: LOGIN AS USER -->
+                                                <button @click="impersonateUser(c)"
+                                                    class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs shadow-md shadow-cyan-500/20 transition flex items-center space-x-1.5 ml-auto">
+                                                    <span>🔑</span>
+                                                    <span>Login as user</span>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VIEW 6: PLACEHOLDER CHO CÁC MỤC PLESK (Resellers, Subscriptions, Service Plans, Tools & Settings...) -->
+                    <div v-if="['resellers', 'subscriptions', 'service_plans', 'seo', 'tools_settings', 'monitoring', 'laravel', 'nodejs', 'profile', 'password'].includes(currentTab)" class="space-y-6 max-w-7xl mx-auto">
+                        <div class="glass-card rounded-2xl p-8 text-center space-y-3">
+                            <div class="text-4xl">⚡</div>
+                            <h3 class="text-base font-bold text-white capitalize">{{ currentTab.replace('_', ' ') }}</h3>
+                            <p class="text-xs text-slate-400 max-w-md mx-auto">
+                                Mô đun quản trị theo chuẩn Plesk Service Provider View. Đang hoạt động đồng bộ với hệ thống máy chủ PressPanel Linux.
+                            </p>
+                            <div class="pt-2 flex justify-center space-x-2">
+                                <button @click="currentTab = 'customers'" class="px-3 py-1.5 rounded-xl bg-cyan-600 text-white text-xs font-semibold">
+                                    Vào Quản Lý Customers
+                                </button>
+                                <button @click="currentTab = 'domains'" class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">
+                                    Xem Danh Sách Domains
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </main>
             </div>
+
 
             <!-- MODAL: THÊM WEBSITE MỚI -->
             <div v-if="showAddDomainModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -916,8 +1167,71 @@
                 </div>
             </div>
 
+            <!-- MODAL: THÊM CUSTOMER MỚI (TẠO USER CON CHO ADMIN) -->
+            <div v-if="showAddCustomerModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="glass rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-700">
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xl">👤</span>
+                            <h3 class="text-base font-bold text-white">Thêm Tài Khoản Customer Con</h3>
+                        </div>
+                        <button @click="showAddCustomerModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <form @submit.prevent="handleAddCustomer" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Tên Người Dùng (Linux Username)</label>
+                            <input type="text" v-model="newCustomer.username" placeholder="vd: myclient, shoponline" required
+                                class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono">
+                            <p class="text-[10px] text-slate-400 mt-1">Sẽ tự động tạo Linux user và thư mục cô lập /home/&lt;username&gt;</p>
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Email Liên Hệ</label>
+                            <input type="email" v-model="newCustomer.email" placeholder="client@example.com" required
+                                class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Mật Khẩu Đăng Nhập</label>
+                            <input type="password" v-model="newCustomer.password" placeholder="Tối thiểu 6 ký tự" required
+                                class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+                        </div>
+
+                        <!-- Quota tài nguyên -->
+                        <div class="grid grid-cols-3 gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-400 mb-1">Ổ Cứng (MB)</label>
+                                <input type="number" v-model.number="newCustomer.disk_mb" min="500" max="100000"
+                                    class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-400 mb-1">RAM (MB)</label>
+                                <input type="number" v-model.number="newCustomer.mem_mb" min="256" max="16384"
+                                    class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-400 mb-1">CPU (%)</label>
+                                <input type="number" v-model.number="newCustomer.cpu_pct" min="10" max="400"
+                                    class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center">
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-2">
+                            <button type="button" @click="showAddCustomerModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
+                            <button type="submit" :disabled="creatingCustomer"
+                                class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold shadow-lg shadow-cyan-500/20 flex items-center space-x-1.5">
+                                <span v-if="creatingCustomer" class="animate-spin">⏳</span>
+                                <span>{{ creatingCustomer ? 'Đang Tạo User...' : 'Tạo Customer Ngay' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- MODAL: CẬP NHẬT PHIÊN BẢN PRESSPANEL (AAPANEL STYLE UPDATE MODAL) -->
             <div v-if="showUpdateModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+
                 <div class="glass rounded-2xl max-w-md w-full p-6 shadow-2xl relative border border-slate-700">
                     <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
                         <div class="flex items-center space-x-2">
@@ -1099,11 +1413,26 @@
                 const domains = ref([]);
                 const showAddDomainModal = ref(false);
 
+                // Khách hàng (Customers) & Chế độ Login As User (Impersonation)
+                const customers = ref([]);
+                const showAddCustomerModal = ref(false);
+                const creatingCustomer = ref(false);
+                const newCustomer = ref({
+                    username: '',
+                    email: '',
+                    password: '',
+                    disk_mb: 5120,
+                    mem_mb: 1024,
+                    cpu_pct: 100
+                });
+                const isImpersonating = ref(!!sessionStorage.getItem('presspanel_admin_backup_token'));
+
                 const loginForm = ref({ username: 'admin', password: 'admin123456' });
                 const loginError = ref('');
                 const loggingIn = ref(false);
 
                 const newDomain = ref({ domain_name: '', webserver: 'ols', php_version: '8.2', install_wp: true });
+
 
                 // Dữ liệu App Store & Software Manager
                 const appsList = ref([]);
@@ -1422,7 +1751,121 @@
                     }
                 };
 
+                // ==========================================
+                // QUẢN TRỊ CUSTOMERS VÀ LOGIN AS USER (IMPERSONATION)
+                // ==========================================
+                const fetchCustomers = async () => {
+                    if (!token.value) return;
+                    try {
+                        const res = await fetch('/api/v1/users/customers', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            customers.value = await res.json();
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải customers:', e);
+                    }
+                };
+
+                const handleAddCustomer = async () => {
+                    creatingCustomer.value = true;
+                    try {
+                        const res = await fetch('/api/v1/users/customers', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify(newCustomer.value)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Tạo Customer thành công!');
+                            showAddCustomerModal.value = false;
+                            newCustomer.value = {
+                                username: '',
+                                email: '',
+                                password: '',
+                                disk_mb: 5120,
+                                mem_mb: 1024,
+                                cpu_pct: 100
+                            };
+                            fetchCustomers();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể tạo Customer'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        creatingCustomer.value = false;
+                    }
+                };
+
+                const impersonateUser = async (customer) => {
+                    if (!confirm(`Bạn có chắc chắn muốn đăng nhập dưới quyền Customer "${customer.username}" để quản lý website?`)) return;
+                    try {
+                        const res = await fetch(`/api/v1/users/${customer.id}/impersonate`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.access_token) {
+                            // Lưu lại token Admin ban đầu vào sessionStorage
+                            sessionStorage.setItem('presspanel_admin_backup_token', token.value);
+                            sessionStorage.setItem('presspanel_admin_backup_user', JSON.stringify(currentUser.value));
+
+                            // Đổi token hiện tại sang token của Customer
+                            token.value = data.access_token;
+                            currentUser.value = {
+                                id: data.customer.id,
+                                username: data.customer.username,
+                                role: data.customer.role
+                            };
+                            localStorage.setItem('presspanel_token', data.access_token);
+                            localStorage.setItem('presspanel_user', JSON.stringify(currentUser.value));
+                            isImpersonating.value = true;
+
+                            // Chuyển sang tab Domains để xem/thêm website cho Customer
+                            currentTab.value = 'domains';
+                            fetchDomains();
+                            fetchSystemStatus();
+                            fetchAppsList();
+                        } else {
+                            alert('Lỗi Login As: ' + (data.detail || 'Không thể đăng nhập dưới quyền Customer này'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
+                const exitImpersonation = () => {
+                    const backupToken = sessionStorage.getItem('presspanel_admin_backup_token');
+                    const backupUser = sessionStorage.getItem('presspanel_admin_backup_user');
+                    if (backupToken) {
+                        token.value = backupToken;
+                        try {
+                            currentUser.value = JSON.parse(backupUser) || { username: 'admin', role: 'admin' };
+                        } catch(e) {
+                            currentUser.value = { username: 'admin', role: 'admin' };
+                        }
+                        localStorage.setItem('presspanel_token', backupToken);
+                        localStorage.setItem('presspanel_user', JSON.stringify(currentUser.value));
+                        sessionStorage.removeItem('presspanel_admin_backup_token');
+                        sessionStorage.removeItem('presspanel_admin_backup_user');
+                        isImpersonating.value = false;
+
+                        // Trở về tab Customers của Admin
+                        currentTab.value = 'customers';
+                        fetchCustomers();
+                        fetchDomains();
+                    } else {
+                        window.location.reload();
+                    }
+                };
+
                 const handleWPSSO = async (domain) => {
+
                     try {
                         const res = await fetch(`/api/v1/wp/${domain.id}/sso`, {
                             headers: { 'Authorization': `Bearer ${token.value}` }
@@ -1503,6 +1946,7 @@
                     }
                     if (token.value) {
                         fetchDomains();
+                        fetchCustomers();
                         fetchSystemStatus();
                         fetchAppsList();
                         fetchTasks();
@@ -1524,6 +1968,8 @@
 
                 return {
                     token, currentUser, currentTab, domains, showAddDomainModal,
+                    customers, showAddCustomerModal, creatingCustomer, newCustomer, isImpersonating,
+                    fetchCustomers, handleAddCustomer, impersonateUser, exitImpersonation,
                     showUpdateModal, isUpdating, updateCountdown, handlePanelUpdate,
                     showMessagesBox, msgBoxTab, runningTasks, completedTasks,
                     selectedTaskId, selectedTaskLog, fetchTasks, viewTaskLog,
@@ -1542,3 +1988,4 @@
     </script>
 </body>
 </html>
+

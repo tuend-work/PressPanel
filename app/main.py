@@ -14,6 +14,7 @@ from app.api.v1.files import router as files_router
 from app.api.v1.system import router as system_router
 from app.api.v1.apps import router as apps_router
 from app.api.v1.tasks import router as tasks_router
+from app.api.v1.users import router as users_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -48,6 +49,7 @@ app.include_router(files_router, prefix=settings.API_V1_STR)
 app.include_router(system_router, prefix=settings.API_V1_STR)
 app.include_router(apps_router, prefix=settings.API_V1_STR)
 app.include_router(tasks_router, prefix=settings.API_V1_STR)
+app.include_router(users_router, prefix=settings.API_V1_STR)
 
 @app.get("/health", tags=["System"])
 async def health_check():
