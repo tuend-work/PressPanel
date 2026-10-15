@@ -41,13 +41,21 @@
         .aapanel-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04); color: #1e293b; }
         
         /* Light mode text & background normalization for main content */
-        main h2.text-white { color: #1e293b !important; }
+        main h2.text-white, main h3.text-white, main h4.text-white { color: #1e293b !important; }
         main p.text-slate-400 { color: #64748b !important; }
         .glass-card h3.text-white, .aapanel-card h3.text-white, .glass-card h4.text-white, .aapanel-card h4.text-white { color: #1e293b !important; }
         .glass-card .text-slate-300, .aapanel-card .text-slate-300 { color: #334155 !important; }
         .glass-card .text-slate-400, .aapanel-card .text-slate-400 { color: #64748b !important; }
         .glass-card .bg-slate-900, .aapanel-card .bg-slate-900, .glass-card .bg-\[\#141921\], .aapanel-card .bg-\[\#141921\], .glass-card .bg-\[\#151a22\], .aapanel-card .bg-\[\#151a22\] { background-color: #f8fafc !important; }
         .glass-card .border-slate-800, .aapanel-card .border-slate-800, .glass-card .border-\[\#232b36\], .aapanel-card .border-\[\#232b36\] { border-color: #e2e8f0 !important; }
+        
+        /* Plesk Toolbar & Table Light Mode Overrides */
+        main .bg-slate-900\/80 { background-color: #ffffff !important; border-color: #e2e8f0 !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04); }
+        main .bg-\[\#141921\] { background-color: #f8fafc !important; color: #475569 !important; border-color: #e2e8f0 !important; }
+        main .border-\[\#232b36\] { border-color: #e2e8f0 !important; }
+        main .divide-\[\#232b36\] > :not([hidden]) ~ :not([hidden]) { border-color: #f1f5f9 !important; }
+        main table tbody tr:hover { background-color: #f8fafc !important; }
+        main input[type="checkbox"] { background-color: #ffffff !important; border-color: #cbd5e1 !important; }
         
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
@@ -137,7 +145,7 @@
 
                         <!-- Menu Items -->
                         <div class="p-3 space-y-1 text-xs">
-                            <!-- 1. Tổng quan -->
+                            <!-- 1. Tổng quan (All Roles) -->
                             <button @click="currentTab = 'dashboard'" :class="navClass('dashboard')">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-base">🏠</span>
@@ -145,16 +153,16 @@
                                 </div>
                             </button>
 
-                            <!-- 2. Website & Tên miền -->
+                            <!-- 2. Website & Tên miền (All Roles) -->
                             <button @click="currentTab = 'domains'" :class="navClass('domains')">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-base">🌐</span>
-                                    <span>Website & Domains</span>
+                                    <span>{{ currentUser.role === 'user' ? 'Website của tôi' : 'Website & Domains' }}</span>
                                 </div>
                                 <span class="text-[10px] text-slate-400">⌵</span>
                             </button>
 
-                            <!-- 3. WordPress -->
+                            <!-- 3. WordPress (All Roles) -->
                             <button @click="currentTab = 'wp'" :class="navClass('wp')">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-base">🇼</span>
@@ -163,8 +171,8 @@
                                 <span class="text-[10px] text-slate-400">⌵</span>
                             </button>
 
-                            <!-- 4. Hosting & Subscriptions -->
-                            <button @click="currentTab = 'subscriptions'" :class="navClass('subscriptions')">
+                            <!-- 4. Hosting & Subscriptions (Admin & Hosting User) -->
+                            <button v-if="['admin', 'reseller'].includes(currentUser.role)" @click="currentTab = 'subscriptions'" :class="navClass('subscriptions')">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-base">🗄️</span>
                                     <span>Hosting & Subscriptions</span>
@@ -172,8 +180,8 @@
                                 <span class="text-[10px] text-slate-400">⌵</span>
                             </button>
 
-                            <!-- 5. Service Plans -->
-                            <button @click="currentTab = 'service_plans'" :class="navClass('service_plans')">
+                            <!-- 5. Service Plans (Chỉ Admin) -->
+                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'service_plans'" :class="navClass('service_plans')">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-base">🖥️</span>
                                     <span>Gói Dịch Vụ (Plans)</span>
@@ -181,16 +189,34 @@
                                 <span class="text-[10px] text-slate-400">⌵</span>
                             </button>
 
-                            <!-- 6. Khách hàng -->
-                            <button @click="currentTab = 'customers'" :class="navClass('customers')">
+                            <!-- 6. Quản Lý Hosting Users / Khách Hàng (Chỉ Admin) -->
+                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'customers'" :class="navClass('customers')">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-base">👥</span>
-                                    <span>Khách hàng</span>
+                                    <span>Hosting Users</span>
                                 </div>
                                 <span class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">{{ customers.length }}</span>
                             </button>
 
-                            <!-- 7. Hỗ trợ / Tasks -->
+                            <!-- 7. Cơ sở dữ liệu & Database Users (Chỉ Hosting User / Reseller & Admin) -->
+                            <button v-if="['admin', 'reseller'].includes(currentUser.role)" @click="currentTab = 'databases'" :class="navClass('databases')">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-base">🗃️</span>
+                                    <span>Databases & Users</span>
+                                </div>
+                                <span class="text-[10px] text-slate-400">⌵</span>
+                            </button>
+
+                            <!-- 8. File Manager & SSH (Web User & Admin) -->
+                            <button v-if="['admin', 'user'].includes(currentUser.role)" @click="currentTab = 'files'" :class="navClass('files')">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-base">📁</span>
+                                    <span>File Manager</span>
+                                </div>
+                                <span v-if="currentUser.role === 'user'" class="text-[9px] px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 font-mono">SSH</span>
+                            </button>
+
+                            <!-- 9. Tiến trình & Hỗ trợ (All Roles) -->
                             <button @click="openMessageBox('tasks')" :class="msgBoxTab === 'tasks' && showMessagesBox ? navClass('support') : 'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-[#142338] transition'">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-base">🎧</span>
@@ -200,36 +226,36 @@
                                 <span v-else class="text-[10px] text-slate-400">⌵</span>
                             </button>
 
-                            <!-- 10. Công cụ / App Store -->
-                            <button @click="currentTab = 'apps'" :class="navClass('apps')">
+                            <!-- 10. Công cụ / App Store (Chỉ Admin mới cài đặt và quản trị server app) -->
+                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'apps'" :class="navClass('apps')">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-base">🔧</span>
-                                    <span>Công cụ & App</span>
+                                    <span>Công cụ & App Store</span>
                                 </div>
                                 <span class="text-[10px] text-slate-400">⌵</span>
                             </button>
 
-                            <!-- 11. Bảo mật -->
-                            <button @click="currentTab = 'firewall'" :class="navClass('firewall')">
+                            <!-- 11. Bảo mật (Chỉ Admin) -->
+                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'firewall'" :class="navClass('firewall')">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-base">🛡️</span>
                                     <span>Bảo mật</span>
                                 </div>
                             </button>
 
-                            <!-- 12. Báo cáo -->
-                            <button @click="currentTab = 'monitoring'" :class="navClass('monitoring')">
+                            <!-- 12. Báo cáo (Admin & Hosting User) -->
+                            <button v-if="['admin', 'reseller'].includes(currentUser.role)" @click="currentTab = 'monitoring'" :class="navClass('monitoring')">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-base">📊</span>
                                     <span>Báo cáo</span>
                                 </div>
                             </button>
 
-                            <!-- 13. Cài đặt -->
-                            <button @click="currentTab = 'tools_settings'" :class="navClass('tools_settings')">
+                            <!-- 13. Cài đặt (Admin & Hosting User) -->
+                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'tools_settings'" :class="navClass('tools_settings')">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-base">⚙️</span>
-                                    <span>Cài đặt</span>
+                                    <span>Cài đặt hệ thống</span>
                                 </div>
                             </button>
                         </div>
@@ -1035,48 +1061,48 @@
                         </div>
 
                         <!-- Category Filter Tabs -->
-                        <div class="flex flex-wrap gap-2 border-b border-[#232b36] pb-3 text-xs">
+                        <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-3 text-xs">
                             <button @click="appsCategory = 'all'"
-                                :class="appsCategory === 'all' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold' : 'px-3 py-1.5 rounded-lg bg-slate-900/60 text-slate-400 hover:text-white'">
+                                :class="appsCategory === 'all' ? 'px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-semibold shadow-sm' : 'px-3.5 py-1.5 rounded-xl bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'">
                                 Tất Cả ({{ appsList.length }})
                             </button>
                             <button @click="appsCategory = 'webserver'"
-                                :class="appsCategory === 'webserver' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold' : 'px-3 py-1.5 rounded-lg bg-slate-900/60 text-slate-400 hover:text-white'">
+                                :class="appsCategory === 'webserver' ? 'px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-semibold shadow-sm' : 'px-3.5 py-1.5 rounded-xl bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'">
                                 Web Server
                             </button>
                             <button @click="appsCategory = 'database'"
-                                :class="appsCategory === 'database' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold' : 'px-3 py-1.5 rounded-lg bg-slate-900/60 text-slate-400 hover:text-white'">
+                                :class="appsCategory === 'database' ? 'px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-semibold shadow-sm' : 'px-3.5 py-1.5 rounded-xl bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'">
                                 Database
                             </button>
                             <button @click="appsCategory = 'php'"
-                                :class="appsCategory === 'php' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold' : 'px-3 py-1.5 rounded-lg bg-slate-900/60 text-slate-400 hover:text-white'">
+                                :class="appsCategory === 'php' ? 'px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-semibold shadow-sm' : 'px-3.5 py-1.5 rounded-xl bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'">
                                 PHP Runtime
                             </button>
                             <button @click="appsCategory = 'tools'"
-                                :class="appsCategory === 'tools' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold' : 'px-3 py-1.5 rounded-lg bg-slate-900/60 text-slate-400 hover:text-white'">
+                                :class="appsCategory === 'tools' ? 'px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-semibold shadow-sm' : 'px-3.5 py-1.5 rounded-xl bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'">
                                 Công Cụ & Bảo Mật
                             </button>
                         </div>
 
                         <!-- Danh Sách Apps Grid -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                             <div v-for="app in filteredApps" :key="app.id"
-                                class="aapanel-card rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:border-slate-600 transition shadow-lg">
+                                class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4">
                                 <div>
                                     <!-- Top Card Header -->
-                                    <div class="flex justify-between items-start mb-2">
-                                        <div class="w-10 h-10 rounded-xl bg-[#141921] border border-[#232b36] flex items-center justify-center text-xl">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <div class="w-11 h-11 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-2xl shadow-inner">
                                             {{ app.icon }}
                                         </div>
                                         <div class="flex flex-col items-end">
-                                            <span v-if="app.running" class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1">
-                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                            <span v-if="app.running" class="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                                 <span>Đang Chạy</span>
                                             </span>
-                                            <span v-else-if="app.installed" class="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-950 text-amber-400 border border-amber-800">
+                                            <span v-else-if="app.installed" class="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
                                                 Đã Dừng
                                             </span>
-                                            <span v-else class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400 border border-slate-700">
+                                            <span v-else class="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
                                                 Chưa Cài Đặt
                                             </span>
                                         </div>
@@ -1084,19 +1110,19 @@
 
                                     <!-- App Title & Version -->
                                     <div class="flex items-center space-x-2">
-                                        <h4 class="font-bold text-white text-sm">{{ app.name }}</h4>
-                                        <span class="text-[10px] text-slate-500 font-mono">v{{ app.default_version }}</span>
+                                        <h4 class="font-bold text-slate-800 text-base">{{ app.name }}</h4>
+                                        <span class="text-[11px] text-slate-400 font-mono">v{{ app.default_version }}</span>
                                     </div>
-                                    <p class="text-xs text-slate-400 mt-1 leading-relaxed">{{ app.desc }}</p>
+                                    <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">{{ app.desc }}</p>
                                 </div>
 
                                 <!-- Action Buttons & Version Selector -->
-                                <div class="pt-2 border-t border-[#232b36] flex flex-col space-y-2 text-xs">
+                                <div class="pt-3 border-t border-slate-100 flex flex-col space-y-2.5 text-xs">
                                     <!-- Dropdown Chọn Phiên Bản (nếu chưa cài đặt và có nhiều options) -->
                                     <div v-if="!app.installed && app.versions && app.versions.length > 0" class="w-full">
-                                        <label class="block text-[11px] text-slate-400 mb-1 font-medium">Chọn phiên bản:</label>
+                                        <label class="block text-[11px] text-slate-500 mb-1 font-medium">Chọn phiên bản:</label>
                                         <select v-model="appVersions[app.id]"
-                                            class="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-blue-500">
+                                            class="w-full px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-mono text-xs focus:outline-none focus:border-blue-500 focus:bg-white">
                                             <option v-for="v in app.versions" :key="v.value" :value="v.value">
                                                 {{ v.label }}
                                             </option>
@@ -1106,7 +1132,7 @@
                                     <div v-if="!app.installed" class="w-full">
                                         <button @click="handleAppAction(app.id, 'install')"
                                             :disabled="installingAppId === app.id"
-                                            class="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-white shadow-lg shadow-blue-500/20 transition flex items-center justify-center space-x-1.5">
+                                            class="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-white shadow-md shadow-blue-500/20 transition flex items-center justify-center space-x-1.5">
                                             <span v-if="installingAppId === app.id" class="animate-spin">⏳</span>
                                             <span v-else>⚡</span>
                                             <span>{{ installingAppId === app.id ? 'Đang gửi lệnh...' : 'Cài Đặt (1-Click)' }}</span>
@@ -1114,35 +1140,35 @@
                                     </div>
 
                                     <div v-else class="space-y-2">
-                                        <!-- Hàng 1: Nút Setting (Cấu hình aaPanel style) & Tự khởi động -->
+                                        <!-- Hàng 1: Nút Setting & Tự khởi động -->
                                         <div class="flex items-center justify-between gap-2">
                                             <button @click="openAppSettings(app)"
-                                                class="flex-1 py-1.5 px-2 rounded-lg bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-800/60 transition flex items-center justify-center space-x-1.5 font-medium text-xs">
+                                                class="flex-1 py-1.5 px-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition flex items-center justify-center space-x-1.5 font-medium text-xs">
                                                 <span>⚙️</span>
                                                 <span>Cài Đặt (Setting)</span>
                                             </button>
                                             
                                             <!-- Checkbox Tự khởi động lại khi bị tắt -->
-                                            <label v-if="app.service" class="flex items-center space-x-1.5 text-[11px] text-slate-300 cursor-pointer select-none bg-slate-900/80 px-2 py-1 rounded-lg border border-slate-800 hover:border-slate-700">
+                                            <label v-if="app.service" class="flex items-center space-x-1.5 text-[11px] text-slate-600 cursor-pointer select-none bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100">
                                                 <input type="checkbox" :checked="app.autorestart" @change="toggleAppAutorestart(app, $event.target.checked)"
-                                                    class="rounded border-slate-700 text-blue-600 focus:ring-0">
+                                                    class="rounded border-slate-300 text-blue-600 focus:ring-0">
                                                 <span>Tự khởi động</span>
                                             </label>
                                         </div>
 
                                         <!-- Hàng 2: Bật / Tắt / Restart / Gỡ cài đặt -->
-                                        <div class="w-full flex items-center justify-between gap-1.5 pt-1">
+                                        <div class="w-full flex items-center justify-between gap-2 pt-0.5">
                                             <button v-if="app.service" @click="handleAppAction(app.id, 'restart')"
-                                                class="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition text-[11px]">
+                                                class="flex-1 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition text-[11px] border border-slate-200">
                                                 Khởi động lại
                                             </button>
                                             <button v-if="app.service" @click="handleAppAction(app.id, app.running ? 'stop' : 'start')"
-                                                class="flex-1 py-1.5 rounded-lg transition text-[11px] font-medium"
-                                                :class="app.running ? 'bg-amber-950/70 text-amber-300 hover:bg-amber-900 border border-amber-800/60' : 'bg-emerald-950/70 text-emerald-300 hover:bg-emerald-900 border border-emerald-800/60'">
+                                                class="flex-1 py-1.5 rounded-xl transition text-[11px] font-semibold"
+                                                :class="app.running ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'">
                                                 {{ app.running ? 'Dừng' : 'Bật' }}
                                             </button>
                                             <button @click="handleAppAction(app.id, 'uninstall')"
-                                                class="px-2.5 py-1.5 rounded-lg bg-rose-950/40 text-rose-400 hover:bg-rose-900/60 border border-rose-900/60 transition text-[11px]"
+                                                class="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition text-[11px]"
                                                 title="Gỡ cài đặt">
                                                 🗑️
                                             </button>
@@ -1154,31 +1180,31 @@
                     </div>
 
                     <!-- ========================================== -->
-                    <!-- VIEW 5: CUSTOMERS (QUẢN TRỊ TÀI KHOẢN KHÁCH HÀNG & LOGIN AS) -->
+                    <!-- VIEW 5: HOSTING USERS & KHÁCH HÀNG (LOGIN AS / QUẢN LÝ TÀI KHOẢN) -->
                     <!-- ========================================== -->
                     <div v-if="currentTab === 'customers'" class="space-y-6 max-w-7xl mx-auto">
                         <!-- Action Bar -->
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <div>
-                                <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                                    <span>👤</span> <span>Quản Lý Khách Hàng (Customers)</span>
+                                <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+                                    <span>👤</span> <span>Quản Lý Hosting Users (Khách Hàng)</span>
                                 </h2>
-                                <p class="text-xs text-slate-400">Tài khoản Admin chỉ dùng để quản trị. Tạo User con để phân bổ tài nguyên và thêm website an toàn.</p>
+                                <p class="text-xs text-slate-500 mt-1">Hosting User chỉ đăng nhập Web Control Panel (không SSH). Quản lý nhiều gói website, database và database user.</p>
                             </div>
-                            <button @click="showAddCustomerModal = true; fetchServicePlans();" class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-semibold text-xs text-white shadow-lg shadow-cyan-500/20 transition flex items-center space-x-2">
-                                <span>➕ Thêm Customer Mới</span>
+                            <button @click="showAddCustomerModal = true; fetchServicePlans();" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-md shadow-blue-500/20 transition flex items-center space-x-2">
+                                <span>➕ Thêm Hosting User</span>
                             </button>
                         </div>
 
                         <!-- Plesk Style Toolbar for Customers -->
-                        <div class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-slate-900/80 border border-[#232b36]">
+                        <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
                             <div class="flex flex-wrap items-center gap-2">
                                 <button @click="showAddCustomerModal = true; fetchServicePlans();"
-                                    class="px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-xs text-white shadow-lg shadow-cyan-500/20 transition flex items-center space-x-1.5">
-                                    <span>➕ Add Customer</span>
+                                    class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white shadow-sm transition flex items-center space-x-1.5">
+                                    <span>➕ Add Hosting User</span>
                                 </button>
                                 <button @click="currentTab = 'service_plans'"
-                                    class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 font-medium text-xs text-slate-300 border border-slate-700 transition flex items-center space-x-1.5">
+                                    class="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 font-medium text-xs text-slate-700 border border-slate-200 transition flex items-center space-x-1.5">
                                     <span>📋 Service Plans</span>
                                 </button>
                                 
@@ -1186,16 +1212,16 @@
                                 <div class="relative">
                                     <button @click="showCustomerStatusMenu = !showCustomerStatusMenu"
                                         :disabled="selectedCustomerIds.length === 0"
-                                        :class="selectedCustomerIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-800/50 text-slate-500' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'"
-                                        class="px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center space-x-1">
+                                        :class="selectedCustomerIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-50 text-slate-400 border border-slate-200' : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'"
+                                        class="px-3.5 py-2 rounded-xl text-xs font-medium transition flex items-center space-x-1">
                                         <span>⚙️ Set Status</span>
                                         <span class="text-[10px]">▼</span>
                                     </button>
-                                    <div v-if="showCustomerStatusMenu" class="absolute left-0 mt-1 w-36 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 z-30">
-                                        <button @click="handleSetCustomerStatus('active')" class="w-full text-left px-3 py-1.5 text-xs text-emerald-400 hover:bg-slate-800 flex items-center space-x-1.5">
+                                    <div v-if="showCustomerStatusMenu" class="absolute left-0 mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-xl py-1 z-30">
+                                        <button @click="handleSetCustomerStatus('active')" class="w-full text-left px-3 py-2 text-xs text-emerald-600 hover:bg-slate-50 flex items-center space-x-1.5 font-medium">
                                             <span>●</span> <span>Active</span>
                                         </button>
-                                        <button @click="handleSetCustomerStatus('suspended')" class="w-full text-left px-3 py-1.5 text-xs text-rose-400 hover:bg-slate-800 flex items-center space-x-1.5">
+                                        <button @click="handleSetCustomerStatus('suspended')" class="w-full text-left px-3 py-2 text-xs text-rose-600 hover:bg-slate-50 flex items-center space-x-1.5 font-medium">
                                             <span>●</span> <span>Suspended</span>
                                         </button>
                                     </div>
@@ -1203,87 +1229,87 @@
 
                                 <button @click="handleBatchDeleteCustomers"
                                     :disabled="selectedCustomerIds.length === 0"
-                                    :class="selectedCustomerIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-800/50 text-slate-500' : 'bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/80'"
-                                    class="px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center space-x-1">
+                                    :class="selectedCustomerIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-50 text-slate-400 border border-slate-200' : 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200'"
+                                    class="px-3.5 py-2 rounded-xl text-xs font-medium transition flex items-center space-x-1">
                                     <span>🗑️ Remove</span>
                                     <span v-if="selectedCustomerIds.length > 0" class="text-[10px] font-mono font-bold">({{ selectedCustomerIds.length }})</span>
                                 </button>
                             </div>
-                            <div class="text-[11px] text-slate-400 font-mono">
+                            <div class="text-[11px] text-slate-500 font-mono">
                                 {{ customers.length }} items total
                             </div>
                         </div>
 
                         <!-- Bảng danh sách Customer -->
-                        <div class="aapanel-card rounded-2xl overflow-hidden shadow-xl border border-[#232b36]">
+                        <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200/90">
                             <div class="overflow-x-auto">
-                                <table class="w-full text-left text-xs text-slate-300">
-                                    <thead class="bg-[#141921] border-b border-[#232b36] text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                <table class="w-full text-left text-xs text-slate-600">
+                                    <thead class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                                         <tr>
-                                            <th class="py-3 px-3 w-10 text-center">
+                                            <th class="py-3.5 px-3 w-10 text-center">
                                                 <input type="checkbox" :checked="isAllCustomersSelected" @change="toggleSelectAllCustomers"
-                                                    class="rounded text-cyan-600 bg-slate-900 border-slate-700 focus:ring-cyan-500">
+                                                    class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500">
                                             </th>
-                                            <th class="py-3 px-4">Tài Khoản</th>
-                                            <th class="py-3 px-4">Gói Dịch Vụ</th>
-                                            <th class="py-3 px-4">Email Liên Hệ</th>
-                                            <th class="py-3 px-4">Số Websites</th>
-                                            <th class="py-3 px-4">Hạn Mức Tài Nguyên</th>
-                                            <th class="py-3 px-4">Trạng Thái</th>
-                                            <th class="py-3 px-4 text-right">Thao Tác</th>
+                                            <th class="py-3.5 px-4">Tài Khoản</th>
+                                            <th class="py-3.5 px-4">Gói Dịch Vụ</th>
+                                            <th class="py-3.5 px-4">Email Liên Hệ</th>
+                                            <th class="py-3.5 px-4">Số Websites</th>
+                                            <th class="py-3.5 px-4">Hạn Mức Tài Nguyên</th>
+                                            <th class="py-3.5 px-4">Trạng Thái</th>
+                                            <th class="py-3.5 px-4 text-right">Thao Tác</th>
                                         </tr>
                                     </thead>
-                                    <tbody class="divide-y divide-[#232b36]">
+                                    <tbody class="divide-y divide-slate-100">
                                         <tr v-if="customers.length === 0">
-                                            <td colspan="8" class="py-12 text-center text-slate-500">
+                                            <td colspan="8" class="py-12 text-center text-slate-400">
                                                 <div class="text-3xl mb-2">👥</div>
-                                                <div class="font-medium">Chưa có tài khoản Customer nào</div>
-                                                <div class="text-[11px] text-slate-500 mt-1">Bấm nút "➕ Add Customer" ở trên để tạo người dùng đầu tiên.</div>
+                                                <div class="font-semibold text-slate-700">Chưa có tài khoản Hosting User nào</div>
+                                                <div class="text-[11px] text-slate-400 mt-1">Bấm nút "➕ Add Hosting User" ở trên để tạo người dùng đầu tiên.</div>
                                             </td>
                                         </tr>
-                                        <tr v-for="c in customers" :key="c.id" :class="selectedCustomerIds.includes(c.id) ? 'bg-cyan-950/20' : 'hover:bg-[#151c26]'" class="transition">
-                                            <td class="py-3.5 px-3 text-center">
+                                        <tr v-for="c in customers" :key="c.id" :class="selectedCustomerIds.includes(c.id) ? 'bg-blue-50/40' : 'hover:bg-slate-50/80'" class="transition">
+                                            <td class="py-4 px-3 text-center">
                                                 <input type="checkbox" :value="c.id" v-model="selectedCustomerIds"
-                                                    class="rounded text-cyan-600 bg-slate-900 border-slate-700 focus:ring-cyan-500">
+                                                    class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500">
                                             </td>
-                                            <td class="py-3.5 px-4 font-medium text-white flex items-center space-x-2.5">
-                                                <div class="w-7 h-7 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-400 flex items-center justify-center font-bold text-xs">
+                                            <td class="py-4 px-4 font-medium text-slate-800 flex items-center space-x-2.5">
+                                                <div class="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center font-bold text-xs shadow-inner">
                                                     {{ c.username.slice(0, 2).toUpperCase() }}
                                                 </div>
                                                 <div>
-                                                    <div class="font-bold text-white">{{ c.username }}</div>
-                                                    <div class="text-[10px] text-slate-500 font-mono">/home/{{ c.username }}</div>
+                                                    <div class="font-bold text-slate-800">{{ c.username }}</div>
+                                                    <div class="text-[10px] text-slate-400 font-mono">Web Panel User (No SSH)</div>
                                                 </div>
                                             </td>
-                                            <td class="py-3.5 px-4 font-medium text-cyan-300">
+                                            <td class="py-4 px-4 font-semibold text-blue-600">
                                                 {{ c.package_name || 'Standard Plan' }}
                                             </td>
-                                            <td class="py-3.5 px-4 text-slate-400">{{ c.email }}</td>
-                                            <td class="py-3.5 px-4">
-                                                <span class="px-2 py-0.5 rounded font-mono font-semibold"
-                                                    :class="c.domain_count > 0 ? 'bg-blue-950 text-blue-400 border border-blue-800' : 'bg-slate-800 text-slate-400'">
+                                            <td class="py-4 px-4 text-slate-500">{{ c.email }}</td>
+                                            <td class="py-4 px-4">
+                                                <span class="px-2.5 py-1 rounded-full font-mono text-[11px] font-semibold"
+                                                    :class="c.domain_count > 0 ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-500'">
                                                     {{ c.domain_count }} sites
                                                 </span>
                                             </td>
-                                            <td class="py-3.5 px-4 font-mono text-[11px]">
+                                            <td class="py-4 px-4 font-mono text-[11px] text-slate-600">
                                                 <div class="flex items-center space-x-2">
                                                     <span title="Dung lượng ổ cứng">💾 {{ (c.disk_mb / 1024).toFixed(1) }}GB</span>
-                                                    <span class="text-slate-600">|</span>
+                                                    <span class="text-slate-300">|</span>
                                                     <span title="RAM">⚡ {{ c.mem_mb }}MB</span>
-                                                    <span class="text-slate-600">|</span>
+                                                    <span class="text-slate-300">|</span>
                                                     <span title="CPU">🖥️ {{ c.cpu_pct }}%</span>
                                                 </div>
                                             </td>
-                                            <td class="py-3.5 px-4">
-                                                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                                                    :class="c.status === 'active' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'">
+                                            <td class="py-4 px-4">
+                                                <span class="px-2.5 py-1 rounded-full text-[10px] font-semibold"
+                                                    :class="c.status === 'active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'">
                                                     ● {{ c.status === 'active' ? 'Hoạt động' : 'Đã khóa' }}
                                                 </span>
                                             </td>
-                                            <td class="py-3.5 px-4 text-right">
+                                            <td class="py-4 px-4 text-right">
                                                 <!-- Nút Chức Năng Cốt Lõi: LOGIN AS USER -->
                                                 <button @click="impersonateUser(c)"
-                                                    class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs shadow-md shadow-cyan-500/20 transition flex items-center space-x-1.5 ml-auto">
+                                                    class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition flex items-center space-x-1.5 ml-auto">
                                                     <span>🔑</span>
                                                     <span>Login as user</span>
                                                 </button>
@@ -1302,62 +1328,62 @@
                         <!-- Action Bar -->
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <div>
-                                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                                <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
                                     <span>📖</span> <span>Gói Dịch Vụ Lưu Trữ (Service Plans)</span>
                                 </h2>
-                                <p class="text-xs text-slate-400">Định nghĩa các gói hosting mẫu (Disk Quota, RAM, CPU, số lượng tên miền & database) cho khách hàng.</p>
+                                <p class="text-xs text-slate-500 mt-1">Định nghĩa các gói hosting mẫu (Disk Quota, RAM, CPU, số lượng tên miền & database) cho khách hàng.</p>
                             </div>
-                            <button @click="showAddPlanModal = true" class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-semibold text-xs text-white shadow-lg shadow-cyan-500/20 transition flex items-center space-x-2">
+                            <button @click="showAddPlanModal = true" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-md shadow-blue-500/20 transition flex items-center space-x-2">
                                 <span>➕ Thêm Service Plan Mới</span>
                             </button>
                         </div>
 
                         <!-- Grid các gói Hosting Mẫu chuẩn Plesk -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                             <div v-for="plan in servicePlans" :key="plan.id"
-                                class="aapanel-card rounded-2xl p-5 flex flex-col justify-between border border-[#232b36] hover:border-cyan-600 transition shadow-xl space-y-4">
+                                class="bg-white rounded-2xl p-5 flex flex-col justify-between border border-slate-200/90 hover:border-blue-500 transition shadow-sm hover:shadow-md space-y-4">
                                 <div>
-                                    <div class="flex justify-between items-start mb-2">
-                                        <div class="w-9 h-9 rounded-xl bg-cyan-950/80 border border-cyan-800 text-cyan-400 flex items-center justify-center font-bold text-sm">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <div class="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center font-bold text-base shadow-inner">
                                             📦
                                         </div>
-                                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-full uppercase font-bold"
-                                            :class="plan.package_type === 'reseller' ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-blue-950 text-blue-400 border border-blue-800'">
+                                        <span class="text-[10px] font-mono px-2.5 py-1 rounded-full uppercase font-bold"
+                                            :class="plan.package_type === 'reseller' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200'">
                                             {{ plan.package_type }}
                                         </span>
                                     </div>
 
-                                    <h3 class="font-bold text-white text-base">{{ plan.name }}</h3>
-                                    <div class="text-[11px] text-slate-500 font-mono mt-0.5">Plan ID: #{{ plan.id }}</div>
+                                    <h3 class="font-bold text-slate-800 text-base">{{ plan.name }}</h3>
+                                    <div class="text-[11px] text-slate-400 font-mono mt-0.5">Plan ID: #{{ plan.id }}</div>
 
                                     <!-- Thông số kỹ thuật của gói -->
-                                    <div class="mt-4 space-y-2 text-xs divide-y divide-slate-800/80">
-                                        <div class="flex justify-between pt-1.5 text-slate-300">
-                                            <span class="text-slate-400">💾 Dung lượng ổ cứng:</span>
-                                            <span class="font-bold text-cyan-400 font-mono">{{ (plan.disk_mb / 1024).toFixed(1) }} GB</span>
+                                    <div class="mt-4 space-y-2 text-xs divide-y divide-slate-100">
+                                        <div class="flex justify-between pt-2 text-slate-600">
+                                            <span class="text-slate-500">💾 Dung lượng ổ cứng:</span>
+                                            <span class="font-bold text-blue-600 font-mono">{{ (plan.disk_mb / 1024).toFixed(1) }} GB</span>
                                         </div>
-                                        <div class="flex justify-between pt-1.5 text-slate-300">
-                                            <span class="text-slate-400">⚡ Bộ nhớ RAM:</span>
-                                            <span class="font-bold text-slate-200 font-mono">{{ plan.mem_mb }} MB</span>
+                                        <div class="flex justify-between pt-2 text-slate-600">
+                                            <span class="text-slate-500">⚡ Bộ nhớ RAM:</span>
+                                            <span class="font-bold text-slate-700 font-mono">{{ plan.mem_mb }} MB</span>
                                         </div>
-                                        <div class="flex justify-between pt-1.5 text-slate-300">
-                                            <span class="text-slate-400">🖥️ Hạn mức CPU:</span>
-                                            <span class="font-bold text-slate-200 font-mono">{{ plan.cpu_pct }}% Core</span>
+                                        <div class="flex justify-between pt-2 text-slate-600">
+                                            <span class="text-slate-500">🖥️ Hạn mức CPU:</span>
+                                            <span class="font-bold text-slate-700 font-mono">{{ plan.cpu_pct }}% Core</span>
                                         </div>
-                                        <div class="flex justify-between pt-1.5 text-slate-300">
-                                            <span class="text-slate-400">🌐 Số tên miền tối đa:</span>
-                                            <span class="font-bold text-slate-200 font-mono">{{ plan.max_domains }}</span>
+                                        <div class="flex justify-between pt-2 text-slate-600">
+                                            <span class="text-slate-500">🌐 Số tên miền tối đa:</span>
+                                            <span class="font-bold text-slate-700 font-mono">{{ plan.max_domains }}</span>
                                         </div>
-                                        <div class="flex justify-between pt-1.5 text-slate-300">
-                                            <span class="text-slate-400">🗄️ Số database tối đa:</span>
-                                            <span class="font-bold text-slate-200 font-mono">{{ plan.max_databases }}</span>
+                                        <div class="flex justify-between pt-2 text-slate-600">
+                                            <span class="text-slate-500">🗄️ Số database tối đa:</span>
+                                            <span class="font-bold text-slate-700 font-mono">{{ plan.max_databases }}</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="pt-3 border-t border-[#232b36] flex items-center justify-between text-xs">
-                                    <span class="text-slate-400">Đang sử dụng:</span>
-                                    <span class="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 font-mono text-cyan-300 font-bold">
+                                <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                                    <span class="text-slate-500">Đang sử dụng:</span>
+                                    <span class="px-2.5 py-0.5 rounded-full bg-slate-50 border border-slate-200 font-mono text-blue-600 font-bold">
                                         {{ plan.subscriber_count || 0 }} Users
                                     </span>
                                 </div>
@@ -1370,43 +1396,43 @@
                     <!-- ========================================== -->
                     <div v-if="currentTab === 'subscriptions'" class="space-y-6 max-w-7xl mx-auto">
                         <div>
-                            <h2 class="text-2xl font-bold text-white tracking-tight">Subscriptions</h2>
-                            <p class="text-xs text-slate-400 mt-1 max-w-4xl leading-relaxed">
-                                Customers obtain hosting services from you by subscribing to a hosting plan. You can manage these subscriptions here, as well as your own subscriptions you create to host your websites. To administer websites, mail or any other services provided with a subscription, go to the subscriber's Customer Panel by clicking the link in the right column of the list.
+                            <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Subscriptions (Gói Lưu Trữ Hosting)</h2>
+                            <p class="text-xs text-slate-500 mt-1 max-w-4xl leading-relaxed">
+                                Khách hàng nhận tài nguyên lưu trữ và tên miền thông qua Subscription. Bạn có thể quản trị các gói thuê bao tại đây hoặc chuyển sang quyền của Customer để cấu hình sâu cho từng web.
                             </p>
                         </div>
 
                         <!-- Plesk Action Buttons Toolbar -->
-                        <div class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-slate-900/80 border border-[#232b36]">
+                        <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
                             <div class="flex flex-wrap items-center gap-2">
                                 <!-- Nút Add Subscription -->
                                 <button @click="showAddCustomerModal = true; fetchServicePlans();"
-                                    class="px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-xs text-white shadow-lg shadow-cyan-500/20 transition flex items-center space-x-1.5">
+                                    class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white shadow-sm transition flex items-center space-x-1.5">
                                     <span>➕ Add Subscription</span>
                                 </button>
 
                                 <button @click="currentTab = 'service_plans'"
-                                    class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 transition flex items-center space-x-1">
+                                    class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 border border-slate-200 transition flex items-center space-x-1">
                                     <span>📋 Change Plan</span>
                                 </button>
 
                                 <button @click="currentTab = 'customers'"
-                                    class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 transition flex items-center space-x-1">
+                                    class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 border border-slate-200 transition flex items-center space-x-1">
                                     <span>👤 Change Subscriber</span>
                                 </button>
 
                                 <!-- Set Status Dropdown -->
                                 <div class="relative">
                                     <button @click="showSubStatusMenu = !showSubStatusMenu"
-                                        class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium transition flex items-center space-x-1">
+                                        class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-semibold transition flex items-center space-x-1">
                                         <span>Set Status</span>
                                         <span class="text-[10px]">▼</span>
                                     </button>
-                                    <div v-if="showSubStatusMenu" class="absolute left-0 mt-1 w-36 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 z-30">
-                                        <button @click="showSubStatusMenu = false" class="w-full text-left px-3 py-1.5 text-xs text-emerald-400 hover:bg-slate-800 flex items-center space-x-1.5">
+                                    <div v-if="showSubStatusMenu" class="absolute left-0 mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-xl py-1 z-30">
+                                        <button @click="showSubStatusMenu = false" class="w-full text-left px-3 py-1.5 text-xs text-emerald-600 hover:bg-slate-50 flex items-center space-x-1.5 font-medium">
                                             <span>●</span> <span>Active</span>
                                         </button>
-                                        <button @click="showSubStatusMenu = false" class="w-full text-left px-3 py-1.5 text-xs text-rose-400 hover:bg-slate-800 flex items-center space-x-1.5">
+                                        <button @click="showSubStatusMenu = false" class="w-full text-left px-3 py-1.5 text-xs text-rose-600 hover:bg-slate-50 flex items-center space-x-1.5 font-medium">
                                             <span>●</span> <span>Suspended</span>
                                         </button>
                                     </div>
@@ -1414,27 +1440,27 @@
 
                                 <button @click="handleBatchDeleteDomains(selectedSubIds)"
                                     :disabled="selectedSubIds.length === 0"
-                                    :class="selectedSubIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-800/50 text-slate-500' : 'bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/80'"
-                                    class="px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center space-x-1">
+                                    :class="selectedSubIds.length === 0 ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border border-slate-200' : 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200'"
+                                    class="px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-1">
                                     <span>✕ Remove</span>
                                     <span v-if="selectedSubIds.length > 0" class="text-[10px] font-mono font-bold">({{ selectedSubIds.length }})</span>
                                 </button>
                             </div>
 
-                            <div class="text-[11px] text-slate-400 font-mono">
+                            <div class="text-xs text-slate-500 font-mono font-medium">
                                 {{ domains.length }} items total
                             </div>
                         </div>
 
                         <!-- Subscriptions Table -->
-                        <div class="aapanel-card rounded-2xl overflow-hidden shadow-xl border border-[#232b36]">
+                        <div class="wp-card rounded-2xl overflow-hidden shadow-sm border border-slate-200/90 bg-white">
                             <div class="overflow-x-auto">
-                                <table class="w-full text-left text-xs text-slate-300">
-                                    <thead class="bg-[#141921] border-b border-[#232b36] text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                <table class="w-full text-left text-xs text-slate-700">
+                                    <thead class="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                                         <tr>
                                             <th class="py-3 px-3 w-10 text-center">
                                                 <input type="checkbox" :checked="isAllSubsSelected" @change="toggleSelectAllSubs"
-                                                    class="rounded text-cyan-600 bg-slate-900 border-slate-700 focus:ring-cyan-500">
+                                                    class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500">
                                             </th>
                                             <th class="py-3 px-4">Subscription ↑</th>
                                             <th class="py-3 px-4">Subscriber</th>
@@ -1443,41 +1469,41 @@
                                             <th class="py-3 px-4 text-right">Customer Panel</th>
                                         </tr>
                                     </thead>
-                                    <tbody class="divide-y divide-[#232b36]">
+                                    <tbody class="divide-y divide-slate-100">
                                         <tr v-if="domains.length === 0">
                                             <td colspan="6" class="py-12 text-center text-slate-500">
                                                 <div class="text-3xl mb-2">🗂️</div>
                                                 <div class="font-medium">Chưa có subscription nào</div>
-                                                <div class="text-[11px] text-slate-500 mt-1">Bấm nút "➕ Add Subscription" ở trên để tạo subscription đầu tiên.</div>
+                                                <div class="text-[11px] text-slate-400 mt-1">Bấm nút "➕ Add Subscription" ở trên để tạo subscription đầu tiên.</div>
                                             </td>
                                         </tr>
-                                        <tr v-for="d in domains" :key="d.id" :class="selectedSubIds.includes(d.id) ? 'bg-cyan-950/20' : 'hover:bg-[#151c26]'" class="transition">
+                                        <tr v-for="d in domains" :key="d.id" :class="selectedSubIds.includes(d.id) ? 'bg-blue-50/40' : 'hover:bg-slate-50/70'" class="transition">
                                             <td class="py-3.5 px-3 text-center">
                                                 <input type="checkbox" :value="d.id" v-model="selectedSubIds"
-                                                    class="rounded text-cyan-600 bg-slate-900 border-slate-700 focus:ring-cyan-500">
+                                                    class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500">
                                             </td>
-                                            <td class="py-3.5 px-4 font-medium text-white flex items-center space-x-2">
-                                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400" title="Active"></span>
-                                                <a :href="'http://' + d.domain_name" target="_blank" class="font-bold text-white hover:text-cyan-400 transition">
+                                            <td class="py-3.5 px-4 font-medium text-slate-800 flex items-center space-x-2">
+                                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500" title="Active"></span>
+                                                <a :href="'http://' + d.domain_name" target="_blank" class="font-bold text-slate-800 hover:text-blue-600 transition">
                                                     {{ d.domain_name }}
                                                 </a>
-                                                <span class="text-slate-400 font-mono text-[11px]">
+                                                <span class="text-slate-500 font-mono text-[11px] bg-slate-100 px-1.5 py-0.5 rounded">
                                                     ({{ d.plan_name || 'HOSTING-PLAN' }})
                                                 </span>
                                             </td>
                                             <td class="py-3.5 px-4">
-                                                <div class="text-white font-medium">{{ d.owner_username || 'Administrator' }}</div>
-                                                <div class="text-[10px] text-slate-500">{{ d.owner_email || 'admin@presspanel.local' }}</div>
+                                                <div class="text-slate-800 font-semibold">{{ d.owner_username || 'Administrator' }}</div>
+                                                <div class="text-[10px] text-slate-400">{{ d.owner_email || 'admin@presspanel.local' }}</div>
                                             </td>
-                                            <td class="py-3.5 px-4 font-mono text-slate-400 text-[11px]">
+                                            <td class="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
                                                 {{ (d.created_at || '').slice(0, 10) || '2026-10-15' }}
                                             </td>
-                                            <td class="py-3.5 px-4 font-mono text-slate-400 text-[11px]">
+                                            <td class="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
                                                 Never expires
                                             </td>
                                             <td class="py-3.5 px-4 text-right">
                                                 <button @click="currentTab = 'domains'"
-                                                    class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 font-medium text-xs transition inline-flex items-center space-x-1">
+                                                    class="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold text-xs transition inline-flex items-center space-x-1 shadow-sm">
                                                     <span>➡️</span>
                                                     <span>Manage in Customer Panel</span>
                                                 </button>
@@ -1489,19 +1515,102 @@
                         </div>
                     </div>
 
+                    <!-- ========================================== -->
+                    <!-- VIEW 6.8: DATABASES & DATABASE USERS (CHO HOSTING USER & ADMIN) -->
+                    <!-- ========================================== -->
+                    <div v-if="currentTab === 'databases'" class="space-y-6 max-w-7xl mx-auto">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+                                    <span>🗃️</span> <span>Quản Lý Cơ Sở Dữ Liệu (Databases & DB Users)</span>
+                                </h2>
+                                <p class="text-xs text-slate-500 mt-1">Hosting User có toàn quyền tạo CSDL MariaDB/MySQL, cấp quyền DB User tương ứng cho các website trong gói.</p>
+                            </div>
+                            <button @click="alert('Mở hộp thoại tạo Database mới chuẩn MariaDB/MySQL')" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-md shadow-blue-500/20 transition flex items-center space-x-2">
+                                <span>➕ Thêm Database Mới</span>
+                            </button>
+                        </div>
+
+                        <!-- Databases Toolbar -->
+                        <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
+                            <div class="flex items-center gap-2">
+                                <button class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white shadow-sm transition flex items-center space-x-1.5">
+                                    <span>➕ Add Database</span>
+                                </button>
+                                <button class="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 font-medium text-xs text-slate-700 border border-slate-200 transition flex items-center space-x-1.5">
+                                    <span>👤 User Privileges</span>
+                                </button>
+                                <a href="http://localhost:8888/phpmyadmin" target="_blank" class="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 font-semibold text-xs text-amber-700 border border-amber-200 transition flex items-center space-x-1.5">
+                                    <span>🐬 phpMyAdmin</span>
+                                </a>
+                            </div>
+                            <div class="text-xs text-slate-500 font-mono">
+                                MariaDB 10.11 LTS (Port 3306)
+                            </div>
+                        </div>
+
+                        <!-- Databases Table -->
+                        <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200/90">
+                            <table class="w-full text-left text-xs text-slate-600">
+                                <thead class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <tr>
+                                        <th class="py-3.5 px-4">Database Name</th>
+                                        <th class="py-3.5 px-4">Database User</th>
+                                        <th class="py-3.5 px-4">Gán Cho Website</th>
+                                        <th class="py-3.5 px-4">Charset / Collation</th>
+                                        <th class="py-3.5 px-4">Dung Lượng</th>
+                                        <th class="py-3.5 px-4 text-right">Thao Tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    <tr v-if="domains.length === 0">
+                                        <td colspan="6" class="py-12 text-center text-slate-400">
+                                            <div class="text-3xl mb-2">🗄️</div>
+                                            <div class="font-semibold text-slate-700">Chưa có Database nào được khởi tạo</div>
+                                            <div class="text-[11px] text-slate-400 mt-1">Bấm nút "➕ Thêm Database Mới" để tạo CSDL MariaDB cho website.</div>
+                                        </td>
+                                    </tr>
+                                    <tr v-for="d in domains" :key="'db_' + d.id" class="hover:bg-slate-50/80 transition">
+                                        <td class="py-4 px-4 font-mono font-bold text-slate-800 flex items-center space-x-2">
+                                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                                            <span>wp_{{ d.domain_name.replace(/[^a-z0-9]/g, '').slice(0, 10) }}</span>
+                                        </td>
+                                        <td class="py-4 px-4 font-mono text-slate-600">
+                                            usr_{{ d.domain_name.replace(/[^a-z0-9]/g, '').slice(0, 10) }}
+                                        </td>
+                                        <td class="py-4 px-4 font-semibold text-blue-600">
+                                            {{ d.domain_name }}
+                                        </td>
+                                        <td class="py-4 px-4 font-mono text-[11px] text-slate-500">
+                                            utf8mb4_unicode_ci
+                                        </td>
+                                        <td class="py-4 px-4 font-mono text-[11px] text-slate-600">
+                                            2.4 MB
+                                        </td>
+                                        <td class="py-4 px-4 text-right space-x-2">
+                                            <button @click="alert('Sao lưu Database')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium">Backup</button>
+                                            <button @click="alert('Cấu hình quyền DB User')" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium">Quyền User</button>
+                                            <button @click="alert('Kiểm tra hoặc tối ưu database')" class="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-medium">Tối Ưu</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <!-- VIEW 7: PLACEHOLDER CHO CÁC MỤC PLESK (Resellers, SEO, Tools & Settings...) -->
                     <div v-if="['resellers', 'seo', 'tools_settings', 'monitoring', 'laravel', 'nodejs', 'profile', 'password'].includes(currentTab)" class="space-y-6 max-w-7xl mx-auto">
-                        <div class="glass-card rounded-2xl p-8 text-center space-y-3">
+                        <div class="bg-white border border-slate-200/90 rounded-2xl p-8 text-center space-y-3 shadow-sm">
                             <div class="text-4xl">⚡</div>
-                            <h3 class="text-base font-bold text-white capitalize">{{ currentTab.replace('_', ' ') }}</h3>
-                            <p class="text-xs text-slate-400 max-w-md mx-auto">
-                                Mô đun quản trị theo chuẩn Plesk Service Provider View. Đang hoạt động đồng bộ với hệ thống máy chủ PressPanel Linux.
+                            <h3 class="text-lg font-extrabold text-slate-800 capitalize">{{ currentTab.replace('_', ' ') }}</h3>
+                            <p class="text-xs text-slate-500 max-w-md mx-auto">
+                                Mô đun quản trị theo chuẩn WPCloud / Plesk Control Panel. Đang hoạt động đồng bộ với hệ thống máy chủ Linux an toàn.
                             </p>
                             <div class="pt-2 flex justify-center space-x-2">
-                                <button @click="currentTab = 'customers'" class="px-3 py-1.5 rounded-xl bg-cyan-600 text-white text-xs font-semibold">
-                                    Vào Quản Lý Customers
+                                <button @click="currentTab = 'customers'" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition">
+                                    Vào Quản Lý Hosting Users
                                 </button>
-                                <button @click="currentTab = 'service_plans'" class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">
+                                <button @click="currentTab = 'service_plans'" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 transition">
                                     Quản Lý Service Plans
                                 </button>
                             </div>
@@ -2033,67 +2142,70 @@
                 </div>
             </div>
 
-            <!-- MODAL: MESSAGES BOX & TASK LIST (AAPANEL EXACT STYLE) -->
-            <div v-if="showMessagesBox" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div class="aapanel-card rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col border border-[#2b3545] h-[550px]">
+            <!-- MODAL: MESSAGES BOX & TASK LIST (WPCLOUD LIGHT STYLE) -->
+            <div v-if="showMessagesBox" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col border border-slate-200 h-[550px]">
                     <!-- Header -->
-                    <div class="h-12 px-5 border-b border-[#232b36] flex items-center justify-between bg-[#151a22] shrink-0">
-                        <div class="flex items-center space-x-2">
-                            <span class="text-base">📋</span>
-                            <h3 class="text-sm font-bold text-white tracking-wide">Messages Box</h3>
+                    <div class="h-14 px-6 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="text-xl">📋</span>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800 tracking-wide">Messages Box & Tiến Trình</h3>
+                                <p class="text-[11px] text-slate-500">Xem các tác vụ đang chạy ngầm, lịch sử tiến trình và execution log</p>
+                            </div>
                         </div>
-                        <button @click="showMessagesBox = false" class="text-slate-400 hover:text-white text-xl p-1 leading-none">&times;</button>
+                        <button @click="showMessagesBox = false" class="text-slate-400 hover:text-slate-700 text-2xl font-bold p-1 leading-none">&times;</button>
                     </div>
 
                     <!-- Body: 2 Columns Layout -->
-                    <div class="flex-1 flex min-h-0">
+                    <div class="flex-1 flex min-h-0 bg-white">
                         <!-- Left Sidebar Tabs -->
-                        <div class="w-48 bg-[#131720] border-r border-[#232b36] p-2 space-y-1 shrink-0 text-xs font-medium">
+                        <div class="w-52 bg-slate-50 border-r border-slate-200 p-3 space-y-1.5 shrink-0 text-xs font-medium">
                             <button @click="msgBoxTab = 'tasks'"
-                                class="w-full text-left px-3.5 py-2.5 rounded-xl transition flex items-center justify-between"
-                                :class="msgBoxTab === 'tasks' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                class="w-full text-left px-3.5 py-2.5 rounded-xl transition flex items-center justify-between font-semibold"
+                                :class="msgBoxTab === 'tasks' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'">
                                 <span>Task list ({{ runningTasks.length }})</span>
                                 <span v-if="runningTasks.length > 0" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                             </button>
                             <button @click="msgBoxTab = 'messages'"
-                                class="w-full text-left px-3.5 py-2.5 rounded-xl transition"
-                                :class="msgBoxTab === 'messages' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                class="w-full text-left px-3.5 py-2.5 rounded-xl transition font-semibold"
+                                :class="msgBoxTab === 'messages' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'">
                                 <span>Message list ({{ completedTasks.length }})</span>
                             </button>
                             <button @click="msgBoxTab = 'log'"
-                                class="w-full text-left px-3.5 py-2.5 rounded-xl transition"
-                                :class="msgBoxTab === 'log' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                class="w-full text-left px-3.5 py-2.5 rounded-xl transition font-semibold"
+                                :class="msgBoxTab === 'log' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'">
                                 <span>Execution log</span>
                             </button>
                         </div>
 
                         <!-- Right Content Panel -->
-                        <div class="flex-1 bg-[#171d26] p-5 overflow-y-auto custom-scrollbar flex flex-col justify-between">
+                        <div class="flex-1 bg-white p-6 overflow-y-auto custom-scrollbar flex flex-col justify-between">
                             
                             <!-- TAB 1: TASK LIST (TIẾN TRÌNH ĐANG CHẠY NGẦM) -->
                             <div v-if="msgBoxTab === 'tasks'" class="h-full flex flex-col">
-                                <!-- Empty State (Ảnh 1 chuẩn aaPanel) -->
+                                <!-- Empty State -->
                                 <div v-if="runningTasks.length === 0" class="my-auto text-center py-12 flex flex-col items-center justify-center space-y-3">
-                                    <div class="w-16 h-16 rounded-2xl bg-slate-800/50 border border-slate-700/60 flex items-center justify-center text-3xl opacity-60">
+                                    <div class="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-3xl">
                                         📦
                                     </div>
-                                    <div class="text-sm font-semibold text-slate-400">Currently no tasks!</div>
+                                    <div class="text-sm font-bold text-slate-700">Currently no tasks!</div>
                                     <p class="text-xs text-slate-500 max-w-xs">Không có tác vụ nào đang chạy ngầm trong hệ thống.</p>
                                 </div>
 
                                 <!-- Tasks List (Khi có tiến trình) -->
                                 <div v-else class="space-y-3">
                                     <div v-for="t in runningTasks" :key="t.id"
-                                        class="p-4 rounded-xl bg-[#141922] border border-[#232b36] flex items-center justify-between shadow-md">
+                                        class="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between shadow-sm">
                                         <div class="flex items-center space-x-3">
-                                            <div class="text-xl animate-spin text-emerald-400">⚡</div>
+                                            <div class="text-xl animate-spin text-blue-600">⚡</div>
                                             <div>
-                                                <div class="text-xs font-bold text-white">{{ t.action }}</div>
-                                                <div class="text-[11px] text-slate-400 font-mono mt-0.5">Khởi tạo: {{ t.created_at }}</div>
+                                                <div class="text-xs font-bold text-slate-800">{{ t.action }}</div>
+                                                <div class="text-[11px] text-slate-500 font-mono mt-0.5">Khởi tạo: {{ t.created_at }}</div>
                                             </div>
                                         </div>
                                         <div class="flex items-center space-x-2">
-                                            <button @click="viewTaskLog(t.id)" class="px-3 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 text-xs font-medium transition">
+                                            <button @click="viewTaskLog(t.id)" class="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-bold transition">
                                                 Xem Log
                                             </button>
                                         </div>
@@ -2101,7 +2213,7 @@
                                 </div>
                             </div>
 
-                            <!-- TAB 2: MESSAGE LIST (LỊCH SỬ TÁC VỤ HOÀN THÀNH - Ảnh 2 aaPanel) -->
+                            <!-- TAB 2: MESSAGE LIST (LỊCH SỬ TÁC VỤ HOÀN THÀNH) -->
                             <div v-if="msgBoxTab === 'messages'" class="h-full flex flex-col">
                                 <div v-if="completedTasks.length === 0" class="my-auto text-center py-12 text-slate-400 text-xs">
                                     Chưa có lịch sử tác vụ nào được lưu lại.
@@ -2109,25 +2221,25 @@
                                 <div v-else class="overflow-x-auto">
                                     <table class="w-full text-left text-xs border-collapse">
                                         <thead>
-                                            <tr class="border-b border-[#232b36] text-slate-400 font-semibold">
+                                            <tr class="border-b border-slate-200 text-slate-500 font-bold bg-slate-50">
                                                 <th class="py-2.5 px-3">Name</th>
                                                 <th class="py-2.5 px-3">Creation time</th>
                                                 <th class="py-2.5 px-3">Time Consumption</th>
                                                 <th class="py-2.5 px-3 text-right">Operate</th>
                                             </tr>
                                         </thead>
-                                        <tbody class="divide-y divide-[#202733] font-mono">
-                                            <tr v-for="t in completedTasks" :key="t.id" class="hover:bg-slate-800/20 transition">
+                                        <tbody class="divide-y divide-slate-100 font-mono">
+                                            <tr v-for="t in completedTasks" :key="t.id" class="hover:bg-slate-50 transition">
                                                 <td class="py-2.5 px-3 flex items-center space-x-2">
-                                                    <span :class="t.status === 'completed' ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'">
+                                                    <span :class="t.status === 'completed' ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'">
                                                         {{ t.status === 'completed' ? '✓' : '✗' }}
                                                     </span>
-                                                    <span class="text-slate-200">{{ t.action }}</span>
+                                                    <span class="text-slate-800 font-sans font-medium">{{ t.action }}</span>
                                                 </td>
-                                                <td class="py-2.5 px-3 text-slate-400">{{ t.created_at }}</td>
-                                                <td class="py-2.5 px-3 text-slate-300">{{ t.time_consumption || '12s' }}</td>
+                                                <td class="py-2.5 px-3 text-slate-500">{{ t.created_at }}</td>
+                                                <td class="py-2.5 px-3 text-slate-600">{{ t.time_consumption || '12s' }}</td>
                                                 <td class="py-2.5 px-3 text-right">
-                                                    <button @click="viewTaskLog(t.id)" class="text-emerald-400 hover:text-emerald-300 font-medium">
+                                                    <button @click="viewTaskLog(t.id)" class="text-blue-600 hover:text-blue-700 font-bold">
                                                         Detail
                                                     </button>
                                                 </td>
@@ -2137,15 +2249,15 @@
                                 </div>
                             </div>
 
-                            <!-- TAB 3: EXECUTION LOG (TERMINAL LOG TRỰC TIẾP - Ảnh 3 aaPanel) -->
+                            <!-- TAB 3: EXECUTION LOG (TERMINAL LOG TRỰC TIẾP) -->
                             <div v-if="msgBoxTab === 'log'" class="h-full flex flex-col space-y-2">
-                                <div class="flex justify-between items-center text-xs text-slate-400 pb-1">
-                                    <span class="font-mono">Task ID: <b class="text-white">{{ selectedTaskId || 'N/A' }}</b></span>
-                                    <button @click="refreshSelectedLog" class="hover:text-white flex items-center gap-1 font-mono">
+                                <div class="flex justify-between items-center text-xs text-slate-500 pb-1">
+                                    <span class="font-mono">Task ID: <b class="text-slate-800">{{ selectedTaskId || 'N/A' }}</b></span>
+                                    <button @click="refreshSelectedLog" class="text-blue-600 hover:underline flex items-center gap-1 font-mono font-medium">
                                         <span>🔄 Làm mới log</span>
                                     </button>
                                 </div>
-                                <div class="flex-1 bg-[#0f131a] rounded-xl p-4 font-mono text-xs text-slate-300 overflow-y-auto custom-scrollbar border border-[#232b36] whitespace-pre-wrap select-text leading-relaxed">
+                                <div class="flex-1 bg-slate-900 rounded-xl p-4 font-mono text-xs text-slate-200 overflow-y-auto custom-scrollbar border border-slate-800 whitespace-pre-wrap select-text leading-relaxed">
 {{ selectedTaskLog || 'Loading...' }}
                                 </div>
                             </div>
