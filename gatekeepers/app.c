@@ -140,6 +140,86 @@ int main(int argc, char *argv[]) {
         send_json_ok("\"message\":\"Da luu cau hinh thanh cong\"");
         return 0;
     }
+    else if (strcmp(action, "file-touch") == 0) {
+        if (argc < 3) {
+            send_json_error("app", "Cu phap: app file-touch <path>");
+            return 1;
+        }
+        const char *filepath = argv[2];
+        if (strstr(filepath, "..")) {
+            send_json_error("app", "Duong dan khong hop le");
+            return 1;
+        }
+        FILE *fp = fopen(filepath, "a");
+        if (!fp) {
+            send_json_error("app", "Khong the tao file");
+            return 1;
+        }
+        fclose(fp);
+        // Gan owner theo thu muc cha neu thu muc cha thuoc user khac root
+        char parent[512];
+        strncpy(parent, filepath, sizeof(parent) - 1);
+        char *slash = strrchr(parent, '/');
+        if (slash) {
+            *slash = '\0';
+            struct stat st_parent;
+            if (stat(parent, &st_parent) == 0) {
+                chown(filepath, st_parent.st_uid, st_parent.st_gid);
+            }
+        }
+        chmod(filepath, 0644);
+        send_json_ok("\"message\":\"Da tao file thanh cong\"");
+        return 0;
+    }
+    else if (strcmp(action, "file-mkdir") == 0) {
+        if (argc < 3) {
+            send_json_error("app", "Cu phap: app file-mkdir <path>");
+            return 1;
+        }
+        const char *dirpath = argv[2];
+        if (strstr(dirpath, "..")) {
+            send_json_error("app", "Duong dan khong hop le");
+            return 1;
+        }
+        char mkdir_cmd[1024];
+        snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p '%s'", dirpath);
+        if (system(mkdir_cmd) == 0) {
+            char parent[512];
+            strncpy(parent, dirpath, sizeof(parent) - 1);
+            char *slash = strrchr(parent, '/');
+            if (slash) {
+                *slash = '\0';
+                struct stat st_parent;
+                if (stat(parent, &st_parent) == 0) {
+                    chown(dirpath, st_parent.st_uid, st_parent.st_gid);
+                }
+            }
+            chmod(dirpath, 0755);
+            send_json_ok("\"message\":\"Da tao thu muc thanh cong\"");
+            return 0;
+        }
+        send_json_error("app", "Khong the tao thu muc");
+        return 1;
+    }
+    else if (strcmp(action, "file-rm") == 0) {
+        if (argc < 3) {
+            send_json_error("app", "Cu phap: app file-rm <path>");
+            return 1;
+        }
+        const char *target = argv[2];
+        if (strstr(target, "..") || strcmp(target, "/") == 0 || strcmp(target, "/home") == 0) {
+            send_json_error("app", "Duong dan nguy hiem hoac khong hop le");
+            return 1;
+        }
+        char rm_cmd[1024];
+        snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf '%s'", target);
+        if (system(rm_cmd) == 0) {
+            send_json_ok("\"message\":\"Da xoa muc thanh cong\"");
+            return 0;
+        }
+        send_json_error("app", "Khong the xoa muc");
+        return 1;
+    }
     else {
         send_json_error("app", "Hanh dong khong hop le");
         return 1;

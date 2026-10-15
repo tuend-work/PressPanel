@@ -211,13 +211,21 @@ async def create_file_or_dir(
                 f.write("")
             return {"status": "ok", "message": f"Tạo tệp tin {os.path.basename(target_path)} thành công!"}
     except PermissionError:
-        # Fallback quyền root nếu cha thư mục giới hạn quyền
+        # Fallback quyền root qua Gatekeeper SUID (tránh sudo password prompt)
+        gatekeeper_app = "/opt/presspanel/bin/app"
         try:
             import subprocess
+            if os.path.isfile(gatekeeper_app):
+                op = "file-mkdir" if req.item_type == "folder" else "file-touch"
+                proc = subprocess.run([gatekeeper_app, op, target_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.returncode == 0:
+                    return {"status": "ok", "message": f"Tạo {os.path.basename(target_path)} thành công!"}
+
+            # Fallback nếu chưa biên dịch gatekeeper
             if req.item_type == "folder":
-                subprocess.run(["sudo", "mkdir", "-p", target_path], check=True)
+                subprocess.run(["mkdir", "-p", target_path], check=True)
             else:
-                subprocess.run(["sudo", "touch", target_path], check=True)
+                subprocess.run(["touch", target_path], check=True)
             return {"status": "ok", "message": f"Tạo {os.path.basename(target_path)} thành công!"}
         except Exception as e:
             raise HTTPException(status_code=403, detail=f"Không có quyền khởi tạo: {str(e)}")
@@ -240,9 +248,15 @@ async def delete_file_or_dir(
             os.remove(target_path)
         return {"status": "ok", "message": f"Đã xóa {os.path.basename(target_path)} thành công!"}
     except PermissionError:
+        gatekeeper_app = "/opt/presspanel/bin/app"
         try:
             import subprocess
-            subprocess.run(["sudo", "rm", "-rf", target_path], check=True)
+            if os.path.isfile(gatekeeper_app):
+                proc = subprocess.run([gatekeeper_app, "file-rm", target_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.returncode == 0:
+                    return {"status": "ok", "message": f"Đã xóa {os.path.basename(target_path)} thành công!"}
+
+            subprocess.run(["rm", "-rf", target_path], check=True)
             return {"status": "ok", "message": f"Đã xóa {os.path.basename(target_path)} thành công!"}
         except Exception as e:
             raise HTTPException(status_code=403, detail=f"Không có quyền xóa: {str(e)}")
