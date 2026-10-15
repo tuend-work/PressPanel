@@ -50,12 +50,25 @@ cp -r "$TMP_DIR/templates"/* "$INSTALL_DIR/templates/" 2>/dev/null || true
 mkdir -p "$INSTALL_DIR/static"
 cp -r "$TMP_DIR/static"/* "$INSTALL_DIR/static/" 2>/dev/null || true
 cp "$TMP_DIR/VERSION" "$INSTALL_DIR/" 2>/dev/null || true
-chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/presspanel 2>/dev/null || true
+# 3.1 Cập nhật tài khoản hệ thống sang wpc
+if ! id -u "wpc" >/dev/null 2>&1; then
+    echo "[+] Khởi tạo user hệ thống mới: wpc..."
+    useradd -r -s /usr/sbin/nologin -d "$INSTALL_DIR" wpc 2>/dev/null || true
+    usermod -aG presspanel wpc 2>/dev/null || true
+fi
 
-# Cập nhật CLI tool /usr/local/bin/presspanel
+chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc "$INSTALL_DIR"/scripts/presspanel 2>/dev/null || true
+
+# Cập nhật CLI tool /usr/local/bin/wpc và /usr/local/bin/presspanel
+if [ -f "$TMP_DIR/scripts/wpc" ]; then
+    cp "$TMP_DIR/scripts/wpc" /usr/local/bin/wpc
+    chmod +x /usr/local/bin/wpc
+fi
 if [ -f "$TMP_DIR/scripts/presspanel" ]; then
     cp "$TMP_DIR/scripts/presspanel" /usr/local/bin/presspanel
     chmod +x /usr/local/bin/presspanel
+else
+    ln -sf /usr/local/bin/wpc /usr/local/bin/presspanel 2>/dev/null || true
 fi
 
 # 4. Nâng cấp các thư viện Python nếu có bổ sung
@@ -68,14 +81,22 @@ echo "[+] Kiểm tra và cập nhật cấu trúc cơ sở dữ liệu SQLite...
 cd "$INSTALL_DIR"
 "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/app/db/init_db.py"
 
-# 6. Đảm bảo phân quyền chính xác
-chown -R presspanel:presspanel "$INSTALL_DIR/app" "$INSTALL_DIR/data" "$INSTALL_DIR/logs" "$INSTALL_DIR/static" 2>/dev/null || true
-echo "presspanel ALL=(ALL) NOPASSWD: $INSTALL_DIR/scripts/update.sh, $INSTALL_DIR/scripts/apps/*.sh, /usr/bin/bash $INSTALL_DIR/scripts/apps/*.sh, /bin/bash $INSTALL_DIR/scripts/apps/*.sh, /usr/bin/systemctl, /bin/systemctl, /usr/bin/apt-get, /usr/bin/dnf" > /etc/sudoers.d/presspanel 2>/dev/null || true
-chmod 440 /etc/sudoers.d/presspanel 2>/dev/null || true
+# 6. Đảm bảo phân quyền chính xác cho wpc và presspanel
+PANEL_USER="wpc"
+if ! id -u "$PANEL_USER" >/dev/null 2>&1; then
+    PANEL_USER="presspanel"
+fi
 
+chown -R "$PANEL_USER":"$PANEL_USER" "$INSTALL_DIR/app" "$INSTALL_DIR/data" "$INSTALL_DIR/logs" "$INSTALL_DIR/static" "$INSTALL_DIR/conf" 2>/dev/null || true
+echo "$PANEL_USER ALL=(ALL) NOPASSWD: $INSTALL_DIR/scripts/update.sh, $INSTALL_DIR/scripts/apps/*.sh, /usr/bin/bash $INSTALL_DIR/scripts/apps/*.sh, /bin/bash $INSTALL_DIR/scripts/apps/*.sh, /usr/bin/systemctl, /bin/systemctl, /usr/bin/apt-get, /usr/bin/dnf" > /etc/sudoers.d/wpc 2>/dev/null || true
+chmod 440 /etc/sudoers.d/wpc 2>/dev/null || true
+if [ -f /etc/sudoers.d/presspanel ]; then
+    cp /etc/sudoers.d/wpc /etc/sudoers.d/presspanel 2>/dev/null || true
+    chmod 440 /etc/sudoers.d/presspanel 2>/dev/null || true
+fi
 
 # 7. Đăng ký & Khởi động lại dịch vụ
-echo "[+] Đăng ký và khởi động lại dịch vụ PressPanel..."
+echo "[+] Đăng ký và khởi động lại dịch vụ WPCloud Control Panel..."
 if [ -f "$TMP_DIR/systemd/presspanel.service" ]; then
     cp "$TMP_DIR/systemd/presspanel.service" /etc/systemd/system/presspanel.service
 fi

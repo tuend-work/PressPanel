@@ -127,7 +127,8 @@ def get_system_stats():
             "down_speed_kb": down_speed,
             "total_sent_gb": round(bytes_sent / (1024**3), 2),
             "total_recv_gb": round(bytes_recv / (1024**3), 2)
-        }
+        },
+        "server_ip": "127.0.0.1"
     }
 
 @router.get("/status")
@@ -178,7 +179,37 @@ async def system_status(current_user: dict = Depends(get_current_user)):
             "last_scan": time.strftime("%Y/%m/%d %H:%M:%S")
         }
     }
-    
+
+    # Xác định IP máy chủ
+    server_ip = "127.0.0.1"
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0.5)
+        s.connect(("8.8.8.8", 80))
+        server_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        pass
+    stats["server_ip"] = server_ip
+
+    # Uptime Linux
+    uptime_str = "Hoạt động"
+    if os.path.exists("/proc/uptime"):
+        try:
+            with open("/proc/uptime", "r") as f:
+                up_secs = float(f.readline().split()[0])
+                days = int(up_secs // 86400)
+                hours = int((up_secs % 86400) // 3600)
+                mins = int((up_secs % 3600) // 60)
+                if days > 0:
+                    uptime_str = f"{days} ngày {hours} giờ"
+                else:
+                    uptime_str = f"{hours} giờ {mins} phút"
+        except Exception:
+            pass
+    stats["uptime"] = uptime_str
+
     return stats
 
 @router.get("/version")

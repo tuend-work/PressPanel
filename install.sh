@@ -6,13 +6,13 @@
 set -euo pipefail
 
 INSTALL_DIR="/opt/presspanel"
-PANEL_USER="presspanel"
-PANEL_GROUP="presspanel"
+PANEL_USER="wpc"
+PANEL_GROUP="wpc"
 REPO_URL="https://github.com/tuend-work/PressPanel.git"
 TMP_DIR="/tmp/presspanel-install-$$"
 
 echo "=========================================================="
-echo "      CÀI ĐẶT PRESSPANEL: CONTROL PANEL TỐI ƯU WORDPRESS  "
+echo "    CÀI ĐẶT WPCLOUD CONTROL PANEL - TỐI ƯU CHO WORDPRESS  "
 echo "=========================================================="
 
 if [ "$EUID" -ne 0 ]; then
@@ -59,8 +59,10 @@ if ! id -u "$PANEL_USER" >/dev/null 2>&1; then
     useradd -r -s /usr/sbin/nologin -d "$INSTALL_DIR" "$PANEL_USER"
 fi
 
-# Cấu hình sudoers an toàn cho presspanel thực hiện update, apps và service management
-echo "$PANEL_USER ALL=(ALL) NOPASSWD: $INSTALL_DIR/scripts/update.sh, $INSTALL_DIR/scripts/apps/*.sh, /usr/bin/bash $INSTALL_DIR/scripts/apps/*.sh, /bin/bash $INSTALL_DIR/scripts/apps/*.sh, /usr/bin/systemctl, /bin/systemctl, /usr/bin/apt-get, /usr/bin/dnf" > /etc/sudoers.d/presspanel 2>/dev/null || true
+# Cấu hình sudoers an toàn cho wpc thực hiện update, apps và service management
+echo "$PANEL_USER ALL=(ALL) NOPASSWD: $INSTALL_DIR/scripts/update.sh, $INSTALL_DIR/scripts/apps/*.sh, /usr/bin/bash $INSTALL_DIR/scripts/apps/*.sh, /bin/bash $INSTALL_DIR/scripts/apps/*.sh, /usr/bin/systemctl, /bin/systemctl, /usr/bin/apt-get, /usr/bin/dnf" > /etc/sudoers.d/wpc 2>/dev/null || true
+chmod 440 /etc/sudoers.d/wpc 2>/dev/null || true
+cp /etc/sudoers.d/wpc /etc/sudoers.d/presspanel 2>/dev/null || true
 chmod 440 /etc/sudoers.d/presspanel 2>/dev/null || true
 
 
@@ -131,10 +133,16 @@ cp VERSION "$INSTALL_DIR/" 2>/dev/null || true
 chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/presspanel 2>/dev/null || true
 chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"/app "$INSTALL_DIR"/conf "$INSTALL_DIR"/data "$INSTALL_DIR"/logs "$INSTALL_DIR"/static
 
-# Cài đặt lệnh CLI presspanel toàn hệ thống
+# Cài đặt lệnh CLI wpc và presspanel toàn hệ thống
+if [ -f "$INSTALL_DIR/scripts/wpc" ]; then
+    cp "$INSTALL_DIR/scripts/wpc" /usr/local/bin/wpc
+    chmod +x /usr/local/bin/wpc
+fi
 if [ -f "$INSTALL_DIR/scripts/presspanel" ]; then
     cp "$INSTALL_DIR/scripts/presspanel" /usr/local/bin/presspanel
     chmod +x /usr/local/bin/presspanel
+else
+    ln -sf /usr/local/bin/wpc /usr/local/bin/presspanel 2>/dev/null || true
 fi
 
 # 10. Khởi tạo Database SQLite
@@ -155,10 +163,10 @@ if [ -d "$TMP_DIR" ]; then
 fi
 
 echo "=========================================================="
-echo "   PRESSPANEL ĐÃ CÀI ĐẶT VÀ KHỞI ĐỘNG THÀNH CÔNG!         "
+echo "   WPCLOUD CONTROL PANEL ĐÃ CÀI ĐẶT THÀNH CÔNG!          "
 echo "   Giao diện quản trị: http://<IP_MAY_CHU>:$PANEL_PORT   "
 echo "   Tài liệu Swagger API: http://<IP_MAY_CHU>:$PANEL_PORT/docs "
 echo "   File cấu hình: /opt/presspanel/conf/presspanel.conf   "
-echo "   Lệnh quản trị hệ thống CLI: presspanel                 "
+echo "   Lệnh quản trị hệ thống CLI: wpc (hoặc presspanel)     "
 echo "   Tài khoản mặc định: admin / admin123456               "
 echo "=========================================================="
