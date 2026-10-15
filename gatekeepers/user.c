@@ -1,6 +1,6 @@
 /*
- * WPC: user.c - Quản lý tài khoản Linux & Disk Quota
- * SUID Binary (chmod 4750 root:WPC)
+ * PressPanel: user.c - Quản lý tài khoản Linux & Disk Quota
+ * SUID Binary (chmod 4750 root:PressPanel)
  */
 
 #include "common.h"

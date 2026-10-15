@@ -1,6 +1,6 @@
 /*
- * WPC: db.c - Quản lý MariaDB/MySQL Database
- * SUID Binary (chmod 4750 root:WPC)
+ * PressPanel: db.c - Quản lý MariaDB/MySQL Database
+ * SUID Binary (chmod 4750 root:PressPanel)
  */
 
 #include "common.h"
