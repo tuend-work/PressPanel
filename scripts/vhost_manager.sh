@@ -144,18 +144,35 @@ EOF
         # Cấu hình Nginx nếu có Nginx
         if [ -d "/etc/nginx/conf.d" ]; then
             if [ -f "$PRESSPANEL_DIR/templates/vhost_nginx/default.tpl" ]; then
+                # Tạo thư mục tạm và session riêng cho user nếu chưa có
+                mkdir -p "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" "/home/$USERNAME/logs"
+                chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
+                chmod 700 "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
+
+                # 1. Tạo file PHP-FPM Pool độc lập riêng cho User này (/etc/php/{ver}/fpm/pool.d/{user}.conf)
+                POOL_DIR="/etc/php/${PHP_VER}/fpm/pool.d"
+                USER_POOL_SOCK="/run/php/php${PHP_VER}-fpm-${USERNAME}.sock"
+                PHP_SOCK="$USER_POOL_SOCK"
+
+                if [ -d "$POOL_DIR" ] && [ -f "$PRESSPANEL_DIR/templates/vhost_nginx/php_fpm_pool.tpl" ]; then
+                    sed -e "s/{{USERNAME}}/$USERNAME/g" \
+                        -e "s/{{PHP_VER}}/$PHP_VER/g" \
+                        "$PRESSPANEL_DIR/templates/vhost_nginx/php_fpm_pool.tpl" > "$POOL_DIR/${USERNAME}.conf"
+                    # Khởi động lại hoặc reload php-fpm để nhận pool mới
+                    systemctl reload "php${PHP_VER}-fpm" 2>/dev/null || systemctl restart "php${PHP_VER}-fpm" 2>/dev/null || true
+                fi
+
                 # Kiểm tra và đảm bảo dịch vụ php-fpm tương ứng đang hoạt động
                 if command -v systemctl &>/dev/null; then
                     systemctl is-active --quiet "php${PHP_VER}-fpm" || systemctl start "php${PHP_VER}-fpm" 2>/dev/null || true
                 fi
 
-                # Tìm socket PHP-FPM đang tồn tại
-                PHP_SOCK="/run/php/php${PHP_VER}-fpm.sock"
+                # Nếu pool sock chưa sinh ra kịp (fallback sang pool mặc định nếu cần)
                 if [ ! -e "$PHP_SOCK" ]; then
-                    if [ -e "/var/run/php/php${PHP_VER}-fpm.sock" ]; then
+                    if [ -e "/run/php/php${PHP_VER}-fpm.sock" ]; then
+                        PHP_SOCK="/run/php/php${PHP_VER}-fpm.sock"
+                    elif [ -e "/var/run/php/php${PHP_VER}-fpm.sock" ]; then
                         PHP_SOCK="/var/run/php/php${PHP_VER}-fpm.sock"
-                    elif [ -e "/run/php-fpm/www.sock" ]; then
-                        PHP_SOCK="/run/php-fpm/www.sock"
                     fi
                 fi
 
@@ -178,8 +195,13 @@ EOF
         rm -rf "/home/$USERNAME/httpdocs/$DOMAIN" 2>/dev/null || true
         rm -rf "/usr/local/lsws/conf/vhosts/$DOMAIN" 2>/dev/null || true
         rm -f "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
+        # Xoá pool PHP-FPM riêng của user trên tất cả các phiên bản PHP
+        for pdir in /etc/php/*/fpm/pool.d; do
+            [ -d "$pdir" ] && rm -f "$pdir/${USERNAME}.conf" 2>/dev/null || true
+        done
         /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lsws 2>/dev/null || true
         nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+        systemctl reload "php*-fpm" 2>/dev/null || true
         # Neu la user linux rieng biet cua domain (hoac user doc lap), xoa user va thu muc home neu can
         if [ "$USERNAME" != "root" ] && [ "$USERNAME" != "presspanel" ] && id "$USERNAME" &>/dev/null; then
             userdel -r "$USERNAME" 2>/dev/null || true
@@ -199,11 +221,30 @@ EOF
         fi
         # Nginx
         if [ -f "/etc/nginx/conf.d/$DOMAIN.conf" ]; then
+            # Xoá pool cũ ở các phiên bản khác nếu có
+            for pdir in /etc/php/*/fpm/pool.d; do
+                [ -d "$pdir" ] && rm -f "$pdir/${USERNAME}.conf" 2>/dev/null || true
+            done
+            # Tạo pool mới cho phiên bản này
+            NEW_POOL_DIR="/etc/php/${PHP_VER}/fpm/pool.d"
+            if [ -d "$NEW_POOL_DIR" ] && [ -f "$PRESSPANEL_DIR/templates/vhost_nginx/php_fpm_pool.tpl" ]; then
+                sed -e "s/{{USERNAME}}/$USERNAME/g" \
+                    -e "s/{{PHP_VER}}/$PHP_VER/g" \
+                    "$PRESSPANEL_DIR/templates/vhost_nginx/php_fpm_pool.tpl" > "$NEW_POOL_DIR/${USERNAME}.conf"
+                systemctl reload "php${PHP_VER}-fpm" 2>/dev/null || systemctl restart "php${PHP_VER}-fpm" 2>/dev/null || true
+            fi
+
             if command -v systemctl &>/dev/null; then
                 systemctl is-active --quiet "php${PHP_VER}-fpm" || systemctl start "php${PHP_VER}-fpm" 2>/dev/null || true
             fi
-            NEW_SOCK="/run/php/php${PHP_VER}-fpm.sock"
-            [ ! -e "$NEW_SOCK" ] && [ -e "/var/run/php/php${PHP_VER}-fpm.sock" ] && NEW_SOCK="/var/run/php/php${PHP_VER}-fpm.sock"
+            NEW_SOCK="/run/php/php${PHP_VER}-fpm-${USERNAME}.sock"
+            if [ ! -e "$NEW_SOCK" ]; then
+                if [ -e "/run/php/php${PHP_VER}-fpm.sock" ]; then
+                    NEW_SOCK="/run/php/php${PHP_VER}-fpm.sock"
+                elif [ -e "/var/run/php/php${PHP_VER}-fpm.sock" ]; then
+                    NEW_SOCK="/var/run/php/php${PHP_VER}-fpm.sock"
+                fi
+            fi
             sed -i -E "s|fastcgi_pass unix:[^;]+;|fastcgi_pass unix:${NEW_SOCK};|" "/etc/nginx/conf.d/$DOMAIN.conf"
             nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
         fi
