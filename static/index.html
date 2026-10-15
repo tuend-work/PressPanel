@@ -51,7 +51,8 @@
                         ⚡
                     </div>
                     <span class="font-bold text-2xl tracking-tight bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">PressPanel</span>
-                    <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.8</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.9</span>
+
                 </div>
                 <a href="/docs" target="_blank" class="text-xs font-medium text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 transition">
                     📖 Swagger API
@@ -111,7 +112,8 @@
                             </span>
                             <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800/60 font-mono font-bold">PressPanel</span>
                         </div>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">v0.3.8</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">v0.3.9</span>
+
                     </div>
 
                     <!-- Navigation Items Chuẩn Plesk Menu -->
@@ -789,8 +791,15 @@
                                         <button @click="installSSL(d)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition">
                                             Cấp Let's Encrypt
                                         </button>
+                                        <!-- Nút XÓA WEBSITE -->
+                                        <button @click="handleDeleteDomain(d)" title="Xóa hoàn toàn website này"
+                                            class="px-2.5 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-800/80 text-xs text-rose-300 hover:text-white font-medium transition flex items-center space-x-1">
+                                            <span>🗑️</span>
+                                            <span>Xóa Web</span>
+                                        </button>
                                     </div>
                                 </div>
+
 
                                 <!-- Card Body: 3 Cột Tiện Ích Chuẩn Plesk -->
                                 <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1751,6 +1760,34 @@
                     }
                 };
 
+                const handleDeleteDomain = async (domain) => {
+                    const confirmMsg = `CẢNH BÁO: Bạn có chắc chắn muốn XÓA HOÀN TOÀN website "${domain.domain_name}"?\n\n- Toàn bộ tệp tin mã nguồn trong ${domain.document_root} sẽ bị xóa vĩnh viễn.\n- Cấu hình VirtualHost máy chủ web sẽ được gỡ bỏ.\n\nHành động này KHÔNG THỂ khôi phục!`;
+                    if (!confirm(confirmMsg)) return;
+
+                    try {
+                        const res = await fetch(`/api/v1/domains/${domain.id}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `Bearer ${token.value}`
+                            }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || `Đã xóa website ${domain.domain_name} thành công!`);
+                            fetchDomains();
+                            fetchSystemStatus();
+                            if (currentTab.value === 'customers') {
+                                fetchCustomers();
+                            }
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể xóa website này'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
+
                 // ==========================================
                 // QUẢN TRỊ CUSTOMERS VÀ LOGIN AS USER (IMPERSONATION)
                 // ==========================================
@@ -1979,9 +2016,10 @@
                     upstreamCurvePath, downstreamAreaPath, upstreamAreaPath,
                     appsList, appsCategory, installingAppId, installedAppsCount, filteredApps,
                     getApp, fetchAppsList, handleAppAction,
-                    navClass, handleLogin, handleLogout, handleAddDomain,
+                    navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain,
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
                     fetchSystemStatus, restartPanel
+
                 };
             }
         }).mount('#app');
