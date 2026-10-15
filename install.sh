@@ -112,7 +112,12 @@ python3 -m venv "$INSTALL_DIR/venv"
 
 # 9. Sao chép mã nguồn ứng dụng & scripts
 echo "[+] Cài đặt mã nguồn ứng dụng..."
-cp -r app "$INSTALL_DIR/"
+mkdir -p "$INSTALL_DIR/app"
+if [ -d "$INSTALL_DIR/app/app" ]; then
+    cp -r "$INSTALL_DIR/app/app"/* "$INSTALL_DIR/app/" 2>/dev/null || true
+    rm -rf "$INSTALL_DIR/app/app"
+fi
+cp -r app/* "$INSTALL_DIR/app/"
 cp -r scripts/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
 cp -r templates/* "$INSTALL_DIR/templates/" 2>/dev/null || true
 cp VERSION "$INSTALL_DIR/" 2>/dev/null || true
@@ -129,6 +134,9 @@ fi
 echo "[+] Khởi tạo cơ sở dữ liệu SQLite..."
 cd "$INSTALL_DIR"
 PYTHONPATH="$INSTALL_DIR" "$INSTALL_DIR/venv/bin/python" -c "
+import sys, os
+sys.path.insert(0, '$INSTALL_DIR')
+sys.path.insert(0, os.path.join('$INSTALL_DIR', 'app'))
 import asyncio
 from app.db.init_db import init_database
 asyncio.run(init_database())

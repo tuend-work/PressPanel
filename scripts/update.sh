@@ -3,7 +3,6 @@
 # PressPanel: update.sh - Cập nhật Panel lên phiên bản mới nhất từ GitHub
 # Bảo toàn 100% dữ liệu database, website người dùng và file cấu hình
 # Cách chạy: sudo bash /opt/presspanel/scripts/update.sh
-# Hoặc 1 dòng: curl -sSL https://raw.githubusercontent.com/tuend-work/PressPanel/main/scripts/update.sh | sudo bash
 # ==============================================================================
 
 set -euo pipefail
@@ -39,7 +38,13 @@ make install PREFIX="$INSTALL_DIR"
 
 # 3. Cập nhật mã nguồn Python backend
 echo "[+] Cập nhật mã nguồn ứng dụng..."
-cp -r "$TMP_DIR/app" "$INSTALL_DIR/"
+mkdir -p "$INSTALL_DIR/app"
+# Đảm bảo xử lý triệt để nếu trước đó bị copy lồng app/app
+if [ -d "$INSTALL_DIR/app/app" ]; then
+    cp -r "$INSTALL_DIR/app/app"/* "$INSTALL_DIR/app/" 2>/dev/null || true
+    rm -rf "$INSTALL_DIR/app/app"
+fi
+cp -r "$TMP_DIR/app"/* "$INSTALL_DIR/app/"
 cp -r "$TMP_DIR/scripts"/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
 cp -r "$TMP_DIR/templates"/* "$INSTALL_DIR/templates/" 2>/dev/null || true
 cp "$TMP_DIR/VERSION" "$INSTALL_DIR/" 2>/dev/null || true
@@ -60,6 +65,9 @@ echo "[+] Kiểm tra và cập nhật dependencies Python..."
 echo "[+] Kiểm tra và cập nhật cấu trúc cơ sở dữ liệu SQLite..."
 cd "$INSTALL_DIR"
 PYTHONPATH="$INSTALL_DIR" "$INSTALL_DIR/venv/bin/python" -c "
+import sys, os
+sys.path.insert(0, '$INSTALL_DIR')
+sys.path.insert(0, os.path.join('$INSTALL_DIR', 'app'))
 import asyncio
 from app.db.init_db import init_database
 asyncio.run(init_database())
