@@ -116,7 +116,7 @@
                             </span>
                             <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800/60 font-mono font-bold">PressPanel</span>
                         </div>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">v0.4.7</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">v0.4.8</span>
 
 
 
@@ -1072,7 +1072,7 @@
                                 </h2>
                                 <p class="text-xs text-slate-400">Tài khoản Admin chỉ dùng để quản trị. Tạo User con để phân bổ tài nguyên và thêm website an toàn.</p>
                             </div>
-                            <button @click="showAddCustomerModal = true" class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-semibold text-xs text-white shadow-lg shadow-cyan-500/20 transition flex items-center space-x-2">
+                            <button @click="showAddCustomerModal = true; fetchServicePlans();" class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-semibold text-xs text-white shadow-lg shadow-cyan-500/20 transition flex items-center space-x-2">
                                 <span>➕ Thêm Customer Mới</span>
                             </button>
                         </div>
@@ -1287,61 +1287,191 @@
             </div>
 
             <!-- MODAL: THÊM CUSTOMER MỚI (TẠO USER CON CHO ADMIN) -->
-            <div v-if="showAddCustomerModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div class="glass rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-700">
-                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
+            <div v-if="showAddCustomerModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+                <div class="glass rounded-2xl max-w-xl w-full p-6 shadow-2xl relative border border-slate-700 my-8 max-h-[92vh] flex flex-col">
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800 shrink-0">
                         <div class="flex items-center space-x-2">
                             <span class="text-xl">👤</span>
-                            <h3 class="text-base font-bold text-white">Thêm Tài Khoản Customer Con</h3>
+                            <div>
+                                <h3 class="text-base font-bold text-white">Adding New Customer</h3>
+                                <p class="text-[11px] text-slate-400">Tạo tài khoản khách hàng và cấu hình Subscription lưu trữ</p>
+                            </div>
                         </div>
-                        <button @click="showAddCustomerModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+                        <button @click="showAddCustomerModal = false" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
                     </div>
 
-                    <form @submit.prevent="handleAddCustomer" class="space-y-4 text-xs">
-                        <div>
-                            <label class="block font-semibold text-slate-300 mb-1">Tên Người Dùng (Linux Username)</label>
-                            <input type="text" v-model="newCustomer.username" placeholder="vd: myclient, shoponline" required
-                                class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono">
-                            <p class="text-[10px] text-slate-400 mt-1">Sẽ tự động tạo Linux user và thư mục cô lập /home/&lt;username&gt;</p>
-                        </div>
-
-                        <div>
-                            <label class="block font-semibold text-slate-300 mb-1">Email Liên Hệ</label>
-                            <input type="email" v-model="newCustomer.email" placeholder="client@example.com" required
-                                class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
-                        </div>
-
-                        <div>
-                            <label class="block font-semibold text-slate-300 mb-1">Mật Khẩu Đăng Nhập</label>
-                            <input type="password" v-model="newCustomer.password" placeholder="Tối thiểu 6 ký tự" required
-                                class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
-                        </div>
-
-                        <!-- Quota tài nguyên -->
-                        <div class="grid grid-cols-3 gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+                    <form @submit.prevent="handleAddCustomer" class="space-y-4 text-xs overflow-y-auto pr-1 custom-scrollbar flex-1">
+                        <!-- Customer Account Information -->
+                        <div class="space-y-3 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+                            <h4 class="font-bold text-slate-200 text-xs flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
+                                <span>🔑</span> Thông Tin Tài Khoản
+                            </h4>
                             <div>
-                                <label class="block text-[11px] font-semibold text-slate-400 mb-1">Ổ Cứng (MB)</label>
-                                <input type="number" v-model.number="newCustomer.disk_mb" min="500" max="100000"
-                                    class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center">
+                                <label class="block font-semibold text-slate-300 mb-1">Tên Người Dùng (Linux Username) <span class="text-rose-400">*</span></label>
+                                <input type="text" v-model="newCustomer.username" placeholder="vd: myclient, shoponline" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono">
+                                <p class="text-[10px] text-slate-400 mt-1">Sẽ tự động tạo Linux user và thư mục riêng biệt <code>/home/&lt;username&gt;</code></p>
                             </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-400 mb-1">RAM (MB)</label>
-                                <input type="number" v-model.number="newCustomer.mem_mb" min="256" max="16384"
-                                    class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-400 mb-1">CPU (%)</label>
-                                <input type="number" v-model.number="newCustomer.cpu_pct" min="10" max="400"
-                                    class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center">
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold text-slate-300 mb-1">Email Liên Hệ <span class="text-rose-400">*</span></label>
+                                    <input type="email" v-model="newCustomer.email" placeholder="client@example.com" required
+                                        class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 mb-1">Mật Khẩu Đăng Nhập <span class="text-rose-400">*</span></label>
+                                    <input type="password" v-model="newCustomer.password" placeholder="Tối thiểu 6 ký tự" required
+                                        class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+                                </div>
                             </div>
                         </div>
 
-                        <div class="flex justify-end space-x-2 pt-2">
+                        <!-- Subscription Section (Plesk Style) -->
+                        <div class="space-y-4 p-4 rounded-xl bg-slate-900/90 border border-cyan-900/40 shadow-inner">
+                            <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+                                <div>
+                                    <h4 class="font-bold text-cyan-300 text-sm flex items-center gap-1.5">
+                                        <span>📦</span> Subscription
+                                    </h4>
+                                    <p class="text-[10px] text-slate-400">Khởi tạo gói dịch vụ và website đầu tiên cho khách hàng</p>
+                                </div>
+                                <label class="flex items-center gap-2 cursor-pointer select-none">
+                                    <input type="checkbox" v-model="newCustomer.create_subscription" class="w-4 h-4 rounded text-cyan-600 bg-slate-950 border-slate-700 focus:ring-cyan-500">
+                                    <span class="font-semibold text-xs text-white">Create subscription for the customer</span>
+                                </label>
+                            </div>
+
+                            <p v-if="!newCustomer.create_subscription" class="text-[11px] text-amber-400/90 italic p-2 rounded bg-amber-950/30 border border-amber-900/40">
+                                ℹ️ Bỏ chọn mục này nếu bạn chỉ muốn tạo user mà chưa muốn kích hoạt gói hosting hoặc gán website ngay lúc này.
+                            </p>
+
+                            <div v-if="newCustomer.create_subscription" class="space-y-3.5 pt-1">
+                                <!-- Select your domain name tabs -->
+                                <div>
+                                    <label class="block font-semibold text-slate-300 mb-2">Select your domain name</label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <!-- Registered domain card -->
+                                        <div @click="newCustomer.domain_type = 'registered'"
+                                            :class="newCustomer.domain_type === 'registered' ? 'border-cyan-500 bg-cyan-950/40 text-cyan-200 ring-1 ring-cyan-500' : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'"
+                                            class="p-3 rounded-xl border cursor-pointer transition flex items-start space-x-3">
+                                            <span class="text-xl">🎖️</span>
+                                            <div>
+                                                <div class="font-bold text-xs text-white">Registered domain name</div>
+                                                <div class="text-[10px] text-slate-400 mt-0.5">I already have a registered domain name</div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Temporary domain card -->
+                                        <div @click="newCustomer.domain_type = 'temporary'"
+                                            :class="newCustomer.domain_type === 'temporary' ? 'border-cyan-500 bg-cyan-950/40 text-cyan-200 ring-1 ring-cyan-500' : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'"
+                                            class="p-3 rounded-xl border cursor-pointer transition flex items-start space-x-3">
+                                            <span class="text-xl">🚀</span>
+                                            <div>
+                                                <div class="font-bold text-xs text-white">Temporary domain name</div>
+                                                <div class="text-[10px] text-slate-400 mt-0.5">I don't have a registered domain name yet</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Domain Input -->
+                                <div v-if="newCustomer.domain_type === 'registered'">
+                                    <label class="block font-semibold text-slate-300 mb-1">
+                                        Registered domain name <span class="text-rose-400">*</span>
+                                    </label>
+                                    <div class="flex items-center rounded-xl bg-slate-950 border border-slate-700 focus-within:border-cyan-500 overflow-hidden">
+                                        <span class="px-3 py-2 text-slate-400 bg-slate-900 border-r border-slate-800 font-mono text-xs">www.</span>
+                                        <input type="text" v-model="newCustomer.domain_name" placeholder="example.com" :required="newCustomer.create_subscription && newCustomer.domain_type === 'registered'"
+                                            class="w-full px-3 py-2 bg-transparent text-white placeholder-slate-500 focus:outline-none font-mono text-xs">
+                                    </div>
+                                </div>
+
+                                <div v-else class="p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-300">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-slate-400">Tên miền tạm thời được cấp:</span>
+                                        <span class="font-mono text-cyan-400 font-bold">
+                                            {{ (newCustomer.username || 'customer') }}.presspanel.local
+                                        </span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 mt-1">Khách hàng có thể thay đổi tên miền chính thức bất cứ lúc nào sau đó.</p>
+                                </div>
+
+                                <!-- Service Plan dropdown -->
+                                <div>
+                                    <label class="block font-semibold text-slate-300 mb-1">Service plan</label>
+                                    <select v-model="newCustomer.package_id"
+                                        class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-cyan-500">
+                                        <option :value="null">-- Mặc định (Tự điều chỉnh thông số bên dưới) --</option>
+                                        <option v-for="plan in servicePlans" :key="plan.id" :value="plan.id">
+                                            {{ plan.name }} ({{ plan.disk_mb }} MB Disk, {{ plan.max_domains }} Sites)
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <!-- Web Server & PHP & WP -->
+                                <div class="grid grid-cols-2 gap-3 pt-1">
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Web Server</label>
+                                        <select v-model="newCustomer.webserver"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white">
+                                            <option value="ols">⚡ OpenLiteSpeed (LSWS)</option>
+                                            <option value="nginx">🌐 Nginx Web Server</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Phiên Bản PHP</label>
+                                        <select v-model="newCustomer.php_version"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono">
+                                            <option value="8.3">PHP 8.3 (Mới nhất)</option>
+                                            <option value="8.2">PHP 8.2 (Chuẩn khuyên dùng)</option>
+                                            <option value="8.1">PHP 8.1</option>
+                                            <option value="7.4">PHP 7.4 (Legacy)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="p-2.5 rounded-xl bg-cyan-950/30 border border-cyan-800/40 flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-base">🚀</span>
+                                        <div>
+                                            <div class="font-semibold text-slate-200 text-xs">Cài đặt sẵn WordPress</div>
+                                            <div class="text-[10px] text-slate-400">Tự động khởi tạo mã nguồn WP & cơ sở dữ liệu ngay khi tạo xong</div>
+                                        </div>
+                                    </div>
+                                    <input type="checkbox" v-model="newCustomer.install_wp" class="w-4 h-4 rounded text-cyan-600 bg-slate-950 border-slate-700 focus:ring-cyan-500">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Resource Quotas (Additional subscription settings) -->
+                        <div class="space-y-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                            <label class="block font-semibold text-slate-400 text-[11px]">Hạn mức tài nguyên máy chủ (Resource Quotas)</label>
+                            <div class="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label class="block text-[10px] text-slate-500 mb-1">Ổ Cứng (MB)</label>
+                                    <input type="number" v-model.number="newCustomer.disk_mb" min="500" max="500000"
+                                        class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-slate-500 mb-1">RAM (MB)</label>
+                                    <input type="number" v-model.number="newCustomer.mem_mb" min="256" max="65536"
+                                        class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-slate-500 mb-1">CPU (%)</label>
+                                    <input type="number" v-model.number="newCustomer.cpu_pct" min="10" max="400"
+                                        class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-2 border-t border-slate-800 shrink-0">
                             <button type="button" @click="showAddCustomerModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
                             <button type="submit" :disabled="creatingCustomer"
-                                class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold shadow-lg shadow-cyan-500/20 flex items-center space-x-1.5">
+                                class="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold shadow-lg shadow-cyan-500/20 flex items-center space-x-1.5">
                                 <span v-if="creatingCustomer" class="animate-spin">⏳</span>
-                                <span>{{ creatingCustomer ? 'Đang Tạo User...' : 'Tạo Customer Ngay' }}</span>
+                                <span>{{ creatingCustomer ? 'Đang Tạo Customer & Subscription...' : 'Add Customer' }}</span>
                             </button>
                         </div>
                     </form>
@@ -1596,7 +1726,7 @@
                         <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Phiên bản hiện tại:</span>
-                                <span class="font-mono text-white font-bold bg-blue-950 px-2 py-0.5 rounded border border-blue-800">v0.4.7</span>
+                                <span class="font-mono text-white font-bold bg-blue-950 px-2 py-0.5 rounded border border-blue-800">v0.4.8</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Kênh cập nhật:</span>
@@ -1772,9 +1902,16 @@
                     username: '',
                     email: '',
                     password: '',
+                    package_id: null,
                     disk_mb: 5120,
                     mem_mb: 1024,
-                    cpu_pct: 100
+                    cpu_pct: 100,
+                    create_subscription: true,
+                    domain_type: 'registered',
+                    domain_name: '',
+                    webserver: 'ols',
+                    php_version: '8.2',
+                    install_wp: false
                 });
                 const isImpersonating = ref(!!sessionStorage.getItem('presspanel_admin_backup_token'));
 
@@ -2365,11 +2502,19 @@
                                 username: '',
                                 email: '',
                                 password: '',
+                                package_id: null,
                                 disk_mb: 5120,
                                 mem_mb: 1024,
-                                cpu_pct: 100
+                                cpu_pct: 100,
+                                create_subscription: true,
+                                domain_type: 'registered',
+                                domain_name: '',
+                                webserver: 'ols',
+                                php_version: '8.2',
+                                install_wp: false
                             };
                             fetchCustomers();
+                            fetchDomains();
                         } else {
                             alert('Lỗi: ' + (data.detail || 'Không thể tạo Customer'));
                         }

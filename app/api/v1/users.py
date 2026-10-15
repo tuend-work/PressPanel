@@ -17,6 +17,14 @@ class CustomerCreate(BaseModel):
     disk_mb: int = Field(5120, ge=500, le=500000)
     cpu_pct: int = Field(100, ge=10, le=400)
     mem_mb: int = Field(1024, ge=256, le=65536)
+    package_id: Optional[int] = None
+    # Subscription fields
+    create_subscription: bool = True
+    domain_type: str = "registered" # "registered" or "temporary"
+    domain_name: Optional[str] = None
+    webserver: str = "ols"
+    php_version: str = "8.2"
+    install_wp: bool = False
 
 @router.get("/customers")
 async def list_customers(current_user: dict = Depends(get_current_user)):
@@ -78,19 +86,20 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
     try:
         # Lưu vào SQLite
         pwd_hash = get_password_hash(req.password)
-        # Lấy package mặc định, nếu chưa có thì tự động tạo gói Standard
-        pkg_cur = await db.execute("SELECT id FROM packages WHERE package_type = 'user' ORDER BY id ASC LIMIT 1")
-        pkg = await pkg_cur.fetchone()
-        if not pkg:
-            # Tự động tạo gói Standard Web Hosting
-            await db.execute("""
-                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases)
-                VALUES (2, 0, 'Standard Web Hosting', 'user', 100, 1024, 5120, 100, 100, 5, 5)
-            """)
-            await db.commit()
-            package_id = 2
-        else:
-            package_id = pkg["id"]
+        # Xác định Package ID
+        package_id = req.package_id
+        if not package_id:
+            pkg_cur = await db.execute("SELECT id FROM packages WHERE package_type = 'user' ORDER BY id ASC LIMIT 1")
+            pkg = await pkg_cur.fetchone()
+            if not pkg:
+                await db.execute("""
+                    INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases)
+                    VALUES (2, 0, 'Standard Web Hosting', 'user', 100, 1024, 5120, 100, 100, 5, 5)
+                """)
+                await db.commit()
+                package_id = 2
+            else:
+                package_id = pkg["id"]
 
         await db.execute("""
             INSERT INTO users (parent_id, username, password_hash, email, role, package_id, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, status)
@@ -98,11 +107,54 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
         """, (current_user["id"], username, pwd_hash, req.email.strip(), package_id, req.cpu_pct, req.mem_mb, req.disk_mb))
         await db.commit()
 
-
         # Lấy id vừa tạo
         id_cur = await db.execute("SELECT id FROM users WHERE username = ?", (username,))
         created_user = await id_cur.fetchone()
         user_id = created_user["id"]
+
+        # Xử lý Subscription nếu được chọn
+        subscription_info = None
+        if req.create_subscription:
+            d_name = (req.domain_name or "").strip().lower()
+            if req.domain_type == "temporary" and not d_name:
+                # Tạo temporary domain dạng <username>.presspanel.local hoặc <username>.temp
+                d_name = f"{username}.presspanel.local"
+
+            if d_name:
+                # Loại bỏ tiền tố www. hoặc http:// nếu người dùng vô tình dán vào
+                d_name = re.sub(r"^(https?://)?(www\.)?", "", d_name).rstrip("/")
+                doc_root = f"/home/{username}/httpdocs/{d_name}"
+                ws = req.webserver or "ols"
+                php_v = req.php_version or "8.2"
+
+                # 1. Gọi Gatekeeper tạo Vhost
+                vhost_res = await run_gatekeeper("vhost", "add", username, d_name, ws, php_v)
+                vhost_status = "success" if vhost_res.get("status") != "error" else "warning"
+
+                # 2. Lưu vào bảng domains
+                try:
+                    await db.execute("""
+                        INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (user_id, d_name, doc_root, ws, php_v))
+                    await db.commit()
+                except Exception as de:
+                    pass
+
+                # 3. Cài đặt WordPress nếu được yêu cầu
+                wp_installed = False
+                if req.install_wp:
+                    wp_res = await run_gatekeeper("wp", "install", username, d_name)
+                    wp_installed = (wp_res.get("status") != "error")
+
+                subscription_info = {
+                    "domain_name": d_name,
+                    "webserver": ws,
+                    "php_version": php_v,
+                    "vhost_status": vhost_status,
+                    "wordpress_installed": wp_installed
+                }
+
     except Exception as e:
         await db.close()
         raise HTTPException(status_code=500, detail=f"Lỗi lưu trữ cơ sở dữ liệu: {str(e)}")
@@ -110,7 +162,7 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
     await db.close()
     return {
         "status": "success",
-        "message": f"Tạo Customer '{username}' thành công!",
+        "message": f"Tạo Customer '{username}'" + (f" kèm Subscription ({subscription_info['domain_name']})" if subscription_info else "") + " thành công!",
         "customer": {
             "id": user_id,
             "username": username,
@@ -118,7 +170,8 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
             "role": "user",
             "disk_mb": req.disk_mb,
             "cpu_pct": req.cpu_pct,
-            "mem_mb": req.mem_mb
+            "mem_mb": req.mem_mb,
+            "subscription": subscription_info
         }
     }
 
