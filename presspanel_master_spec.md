@@ -3,7 +3,7 @@
 Tài liệu này được biên soạn dưới dạng **Đặc tả Kỹ thuật Toàn diện (Master Blueprint & Technical Specification)** để nạp trực tiếp vào **Antigravity / AI Coding Engine**. Tài liệu chứa đầy đủ logic nghiệp vụ, cấu trúc mã nguồn dự án, quy hoạch thư mục triển khai, đặc tả các module C gatekeeper (chuẩn hóa không dùng tiền tố `wrap_`), cơ chế Cgroups v2 phân cấp & Disk Quota, hệ thống đóng hộp Namespace Cage tích hợp PID 1 Reaper, module **WP Manager (tương đương WP Toolkit)**, **Template Engine kế thừa 3 cấp**, **lược đồ Database SQLite mở rộng**, **đặc tả Full REST API (Domain, WP, App, File Manager, Backup, Cron, Firewall)** và **hướng dẫn sinh code theo từng giai đoạn**.
 
 > [!NOTE]
-> **Công nghệ Backend:** Toàn bộ tầng Web API Server được chuẩn hóa bằng **Python 3 (FastAPI + Uvicorn Asyncio)** kết hợp **SQLite WAL**, kế thừa trọn vẹn phong cách linh hoạt, dễ đọc, dễ mở rộng của aaPanel nhưng được bảo vệ bởi tầng nhân **8 C SUID Gatekeeper** bảo mật tuyệt đối.
+> **Công nghệ Backend:** Toàn bộ tầng Web API Server được chuẩn hóa bằng **Python 3 (FastAPI + Uvicorn Asyncio)** kết hợp **SQLite WAL**, kế thừa trọn vẹn phong cách linh hoạt, dễ đọc, dễ mở rộng của WPC nhưng được bảo vệ bởi tầng nhân **8 C SUID Gatekeeper** bảo mật tuyệt đối.
 
 ## MỤC LỤC
 
@@ -14,12 +14,12 @@ Tài liệu này được biên soạn dưới dạng **Đặc tả Kỹ thuật
  3. [Kiến trúc Tách Quyền & Đặc tả 8 C Gatekeeper Modules](#3-kien-truc-tach-quyen--dac-ta-8-c-gatekeeper-modules)
  4. [Kiểm Soát Tài Nguyên Toàn Diện: Cgroups v2 & Disk Quota](#4-kiem-soat-tai-nguyen-toan-dien-cgroups-v2--disk-quota)
  5. [Lồng Cách Ly Mức Cao Nhất (Cage Engine & PID 1 Reaper)](#5-long-cach-ly-muc-cao-nhat-cage-engine--pid-1-reaper)
- 6. [Module WordPress Manager (Tương đương Plesk WP Toolkit)](#6-module-wordpress-manager-tuong-duong-plesk-wp-toolkit)
+ 6. [Module WordPress Manager (Tương đương WPC WP Toolkit)](#6-module-wordpress-manager-tuong-duong-WPC-wp-toolkit)
  7. [Hệ Thống Template Engine Kế Thừa 3 Cấp](#7-he-thong-template-engine-ke-thua-3-cap)
  8. [App Store Đa Nền Tảng (Debian/Ubuntu & RHEL)](#8-app-store-da-nen-tang-debianubuntu--rhel)
  9. [Thiết Kế Cơ Sở Dữ Liệu Toàn Diện (SQLite Schema Mở Rộng)](#9-thiet-ke-co-so-du-lieu-toan-dien-sqlite-schema-mo-rong)
  10. [Đặc Tả Hệ Thống Full REST API (/api/v1)](#10-dac-ta-he-thong-full-rest-api-apiv1)
- 11. [Giao Diện Người Dùng (Plesk Layout & aaPanel Modals)](#11-giao-dien-nguoi-dung-plesk-layout--aapanel-modals)
+ 11. [Giao Diện Người Dùng (WPC Layout & WPC Modals)](#11-giao-dien-nguoi-dung-WPC-layout--WPC-modals)
  12. [Lộ Trình Triển Khai & Chỉ Dẫn Dành Riêng Cho Antigravity](#12-lo-trinh-trien-khai--chi-dan-danh-rieng-cho-antigravity)
 
 ---
@@ -28,8 +28,8 @@ Tài liệu này được biên soạn dưới dạng **Đặc tả Kỹ thuật
 
 **PressPanel** là thế hệ Web Control Panel độc lập, hiệu năng cao, siêu nhẹ dành cho máy chủ Linux. Hệ thống kết hợp những ưu điểm xuất sắc nhất của các Control Panel hàng đầu thế giới:
 
-* **Trải nghiệm Quản trị Domain dạng Card của Plesk:** Gom toàn bộ tính năng quản trị một website (PHP, SSL, Database, File Manager, Backup, Cronjob) vào một thẻ trực quan (Websites & Domains view).
-* **Kho Ứng dụng & Popup Cấu hình Trực quan của aaPanel:** Cài đặt, gỡ bỏ, bật/tắt PHP Extension chỉ bằng 1-click; sửa file cấu hình trực tiếp qua Monaco Code Editor.
+* **Trải nghiệm Quản trị Domain dạng Card của WPC:** Gom toàn bộ tính năng quản trị một website (PHP, SSL, Database, File Manager, Backup, Cronjob) vào một thẻ trực quan (Websites & Domains view).
+* **Kho Ứng dụng & Popup Cấu hình Trực quan của WPC:** Cài đặt, gỡ bỏ, bật/tắt PHP Extension chỉ bằng 1-click; sửa file cấu hình trực tiếp qua Monaco Code Editor.
 * **WordPress Toolkit Tích hợp Sâu:** Quản lý vòng đời WordPress từ cài đặt 1-click, Clone/Staging, Security Hardening đến đăng nhập tự động 1-click không cần mật khẩu (SSO).
 * **Bảo mật Tách Quyền Tuyệt Đối với 8 C Gatekeeper:** Tầng Web API chạy dưới user không có quyền quản trị (`PressPanel:PressPanel`). Mọi tác động xuống Linux Kernel, Cgroups v2, Filesystem Quota và hệ thống file đều do **8 binary C nhỏ gọn (chỉ 100–180 dòng/file, không tiền tố `wrap_`)** thực thi với quyền `root:PressPanel (chmod 4750)`.
 * **Backend Python (FastAPI + Asyncio + SQLite WAL):**
@@ -128,7 +128,7 @@ Khi cài đặt trên máy chủ Linux thực tế, toàn bộ hệ thống đư
 │   ├── cage              # Đóng hộp tiến trình trong Namespace & PID 1 Reaper
 │   ├── vhost             # Quản lý VirtualHost OLS/Nginx & SSL
 │   ├── db                # Quản lý MariaDB/MySQL
-│   ├── app               # Quản lý kho ứng dụng aaPanel
+│   ├── app               # Quản lý kho ứng dụng WPC
 │   ├── wp                # Quản lý WordPress (WP Toolkit)
 │   └── template          # Bộ sinh cấu hình Template kế thừa 3 cấp
 ├── app/                  # Mã nguồn Backend Python FastAPI
@@ -271,7 +271,7 @@ Khi User thực thi lệnh SSH, Cronjob, WP-CLI hoặc khi tiến trình PHP-FPM
 
 ---
 
-## 6. Module WordPress Manager (Tương đương Plesk WP Toolkit)
+## 6. Module WordPress Manager (Tương đương WPC WP Toolkit)
 
 Module `wp.c` kết hợp cùng script `/opt/presspanel/scripts/wp_manager.sh` cung cấp đầy đủ chức năng quản trị WordPress chuyên nghiệp:
 
@@ -433,7 +433,7 @@ CREATE TABLE databases (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- 6. Bảng Quản Lý Ứng Dụng Đã Cài (aaPanel App Store)
+-- 6. Bảng Quản Lý Ứng Dụng Đã Cài (WPC App Store)
 CREATE TABLE installed_apps (
     app_name TEXT NOT NULL,
     version TEXT NOT NULL,
@@ -590,11 +590,11 @@ Tất cả các endpoint yêu cầu Header `Authorization: Bearer <JWT_OR_API_KE
 
 ---
 
-## 11. Giao Diện Người Dùng (Plesk Layout & aaPanel Modals)
+## 11. Giao Diện Người Dùng (WPC Layout & WPC Modals)
 
 Giao diện SPA xây dựng bằng **Vue 3 + Vite + TailwindCSS**, tổ chức theo các màn hình trung tâm:
 
-### 1. Màn hình "Websites & Domains" (Phong cách Plesk)
+### 1. Màn hình "Websites & Domains" (Phong cách WPC)
 * Hiển thị mỗi website dưới dạng một Thẻ (Card lớn) có thể mở rộng.
 * **Header Thẻ:** Tên miền, IP, Trạng thái SSL (Xanh: Còn hạn kèm ngày hết hạn, Đỏ: Lỗi/Chưa có), Nút truy cập web.
 * **Thân Thẻ (3 Cột Tiện Ích):**
@@ -608,7 +608,7 @@ Giao diện SPA xây dựng bằng **Vue 3 + Vite + TailwindCSS**, tổ chức t
 * Tích hợp **Monaco Editor** với cú pháp tô màu syntax highlighting đầy đủ cho PHP, HTML, CSS, JS, Nginx/Apache config.
 * Hỗ trợ thao tác nén, giải nén ZIP trực tiếp trên giao diện web chỉ với 1 click.
 
-### 3. Màn hình "App Store" (Phong cách aaPanel)
+### 3. Màn hình "App Store" (Phong cách WPC)
 * Danh sách ứng dụng chia theo thẻ danh mục: *Web Server (OLS, Nginx)*, *Database (MariaDB, Redis, Memcached)*, *PHP Runtime (PHP 7.4 đến 8.4)*, *Công cụ hệ thống (Pure-FTPd, PowerDNS, phpMyAdmin)*.
 * Trạng thái cài đặt: Nút **"Install"** (mở modal chọn bản Fast/Precompiled), hoặc Nút **"Setting"** khi đã cài.
 * **Modal Setting (Đa Tab):**
@@ -665,7 +665,7 @@ Khi đưa tài liệu này vào Antigravity / AI Code Agent, hãy thực hiện 
 
 ### Bước 5: Xây dựng Giao diện Frontend Vue 3 & Cấu hình Phục vụ Hệ Thống
 1. Dựng ứng dụng Vue 3 với Vite, TailwindCSS, Lucide Icons, Monaco Editor và Pinia trong thư mục `web/`.
-2. Xây dựng các màn hình cốt lõi: Websites & Domains (Plesk), App Store (aaPanel), File Manager, Backup & Cron, Reseller Management.
+2. Xây dựng các màn hình cốt lõi: Websites & Domains (WPC), App Store (WPC), File Manager, Backup & Cron, Reseller Management.
 3. Build frontend ra thư mục `web/dist/` và copy vào `/opt/presspanel/static/`. Trong FastAPI `main.py`, mount phục vụ Web UI:
    ```python
    from fastapi.staticfiles import StaticFiles
@@ -690,4 +690,5 @@ Khi đưa tài liệu này vào Antigravity / AI Code Agent, hãy thực hiện 
    WantedBy=multi-user.target
    ```
 5. **Kết quả cuối cùng:** Hệ thống Control Panel vận hành với backend **FastAPI Asyncio** siêu mượt mà, trực quan, dễ mở rộng, kết hợp cùng **bộ 8 công cụ C `bin/*`**, sẵn sàng đưa vào vận hành thực tế!
+
 

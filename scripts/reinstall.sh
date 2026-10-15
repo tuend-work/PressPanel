@@ -49,13 +49,13 @@ bash install.sh
 if [ -f "$BACKUP_DIR/panel.db" ]; then
     echo "[+] Khôi phục lại cơ sở dữ liệu panel.db..."
     cp "$BACKUP_DIR/panel.db" "$INSTALL_DIR/data/panel.db"
-    chown presspanel:presspanel "$INSTALL_DIR/data/panel.db"
+    chown wpc:wpc "$INSTALL_DIR/data/panel.db" 2>/dev/null || chown presspanel:presspanel "$INSTALL_DIR/data/panel.db" 2>/dev/null || true
 fi
 if [ -f "$BACKUP_DIR/presspanel.conf" ]; then
     echo "[+] Khôi phục lại cấu hình presspanel.conf..."
     cp "$BACKUP_DIR/presspanel.conf" "$INSTALL_DIR/conf/presspanel.conf"
     chmod 640 "$INSTALL_DIR/conf/presspanel.conf"
-    chown presspanel:presspanel "$INSTALL_DIR/conf/presspanel.conf"
+    chown wpc:wpc "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null || chown presspanel:presspanel "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null || true
 fi
 
 # 5. Khởi động lại dịch vụ

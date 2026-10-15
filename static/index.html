@@ -40,18 +40,18 @@
         .wp-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04); }
         .glass { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04); }
         .glass-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04); color: #1e293b; }
-        .aapanel-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04); color: #1e293b; }
+        .WPC-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04); color: #1e293b; }
         
         /* Light mode text & background normalization for main content */
         main h2.text-white, main h3.text-white, main h4.text-white { color: #1e293b !important; }
         main p.text-slate-400 { color: #64748b !important; }
-        .glass-card h3.text-white, .aapanel-card h3.text-white, .glass-card h4.text-white, .aapanel-card h4.text-white { color: #1e293b !important; }
-        .glass-card .text-slate-300, .aapanel-card .text-slate-300 { color: #334155 !important; }
-        .glass-card .text-slate-400, .aapanel-card .text-slate-400 { color: #64748b !important; }
-        .glass-card .bg-slate-900, .aapanel-card .bg-slate-900, .glass-card .bg-\[\#141921\], .aapanel-card .bg-\[\#141921\], .glass-card .bg-\[\#151a22\], .aapanel-card .bg-\[\#151a22\] { background-color: #f8fafc !important; }
-        .glass-card .border-slate-800, .aapanel-card .border-slate-800, .glass-card .border-\[\#232b36\], .aapanel-card .border-\[\#232b36\] { border-color: #e2e8f0 !important; }
+        .glass-card h3.text-white, .WPC-card h3.text-white, .glass-card h4.text-white, .WPC-card h4.text-white { color: #1e293b !important; }
+        .glass-card .text-slate-300, .WPC-card .text-slate-300 { color: #334155 !important; }
+        .glass-card .text-slate-400, .WPC-card .text-slate-400 { color: #64748b !important; }
+        .glass-card .bg-slate-900, .WPC-card .bg-slate-900, .glass-card .bg-\[\#141921\], .WPC-card .bg-\[\#141921\], .glass-card .bg-\[\#151a22\], .WPC-card .bg-\[\#151a22\] { background-color: #f8fafc !important; }
+        .glass-card .border-slate-800, .WPC-card .border-slate-800, .glass-card .border-\[\#232b36\], .WPC-card .border-\[\#232b36\] { border-color: #e2e8f0 !important; }
         
-        /* Plesk Toolbar & Table Light Mode Overrides */
+        /* WPC Toolbar & Table Light Mode Overrides */
         main .bg-slate-900\/80 { background-color: #ffffff !important; border-color: #e2e8f0 !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04); }
         main .bg-\[\#141921\] { background-color: #f8fafc !important; color: #475569 !important; border-color: #e2e8f0 !important; }
         main .border-\[\#232b36\] { border-color: #e2e8f0 !important; }
@@ -90,7 +90,7 @@
                 <div class="glass rounded-2xl p-6 sm:p-8 shadow-2xl relative">
                     <div class="mb-6 text-center">
                         <h2 class="text-2xl font-bold text-white tracking-tight">Đăng Nhập Quản Trị</h2>
-                        <p class="text-xs text-slate-400 mt-1">Truy cập giao diện quản trị máy chủ phong cách aaPanel & Plesk</p>
+                        <p class="text-xs text-slate-400 mt-1">Truy cập giao diện quản trị máy chủ phong cách WPC & WPC</p>
                     </div>
 
                     <div v-if="loginError" class="mb-4 p-3 rounded-xl text-xs font-medium bg-rose-950/80 text-rose-300 border border-rose-800 flex items-center gap-2">
@@ -128,8 +128,8 @@
 
         <!-- 2. GIAO DIỆN CHÍNH WPCLOUD CONTROL PANEL (KHI ĐÃ AUTH) -->
         <div v-else class="min-h-screen flex flex-col md:flex-row bg-[#f3f6fa]">
-            <!-- Sidebar Trái Phong Cách WPCloud Control Panel (Dark Navy #0e1726) -->
-            <aside class="w-full md:w-64 bg-[#0d1624] text-slate-300 flex flex-col justify-between shrink-0 shadow-xl z-20">
+            <!-- Sidebar Trái WPC Control Panel (Dark Navy #0e1726, width 220px on PC) -->
+            <aside class="w-full md:w-[220px] bg-[#0d1624] text-slate-300 flex flex-col justify-between shrink-0 shadow-xl z-20">
                 <div class="overflow-y-auto sidebar-scrollbar flex-1 flex flex-col justify-between">
                     <div>
                         <!-- Logo Header WPCloud -->
@@ -164,7 +164,7 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 3. Mail (Plesk Style: Hỗ trợ Hosting & Web User) -->
+                            <!-- 3. Mail (WPC Style: Hỗ trợ Hosting & Web User) -->
                             <button @click="currentTab = 'mail'" :class="navClass('mail')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="mail" class="w-4 h-4 text-slate-400"></i>
@@ -388,7 +388,7 @@
                             </div>
                         </div>
 
-                        <!-- 1. HÀNG 4 CIRCLE GAUGE WIDGETS CHUẨN AAPANEL -->
+                        <!-- 1. HÀNG 4 CIRCLE GAUGE WIDGETS CHUẨN WPC -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <!-- Gauge 1: Load Status -->
                             <div class="wp-card p-5 flex flex-col justify-between hover:shadow-md transition">
@@ -513,7 +513,7 @@
                             </div>
                         </div>
 
-                        <!-- 2. CARD OVERVIEW (TỔNG QUAN TÀI NGUYÊN AAPANEL) -->
+                        <!-- 2. CARD OVERVIEW (TỔNG QUAN TÀI NGUYÊN WPC) -->
                         <div class="wp-card p-5">
                             <div class="flex justify-between items-center pb-3 mb-4 border-b border-slate-100">
                                 <h3 class="text-sm font-bold text-slate-800">Overview (Tổng Quan Hệ Thống)</h3>
@@ -587,9 +587,9 @@
                             </div>
                         </div>
 
-                        <!-- 3. HÀNG 2 CỘT: SOFTWARE & TRAFFIC CHUẨN AAPANEL -->
+                        <!-- 3. HÀNG 2 CỘT: SOFTWARE & TRAFFIC CHUẨN WPC -->
                         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <!-- Cột Trái: Software (aaPanel Style) -->
+                            <!-- Cột Trái: Software (WPC Style) -->
                             <div class="wp-card p-5 flex flex-col justify-between">
                                 <div>
                                     <div class="flex justify-between items-center pb-3 mb-4 border-b border-slate-100">
@@ -744,7 +744,7 @@
                                 </div>
                             </div>
 
-                            <!-- Cột Phải: Traffic Realtime Graph (aaPanel Style) -->
+                            <!-- Cột Phải: Traffic Realtime Graph (WPC Style) -->
                             <div class="wp-card p-5">
                                 <div class="flex justify-between items-center pb-3 mb-3 border-b border-slate-100">
                                     <div class="flex items-center space-x-3 text-xs">
@@ -826,14 +826,14 @@
                     </div>
 
                     <!-- ========================================== -->
-                    <!-- VIEW 1: WEBSITES & DOMAINS (PLESK OBSIDIAN LIGHT STYLE) -->
+                    <!-- VIEW 1: WEBSITES & DOMAINS (WPC OBSIDIAN LIGHT STYLE) -->
                     <!-- ========================================== -->
                     <div v-if="currentTab === 'domains'" class="space-y-6 max-w-7xl mx-auto">
                         <!-- Action Bar Header -->
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <div>
                                 <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Danh Sách Website</h2>
-                                <p class="text-xs text-slate-500 mt-1">Quản lý toàn bộ VirtualHost, PHP, SSL và WordPress theo dạng thẻ Plesk Obsidian</p>
+                                <p class="text-xs text-slate-500 mt-1">Quản lý toàn bộ VirtualHost, PHP, SSL và WordPress theo dạng thẻ WPC Obsidian</p>
                             </div>
                             <!-- Nếu là Admin: Thông báo rõ quy tắc bảo mật & phân quyền -->
                             <div v-if="currentUser.role === 'admin'" class="flex items-center space-x-3">
@@ -852,7 +852,7 @@
                             </button>
                         </div>
 
-                        <!-- Plesk Style Toolbar for Domains -->
+                        <!-- WPC Style Toolbar for Domains -->
                         <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
                             <div class="flex flex-wrap items-center gap-2">
                                 <button v-if="currentUser.role === 'reseller'" @click="showAddDomainModal = true"
@@ -882,7 +882,7 @@
                             </div>
                         </div>
 
-                        <!-- Danh sách Domain Cards (Phong cách Plesk) -->
+                        <!-- Danh sách Domain Cards (Phong cách WPC) -->
                         <div v-if="domains.length === 0" class="wp-card p-12 text-center border border-slate-200/90 shadow-sm">
                             <div class="w-16 h-16 mx-auto rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-3xl mb-3">🌐</div>
                             <h3 class="text-base font-bold text-slate-800">Chưa Có Website Nào</h3>
@@ -899,8 +899,8 @@
                         </div>
 
                         <div v-else class="space-y-4">
-                            <!-- Card Domain Plesk Obsidian Light -->
-                            <!-- Plesk Obsidian 360 Website Overview Layout (Giống hình ảnh Plesk tham chiếu) -->
+                            <!-- Card Domain WPC Obsidian Light -->
+                            <!-- WPC Obsidian 360 Website Overview Layout (Giống hình ảnh WPC tham chiếu) -->
                             <div v-for="d in domains" :key="d.id"
                                 :class="selectedDomainIds.includes(d.id) ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-md' : 'border-slate-200/90 hover:border-slate-300 shadow-sm'"
                                 class="wp-card rounded-2xl overflow-hidden border transition bg-white text-slate-800">
@@ -957,7 +957,7 @@
                                     </div>
                                 </div>
 
-                                <!-- Subtabs Header: Dashboard, Hosting & DNS, Mail (Plesk Obsidian Style) -->
+                                <!-- Subtabs Header: Dashboard, Hosting & DNS, Mail (WPC Obsidian Style) -->
                                 <div class="px-6 pt-3 border-b border-slate-200 bg-white flex items-center space-x-6 text-xs font-semibold">
                                     <button @click="setDomainSubTab(d.id, 'dashboard')"
                                         :class="getDomainSubTab(d.id) === 'dashboard' ? 'text-blue-600 border-b-2 border-blue-600 pb-2.5' : 'text-slate-500 hover:text-slate-800 pb-2.5'">
@@ -973,7 +973,7 @@
                                     </button>
                                 </div>
 
-                                <!-- TAB 1: DASHBOARD (PLESK 360 GRID) -->
+                                <!-- TAB 1: DASHBOARD (WPC 360 GRID) -->
                                 <div v-if="getDomainSubTab(d.id) === 'dashboard'" class="p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
                                     <!-- Left Column: Website Preview & Statistics -->
                                     <div class="lg:col-span-3 space-y-5">
@@ -1103,13 +1103,13 @@
                                             </div>
                                         </div>
 
-                                        <!-- Section 2: Dev Tools (TÍCH HỢP CHỌN PHP UX CHUẨN PLESK) -->
+                                        <!-- Section 2: Dev Tools (TÍCH HỢP CHỌN PHP UX CHUẨN WPC) -->
                                         <div>
                                             <h4 class="text-xs font-extrabold text-slate-700 mb-3.5 flex items-center gap-2">
                                                 <span>Dev Tools</span>
                                             </h4>
                                             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                                                <!-- PHP Settings & Version Switcher (UX ĐỔI PHP CHUẨN PLESK) -->
+                                                <!-- PHP Settings & Version Switcher (UX ĐỔI PHP CHUẨN WPC) -->
                                                 <div @click="openChangePhpModal(d)"
                                                     class="p-3.5 rounded-xl border-2 border-blue-500/30 hover:border-blue-500 hover:shadow-md bg-gradient-to-br from-blue-50/50 to-indigo-50/30 cursor-pointer transition flex items-center space-x-3.5 group relative">
                                                     <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 font-bold text-xs shadow-sm">
@@ -1177,7 +1177,7 @@
                                                     </div>
                                                     <div class="min-w-0">
                                                         <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Website Importing</div>
-                                                        <div class="text-[10px] text-slate-400 truncate">Migrate from cPanel/Plesk</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">Migrate from WPC/WPC</div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1300,12 +1300,12 @@
                         </div>
                     </div>
 
-                    <!-- VIEW 4: APP STORE (AAPANEL STYLE) -->
+                    <!-- VIEW 4: APP STORE (WPC STYLE) -->
                     <div v-if="currentTab === 'apps'" class="space-y-6 max-w-7xl mx-auto">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <div>
                                 <h2 class="text-xl font-bold text-white">Kho Ứng Dụng (App Store)</h2>
-                                <p class="text-xs text-slate-400">Cài đặt 1-Click các dịch vụ máy chủ, cơ sở dữ liệu, PHP và công cụ bảo mật chuẩn aaPanel</p>
+                                <p class="text-xs text-slate-400">Cài đặt 1-Click các dịch vụ máy chủ, cơ sở dữ liệu, PHP và công cụ bảo mật chuẩn WPC</p>
                             </div>
                             <div class="flex items-center space-x-2 text-xs">
                                 <span class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 font-mono">
@@ -1453,7 +1453,7 @@
                             </button>
                         </div>
 
-                        <!-- Plesk Style Toolbar for Customers -->
+                        <!-- WPC Style Toolbar for Customers -->
                         <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
                             <div class="flex flex-wrap items-center gap-2">
                                 <button @click="showAddCustomerModal = true; fetchServicePlans();"
@@ -1579,7 +1579,7 @@
                     </div>
 
                     <!-- ========================================== -->
-                    <!-- VIEW 6: SERVICE PLANS (CÁC GÓI HOSTING MẪU PLESK) -->
+                    <!-- VIEW 6: SERVICE PLANS (CÁC GÓI HOSTING MẪU WPC) -->
                     <!-- ========================================== -->
                     <div v-if="currentTab === 'service_plans'" class="space-y-6 max-w-7xl mx-auto">
                         <!-- Action Bar -->
@@ -1595,7 +1595,7 @@
                             </button>
                         </div>
 
-                        <!-- Grid các gói Hosting Mẫu chuẩn Plesk -->
+                        <!-- Grid các gói Hosting Mẫu chuẩn WPC -->
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                             <div v-for="plan in servicePlans" :key="plan.id"
                                 class="bg-white rounded-2xl p-5 flex flex-col justify-between border border-slate-200/90 hover:border-blue-500 transition shadow-sm hover:shadow-md space-y-4">
@@ -2005,13 +2005,13 @@
                         </div>
                     </div>
 
-                    <!-- VIEW 7: PLACEHOLDER CHO CÁC MỤC PLESK (Resellers, SEO, Tools & Settings...) -->
+                    <!-- VIEW 7: PLACEHOLDER CHO CÁC MỤC WPC (Resellers, SEO, Tools & Settings...) -->
                     <div v-if="['resellers', 'seo', 'tools_settings', 'monitoring', 'laravel', 'nodejs', 'profile', 'password'].includes(currentTab)" class="space-y-6 max-w-7xl mx-auto">
                         <div class="bg-white border border-slate-200/90 rounded-2xl p-8 text-center space-y-3 shadow-sm">
                             <div class="text-4xl">⚡</div>
                             <h3 class="text-lg font-extrabold text-slate-800 capitalize">{{ currentTab.replace('_', ' ') }}</h3>
                             <p class="text-xs text-slate-500 max-w-md mx-auto">
-                                Mô đun quản trị theo chuẩn WPCloud / Plesk Control Panel. Đang hoạt động đồng bộ với hệ thống máy chủ Linux an toàn.
+                                Mô đun quản trị theo chuẩn WPCloud / WPC Control Panel. Đang hoạt động đồng bộ với hệ thống máy chủ Linux an toàn.
                             </p>
                             <div class="pt-2 flex justify-center space-x-2">
                                 <button @click="currentTab = 'customers'" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition">
@@ -2077,7 +2077,7 @@
                 </div>
             </div>
 
-            <!-- MODAL: PHP SETTINGS & VERSION SWITCHER (UX CHỌN PHP CHUẨN PLESK) -->
+            <!-- MODAL: PHP SETTINGS & VERSION SWITCHER (UX CHỌN PHP CHUẨN WPC) -->
             <div v-if="showChangePhpModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-200 text-slate-800 animate-fadeIn">
                     <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
@@ -2268,7 +2268,7 @@
                                     <div class="flex items-center justify-between">
                                         <span class="text-slate-500">Tên miền tạm thời tự động cấp:</span>
                                         <span class="font-mono text-blue-600 font-bold">
-                                            {{ (newCustomer.username || 'user') }}.presspanel.local
+                                            {{ (newCustomer.username || 'user') }}.wpc.local
                                         </span>
                                     </div>
                                     <p class="text-[10px] text-slate-400 mt-1">Website sẽ tạo user linux riêng <code>/home/{{ (newCustomer.username || 'user') }}presspanellocal</code></p>
@@ -2364,7 +2364,7 @@
                 </div>
             </div>
 
-            <!-- MODAL: THÊM SERVICE PLAN MỚI (PLESK HOSTING PACKAGE) -->
+            <!-- MODAL: THÊM SERVICE PLAN MỚI (WPC HOSTING PACKAGE) -->
             <div v-if="showAddPlanModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div class="glass rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-700">
                     <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
@@ -2438,9 +2438,9 @@
                 </div>
             </div>
 
-            <!-- MODAL: CẤU HÌNH APP & DỊCH VỤ (AAPANEL EXACT STYLE SETTING POPUP) -->
+            <!-- MODAL: CẤU HÌNH APP & DỊCH VỤ (WPC EXACT STYLE SETTING POPUP) -->
             <div v-if="showAppSettingModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div class="aapanel-card rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col border border-[#2b3545] h-[600px]">
+                <div class="WPC-card rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col border border-[#2b3545] h-[600px]">
                     <!-- Header -->
                     <div class="h-12 px-5 border-b border-[#232b36] flex items-center justify-between bg-[#151a22] shrink-0">
                         <div class="flex items-center space-x-2.5">
@@ -2453,7 +2453,7 @@
                         <button @click="showAppSettingModal = false" class="text-slate-400 hover:text-white text-xl p-1 leading-none">&times;</button>
                     </div>
 
-                    <!-- Body: 2 Columns Layout (aaPanel sidebar tabs style) -->
+                    <!-- Body: 2 Columns Layout (WPC sidebar tabs style) -->
                     <div class="flex-1 flex min-h-0 bg-[#0f131a]">
                         <!-- Left Sidebar Tabs -->
                         <div class="w-52 bg-[#131720] border-r border-[#232b36] p-2 space-y-0.5 shrink-0 text-xs font-medium overflow-y-auto custom-scrollbar">
@@ -2464,7 +2464,7 @@
                                 <span>Service</span>
                             </button>
 
-                            <!-- PHP-SPECIFIC TABS (THEO HÌNH AAPANEL) -->
+                            <!-- PHP-SPECIFIC TABS (THEO HÌNH WPC) -->
                             <template v-if="selectedSettingApp?.category === 'php'">
                                 <button @click="appSettingTab = 'extensions'; fetchPhpExtensions(selectedSettingApp.id)"
                                     class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
@@ -2678,7 +2678,7 @@
                                 </div>
                             </div>
 
-                            <!-- TAB: INSTALL EXTENSIONS (CHUẨN HÌNH AAPANEL) -->
+                            <!-- TAB: INSTALL EXTENSIONS (CHUẨN HÌNH WPC) -->
                             <div v-if="appSettingTab === 'extensions'" class="flex-1 flex flex-col space-y-3 min-h-[400px]">
                                 <div class="flex-1 overflow-y-auto custom-scrollbar border border-slate-800/80 rounded-xl bg-slate-950/60">
                                     <table class="w-full text-left border-collapse text-xs">
@@ -3052,7 +3052,7 @@
                 });
                 const isImpersonating = ref(!!sessionStorage.getItem('presspanel_admin_backup_token'));
 
-                // Selection & Batch Action State (Plesk Style)
+                // Selection & Batch Action State (WPC Style)
                 const selectedCustomerIds = ref([]);
                 const selectedDomainIds = ref([]);
                 const selectedSubIds = ref([]);
@@ -3112,7 +3112,7 @@
 
                 const newDomain = ref({ domain_name: '', webserver: 'ols', php_version: '8.2', install_wp: true });
 
-                // Plesk 360 UI: Tabs chi tiết cho Website & Modal đổi PHP
+                // WPC 360 UI: Tabs chi tiết cho Website & Modal đổi PHP
                 const activeDomainSubTab = ref({});
                 const showChangePhpModal = ref(false);
                 const targetPhpDomain = ref(null);
@@ -3163,7 +3163,7 @@
                     return appsList.value.filter(a => a.category === appsCategory.value);
                 });
 
-                // Dữ liệu Messages Box & Task List (aaPanel Style)
+                // Dữ liệu Messages Box & Task List (WPC Style)
                 const showMessagesBox = ref(false);
                 const msgBoxTab = ref('tasks');
                 const runningTasks = ref([]);
@@ -3250,7 +3250,7 @@
 
                 const appVersions = ref({});
 
-                // Dữ liệu Popup Quản lý / Cấu hình App (aaPanel Manage Setting Modal)
+                // Dữ liệu Popup Quản lý / Cấu hình App (WPC Manage Setting Modal)
                 const showAppSettingModal = ref(false);
                 const selectedSettingApp = ref(null);
                 const appSettingTab = ref('service');
@@ -3294,7 +3294,7 @@
                     }
                 };
 
-                // Dữ liệu Cấu hình chi tiết PHP (aaPanel Style)
+                // Dữ liệu Cấu hình chi tiết PHP (WPC Style)
                 const phpExtensions = ref([]);
                 const loadingExtensions = ref(false);
                 const phpDirectives = ref({
@@ -3549,7 +3549,7 @@
                 };
 
 
-                // Dữ liệu giám sát System aaPanel Widget
+                // Dữ liệu giám sát System WPC Widget
                 const sysStats = ref({
                     os_name: 'Linux',
                     cpu_cores: 4,
@@ -3723,6 +3723,8 @@
                     token.value = '';
                     localStorage.removeItem('presspanel_token');
                     localStorage.removeItem('presspanel_user');
+                    sessionStorage.clear();
+                    window.location.reload();
                 };
 
                 const handleAddDomain = async () => {
@@ -4003,11 +4005,8 @@
                             localStorage.setItem('presspanel_user', JSON.stringify(currentUser.value));
                             isImpersonating.value = true;
 
-                            // Chuyển sang tab Domains để xem/thêm website cho Customer
                             currentTab.value = 'domains';
-                            fetchDomains();
-                            fetchSystemStatus();
-                            fetchAppsList();
+                            window.location.reload();
                         } else {
                             alert('Lỗi Login As: ' + (data.detail || 'Không thể đăng nhập dưới quyền Customer này'));
                         }
@@ -4043,10 +4042,8 @@
                             localStorage.setItem('presspanel_user', JSON.stringify(currentUser.value));
                             isImpersonating.value = true;
 
-                            // Chuyển sang File Manager hoặc Website view của Web User
-                            currentTab.value = 'files';
-                            openFileManager(data.web_user.document_root);
-                            refreshLucideIcons();
+                            // Chuyển sang File Manager và tải lại trang để làm mới toàn bộ state
+                            window.location.reload();
                         } else {
                             alert('Lỗi: ' + (data.detail || 'Không thể đăng nhập dưới quyền Web User này'));
                         }
@@ -4059,23 +4056,13 @@
                     const backupToken = sessionStorage.getItem('presspanel_admin_backup_token');
                     const backupUser = sessionStorage.getItem('presspanel_admin_backup_user');
                     if (backupToken) {
-                        token.value = backupToken;
-                        try {
-                            currentUser.value = JSON.parse(backupUser) || { username: 'admin', role: 'admin' };
-                        } catch(e) {
-                            currentUser.value = { username: 'admin', role: 'admin' };
-                        }
                         localStorage.setItem('presspanel_token', backupToken);
-                        localStorage.setItem('presspanel_user', JSON.stringify(currentUser.value));
+                        if (backupUser) {
+                            localStorage.setItem('presspanel_user', backupUser);
+                        }
                         sessionStorage.removeItem('presspanel_admin_backup_token');
                         sessionStorage.removeItem('presspanel_admin_backup_user');
-                        isImpersonating.value = false;
-
-                        // Trở về tab Domains hoặc Customers của tài khoản quản trị
-                        currentTab.value = currentUser.value.role === 'admin' ? 'domains' : 'domains';
-                        fetchCustomers();
-                        fetchDomains();
-                        refreshLucideIcons();
+                        window.location.reload();
                     } else {
                         window.location.reload();
                     }
@@ -4580,4 +4567,5 @@
     </script>
 </body>
 </html>
+
 

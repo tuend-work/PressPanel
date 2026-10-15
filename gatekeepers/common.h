@@ -13,8 +13,8 @@
 #include <grp.h>
 #include <errno.h>
 
-#define PANEL_USER  "presspanel"
-#define PANEL_GROUP "presspanel"
+#define PANEL_USER  "wpc"
+#define PANEL_GROUP "wpc"
 #define SAFE_PATH   "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 #define IGNORE_RESULT(fn) do { if (fn) {} } while (0)

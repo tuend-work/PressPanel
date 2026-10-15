@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS databases (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- 6. Bảng Quản Lý Ứng Dụng Đã Cài (aaPanel App Store)
+-- 6. Bảng Quản Lý Ứng Dụng Đã Cài (WPC App Store)
 CREATE TABLE IF NOT EXISTS installed_apps (
     app_name TEXT NOT NULL,
     version TEXT NOT NULL,
@@ -224,7 +224,7 @@ async def init_database():
             admin_pass_hash = get_password_hash("admin123456")
             await db.execute("""
                 INSERT INTO users (username, password_hash, email, role, package_id, cpu_pct, mem_mb, disk_mb, io_weight, pids_max)
-                VALUES ('admin', ?, 'admin@presspanel.local', 'admin', 1, 400, 8192, 102400, 100, 500)
+                VALUES ('admin', ?, 'admin@wpc.local', 'admin', 1, 400, 8192, 102400, 100, 500)
             """, (admin_pass_hash,))
 
         await db.commit()
@@ -233,4 +233,5 @@ async def init_database():
 
 if __name__ == "__main__":
     asyncio.run(init_database())
+
 

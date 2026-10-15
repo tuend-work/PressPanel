@@ -663,7 +663,7 @@ async def toggle_autorestart(req: AutorestartRequest, current_user: dict = Depen
         raise HTTPException(status_code=500, detail=f"Lỗi: {str(e)}")
 
 # ==========================================
-# CẤU HÌNH NÂNG CAO PHP (aaPanel Style: Extensions, Directives, Logs, phpinfo)
+# CẤU HÌNH NÂNG CAO PHP (WPC Style: Extensions, Directives, Logs, phpinfo)
 # ==========================================
 PHP_EXTENSIONS_LIST = [
     {"name": "ionCube", "pkg": "ioncube-loader", "type": "Script decryption", "desc": "Used to decrypt ZendOptimizer/ionCube encryption scripts"},
@@ -984,5 +984,6 @@ async def rewrite_webserver_config(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Lỗi tái tạo cấu hình webserver: {str(e)}")
+
 
 

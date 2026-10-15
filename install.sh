@@ -72,12 +72,12 @@ mkdir -p "$INSTALL_DIR"/{bin,app,conf,static,data,logs/tasks,scripts/apps,server
 chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"
 chmod 750 "$INSTALL_DIR"
 
-# 6. Sao chép và cấu hình cổng tự động (Tránh xung đột với aaPanel/cPanel/DirectAdmin...)
+# 6. Sao chép và cấu hình cổng tự động (Tránh xung đột với b?ng di?u khi?n kh�c...)
 PANEL_PORT=8888
 if [ -f "$INSTALL_DIR/conf/presspanel.conf" ]; then
     PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/presspanel.conf" | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
 else
-    # Kiểm tra cổng 8888 có bị chiếm dụng không (ví dụ bởi aaPanel)
+    # Kiểm tra cổng 8888 có bị chiếm dụng không (ví dụ bởi b?ng di?u khi?n kh�c)
     CHECK_PORT=8888
     while true; do
         IS_BUSY=0
@@ -170,3 +170,4 @@ echo "   File cấu hình: /opt/presspanel/conf/presspanel.conf   "
 echo "   Lệnh quản trị hệ thống CLI: wpc (hoặc presspanel)     "
 echo "   Tài khoản mặc định: admin / admin123456               "
 echo "=========================================================="
+

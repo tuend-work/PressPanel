@@ -93,8 +93,13 @@ declare(strict_types=1);
 EOF
 
         chmod 644 "$TARGET_DIR/config.inc.php"
+        mkdir -p "$TARGET_DIR/tmp"
         chmod 777 "$TARGET_DIR/tmp" 2>/dev/null || true
-        chown -R www-data:www-data "$TARGET_DIR" 2>/dev/null || chown -R presspanel:presspanel "$TARGET_DIR" 2>/dev/null || true
+        # Cấp quyền đọc và thực thi toàn cục cho thư mục phpMyAdmin để mọi webserver (www-data, nobody, wpc) đều đọc được
+        chmod -R a+rX "$TARGET_DIR" 2>/dev/null || true
+        chown -R www-data:www-data "$TARGET_DIR" 2>/dev/null || chown -R nobody:nogroup "$TARGET_DIR" 2>/dev/null || chown -R wpc:wpc "$TARGET_DIR" 2>/dev/null || true
+        # Đảm bảo các thư mục cha /opt, /opt/presspanel, /opt/presspanel/apps có quyền +x cho other
+        chmod a+x /opt /opt/presspanel /opt/presspanel/apps 2>/dev/null || true
 
         # 3. Cấu hình VirtualHost / Alias cho Webserver (Nginx & OpenLiteSpeed)
         ACTIVE_PHP=$(detect_php_version)
@@ -112,7 +117,7 @@ server {
     listen $PMA_PORT default_server;
     server_name _;
     root $TARGET_DIR;
-    index index.php index.html;
+    index index.php index.html index.htm;
 
     client_max_body_size 256M;
 
@@ -143,12 +148,16 @@ EOF
         # Cấu hình OpenLiteSpeed
         OLS_MAIN_CONF="/usr/local/lsws/conf/httpd_config.conf"
         if [ -f "$OLS_MAIN_CONF" ]; then
-            # Đảm bảo context /phpmyadmin trong Example hoặc Vhost mặc định
-            if ! grep -q "virtualhost phpmyadmin" "$OLS_MAIN_CONF"; then
-                mkdir -p "/usr/local/lsws/conf/vhosts/phpmyadmin"
-                cat <<EOF > "/usr/local/lsws/conf/vhosts/phpmyadmin/vhconf.conf"
+            mkdir -p "/usr/local/lsws/conf/vhosts/phpmyadmin"
+            cat <<EOF > "/usr/local/lsws/conf/vhosts/phpmyadmin/vhconf.conf"
 docRoot                   $TARGET_DIR
 enableGzip                1
+
+index  {
+  useServer               0
+  indexFiles              index.php, index.html
+  autoIndex               0
+}
 
 errorlog logs/pma_error.log {
   useServer               1
@@ -163,6 +172,9 @@ scripthandler {
   add                     lsapi:lsphp$PHP_NUM php
 }
 EOF
+            chown -R lsadm:lsadm "/usr/local/lsws/conf/vhosts/phpmyadmin" 2>/dev/null || true
+
+            if ! grep -q "virtualhost phpmyadmin" "$OLS_MAIN_CONF"; then
                 cat <<EOF >> "$OLS_MAIN_CONF"
 
 virtualhost phpmyadmin {
@@ -180,8 +192,8 @@ listener PMA_888 {
   map                     phpmyadmin *
 }
 EOF
-                /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
             fi
+            /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
         fi
 
         echo "[+] Cài đặt và cấu hình phpMyAdmin thành công tại $TARGET_DIR (Port $PMA_PORT)!"

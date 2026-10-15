@@ -1,16 +1,16 @@
 <div align="center">
 
-# ⚡ PressPanel
+# ⚡ WPC (WPCloud Control Panel)
 
 ### Thế Hệ Control Panel Độc Lập, Hiệu Năng Cao & Siêu Nhẹ Tối Ưu Cho WordPress
 
-[![Version](https://img.shields.io/badge/version-0.2.1-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.4.38-blue.svg)](VERSION)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-green.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
 [![OS](https://img.shields.io/badge/OS-Ubuntu%20%7C%20Debian%20%7C%20AlmaLinux%20%7C%20Rocky-orange.svg)](#yêu-cầu-hệ-thống)
 [![License](https://img.shields.io/badge/license-MIT-purple.svg)](LICENSE)
 
-*Kết hợp trải nghiệm quản trị Domain dạng Card trực quan của **Plesk**, kho ứng dụng 1-click của **aaPanel**, lồng cách ly bảo mật **Cage & Cgroups v2**, và cỗ máy tối ưu **WordPress Toolkit**.*
+*Bảng điều khiển máy chủ độc lập với quản trị Website 360°, cấu trúc đa phiên bản PHP 5.6 - 8.5 kèm Pool FPM độc lập, kho ứng dụng 1-Click, lồng cách ly bảo mật Cage & Cgroups v2, và cỗ máy tối ưu WordPress Toolkit.*
 
 ---
 
@@ -19,11 +19,18 @@
 ## 🌟 Tính Năng Nổi Bật
 
 * **🚀 Siêu Nhẹ & Hiệu Năng Vượt Trội:**
-  * Backend **Python (FastAPI + Asyncio)** chạy trên **Uvicorn**: Chỉ tiêu tốn ~35MB RAM.
+  * Backend **Python (FastAPI + Asyncio)** chạy trên **Uvicorn**: Tiêu tốn cực ít RAM (~35MB).
   * Tích hợp máy chủ web tốc độ cao **OpenLiteSpeed (LSCache)** và **Nginx FastCGI Cache**.
 * **🛡️ Bảo Mật Tuyệt Đối với 8 C Gatekeepers (SUID):**
-  * Tầng Web API chạy dưới user không có quyền quản trị (`presspanel:presspanel`).
-  * Mọi can thiệp hệ thống, kernel và file được thực thi bởi **8 binary C nhỏ gọn (chmod 4750 root:presspanel)**, chống 100% leo thang đặc quyền.
+  * Tầng Web API chạy an toàn dưới user hệ thống không có quyền quản trị (`wpc:wpc`).
+  * Mọi can thiệp hệ thống, kernel và file được thực thi bởi **8 binary C nhỏ gọn (chmod 4750 root:wpc)**, loại trừ hoàn toàn nguy cơ leo thang đặc quyền.
+* **🌐 Quản Trị Website Chuẩn Mới & Đa Phiên Bản PHP:**
+  * Hỗ trợ đầy đủ các phiên bản PHP từ **PHP 5.6 đến PHP 8.5**.
+  * Cấu trúc website dạng hiện đại:
+    `/home/{username}/domains/{domain.com}/{public_html | logs | ssl | .tmp}`
+    kèm symlink tự động `/home/{username}/public_html`.
+  * Mỗi người dùng website có **PHP-FPM Pool độc lập**, chạy dưới danh tính người dùng Linux tương ứng, tự động cô lập session và upload temp directory.
+  * Quản lý chuyên sâu PHP: Quản lý Extension 1-click, chỉnh sửa chỉ thị directives (`memory_limit`, `max_execution_time`...), phpinfo trực tiếp.
 * **📦 Lồng Cách Ly Namespace (Cage Engine & PID 1 Reaper):**
   * Mỗi tài khoản được cô lập trong Linux Namespace riêng biệt (`CLONE_NEWNS|NEWPID|NEWIPC|NEWUTS`).
   * Che giấu thư mục `/home` của người dùng khác, `/tmp` cấp phát riêng trên RAM 256MB.
@@ -37,8 +44,9 @@
   * Đăng nhập 1-Click tự động không cần mật khẩu (**One-Click SSO**).
   * Nhân bản Staging & Đổi URL an toàn không hỏng dữ liệu serialized.
   * Tự động khóa bảo mật hệ thống (Security Hardening).
-* **📚 Tài Liệu API Tự Động (Swagger UI):**
-  * Tự động sinh giao diện tương tác trực tiếp tại `/docs`, hỗ trợ gọi thử toàn bộ REST API trên trình duyệt.
+* **📚 Trình Quản Lý Tệp & phpMyAdmin 1-Click:**
+  * File Manager tích hợp ngay trên giao diện web, chỉnh sửa code nhanh, nén/giải nén ZIP/TAR.GZ.
+  * phpMyAdmin tích hợp VirtualHost riêng (Port 888), 1-click cài đặt, cài lại và mở trực tiếp từ mục Databases.
 
 ---
 
@@ -56,108 +64,61 @@
 
 ## ⚡ Hướng Dẫn Cài Đặt
 
-### Cách 1: Cài Đặt Nhanh 1 Dòng (Khuyên dùng)
+### Cài Đặt Nhanh 1 Dòng (Khuyên dùng)
 
-Đăng nhập vào VPS/Server của bạn qua SSH với quyền `root` và chạy lệnh duy nhất:
+Chạy lệnh cài đặt tự động với quyền `root`:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/tuend-work/PressPanel/main/install.sh | sudo bash
 ```
 
-> [!TIP]
-> Script sẽ tự động nhận diện hệ điều hành, cài đặt các gói phụ thuộc, biên dịch 8 module C Gatekeeper, thiết lập Python Virtualenv, nạp Database SQLite và đăng ký dịch vụ `systemd`. Quá trình diễn ra hoàn toàn tự động trong khoảng 1–2 phút.
+Quá trình cài đặt hoàn toàn tự động trong khoảng 1–2 phút:
+1. Cài đặt các gói phụ thuộc nền tảng (`gcc`, `make`, `python3-venv`, `sqlite3`...).
+2. Tạo tài khoản dịch vụ hệ thống `wpc:wpc`.
+3. Biên dịch 8 C SUID Gatekeepers với các cờ bảo mật cao cấp (`-fstack-protector-strong`, `RELRO`, `PIE`).
+4. Khởi tạo môi trường ảo Python và Database SQLite WAL.
+5. Đăng ký và kích hoạt dịch vụ `systemd` tự khởi động cùng OS.
 
 ---
 
-### Cách 2: Cài Đặt Thủ Công từ Kho GitHub
+## 📂 Cấu Trúc Triển Khai Hệ Thống (`/opt/presspanel`)
 
-```bash
-# 1. Clone repository
-git clone https://github.com/tuend-work/PressPanel.git /tmp/PressPanel
-cd /tmp/PressPanel
-
-# 2. Thực thi file cài đặt
-sudo bash install.sh
-```
-
----
-
-## 🔑 Thông Tin Đăng Nhập Mặc Định
-
-Sau khi cài đặt hoàn tất, bạn có thể truy cập ngay vào giao diện quản trị:
-
-* **Đường dẫn Web Panel:** `http://<IP_MAY_CHU>:8888`
-* **Tài liệu Tương tác API (Swagger UI):** `http://<IP_MAY_CHU>:8888/docs`
-* **Tài khoản quản trị mặc định:**
-  * **Username:** `admin`
-  * **Password:** `admin123456`
-
-> [!IMPORTANT]
-> Hãy đổi mật khẩu tài khoản quản trị ngay sau khi đăng nhập lần đầu tiên tại mục cài đặt tài khoản.
-
----
-
-## 🌐 Các Cổng Mạng Cần Mở (Firewall Ports)
-
-Đảm bảo bạn đã mở các cổng sau trên Cloud Provider (AWS, DigitalOcean, Hetzner, Linode, v.v.):
-
-| Cổng | Giao thức | Dịch vụ |
-| :---: | :---: | :--- |
-| **8888** | TCP | Giao diện Quản trị PressPanel & REST API |
-| **80** | TCP | HTTP Web Traffic (OpenLiteSpeed / Nginx) |
-| **443** | TCP | HTTPS SSL Web Traffic & HTTP/3 QUIC |
-| **7080** | TCP | OpenLiteSpeed WebAdmin Console (Tùy chọn) |
-| **22** | TCP | Quản trị SSH Server |
-
----
-
-## 📂 Quy Hoạch Thư Mục Hệ Thống (`/opt/presspanel`)
-
-```
+```text
 /opt/presspanel/
-├── bin/                  # 8 Binary C SUID Gatekeeper (chmod 4750 root:presspanel)
-├── app/                  # Mã nguồn Backend Python FastAPI
-├── conf/                 # File cấu hình trung tâm (presspanel.conf giống directadmin.conf)
+├── bin/                  # 8 C SUID Gatekeepers (chmod 4750 root:wpc)
+├── app/                  # Mã nguồn FastAPI Backend (Asyncio Web Server)
+├── conf/                 # File cấu hình trung tâm (presspanel.conf)
 ├── venv/                 # Môi trường ảo Python độc lập (FastAPI + Uvicorn)
 ├── static/               # Thư mục Web UI tĩnh (Vue 3 Single Page Application)
 ├── data/                 # SQLite Database (panel.db chế độ WAL)
 ├── logs/                 # Access log, Error log và Streaming Task log
-├── scripts/              # Bộ script Bash quản trị (vhost_manager.sh, wp_manager.sh...)
+├── scripts/              # Bộ script Bash quản trị (vhost_manager.sh, wp_manager.sh, wpc...)
 ├── server/               # Dịch vụ đã cài đặt (OpenLiteSpeed, Nginx, PHP, MariaDB)
 └── templates/            # Hệ thống mẫu cấu hình kế thừa 3 cấp (User -> Package -> Default)
 ```
 
 > [!NOTE]
-> **File cấu hình trung tâm (`/opt/presspanel/conf/presspanel.conf`):** Tương tự như `directadmin.conf` của DirectAdmin, toàn bộ thông số cốt lõi (cổng port, SSL panel, session, default webserver, quota, đường dẫn) đều được cấu hình theo định dạng `key=value` trực quan, dễ chỉnh sửa và tự động nạp khi khởi động panel.
+> **File cấu hình trung tâm (`/opt/presspanel/conf/presspanel.conf`):** Toàn bộ thông số cốt lõi (cổng port, SSL panel, session, default webserver, quota, đường dẫn) đều được cấu hình theo định dạng `key=value` trực quan, dễ chỉnh sửa và tự động nạp khi khởi động panel.
 
 ---
 
-## 🤝 Khả Năng Chạy Song Song Cùng Panel Khác (Co-existence Mode)
+## 🤝 Khả Năng Vận Hành Độc Lập & Song Song (Zero Conflict Footprint)
 
-PressPanel được thiết kế với triết lý **Cách Ly Tuyệt Đối (Zero Conflict Footprint)**, cho phép **cài đặt và vận hành song song trên cùng một máy chủ** đã có sẵn các Control Panel khác (như **aaPanel, cPanel, DirectAdmin, CyberPanel hay Plesk**) mà không làm gián đoạn hệ thống hiện tại:
+WPC được thiết kế với triết lý **Cách Ly Tuyệt Đối (Zero Conflict Footprint)**, cho phép **cài đặt và vận hành song song trên cùng một máy chủ** đã có sẵn các dịch vụ khác mà không làm gián đoạn hệ thống:
 
 ### 1. Kiến Trúc Không Xung Đột (Isolated Architecture)
-* **Thư mục độc lập 100%:** Toàn bộ file thực thi, mã nguồn, log và data nằm gọn trong `/opt/presspanel`, tuyệt đối không ghi đè vào `/www` (aaPanel), `/usr/local/directadmin` (DirectAdmin), hay `/usr/local/cpanel` (cPanel).
-* **Môi trường Python Virtualenv riêng biệt:** Chạy trong `/opt/presspanel/venv/`, không đụng chạm đến Python hệ thống hay phiên bản Python của aaPanel.
-* **Cơ sở dữ liệu độc lập:** Sử dụng SQLite nhúng WAL (`/opt/presspanel/data/panel.db`), không phụ thuộc vào tiến trình MySQL/MariaDB của hệ điều hành để vận hành panel.
+* **Thư mục độc lập 100%:** Toàn bộ file thực thi, mã nguồn, log và data nằm gọn trong `/opt/presspanel`.
+* **Môi trường Python Virtualenv riêng biệt:** Chạy trong `/opt/presspanel/venv/`, không đụng chạm đến Python hệ thống.
+* **Cơ sở dữ liệu độc lập:** Sử dụng SQLite nhúng WAL (`/opt/presspanel/data/panel.db`), không phụ thuộc vào MySQL hệ thống để vận hành panel.
 * **Kernel Namespace & Cgroups v2 riêng:** Quản lý tài nguyên tại nhánh riêng `/sys/fs/cgroup/presspanel`.
 
 ### 2. Tự Động Xử Lý Trùng Cổng (Smart Port Auto-Detection)
-* Khi cài đặt, nếu phát hiện cổng mặc định **`8888`** đang bị chiếm dụng (ví dụ bởi **aaPanel**):
+* Khi cài đặt, nếu phát hiện cổng mặc định **`8888`** đang bị chiếm dụng:
   * Bộ cài `install.sh` sẽ **tự động chuyển sang cổng khả dụng tiếp theo (ví dụ: `8889`)** và ghi nhận vào `presspanel.conf`.
 * Bạn có thể đổi sang bất kỳ cổng nào tùy ý bất cứ lúc nào chỉ với 1 câu lệnh:
   ```bash
-  sudo presspanel port 8899
+  sudo wpc port 8899
   ```
-
-### 3. Chạy Phía Sau Reverse Proxy / Chế Độ Nội Bộ
-Nếu máy chủ đã có web server chiếm cổng 80/443, bạn có thể cấu hình PressPanel lắng nghe trên localhost để chạy qua Cloudflare Tunnel, VPN hoặc Nginx Reverse Proxy:
-Chỉnh sửa trong `/opt/presspanel/conf/presspanel.conf`:
-```properties
-bind_address=127.0.0.1
-port=8889
-```
-Sau đó khởi động lại: `sudo presspanel restart`.
 
 ---
 
@@ -166,11 +127,11 @@ Sau đó khởi động lại: `sudo presspanel restart`.
 ### 1. Cập Nhật Lên Bản Mới Nhất Từ GitHub (Update)
 Lệnh update sẽ tự động kéo mã nguồn mới nhất, biên dịch lại C Gatekeeper, cập nhật dependencies và chạy migration DB mà **bảo toàn 100% dữ liệu database, website và file cấu hình**:
 
-* **Cách 1: Sử dụng lệnh CLI (Nếu đã cài đặt):**
+* **Sử dụng lệnh CLI:**
   ```bash
-  sudo presspanel update
+  sudo wpc update
   ```
-* **Cách 2: Chạy lệnh 1 dòng từ xa:**
+* **Hoặc chạy lệnh 1 dòng từ xa:**
   ```bash
   curl -sSL https://raw.githubusercontent.com/tuend-work/PressPanel/main/scripts/update.sh | sudo bash
   ```
@@ -181,33 +142,30 @@ Lệnh update sẽ tự động kéo mã nguồn mới nhất, biên dịch lạ
 Khi hệ thống gặp sự cố hoặc bạn muốn làm sạch toàn bộ môi trường và cài đặt lại từ đầu:
 Script sẽ **tự động sao lưu `panel.db` và `presspanel.conf`** trước khi reset để bạn không bị mất dữ liệu:
 
-* **Cách 1: Sử dụng lệnh CLI:**
+* **Sử dụng lệnh CLI:**
   ```bash
-  sudo presspanel reinstall
-  ```
-* **Cách 2: Chạy lệnh 1 dòng từ xa:**
-  ```bash
-  curl -sSL https://raw.githubusercontent.com/tuend-work/PressPanel/main/scripts/reinstall.sh | sudo bash
+  sudo wpc reinstall
   ```
 
 ---
 
-## 💻 Bộ Lệnh Quản Trị Hệ Thống (`presspanel` CLI)
+## 💻 Bộ Lệnh Quản Trị Hệ Thống (`wpc` CLI)
 
-Sau khi cài đặt, bạn có thể gõ trực tiếp lệnh `presspanel` trên terminal máy chủ bất kỳ lúc nào:
+Sau khi cài đặt, bạn có thể gõ trực tiếp lệnh `wpc` trên terminal máy chủ bất kỳ lúc nào:
 
 | Lệnh | Mô tả |
 | :--- | :--- |
-| `presspanel update` | Cập nhật panel lên bản mới nhất từ GitHub |
-| `presspanel reinstall` | Cài đặt lại toàn bộ panel (tự động backup an toàn) |
-| `presspanel status` | Kiểm tra trạng thái hoạt động của dịch vụ panel |
-| `presspanel restart` | Khởi động lại dịch vụ panel |
-| `presspanel stop` | Dừng dịch vụ panel |
-| `presspanel start` | Bật dịch vụ panel |
-| `presspanel logs` | Xem nhật ký hoạt động thời gian thực (`journalctl`) |
-| `presspanel version` | Xem phiên bản PressPanel đang cài đặt |
-| `presspanel password` | Đổi mật khẩu tài khoản quản trị `admin` qua terminal |
-| `presspanel help` | Hiển thị menu hướng dẫn các lệnh |
+| `wpc update` | Cập nhật panel lên bản mới nhất từ GitHub |
+| `wpc reinstall` | Cài đặt lại toàn bộ panel (tự động backup an toàn) |
+| `wpc status` | Kiểm tra trạng thái hoạt động của dịch vụ panel |
+| `wpc restart` | Khởi động lại dịch vụ panel |
+| `wpc stop` | Dừng dịch vụ panel |
+| `wpc start` | Bật dịch vụ panel |
+| `wpc logs` | Xem nhật ký hoạt động thời gian thực (`journalctl`) |
+| `wpc version` | Xem phiên bản panel đang cài đặt |
+| `wpc password` | Đổi mật khẩu tài khoản quản trị `admin` qua terminal |
+| `wpc port <số>` | Thay đổi cổng truy cập panel |
+| `wpc help` | Hiển thị menu hướng dẫn các lệnh |
 
 ---
 

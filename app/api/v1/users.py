@@ -175,8 +175,8 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
         if req.create_subscription:
             d_name = (req.domain_name or "").strip().lower()
             if req.domain_type == "temporary" and not d_name:
-                # Tạo temporary domain dạng <username>.presspanel.local hoặc <username>.temp
-                d_name = f"{username}.presspanel.local"
+                # Tạo temporary domain dạng <username>.wpc.local hoặc <username>.temp
+                d_name = f"{username}.wpc.local"
 
             if d_name:
                 # Loại bỏ tiền tố www. hoặc http:// nếu người dùng vô tình dán vào

@@ -29,9 +29,11 @@ case "$ACTION" in
                 # Cấp quyền đọc an toàn cho nhóm/panel để giao diện có thể đọc cấu hình OLS
                 chmod 755 /usr/local/lsws/conf 2>/dev/null || true
                 chmod 644 /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
-                if id presspanel &>/dev/null; then
-                    usermod -a -G lsadm presspanel 2>/dev/null || true
-                fi
+                for p_user in wpc presspanel; do
+                    if id "$p_user" &>/dev/null; then
+                        usermod -a -G lsadm "$p_user" 2>/dev/null || true
+                    fi
+                done
             fi
 
             systemctl enable lshttpd 2>/dev/null || systemctl enable lsws 2>/dev/null || true

@@ -56,12 +56,14 @@ case "$ACTION" in
         # Phân quyền an toàn: Thư mục thuộc sở hữu của Linux Web User
         if id "$USERNAME" &>/dev/null; then
             chown -R "$USERNAME:$USERNAME" "/home/$USERNAME" 2>/dev/null || true
-            # Thêm user presspanel vào group của Web User để panel có thể quản lý file
-            if id presspanel &>/dev/null; then
-                usermod -a -G "$USERNAME" presspanel 2>/dev/null || true
-            fi
+            # Thêm user wpc vào group của Web User để panel có thể quản lý file
+            for p_user in wpc presspanel; do
+                if id "$p_user" &>/dev/null; then
+                    usermod -a -G "$USERNAME" "$p_user" 2>/dev/null || true
+                fi
+            done
         else
-            chown -R presspanel:presspanel "/home/$USERNAME" 2>/dev/null || true
+            chown -R wpc:wpc "/home/$USERNAME" 2>/dev/null || chown -R presspanel:presspanel "/home/$USERNAME" 2>/dev/null || true
         fi
         chmod 755 "/home/$USERNAME" "/home/$USERNAME/domains" "$DOMAIN_DIR" "$DOC_ROOT" 2>/dev/null || true
 
@@ -227,7 +229,7 @@ EOF
         nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
         systemctl reload "php*-fpm" 2>/dev/null || true
         # Neu la user linux rieng biet cua domain (hoac user doc lap), xoa user va thu muc home neu can
-        if [ "$USERNAME" != "root" ] && [ "$USERNAME" != "presspanel" ] && id "$USERNAME" &>/dev/null; then
+        if [ "$USERNAME" != "root" ] && [ "$USERNAME" != "wpc" ] && [ "$USERNAME" != "presspanel" ] && id "$USERNAME" &>/dev/null; then
             userdel -r "$USERNAME" 2>/dev/null || true
             rm -rf "/home/$USERNAME" 2>/dev/null || true
         fi
