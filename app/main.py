@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, RedirectResponse
 
 from app.core.config import settings
 from app.db.init_db import init_database
@@ -46,9 +47,27 @@ app.include_router(files_router, prefix=settings.API_V1_STR)
 async def health_check():
     return {"status": "ok", "project": settings.PROJECT_NAME, "version": settings.VERSION}
 
-# Mount Static UI nếu thư mục static tồn tại (Vue 3 Build)
+def get_index_html_path() -> str:
+    # 1. Đường dẫn triển khai trên máy chủ
+    server_index = os.path.join(settings.STATIC_DIR, "index.html")
+    if os.path.isfile(server_index):
+        return server_index
+    # 2. Đường dẫn cục bộ khi dev
+    local_index = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "index.html")
+    if os.path.isfile(local_index):
+        return local_index
+    return ""
+
+@app.get("/", include_in_schema=False)
+async def serve_root():
+    index_path = get_index_html_path()
+    if index_path:
+        return FileResponse(index_path, media_type="text/html")
+    return RedirectResponse(url="/docs")
+
+# Mount Static UI nếu thư mục static tồn tại
 if os.path.exists(settings.STATIC_DIR):
-    app.mount("/", StaticFiles(directory=settings.STATIC_DIR, html=True), name="static")
+    app.mount("/static", StaticFiles(directory=settings.STATIC_DIR), name="static")
 
 if __name__ == "__main__":
     import uvicorn
