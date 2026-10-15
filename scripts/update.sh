@@ -157,6 +157,9 @@ for pdir in /etc/php/*/fpm/pool.d; do
         UNAME=$(basename "$conf" .conf)
         [ "$UNAME" != "www" ] || continue
         echo "[+] Di chuyển pool user $UNAME (PHP $PVER) sang Systemd Template Service..."
+        # Xóa file cấu hình cũ trong pool.d và giải phóng socket cũ
+        rm -f "$conf" "/run/php/php${PVER}-fpm-${UNAME}.sock" 2>/dev/null || true
+        systemctl reload "php${PVER}-fpm" 2>/dev/null || true
         bash "$INSTALL_DIR/scripts/php_fpm_service.sh" create "$UNAME" "$PVER" 2>/dev/null || true
     done
 done

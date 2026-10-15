@@ -70,7 +70,14 @@ php_admin_flag[log_errors] = on
 php_admin_value[error_log] = /home/${USERNAME}/logs/php-fpm.error.log
 EOF
 
-        # 2. Đảm bảo Systemd Template Service tồn tại: /etc/systemd/system/wpc-php${PHP_VER}-fpm@.service
+        # 2. Xoá file pool cũ trong pool.d để tránh service php-fpm gốc của hệ thống cũng listen cùng socket
+        rm -f "$PHP_CONF_DIR/pool.d/${USERNAME}.conf" 2>/dev/null || true
+        # Xóa file socket cũ nếu còn tồn tại
+        rm -f "$SOCK_FILE" 2>/dev/null || true
+        # Reload service php-fpm gốc để nhả socket nếu nó đang chiếm giữ
+        systemctl reload "php${PHP_VER}-fpm" 2>/dev/null || true
+
+        # 3. Đảm bảo Systemd Template Service tồn tại: /etc/systemd/system/wpc-php${PHP_VER}-fpm@.service
         TEMPLATE_FILE="/etc/systemd/system/wpc-php${PHP_VER}-fpm@.service"
         if [ ! -f "$TEMPLATE_FILE" ]; then
             cat << 'EOF' > "$TEMPLATE_FILE"
@@ -93,7 +100,7 @@ EOF
             systemctl daemon-reload 2>/dev/null || true
         fi
 
-        # 3. Kích hoạt và khởi động service riêng của user
+        # 4. Kích hoạt và khởi động service riêng của user
         systemctl daemon-reload 2>/dev/null || true
         systemctl enable "$SVC_NAME" 2>/dev/null || true
         systemctl restart "$SVC_NAME" 2>/dev/null || true
