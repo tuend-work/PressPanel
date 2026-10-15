@@ -179,6 +179,28 @@ EOF
         exit 0
         ;;
 
+    rewrite-all)
+        echo "[+] Rewrite toan bo cau hinh webserver: $WEBSERVER..."
+        if [ "$WEBSERVER" = "ols" ]; then
+            OLS_CONF="/usr/local/lsws/conf/httpd_config.conf"
+            if [ -f "$OLS_CONF" ]; then
+                # Đổi port 8088 thành 80 bất kể định dạng có khoảng trắng
+                sed -i -E 's/address[[:space:]]+(\*:|0\.0\.0\.0:|\[::\]:)?8088/address *:80/g' "$OLS_CONF" || true
+                sed -i 's/address *:8088/address *:80/g' "$OLS_CONF" || true
+                sed -i 's/:8088/:80/g' "$OLS_CONF" || true
+                sed -i 's/listener Default {/listener HTTP_80 {/g' "$OLS_CONF" || true
+                
+                # Phân quyền 644 để panel có thể đọc trực tiếp
+                chmod 755 /usr/local/lsws/conf 2>/dev/null || true
+                chmod 644 "$OLS_CONF" 2>/dev/null || true
+                
+                # Khởi động lại lsws
+                /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
+            fi
+        fi
+        exit 0
+        ;;
+
     *)
         echo "[-] Lenh khong hop le: $ACTION"
         exit 1

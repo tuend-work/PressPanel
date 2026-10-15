@@ -617,7 +617,11 @@ async def rewrite_webserver_config(
     gatekeeper_vhost = "/opt/presspanel/bin/vhost"
     script_vhost = "/opt/presspanel/scripts/vhost_manager.sh"
     success_count = 0
-    fail_count = 0
+    # 2.5. Chạy rewrite-all trên gatekeeper vhost để xử lý cấu hình gốc (listeners, đổi 8088 -> 80)
+    if os.path.isfile(gatekeeper_vhost):
+        subprocess.run([gatekeeper_vhost, "rewrite-all", ws], check=False)
+    elif os.path.isfile(script_vhost):
+        subprocess.run(["sudo", "bash", script_vhost, "rewrite-all", "all", "all", ws], check=False)
 
     # 3. Tạo lại từng Vhost theo template chuẩn
     for row in domains:

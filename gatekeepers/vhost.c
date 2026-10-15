@@ -8,12 +8,31 @@
 int main(int argc, char *argv[]) {
     init_security_env();
 
+    if (argc < 2) {
+        send_json_error("vhost", "Cu phap: vhost <add|remove|set-php|ssl|rewrite-all> [args...]");
+        return 1;
+    }
+
+    const char *action = argv[1];
+
+    if (strcmp(action, "rewrite-all") == 0) {
+        const char *webserver = (argc > 2) ? argv[2] : "ols";
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/vhost_manager.sh rewrite-all all all %s", webserver);
+        int ret = system(cmd);
+        if (ret == 0) {
+            send_json_ok("\"action\":\"rewrite-all\"");
+            return 0;
+        }
+        send_json_error("vhost", "Thuc thi rewrite-all that bai");
+        return 1;
+    }
+
     if (argc < 4) {
         send_json_error("vhost", "Cu phap: vhost <add|remove|set-php|ssl> <username> <domain> [args...]");
         return 1;
     }
 
-    const char *action = argv[1];
     const char *username = argv[2];
     const char *domain = argv[3];
 
