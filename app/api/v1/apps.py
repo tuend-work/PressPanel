@@ -248,8 +248,13 @@ async def app_action(
         raise HTTPException(status_code=404, detail="Ứng dụng không tồn tại trong danh mục")
 
     if req.action == "install":
+        gatekeeper_bin = "/opt/presspanel/bin/app"
         script_path = f"/opt/presspanel/scripts/apps/{req.app_id}.sh"
-        if os.path.exists(script_path):
+        
+        if os.path.isfile(gatekeeper_bin):
+            # C Gatekeeper đã có cờ SUID root (chmod 4750), thực thi trực tiếp với quyền root không cần sudo mật khẩu!
+            cmd = f"{gatekeeper_bin} install {req.app_id}"
+        elif os.path.exists(script_path):
             cmd = f"sudo bash {script_path} install"
         else:
             pkg_map = {
@@ -261,7 +266,7 @@ async def app_action(
                 "pure-ftpd": "pure-ftpd"
             }
             pkg = pkg_map.get(req.app_id, req.app_id)
-            cmd = f"DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y {pkg}"
+            cmd = f"sudo DEBIAN_FRONTEND=noninteractive apt-get update && sudo apt-get install -y {pkg}"
 
         task_id = await add_system_task(
             user_id=current_user["id"],
@@ -269,6 +274,7 @@ async def app_action(
             cmd=cmd,
             background_tasks=background_tasks
         )
+
         return {
             "status": "ok",
             "task_id": task_id,
