@@ -399,29 +399,73 @@ APP_CONFIG_PATHS = {
 async def get_app_config(app_id: str, current_user: dict = Depends(get_current_user)):
     """Đọc file cấu hình thực tế của ứng dụng để hiển thị trong Popup Settings"""
     conf_path = APP_CONFIG_PATHS.get(app_id)
-    if not conf_path or not os.path.exists(conf_path):
-        # Fallback thử các đường dẫn phụ
-        alternatives = {
-            "ols": ["/usr/local/lsws/conf/httpd_config.xml"],
-            "mysql": ["/etc/mysql/mysql.conf.d/mysqld.cnf", "/etc/my.cnf"],
-            "php82": ["/usr/local/lsws/lsphp82/etc/php/8.2/litespeed/php.ini"],
-            "php83": ["/usr/local/lsws/lsphp83/etc/php/8.3/litespeed/php.ini"],
-            "fail2ban": ["/etc/fail2ban/jail.conf"]
-        }
-        for alt in alternatives.get(app_id, []):
-            if os.path.exists(alt):
-                conf_path = alt
-                break
+    alternatives = {
+        "ols": ["/usr/local/lsws/conf/httpd_config.conf", "/usr/local/lsws/conf/httpd_config.xml"],
+        "mysql": ["/etc/mysql/my.cnf", "/etc/mysql/mysql.conf.d/mysqld.cnf", "/etc/my.cnf"],
+        "mariadb": ["/etc/mysql/mariadb.conf.d/50-server.cnf", "/etc/mysql/my.cnf"],
+        "php82": ["/etc/php/8.2/fpm/php.ini", "/usr/local/lsws/lsphp82/etc/php/8.2/litespeed/php.ini"],
+        "php83": ["/etc/php/8.3/fpm/php.ini", "/usr/local/lsws/lsphp83/etc/php/8.3/litespeed/php.ini"],
+        "php81": ["/etc/php/8.1/fpm/php.ini"],
+        "php74": ["/etc/php/7.4/fpm/php.ini"],
+        "fail2ban": ["/etc/fail2ban/jail.local", "/etc/fail2ban/jail.conf"]
+    }
+
+    # Thử tìm file thực tế tồn tại trên hệ thống
+    found_path = None
+    paths_to_check = [conf_path] + alternatives.get(app_id, []) if conf_path else alternatives.get(app_id, [])
+    
+    # 1. Kiểm tra tồn tại bằng gatekeeper hoặc test -f (tránh permission error do thư mục cha 0700)
+    for p in paths_to_check:
+        if not p:
+            continue
+        if os.path.exists(p):
+            found_path = p
+            break
+        # Nếu cha thư mục bị chặn quyền (như /usr/local/lsws/conf/), kiểm tra qua subprocess
+        if os.name != "nt":
+            try:
+                check_ret = subprocess.run(["test", "-f", p], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if check_ret.returncode == 0:
+                    found_path = p
+                    break
+            except Exception:
+                pass
+
+    if not found_path and conf_path:
+        found_path = conf_path
 
     content = ""
-    if conf_path and os.path.exists(conf_path):
-        try:
-            with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read()
-        except Exception as e:
-            content = f"# Lỗi đọc file cấu hình: {str(e)}"
-    else:
-        content = f"# Chưa tìm thấy file cấu hình cho ứng dụng {app_id}.\n# Đường dẫn dự kiến: {conf_path or 'Mặc định hệ thống'}"
+    gatekeeper_bin = "/opt/presspanel/bin/app"
+
+    # Đọc nội dung: Ưu tiên dùng gatekeeper app config-read nếu chạy trên linux
+    if found_path:
+        # Thử 1: Gatekeeper SUID
+        if os.path.isfile(gatekeeper_bin):
+            try:
+                proc = subprocess.run([gatekeeper_bin, "config-read", found_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.returncode == 0 and proc.stdout:
+                    content = proc.stdout
+            except Exception:
+                pass
+
+        # Thử 2: Đọc trực tiếp nếu có quyền
+        if not content:
+            try:
+                with open(found_path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+            except PermissionError:
+                # Thử qua sudo cat nếu permission error
+                try:
+                    proc = subprocess.run(["sudo", "cat", found_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    if proc.returncode == 0:
+                        content = proc.stdout
+                except Exception:
+                    pass
+            except Exception as e:
+                content = f"# Lỗi đọc file cấu hình: {str(e)}"
+
+    if not content:
+        content = f"# Chưa tìm thấy file cấu hình cho ứng dụng {app_id}.\n# Đường dẫn dự kiến: {found_path or 'Mặc định hệ thống'}"
 
     # Kiểm tra trạng thái tự khởi động lại (systemctl is-enabled)
     app = next((a for a in SUPPORTED_APPS if a["id"] == app_id), None)
@@ -440,7 +484,7 @@ async def get_app_config(app_id: str, current_user: dict = Depends(get_current_u
     return {
         "status": "ok",
         "app_id": app_id,
-        "config_path": conf_path or "Chưa xác định",
+        "config_path": found_path or "Chưa xác định",
         "content": content,
         "autorestart": autorestart
     }
@@ -454,17 +498,28 @@ async def save_app_config(req: ConfigUpdateRequest, current_user: dict = Depends
 
     # Ghi nội dung an toàn qua file tạm và move
     tmp_path = f"/tmp/presspanel_{req.app_id}_conf.tmp"
+    gatekeeper_bin = "/opt/presspanel/bin/app"
+
     try:
         with open(tmp_path, "w", encoding="utf-8") as f:
             f.write(req.content)
         
-        # Di chuyển đè vào file cấu hình chính
-        if os.path.exists("/opt/presspanel/bin/template"):
-            # Dùng template gatekeeper hoặc sudo cp
-            subprocess.run(["sudo", "cp", tmp_path, conf_path], check=True)
-        else:
-            with open(conf_path, "w", encoding="utf-8") as f:
-                f.write(req.content)
+        # Di chuyển đè vào file cấu hình chính bằng Gatekeeper SUID
+        if os.path.isfile(gatekeeper_bin):
+            res = subprocess.run([gatekeeper_bin, "config-write", tmp_path, conf_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if res.returncode == 0:
+                return {"status": "ok", "message": f"Đã lưu file cấu hình {conf_path} thành công!"}
+
+        # Fallback 1: Dùng sudo cp
+        res_sudo = subprocess.run(["sudo", "cp", tmp_path, conf_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res_sudo.returncode == 0:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            return {"status": "ok", "message": f"Đã lưu file cấu hình {conf_path} thành công!"}
+
+        # Fallback 2: Ghi trực tiếp nếu có quyền
+        with open(conf_path, "w", encoding="utf-8") as f:
+            f.write(req.content)
         
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

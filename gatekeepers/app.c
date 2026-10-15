@@ -75,6 +75,60 @@ int main(int argc, char *argv[]) {
         const char *ext = argv[4];
         snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/apps/php.sh %s-ext %s %s", op, php_ver, ext);
     }
+    else if (strcmp(action, "config-read") == 0) {
+        // Doc file cau hinh an toan bang dac quyen root
+        const char *filepath = argv[2];
+        if (strstr(filepath, "..")) {
+            send_json_error("app", "Duong dan khong hop le");
+            return 1;
+        }
+        FILE *fp = fopen(filepath, "r");
+        if (!fp) {
+            send_json_error("app", "Khong the mo file cau hinh");
+            return 1;
+        }
+        char buf[4096];
+        size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
+            fwrite(buf, 1, n, stdout);
+        }
+        fclose(fp);
+        return 0;
+    }
+    else if (strcmp(action, "config-write") == 0) {
+        // Ghi file cau hinh an toan bang dac quyen root tu src_tmp sang dest_path
+        if (argc < 4) {
+            send_json_error("app", "Cu phap: app config-write <src_tmp> <dest_path>");
+            return 1;
+        }
+        const char *src_tmp = argv[2];
+        const char *dest_path = argv[3];
+        if (strstr(src_tmp, "..") || strstr(dest_path, "..")) {
+            send_json_error("app", "Duong dan khong hop le");
+            return 1;
+        }
+        FILE *fsrc = fopen(src_tmp, "r");
+        if (!fsrc) {
+            send_json_error("app", "Khong mo duoc file tam de doc");
+            return 1;
+        }
+        FILE *fdest = fopen(dest_path, "w");
+        if (!fdest) {
+            fclose(fsrc);
+            send_json_error("app", "Khong mo duoc file dich de ghi");
+            return 1;
+        }
+        char buf[4096];
+        size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), fsrc)) > 0) {
+            fwrite(buf, 1, n, fdest);
+        }
+        fclose(fsrc);
+        fclose(fdest);
+        unlink(src_tmp);
+        send_json_ok("\"message\":\"Da luu cau hinh thanh cong\"");
+        return 0;
+    }
     else {
         send_json_error("app", "Hanh dong khong hop le");
         return 1;

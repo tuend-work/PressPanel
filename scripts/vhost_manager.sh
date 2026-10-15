@@ -91,6 +91,38 @@ EOF
                     -e "s|{{DOCUMENT_ROOT}}|$DOC_ROOT|g" \
                     "$PRESSPANEL_DIR/templates/vhost_ols/default.tpl" > "$VH_DIR/vhconf.conf"
             fi
+            
+            # Đăng ký vhost vào httpd_config.conf nếu chưa có
+            OLS_MAIN_CONF="/usr/local/lsws/conf/httpd_config.conf"
+            if [ -f "$OLS_MAIN_CONF" ]; then
+                # Đổi port 8088 thành 80 nếu còn tồn tại
+                sed -i 's/address *:8088/address *:80/g' "$OLS_MAIN_CONF" 2>/dev/null || true
+                
+                # Khai báo virtualhost block trong httpd_config.conf nếu chưa có
+                if ! grep -q "virtualhost $DOMAIN" "$OLS_MAIN_CONF"; then
+                    cat <<EOF >> "$OLS_MAIN_CONF"
+
+virtualhost $DOMAIN {
+  vhRoot                  /home/$USERNAME
+  configFile              conf/vhosts/$DOMAIN/vhconf.conf
+  allowSymbolLink         1
+  enableScript            1
+  restrained              1
+}
+EOF
+                fi
+
+                # Map virtualhost vào listener HTTP (port 80)
+                if grep -q "listener " "$OLS_MAIN_CONF"; then
+                    # Thêm map nếu chưa có
+                    if ! grep -q "map $DOMAIN $DOMAIN" "$OLS_MAIN_CONF"; then
+                        # Chèn map vào trước dấu ngoặc đóng của listener đầu tiên
+                        sed -i "0,/}/s//  map                     $DOMAIN $DOMAIN\n}/" "$OLS_MAIN_CONF" 2>/dev/null || true
+                    fi
+                fi
+                chmod 644 "$OLS_MAIN_CONF" 2>/dev/null || true
+            fi
+
             /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lsws 2>/dev/null || true
         fi
 
