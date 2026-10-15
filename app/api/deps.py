@@ -26,7 +26,16 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     if user["status"] == "suspended":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tai khoan dang bi khoa")
 
-    return dict(user)
+    user_dict = dict(user)
+    # Nếu token được cấp cho vai trò 'user' (Web User của domain cụ thể)
+    if payload.get("role") == "user":
+        user_dict["role"] = "user"
+        if "web_domain_id" in payload:
+            user_dict["web_domain_id"] = payload["web_domain_id"]
+        if "web_user_name" in payload:
+            user_dict["username"] = payload["web_user_name"]
+
+    return user_dict
 
 def require_role(*allowed_roles: str):
     def role_checker(current_user: dict = Depends(get_current_user)):

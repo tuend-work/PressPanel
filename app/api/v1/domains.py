@@ -39,6 +39,16 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
             WHERE u.id = ? OR u.parent_id = ?
             ORDER BY d.created_at DESC
         """, (current_user["id"], current_user["id"]))
+    elif current_user.get("web_domain_id"):
+        # Web User: CHỈ ĐƯỢC XEM DUY NHẤT WEBSITE ĐƯỢC PHÂN QUYỀN
+        cursor = await db.execute("""
+            SELECT d.*, u.username as owner_username, u.email as owner_email, p.name as plan_name
+            FROM domains d
+            JOIN users u ON d.user_id = u.id
+            LEFT JOIN packages p ON u.package_id = p.id
+            WHERE d.id = ?
+            ORDER BY d.created_at DESC
+        """, (current_user["web_domain_id"],))
     else:
         cursor = await db.execute("""
             SELECT d.*, u.username as owner_username, u.email as owner_email, p.name as plan_name
@@ -237,11 +247,13 @@ async def impersonate_website_user(
 
     web_user_name = domain_to_linux_user(domain["domain_name"])
     from app.core.security import create_access_token
-    # Tạo JWT token mang role 'user' (Web User) đại diện cho website này
+    # Tạo JWT token mang role 'user' (Web User) đại diện duy nhất cho website này
     web_user_token = create_access_token(
         subject=domain["user_id"],
         role="user",
-        parent_id=domain["user_id"]
+        parent_id=domain["user_id"],
+        web_domain_id=domain["id"],
+        web_user_name=web_user_name
     )
 
     return {

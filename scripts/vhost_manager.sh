@@ -37,9 +37,13 @@ case "$ACTION" in
         mkdir -p "/home/$USERNAME/tmp"
         mkdir -p "/home/$USERNAME/backups"
 
-        # Phân quyền an toàn
+        # Phân quyền an toàn: Thư mục thuộc sở hữu của Linux Web User
         if id "$USERNAME" &>/dev/null; then
             chown -R "$USERNAME:$USERNAME" "/home/$USERNAME" 2>/dev/null || true
+            # Thêm user presspanel vào group của Web User để panel có thể quản lý file
+            if id presspanel &>/dev/null; then
+                usermod -a -G "$USERNAME" presspanel 2>/dev/null || true
+            fi
         else
             chown -R presspanel:presspanel "/home/$USERNAME" 2>/dev/null || true
         fi

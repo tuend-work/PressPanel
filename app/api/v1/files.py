@@ -72,7 +72,46 @@ async def list_files(
                 except Exception:
                     continue
     except PermissionError:
-        raise HTTPException(status_code=403, detail="Không có quyền truy cập thư mục này trên máy chủ.")
+        # Khi thư mục thuộc sở hữu của web user linux khác mà user presspanel không có quyền r-x, dùng subprocess ls
+        try:
+            import subprocess
+            proc = subprocess.run(
+                ["ls", "-la", "--time-style=+%s", target_dir],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            if proc.returncode != 0:
+                # Thử với sudo ls
+                proc = subprocess.run(
+                    ["sudo", "ls", "-la", "--time-style=+%s", target_dir],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+            if proc.returncode == 0:
+                lines = proc.stdout.strip().split("\n")
+                for line in lines[1:]:  # Bỏ qua dòng 'total ...'
+                    parts = line.split()
+                    if len(parts) >= 7:
+                        mode_str = parts[0]
+                        is_directory = mode_str.startswith("d")
+                        try:
+                            size = int(parts[4])
+                        except ValueError:
+                            size = 0
+                        try:
+                            mtime = int(parts[5])
+                        except ValueError:
+                            mtime = 0
+                        name = " ".join(parts[6:])
+                        if name in (".", ".."):
+                            continue
+                        items.append({
+                            "name": name,
+                            "is_dir": is_directory,
+                            "size": size,
+                            "modified": mtime,
+                            "mode": "755" if is_directory else "644"
+                        })
+        except Exception:
+            raise HTTPException(status_code=403, detail="Không có quyền truy cập thư mục này trên máy chủ.")
 
     sorted_items = sorted(items, key=lambda x: (not x["is_dir"], x["name"].lower()))
     return {

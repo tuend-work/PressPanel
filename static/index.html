@@ -823,8 +823,8 @@
                                     <span>&rarr;</span>
                                 </button>
                             </div>
-                            <!-- Nếu là Customer (hoặc đang impersonate): Hiện nút thêm website -->
-                            <button v-else @click="showAddDomainModal = true" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-md shadow-blue-500/20 transition flex items-center space-x-2">
+                            <!-- Nếu là Hosting User / Reseller (hoặc impersonate Customer): Hiện nút thêm website. Web user không được tự tạo thêm website -->
+                            <button v-else-if="currentUser.role === 'reseller'" @click="showAddDomainModal = true" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-md shadow-blue-500/20 transition flex items-center space-x-2">
                                 <span>➕ Thêm Website Mới</span>
                             </button>
                         </div>
@@ -832,7 +832,7 @@
                         <!-- Plesk Style Toolbar for Domains -->
                         <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
                             <div class="flex flex-wrap items-center gap-2">
-                                <button v-if="currentUser.role !== 'admin'" @click="showAddDomainModal = true"
+                                <button v-if="currentUser.role === 'reseller'" @click="showAddDomainModal = true"
                                     class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white shadow-sm transition flex items-center space-x-1.5">
                                     <span>➕ Add Domain</span>
                                 </button>
