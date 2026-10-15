@@ -87,6 +87,8 @@ EOF
             if [ -f "$PRESSPANEL_DIR/templates/vhost_ols/default.tpl" ]; then
                 sed -e "s/{{DOMAIN}}/$DOMAIN/g" \
                     -e "s/{{PHP_VERSION}}/$PHP_NUM/g" \
+                    -e "s/{{USERNAME}}/$USERNAME/g" \
+                    -e "s|{{DOCUMENT_ROOT}}|$DOC_ROOT|g" \
                     "$PRESSPANEL_DIR/templates/vhost_ols/default.tpl" > "$VH_DIR/vhconf.conf"
             fi
             /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lsws 2>/dev/null || true
@@ -95,8 +97,13 @@ EOF
         # Cấu hình Nginx nếu có Nginx
         if [ -d "/etc/nginx/conf.d" ]; then
             if [ -f "$PRESSPANEL_DIR/templates/vhost_nginx/default.tpl" ]; then
+                PHP_SOCK="/run/php/php${PHP_VER}-fpm.sock"
+                [ ! -e "$PHP_SOCK" ] && PHP_SOCK="/var/run/php/php${PHP_VER}-fpm.sock"
                 sed -e "s/{{DOMAIN}}/$DOMAIN/g" \
                     -e "s/{{PHP_VERSION}}/$PHP_VER/g" \
+                    -e "s/{{USERNAME}}/$USERNAME/g" \
+                    -e "s|{{DOCUMENT_ROOT}}|$DOC_ROOT|g" \
+                    -e "s|{{PHP_SOCK}}|$PHP_SOCK|g" \
                     "$PRESSPANEL_DIR/templates/vhost_nginx/default.tpl" > "/etc/nginx/conf.d/$DOMAIN.conf"
                 nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
             fi

@@ -500,3 +500,107 @@ async def toggle_autorestart(req: AutorestartRequest, current_user: dict = Depen
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi: {str(e)}")
 
+# ==========================================
+# REWRITE WEBSERVER CONFIG (TÁI TẠO CẤU HÌNH TỪ TEMPLATE & DATABASE)
+# ==========================================
+class RewriteConfigRequest(BaseModel):
+    webserver: str  # ols | nginx
+
+@router.post("/rewrite-webserver")
+async def rewrite_webserver_config(
+    req: RewriteConfigRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Backup cấu hình vhost hiện tại và tái tạo lại toàn bộ file VirtualHost
+    từ template và dữ liệu websites trong SQLite database.
+    """
+    import time
+    from app.db.session import get_db_connection
+
+    ws = req.webserver.lower()
+    if ws not in ["ols", "nginx"]:
+        raise HTTPException(status_code=400, detail="Chỉ hỗ trợ tái tạo cấu hình cho OpenLiteSpeed ('ols') hoặc Nginx ('nginx').")
+
+    backup_ts = int(time.time())
+    backup_notes = []
+
+    # 1. Sao lưu (Backup) cấu hình hiện tại
+    if ws == "nginx":
+        nginx_conf_dir = "/etc/nginx/conf.d"
+        if os.path.exists(nginx_conf_dir):
+            backup_dir = f"/etc/nginx/conf.d_backup_{backup_ts}"
+            try:
+                subprocess.run(["sudo", "cp", "-r", nginx_conf_dir, backup_dir], check=False)
+                backup_notes.append(f"Đã sao lưu Nginx sang {backup_dir}")
+            except Exception as e:
+                backup_notes.append(f"Lỗi sao lưu Nginx: {str(e)}")
+    elif ws == "ols":
+        ols_vhosts_dir = "/usr/local/lsws/conf/vhosts"
+        if os.path.exists(ols_vhosts_dir):
+            backup_dir = f"/usr/local/lsws/conf/vhosts_backup_{backup_ts}"
+            try:
+                subprocess.run(["sudo", "cp", "-r", ols_vhosts_dir, backup_dir], check=False)
+                backup_notes.append(f"Đã sao lưu OpenLiteSpeed sang {backup_dir}")
+            except Exception as e:
+                backup_notes.append(f"Lỗi sao lưu OLS: {str(e)}")
+
+    # 2. Truy vấn tất cả website trong DB thuộc về webserver này (hoặc tất cả nếu match)
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.domain_name, d.webserver, d.php_version, d.document_root, u.username
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.webserver = ?
+    """, (ws,))
+    domains = await cursor.fetchall()
+    await db.close()
+
+    gatekeeper_vhost = "/opt/presspanel/bin/vhost"
+    script_vhost = "/opt/presspanel/scripts/vhost_manager.sh"
+    success_count = 0
+    fail_count = 0
+
+    # 3. Tạo lại từng Vhost theo template chuẩn
+    for row in domains:
+        d_name = row["domain_name"]
+        u_name = row["username"]
+        php_ver = row["php_version"] or "8.2"
+
+        cmd = None
+        if os.path.isfile(gatekeeper_vhost):
+            cmd = [gatekeeper_vhost, "add", u_name, d_name, ws, php_ver]
+        elif os.path.isfile(script_vhost):
+            cmd = ["sudo", "bash", script_vhost, "add", u_name, d_name, ws, php_ver]
+
+        if cmd:
+            try:
+                proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.returncode == 0:
+                    success_count += 1
+                else:
+                    fail_count += 1
+            except Exception:
+                fail_count += 1
+
+    # 4. Reload Web Server tương ứng
+    srv_name = "lshttpd" if ws == "ols" else "nginx"
+    gatekeeper_app = "/opt/presspanel/bin/app"
+    if os.path.isfile(gatekeeper_app):
+        subprocess.run([gatekeeper_app, "service", "reload", srv_name], check=False)
+    else:
+        subprocess.run(["sudo", "systemctl", "reload", srv_name], check=False)
+
+    return {
+        "status": "ok",
+        "webserver": ws,
+        "message": f"Tái tạo cấu hình {ws.upper()} thành công! Đã cập nhật {success_count} website từ cơ sở dữ liệu.",
+        "details": {
+            "backup_info": backup_notes,
+            "total_domains": len(domains),
+            "recreated": success_count,
+            "failed": fail_count
+        }
+    }
+
+

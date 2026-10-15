@@ -116,7 +116,7 @@
                             </span>
                             <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800/60 font-mono font-bold">PressPanel</span>
                         </div>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">v0.4.6</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">v0.4.7</span>
 
 
 
@@ -1513,14 +1513,31 @@
                                     <span class="text-slate-400 font-mono text-[11px] truncate max-w-md">
                                         📁 {{ appConfigPath }}
                                     </span>
-                                    <button @click="loadAppConfig(selectedSettingApp.id)" class="text-cyan-400 hover:underline text-[11px]">
-                                        Tải lại nội dung
-                                    </button>
+                                    <div class="flex items-center space-x-2">
+                                        <!-- NÚT REWRITE WEBSERVER CONFIG (DÀNH CHO OLS & NGINX) -->
+                                        <button v-if="['ols', 'nginx'].includes(selectedSettingApp?.id)"
+                                            @click="handleRewriteWebserverConfig(selectedSettingApp.id)"
+                                            :disabled="rewritingConfig"
+                                            class="px-2.5 py-1 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-600/40 text-[11px] font-semibold flex items-center space-x-1 transition shadow"
+                                            title="Tự động sao lưu cấu hình hiện tại và tạo lại toàn bộ file VirtualHost từ template và database">
+                                            <span v-if="rewritingConfig" class="animate-spin">⏳</span>
+                                            <span v-else>🛠️</span>
+                                            <span>{{ rewritingConfig ? 'Đang Tái Tạo...' : 'Rewrite Webserver Config' }}</span>
+                                        </button>
+                                        <button @click="loadAppConfig(selectedSettingApp.id)" class="text-cyan-400 hover:underline text-[11px]">
+                                            Tải lại nội dung
+                                        </button>
+                                    </div>
                                 </div>
                                 <textarea v-model="appConfigContent"
                                     class="flex-1 w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs focus:outline-none focus:border-cyan-500 resize-none h-80 custom-scrollbar leading-relaxed">
                                 </textarea>
-                                <div class="flex justify-end space-x-2 pt-1">
+                                <div class="flex justify-between items-center pt-1">
+                                    <div class="text-[10px] text-slate-500 italic">
+                                        <span v-if="['ols', 'nginx'].includes(selectedSettingApp?.id)">
+                                            💡 Bấm <b>Rewrite Webserver Config</b> để tự động backup và build lại toàn bộ Vhost từ template & database.
+                                        </span>
+                                    </div>
                                     <button @click="saveCurrentAppConfig" :disabled="savingConfig"
                                         class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-white shadow-lg shadow-cyan-500/20 flex items-center space-x-1.5">
                                         <span v-if="savingConfig" class="animate-spin">⏳</span>
@@ -1579,7 +1596,7 @@
                         <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Phiên bản hiện tại:</span>
-                                <span class="font-mono text-white font-bold bg-blue-950 px-2 py-0.5 rounded border border-blue-800">v0.4.6</span>
+                                <span class="font-mono text-white font-bold bg-blue-950 px-2 py-0.5 rounded border border-blue-800">v0.4.7</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Kênh cập nhật:</span>
@@ -1896,6 +1913,35 @@
                 const appConfigPath = ref('');
                 const appConfigContent = ref('');
                 const savingConfig = ref(false);
+                const rewritingConfig = ref(false);
+
+                const handleRewriteWebserverConfig = async (webserver) => {
+                    const wsName = webserver.toUpperCase();
+                    if (!confirm(`Bạn có chắc chắn muốn TÁI TẠO LẠI toàn bộ cấu hình VirtualHost cho ${wsName}?\nHệ thống sẽ tự động sao lưu cấu hình hiện tại và tạo lại từ template + cơ sở dữ liệu websites.`)) return;
+
+                    rewritingConfig.value = true;
+                    try {
+                        const res = await fetch('/api/v1/apps/rewrite-webserver', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ webserver })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Tái tạo cấu hình thành công!');
+                            loadAppConfig(webserver);
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể tái tạo cấu hình'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        rewritingConfig.value = false;
+                    }
+                };
 
                 const openAppSettings = async (app) => {
                     selectedSettingApp.value = app;
@@ -2514,7 +2560,8 @@
                     appsList, appsCategory, installingAppId, installedAppsCount, filteredApps,
                     getApp, fetchAppsList, handleAppAction, appVersions,
                     showAppSettingModal, selectedSettingApp, appSettingTab, appConfigPath,
-                    appConfigContent, savingConfig, openAppSettings, loadAppConfig,
+                    appConfigContent, savingConfig, rewritingConfig, handleRewriteWebserverConfig,
+                    openAppSettings, loadAppConfig,
                     saveCurrentAppConfig, toggleAppAutorestart,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain,
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
