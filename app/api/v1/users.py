@@ -33,6 +33,9 @@ class CustomerStatusRequest(BaseModel):
 class CustomerDeleteRequest(BaseModel):
     user_ids: List[int]
 
+class CustomerChangePlan(BaseModel):
+    package_id: int
+
 @router.get("/customers")
 async def list_customers(current_user: dict = Depends(get_current_user)):
     """
@@ -277,6 +280,80 @@ async def impersonate_customer(user_id: int, current_user: dict = Depends(requir
             "username": target_user["username"],
             "email": target_user["email"],
             "role": target_user["role"]
+        }
+    }
+
+@router.put("/{user_id}/plan")
+async def change_customer_plan(user_id: int, req: CustomerChangePlan, current_user: dict = Depends(require_role("admin", "reseller"))):
+    """
+    Đổi Service Plan (gói hosting) cho Hosting User:
+    - Cập nhật database (package_id, disk_mb, cpu_pct, mem_mb).
+    - Áp dụng ngay hạn mức Cgroup v2 (CPUQuota, MemoryMax) cho user và các isolated web users con.
+    - Áp dụng ngay Disk Quota cho user Linux.
+    """
+    db = await get_db_connection()
+    cursor = await db.execute("SELECT id, username, parent_id, role, package_id FROM users WHERE id = ?", (user_id,))
+    target_user = await cursor.fetchone()
+
+    if not target_user:
+        await db.close()
+        raise HTTPException(status_code=404, detail="Không tìm thấy Hosting User")
+
+    if current_user["role"] == "reseller" and target_user["parent_id"] != current_user["id"]:
+        await db.close()
+        raise HTTPException(status_code=403, detail="Bạn chỉ có thể đổi plan cho user do bạn quản lý")
+
+    # Lấy thông tin package mới
+    pkg_cur = await db.execute("SELECT id, name, cpu_pct, mem_mb, disk_mb, max_domains, max_databases FROM packages WHERE id = ?", (req.package_id,))
+    pkg = await pkg_cur.fetchone()
+    if not pkg:
+        await db.close()
+        raise HTTPException(status_code=404, detail="Không tìm thấy Service Plan đã chọn")
+
+    # Cập nhật thông số vào users table
+    await db.execute("""
+        UPDATE users 
+        SET package_id = ?, disk_mb = ?, cpu_pct = ?, mem_mb = ?
+        WHERE id = ?
+    """, (pkg["id"], pkg["disk_mb"], pkg["cpu_pct"], pkg["mem_mb"], user_id))
+    await db.commit()
+
+    username = target_user["username"]
+    parent_reseller_id = str(target_user["parent_id"] or 1)
+
+    # 1. Cgroup v2 + Systemd User Slice (áp dụng ngay hạn mức mới)
+    try:
+        await run_gatekeeper("cgroup", "set-user", parent_reseller_id, username, str(pkg["cpu_pct"]), str(pkg["mem_mb"]), "100", "100")
+    except Exception as e:
+        print(f"Warning: Failed to update cgroup for {username}: {e}")
+
+    # 2. Disk Quota
+    try:
+        await run_gatekeeper("user", "set-quota", username, str(pkg["disk_mb"]))
+    except Exception as e:
+        print(f"Warning: Failed to update quota for {username}: {e}")
+
+    # 3. Đồng bộ Cgroup cho các website isolated users thuộc hosting user này
+    dom_cur = await db.execute("SELECT domain_name FROM domains WHERE user_id = ?", (user_id,))
+    domains = await dom_cur.fetchall()
+    for d in domains:
+        clean_d = re.sub(r"[^a-z0-9]", "", d["domain_name"])[:30]
+        if clean_d:
+            try:
+                await run_gatekeeper("cgroup", "set-user", parent_reseller_id, clean_d, str(pkg["cpu_pct"]), str(pkg["mem_mb"]), "100", "100")
+            except Exception:
+                pass
+
+    await db.close()
+    return {
+        "status": "success",
+        "message": f"Đã chuyển Hosting User '{username}' sang gói '{pkg['name']}' thành công!",
+        "package": {
+            "id": pkg["id"],
+            "name": pkg["name"],
+            "disk_mb": pkg["disk_mb"],
+            "cpu_pct": pkg["cpu_pct"],
+            "mem_mb": pkg["mem_mb"]
         }
     }
 

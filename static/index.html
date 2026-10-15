@@ -1539,7 +1539,14 @@
                                                 </div>
                                             </td>
                                             <td class="py-4 px-4 font-semibold text-blue-600">
-                                                {{ c.package_name || 'Standard Plan' }}
+                                                <div class="flex items-center space-x-2">
+                                                    <span>{{ c.package_name || 'Standard Plan' }}</span>
+                                                    <button @click="openChangePlanModal(c)" 
+                                                        title="Đổi gói Hosting Plan"
+                                                        class="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition">
+                                                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                                                    </button>
+                                                </div>
                                             </td>
                                             <td class="py-4 px-4 text-slate-500">{{ c.email }}</td>
                                             <td class="py-4 px-4">
@@ -1564,12 +1571,21 @@
                                                 </span>
                                             </td>
                                             <td class="py-4 px-4 text-right">
-                                                <!-- Nút Chức Năng Cốt Lõi: LOGIN AS USER -->
-                                                <button @click="impersonateUser(c)"
-                                                    class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition flex items-center space-x-1.5 ml-auto">
-                                                    <span>🔑</span>
-                                                    <span>Login as user</span>
-                                                </button>
+                                                <div class="flex items-center justify-end space-x-2">
+                                                    <!-- Nút Đổi Plan -->
+                                                    <button @click="openChangePlanModal(c)"
+                                                        class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs border border-slate-200 transition flex items-center space-x-1"
+                                                        title="Đổi gói Service Plan">
+                                                        <i data-lucide="package" class="w-3.5 h-3.5 text-blue-600"></i>
+                                                        <span>Đổi Plan</span>
+                                                    </button>
+                                                    <!-- Nút Chức Năng Cốt Lõi: LOGIN AS USER -->
+                                                    <button @click="impersonateUser(c)"
+                                                        class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition flex items-center space-x-1.5">
+                                                        <span>🔑</span>
+                                                        <span>Login as user</span>
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     </tbody>
@@ -2438,6 +2454,88 @@
                 </div>
             </div>
 
+            <!-- MODAL: ĐỔI SERVICE PLAN CHO HOSTING USER -->
+            <div v-if="showChangePlanModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-200">
+                    <!-- Header -->
+                    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                                <i data-lucide="package" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800">Đổi Gói Dịch Vụ (Service Plan)</h3>
+                                <p class="text-[11px] text-slate-500">Áp dụng hạn mức Cgroup & Disk Quota ngay lập tức</p>
+                            </div>
+                        </div>
+                        <button @click="showChangePlanModal = false" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+                    </div>
+
+                    <!-- Body -->
+                    <form @submit.prevent="confirmChangePlan" class="p-6 space-y-4 text-xs">
+                        <!-- User info banner -->
+                        <div class="p-3.5 rounded-xl bg-blue-50/60 border border-blue-100 flex items-center justify-between">
+                            <div>
+                                <div class="text-[11px] text-slate-500">Tài khoản Hosting User</div>
+                                <div class="font-bold text-slate-800 text-sm font-mono">{{ selectedCustomerForPlan?.username }}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[11px] text-slate-500">Gói hiện tại</div>
+                                <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold text-[11px]">
+                                    {{ selectedCustomerForPlan?.package_name || 'Standard Plan' }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Select new plan -->
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1.5">Chọn Gói Dịch Vụ Mới</label>
+                            <select v-model="targetPlanId" required
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-medium text-xs focus:outline-none focus:border-blue-500 shadow-sm">
+                                <option :value="null" disabled>-- Chọn một Service Plan --</option>
+                                <option v-for="plan in servicePlans" :key="'chg_' + plan.id" :value="plan.id">
+                                    {{ plan.name }} ({{ (plan.disk_mb / 1024).toFixed(1) }}GB Disk, {{ plan.mem_mb }}MB RAM, {{ plan.cpu_pct }}% CPU)
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Preview plan specs -->
+                        <div v-if="selectedPlanPreview" class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                            <div class="font-semibold text-slate-700 text-[11px] flex items-center gap-1.5">
+                                <i data-lucide="info" class="w-3.5 h-3.5 text-blue-600"></i>
+                                <span>Thông số kỹ thuật gói mới sẽ áp dụng:</span>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 text-center">
+                                <div class="p-2 rounded-lg bg-white border border-slate-150">
+                                    <div class="text-[10px] text-slate-400">Dung lượng</div>
+                                    <div class="font-bold text-slate-800 font-mono mt-0.5">{{ (selectedPlanPreview.disk_mb / 1024).toFixed(1) }} GB</div>
+                                </div>
+                                <div class="p-2 rounded-lg bg-white border border-slate-150">
+                                    <div class="text-[10px] text-slate-400">Bộ nhớ RAM</div>
+                                    <div class="font-bold text-slate-800 font-mono mt-0.5">{{ selectedPlanPreview.mem_mb }} MB</div>
+                                </div>
+                                <div class="p-2 rounded-lg bg-white border border-slate-150">
+                                    <div class="text-[10px] text-slate-400">Giới hạn CPU</div>
+                                    <div class="font-bold text-slate-800 font-mono mt-0.5">{{ selectedPlanPreview.cpu_pct }}%</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+                            <button type="button" @click="showChangePlanModal = false" 
+                                class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition">Hủy</button>
+                            <button type="submit" :disabled="changingPlan || !targetPlanId"
+                                class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-500/20 flex items-center space-x-1.5 transition">
+                                <span v-if="changingPlan" class="animate-spin">⏳</span>
+                                <span v-else>✓</span>
+                                <span>{{ changingPlan ? 'Đang Áp Dụng...' : 'Xác Nhận Đổi Gói' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- MODAL: CẤU HÌNH APP & DỊCH VỤ (WPC EXACT STYLE SETTING POPUP) -->
             <div v-if="showAppSettingModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div class="WPC-card rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col border border-[#2b3545] h-[600px]">
@@ -3104,6 +3202,16 @@
                     cpu_pct: 100,
                     max_domains: 10,
                     max_databases: 10
+                });
+
+                // Đổi Service Plan cho Hosting User
+                const showChangePlanModal = ref(false);
+                const selectedCustomerForPlan = ref(null);
+                const targetPlanId = ref(null);
+                const changingPlan = ref(false);
+                const selectedPlanPreview = computed(() => {
+                    if (!targetPlanId.value) return null;
+                    return servicePlans.value.find(p => p.id === targetPlanId.value) || null;
                 });
 
                 const loginForm = ref({ username: 'admin', password: 'admin123456' });
@@ -3850,6 +3958,45 @@
                     }
                 };
 
+                const openChangePlanModal = (customer) => {
+                    selectedCustomerForPlan.value = customer;
+                    targetPlanId.value = customer.package_id || (servicePlans.value.length > 0 ? servicePlans.value[0].id : null);
+                    showChangePlanModal.value = true;
+                    if (servicePlans.value.length === 0) {
+                        fetchServicePlans();
+                    }
+                    setTimeout(() => {
+                        if (window.lucide) lucide.createIcons();
+                    }, 50);
+                };
+
+                const confirmChangePlan = async () => {
+                    if (!selectedCustomerForPlan.value || !targetPlanId.value) return;
+                    changingPlan.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/users/${selectedCustomerForPlan.value.id}/plan`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ package_id: targetPlanId.value })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Đổi gói dịch vụ thành công!');
+                            showChangePlanModal.value = false;
+                            fetchCustomers();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể đổi gói dịch vụ'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        changingPlan.value = false;
+                    }
+                };
+
                 const handleAddCustomer = async () => {
                     creatingCustomer.value = true;
                     try {
@@ -4530,6 +4677,8 @@
                     isAllSubsSelected, toggleSelectAllSubs, handleSetCustomerStatus, handleBatchDeleteCustomers, handleBatchDeleteDomains,
                     fetchCustomers, handleAddCustomer, impersonateUser, impersonateWebsiteUser, exitImpersonation,
                     servicePlans, showAddPlanModal, creatingPlan, newPlan, fetchServicePlans, handleAddPlan,
+                    showChangePlanModal, selectedCustomerForPlan, targetPlanId, changingPlan, selectedPlanPreview,
+                    openChangePlanModal, confirmChangePlan,
                     showUpdateModal, isUpdating, updateCountdown, handlePanelUpdate,
                     showMessagesBox, msgBoxTab, runningTasks, completedTasks,
                     selectedTaskId, selectedTaskLog, fetchTasks, viewTaskLog,
