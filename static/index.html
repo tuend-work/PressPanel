@@ -2592,7 +2592,14 @@
                             },
                             body: JSON.stringify({ webserver })
                         });
-                        const data = await res.json();
+                        const rawText = await res.text();
+                        let data = {};
+                        try {
+                            data = JSON.parse(rawText);
+                        } catch (pe) {
+                            data = { detail: rawText || `Lỗi máy chủ (${res.status})` };
+                        }
+
                         if (res.ok) {
                             alert(data.message || 'Tái tạo cấu hình thành công!');
                             loadAppConfig(webserver);

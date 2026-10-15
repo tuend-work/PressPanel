@@ -580,91 +580,108 @@ async def rewrite_webserver_config(
     backup_ts = int(time.time())
     backup_notes = []
 
-    # 1. Sao lưu (Backup) cấu hình hiện tại
-    if ws == "nginx":
-        nginx_conf_dir = "/etc/nginx/conf.d"
-        if os.path.exists(nginx_conf_dir):
-            backup_dir = f"/etc/nginx/conf.d_backup_{backup_ts}"
+    try:
+        # 1. Sao lưu (Backup) cấu hình hiện tại
+        if ws == "nginx":
+            nginx_conf_dir = "/etc/nginx/conf.d"
+            if os.path.exists(nginx_conf_dir):
+                backup_dir = f"/etc/nginx/conf.d_backup_{backup_ts}"
+                try:
+                    subprocess.run(["sudo", "cp", "-r", nginx_conf_dir, backup_dir], check=False)
+                    backup_notes.append(f"Đã sao lưu Nginx sang {backup_dir}")
+                except Exception as e:
+                    backup_notes.append(f"Lỗi sao lưu Nginx: {str(e)}")
+        elif ws == "ols":
+            ols_vhosts_dir = "/usr/local/lsws/conf/vhosts"
+            if os.path.exists(ols_vhosts_dir):
+                backup_dir = f"/usr/local/lsws/conf/vhosts_backup_{backup_ts}"
+                try:
+                    subprocess.run(["sudo", "cp", "-r", ols_vhosts_dir, backup_dir], check=False)
+                    backup_notes.append(f"Đã sao lưu OpenLiteSpeed sang {backup_dir}")
+                except Exception as e:
+                    backup_notes.append(f"Lỗi sao lưu OLS: {str(e)}")
+
+        # 2. Lấy TOÀN BỘ websites trong DB để áp dụng Web Server cấp hệ thống
+        db = await get_db_connection()
+        domains = []
+        try:
+            cursor = await db.execute("""
+                SELECT d.id, d.domain_name, d.webserver, d.php_version, d.document_root, u.username
+                FROM domains d
+                JOIN users u ON d.user_id = u.id
+            """)
+            domains = await cursor.fetchall()
+            
+            # Cập nhật webserver của toàn bộ websites trong DB sang webserver hệ thống được chọn
+            await db.execute("UPDATE domains SET webserver = ?", (ws,))
+            await db.commit()
+        except Exception as dbe:
+            backup_notes.append(f"Lưu ý DB: {str(dbe)}")
+        finally:
+            await db.close()
+
+        gatekeeper_vhost = "/opt/presspanel/bin/vhost"
+        script_vhost = "/opt/presspanel/scripts/vhost_manager.sh"
+        success_count = 0
+        fail_count = 0
+
+        # 2.5. Chạy rewrite-all trên gatekeeper vhost để xử lý cấu hình gốc (listeners, đổi 8088 -> 80)
+        try:
+            if os.path.isfile(gatekeeper_vhost):
+                subprocess.run([gatekeeper_vhost, "rewrite-all", ws], check=False)
+            elif os.path.isfile(script_vhost):
+                subprocess.run(["bash", script_vhost, "rewrite-all", "all", "all", ws], check=False)
+        except Exception as rwe:
+            backup_notes.append(f"Lưu ý rewrite gốc: {str(rwe)}")
+
+        # 3. Tạo lại từng Vhost theo template chuẩn
+        for row in domains:
             try:
-                subprocess.run(["sudo", "cp", "-r", nginx_conf_dir, backup_dir], check=False)
-                backup_notes.append(f"Đã sao lưu Nginx sang {backup_dir}")
-            except Exception as e:
-                backup_notes.append(f"Lỗi sao lưu Nginx: {str(e)}")
-    elif ws == "ols":
-        ols_vhosts_dir = "/usr/local/lsws/conf/vhosts"
-        if os.path.exists(ols_vhosts_dir):
-            backup_dir = f"/usr/local/lsws/conf/vhosts_backup_{backup_ts}"
-            try:
-                subprocess.run(["sudo", "cp", "-r", ols_vhosts_dir, backup_dir], check=False)
-                backup_notes.append(f"Đã sao lưu OpenLiteSpeed sang {backup_dir}")
-            except Exception as e:
-                backup_notes.append(f"Lỗi sao lưu OLS: {str(e)}")
+                d_name = row["domain_name"]
+                import re
+                u_name = re.sub(r"[^a-z0-9]", "", d_name)[:30] or row["username"]
+                php_ver = row["php_version"] or "8.2"
 
-    # 2. Lấy TOÀN BỘ websites trong DB để áp dụng Web Server cấp hệ thống
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.document_root, u.username
-        FROM domains d
-        JOIN users u ON d.user_id = u.id
-    """)
-    domains = await cursor.fetchall()
-    
-    # Cập nhật webserver của toàn bộ websites trong DB sang webserver hệ thống được chọn
-    await db.execute("UPDATE domains SET webserver = ?", (ws,))
-    await db.commit()
-    await db.close()
+                cmd = None
+                if os.path.isfile(gatekeeper_vhost):
+                    cmd = [gatekeeper_vhost, "add", u_name, d_name, ws, php_ver]
+                elif os.path.isfile(script_vhost):
+                    cmd = ["bash", script_vhost, "add", u_name, d_name, ws, php_ver]
 
-    gatekeeper_vhost = "/opt/presspanel/bin/vhost"
-    script_vhost = "/opt/presspanel/scripts/vhost_manager.sh"
-    success_count = 0
-    # 2.5. Chạy rewrite-all trên gatekeeper vhost để xử lý cấu hình gốc (listeners, đổi 8088 -> 80)
-    if os.path.isfile(gatekeeper_vhost):
-        subprocess.run([gatekeeper_vhost, "rewrite-all", ws], check=False)
-    elif os.path.isfile(script_vhost):
-        subprocess.run(["sudo", "bash", script_vhost, "rewrite-all", "all", "all", ws], check=False)
-
-    # 3. Tạo lại từng Vhost theo template chuẩn
-    for row in domains:
-        d_name = row["domain_name"]
-        # Mỗi website là một Linux user riêng biệt (domain không dấu chấm)
-        import re
-        u_name = re.sub(r"[^a-z0-9]", "", d_name)[:30] or row["username"]
-        php_ver = row["php_version"] or "8.2"
-
-        cmd = None
-        if os.path.isfile(gatekeeper_vhost):
-            cmd = [gatekeeper_vhost, "add", u_name, d_name, ws, php_ver]
-        elif os.path.isfile(script_vhost):
-            cmd = ["sudo", "bash", script_vhost, "add", u_name, d_name, ws, php_ver]
-
-        if cmd:
-            try:
-                proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                if proc.returncode == 0:
-                    success_count += 1
-                else:
-                    fail_count += 1
+                if cmd:
+                    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    if proc.returncode == 0:
+                        success_count += 1
+                    else:
+                        fail_count += 1
             except Exception:
                 fail_count += 1
 
-    # 4. Reload Web Server tương ứng
-    srv_name = "lshttpd" if ws == "ols" else "nginx"
-    gatekeeper_app = "/opt/presspanel/bin/app"
-    if os.path.isfile(gatekeeper_app):
-        subprocess.run([gatekeeper_app, "service", "reload", srv_name], check=False)
-    else:
-        subprocess.run(["sudo", "systemctl", "reload", srv_name], check=False)
+        # 4. Reload Web Server tương ứng
+        srv_name = "lshttpd" if ws == "ols" else "nginx"
+        gatekeeper_app = "/opt/presspanel/bin/app"
+        try:
+            if os.path.isfile(gatekeeper_app):
+                subprocess.run([gatekeeper_app, "service", "reload", srv_name], check=False)
+            else:
+                subprocess.run(["systemctl", "reload", srv_name], check=False)
+        except Exception:
+            pass
 
-    return {
-        "status": "ok",
-        "webserver": ws,
-        "message": f"Tái tạo cấu hình {ws.upper()} thành công! Đã cập nhật {success_count} website từ cơ sở dữ liệu.",
-        "details": {
-            "backup_info": backup_notes,
-            "total_domains": len(domains),
-            "recreated": success_count,
-            "failed": fail_count
+        return {
+            "status": "ok",
+            "webserver": ws,
+            "message": f"Tái tạo cấu hình {ws.upper()} thành công! Đã cập nhật {success_count} website từ cơ sở dữ liệu.",
+            "details": {
+                "backup_info": backup_notes,
+                "total_domains": len(domains),
+                "recreated": success_count,
+                "failed": fail_count
+            }
         }
-    }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Lỗi tái tạo cấu hình webserver: {str(e)}")
 
 
