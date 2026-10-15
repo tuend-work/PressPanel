@@ -113,17 +113,28 @@ EOF
                 fi
 
                 # Map virtualhost vào listener HTTP (port 80)
-                if grep -q "listener " "$OLS_MAIN_CONF"; then
-                    # Thêm map nếu chưa có
-                    if ! grep -q "map $DOMAIN $DOMAIN" "$OLS_MAIN_CONF"; then
-                        # Chèn map vào trước dấu ngoặc đóng của listener đầu tiên
-                        sed -i "0,/}/s//  map                     $DOMAIN $DOMAIN\n}/" "$OLS_MAIN_CONF" 2>/dev/null || true
-                    fi
+                # Dọn dẹp các dòng map bị chèn nhầm vào errorlog trước đó
+                sed -i '/errorlog logs\/error\.log {/,/}/ { /map[[:space:]]/d }' "$OLS_MAIN_CONF" 2>/dev/null || true
+
+                # Xóa mapping Example * mặc định cướp toàn bộ traffic
+                sed -i 's/map[[:space:]]\+Example[[:space:]]\+\*/# map Example */g' "$OLS_MAIN_CONF" 2>/dev/null || true
+
+                # Thêm map vào listener Default hoặc HTTP_80 nếu chưa có
+                if ! grep -q "map[[:space:]]\+$DOMAIN" "$OLS_MAIN_CONF"; then
+                    # Dùng awk để chèn map an toàn ngay trước dấu ngoặc đóng } của listener
+                    awk -v d="$DOMAIN" '
+                        /listener [A-Za-z0-9_]+[[:space:]]*{/ { in_listener=1 }
+                        in_listener && /}/ {
+                            print "    map                      " d " " d ", *." d
+                            in_listener=0
+                        }
+                        { print }
+                    ' "$OLS_MAIN_CONF" > "$OLS_MAIN_CONF.tmp" && mv "$OLS_MAIN_CONF.tmp" "$OLS_MAIN_CONF"
                 fi
                 chmod 644 "$OLS_MAIN_CONF" 2>/dev/null || true
             fi
 
-            /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lsws 2>/dev/null || true
+            /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || true
         fi
 
         # Cấu hình Nginx nếu có Nginx
@@ -189,6 +200,11 @@ EOF
                 sed -i 's/address *:8088/address *:80/g' "$OLS_CONF" || true
                 sed -i 's/:8088/:80/g' "$OLS_CONF" || true
                 sed -i 's/listener Default {/listener HTTP_80 {/g' "$OLS_CONF" || true
+
+                # Dọn sạch các dòng map bị chèn nhầm vào errorlog
+                sed -i '/errorlog logs\/error\.log {/,/}/ { /map[[:space:]]/d }' "$OLS_CONF" || true
+                # Vô hiệu hóa map Example * mặc định cướp toàn bộ domain
+                sed -i 's/map[[:space:]]\+Example[[:space:]]\+\*/# map Example */g' "$OLS_CONF" || true
                 
                 # Phân quyền 644 để panel có thể đọc trực tiếp
                 chmod 755 /usr/local/lsws/conf 2>/dev/null || true
