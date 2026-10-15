@@ -79,24 +79,31 @@ int main(int argc, char *argv[]) {
         char cmd[4096];
         snprintf(cmd, sizeof(cmd),
             "mkdir -p /sys/fs/cgroup/wpc && "
-            "echo '+cpu +memory +io +pids' > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true; "
-            "echo '+cpu +memory +io +pids' > /sys/fs/cgroup/wpc/cgroup.subtree_control 2>/dev/null || true; "
+            "for c in cpu memory io pids; do "
+            "  echo \"+$c\" > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true; "
+            "  echo \"+$c\" > /sys/fs/cgroup/wpc/cgroup.subtree_control 2>/dev/null || true; "
+            "done; "
             "mkdir -p %s && "
-            "echo '+cpu +memory +io +pids' > %s/cgroup.subtree_control 2>/dev/null || true; "
-            "mkdir -p %s %s && "
-            "echo '%lld' > %s/memory.max 2>/dev/null; "
-            "echo '%d 100000' > %s/cpu.max 2>/dev/null; "
-            "echo '%d' > %s/pids.max 2>/dev/null; "
-            "echo '%lld' > %s/memory.max 2>/dev/null; "
-            "echo '%d 100000' > %s/cpu.max 2>/dev/null; "
-            "echo '%d' > %s/pids.max 2>/dev/null; "
+            "for c in cpu memory io pids; do "
+            "  echo \"+$c\" > %s/cgroup.subtree_control 2>/dev/null || true; "
+            "done; "
+            "mkdir -p %s && "
+            "echo '%lld' > %s/memory.max 2>/dev/null || true; "
+            "echo '%d 100000' > %s/cpu.max 2>/dev/null || true; "
+            "echo '%d' > %s/pids.max 2>/dev/null || true; "
+            "mkdir -p %s && "
+            "echo '%lld' > %s/memory.max 2>/dev/null || true; "
+            "echo '%d 100000' > %s/cpu.max 2>/dev/null || true; "
+            "echo '%d' > %s/pids.max 2>/dev/null || true; "
             "if [ %u -gt 0 ]; then systemctl set-property user-%u.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; fi; "
             "pgrep -u %s | while read -r p; do echo \"$p\" > %s/cgroup.procs 2>/dev/null || echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; done",
-            reseller_path, reseller_path,
-            path, user_flat_path,
+            reseller_path,
+            reseller_path,
+            path,
             mem_mb * 1024 * 1024, path,
             cpu * 1000, path,
             pids, path,
+            user_flat_path,
             mem_mb * 1024 * 1024, user_flat_path,
             cpu * 1000, user_flat_path,
             pids, user_flat_path,
