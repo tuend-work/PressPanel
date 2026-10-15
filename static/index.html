@@ -51,7 +51,7 @@
                         ⚡
                     </div>
                     <span class="font-bold text-2xl tracking-tight bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">PressPanel</span>
-                    <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.4</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.5</span>
                 </div>
                 <a href="/docs" target="_blank" class="text-xs font-medium text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 transition">
                     📖 Swagger API
@@ -111,7 +111,7 @@
                             </div>
                             <span class="font-bold text-lg tracking-tight text-white">PressPanel</span>
                         </div>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.4</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.5</span>
                     </div>
 
                     <!-- Navigation Items -->
@@ -390,27 +390,7 @@
                                     </div>
 
                                     <div class="grid grid-cols-2 gap-4">
-                                        <!-- MySQL / MariaDB -->
-                                        <div class="p-3 rounded-xl bg-[#141921] border border-[#232b36] flex flex-col justify-between">
-                                            <div class="flex items-center space-x-2.5 mb-2">
-                                                <div class="w-7 h-7 rounded-lg bg-blue-950/80 border border-blue-800 flex items-center justify-center text-sm">
-                                                    🐬
-                                                </div>
-                                                <div>
-                                                    <div class="text-xs font-bold text-white">MariaDB 10.11</div>
-                                                    <div class="text-[10px] text-emerald-400 flex items-center gap-1 font-mono">
-                                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                                        <span>Running</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="flex justify-end space-x-1 pt-1 text-[11px]">
-                                                <button class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">Restart</button>
-                                                <button class="px-2 py-0.5 rounded bg-blue-600/20 text-blue-400 hover:bg-blue-600/30">phpMyAdmin</button>
-                                            </div>
-                                        </div>
-
-                                        <!-- OpenLiteSpeed / Nginx -->
+                                        <!-- OpenLiteSpeed -->
                                         <div class="p-3 rounded-xl bg-[#141921] border border-[#232b36] flex flex-col justify-between">
                                             <div class="flex items-center space-x-2.5 mb-2">
                                                 <div class="w-7 h-7 rounded-lg bg-emerald-950/80 border border-emerald-800 flex items-center justify-center text-sm">
@@ -418,15 +398,47 @@
                                                 </div>
                                                 <div>
                                                     <div class="text-xs font-bold text-white">OpenLiteSpeed</div>
-                                                    <div class="text-[10px] text-emerald-400 flex items-center gap-1 font-mono">
-                                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                                        <span>Running (Native LSCache)</span>
+                                                    <div class="text-[10px] flex items-center gap-1 font-mono">
+                                                        <span class="w-1.5 h-1.5 rounded-full"
+                                                            :class="getApp('ols').running ? 'bg-emerald-400 animate-pulse' : (getApp('ols').installed ? 'bg-amber-400' : 'bg-slate-600')"></span>
+                                                        <span :class="getApp('ols').running ? 'text-emerald-400' : (getApp('ols').installed ? 'text-amber-400' : 'text-slate-500')">
+                                                            {{ getApp('ols').running ? 'Running (LSCache)' : (getApp('ols').installed ? 'Đã dừng' : 'Chưa cài đặt') }}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
                                             <div class="flex justify-end space-x-1 pt-1 text-[11px]">
-                                                <button class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">Restart</button>
-                                                <button @click="currentTab = 'domains'" class="px-2 py-0.5 rounded bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30">Vhosts</button>
+                                                <button v-if="!getApp('ols').installed" @click="handleAppAction('ols', 'install')" class="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium">⚡ Cài Đặt</button>
+                                                <template v-else>
+                                                    <button @click="handleAppAction('ols', 'restart')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">Restart</button>
+                                                    <button @click="currentTab = 'domains'" class="px-2 py-0.5 rounded bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30">Vhosts</button>
+                                                </template>
+                                            </div>
+                                        </div>
+
+                                        <!-- MySQL / MariaDB -->
+                                        <div class="p-3 rounded-xl bg-[#141921] border border-[#232b36] flex flex-col justify-between">
+                                            <div class="flex items-center space-x-2.5 mb-2">
+                                                <div class="w-7 h-7 rounded-lg bg-blue-950/80 border border-blue-800 flex items-center justify-center text-sm">
+                                                    🐬
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs font-bold text-white">MariaDB Server</div>
+                                                    <div class="text-[10px] flex items-center gap-1 font-mono">
+                                                        <span class="w-1.5 h-1.5 rounded-full"
+                                                            :class="getApp('mariadb').running ? 'bg-emerald-400 animate-pulse' : (getApp('mariadb').installed ? 'bg-amber-400' : 'bg-slate-600')"></span>
+                                                        <span :class="getApp('mariadb').running ? 'text-emerald-400' : (getApp('mariadb').installed ? 'text-amber-400' : 'text-slate-500')">
+                                                            {{ getApp('mariadb').running ? 'Running' : (getApp('mariadb').installed ? 'Đã dừng' : 'Chưa cài đặt') }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-end space-x-1 pt-1 text-[11px]">
+                                                <button v-if="!getApp('mariadb').installed" @click="handleAppAction('mariadb', 'install')" class="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium">⚡ Cài Đặt</button>
+                                                <template v-else>
+                                                    <button @click="handleAppAction('mariadb', 'restart')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">Restart</button>
+                                                    <button @click="currentTab = 'apps'" class="px-2 py-0.5 rounded bg-blue-600/20 text-blue-400 hover:bg-blue-600/30">Quản Lý</button>
+                                                </template>
                                             </div>
                                         </div>
 
@@ -437,34 +449,43 @@
                                                     🐘
                                                 </div>
                                                 <div>
-                                                    <div class="text-xs font-bold text-white">PHP 7.4 - 8.4</div>
-                                                    <div class="text-[10px] text-emerald-400 flex items-center gap-1 font-mono">
-                                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                                                        <span>Multi-PHP Engine</span>
+                                                    <div class="text-xs font-bold text-white">PHP Engine</div>
+                                                    <div class="text-[10px] flex items-center gap-1 font-mono">
+                                                        <span class="w-1.5 h-1.5 rounded-full"
+                                                            :class="getApp('php82').installed ? 'bg-emerald-400' : 'bg-slate-600'"></span>
+                                                        <span :class="getApp('php82').installed ? 'text-emerald-400' : 'text-slate-500'">
+                                                            {{ getApp('php82').installed ? 'PHP 8.2 Sẵn Sàng' : 'Chưa cài PHP' }}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
                                             <div class="flex justify-end space-x-1 pt-1 text-[11px]">
-                                                <button @click="currentTab = 'apps'" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">Extensions</button>
+                                                <button @click="currentTab = 'apps'" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">
+                                                    {{ getApp('php82').installed ? 'Multi-PHP' : 'Cài PHP' }}
+                                                </button>
                                             </div>
                                         </div>
 
-                                        <!-- WordPress Toolkit Core -->
+                                        <!-- WP-CLI Toolkit -->
                                         <div class="p-3 rounded-xl bg-[#141921] border border-[#232b36] flex flex-col justify-between">
                                             <div class="flex items-center space-x-2.5 mb-2">
                                                 <div class="w-7 h-7 rounded-lg bg-blue-950/80 border border-blue-800 flex items-center justify-center text-sm">
                                                     🚀
                                                 </div>
                                                 <div>
-                                                    <div class="text-xs font-bold text-white">WP Toolkit</div>
-                                                    <div class="text-[10px] text-emerald-400 flex items-center gap-1 font-mono">
-                                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                                                        <span>1-Click SSO & Cage</span>
+                                                    <div class="text-xs font-bold text-white">WP-CLI Core</div>
+                                                    <div class="text-[10px] flex items-center gap-1 font-mono">
+                                                        <span class="w-1.5 h-1.5 rounded-full"
+                                                            :class="getApp('wp-cli').installed ? 'bg-emerald-400' : 'bg-slate-600'"></span>
+                                                        <span :class="getApp('wp-cli').installed ? 'text-emerald-400' : 'text-slate-500'">
+                                                            {{ getApp('wp-cli').installed ? 'Active (SSO & CLI)' : 'Chưa cài WP-CLI' }}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
                                             <div class="flex justify-end space-x-1 pt-1 text-[11px]">
-                                                <button @click="currentTab = 'wp'" class="px-2 py-0.5 rounded bg-blue-600/20 text-blue-400 hover:bg-blue-600/30">Mở Toolkit</button>
+                                                <button v-if="!getApp('wp-cli').installed" @click="handleAppAction('wp-cli', 'install')" class="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium">Cài Đặt</button>
+                                                <button v-else @click="currentTab = 'wp'" class="px-2 py-0.5 rounded bg-blue-600/20 text-blue-400 hover:bg-blue-600/30">Mở Toolkit</button>
                                             </div>
                                         </div>
                                     </div>
@@ -733,39 +754,105 @@
 
                     <!-- VIEW 4: APP STORE (AAPANEL STYLE) -->
                     <div v-if="currentTab === 'apps'" class="space-y-6 max-w-7xl mx-auto">
-                        <div>
-                            <h2 class="text-xl font-bold text-white">Kho Ứng Dụng (App Store)</h2>
-                            <p class="text-xs text-slate-400">Cài đặt 1-click Web Server, Multi-PHP, MariaDB và các công cụ quản trị</p>
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <h2 class="text-xl font-bold text-white">Kho Ứng Dụng (App Store)</h2>
+                                <p class="text-xs text-slate-400">Cài đặt 1-Click các dịch vụ máy chủ, cơ sở dữ liệu, PHP và công cụ bảo mật chuẩn aaPanel</p>
+                            </div>
+                            <div class="flex items-center space-x-2 text-xs">
+                                <span class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 font-mono">
+                                    Đã cài: <b class="text-emerald-400">{{ installedAppsCount }}</b> / {{ appsList.length }} ứng dụng
+                                </span>
+                                <button @click="fetchAppsList" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition" title="Làm mới trạng thái">
+                                    🔄
+                                </button>
+                            </div>
                         </div>
+
+                        <!-- Category Filter Tabs -->
+                        <div class="flex flex-wrap gap-2 border-b border-[#232b36] pb-3 text-xs">
+                            <button @click="appsCategory = 'all'"
+                                :class="appsCategory === 'all' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold' : 'px-3 py-1.5 rounded-lg bg-slate-900/60 text-slate-400 hover:text-white'">
+                                Tất Cả ({{ appsList.length }})
+                            </button>
+                            <button @click="appsCategory = 'webserver'"
+                                :class="appsCategory === 'webserver' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold' : 'px-3 py-1.5 rounded-lg bg-slate-900/60 text-slate-400 hover:text-white'">
+                                Web Server
+                            </button>
+                            <button @click="appsCategory = 'database'"
+                                :class="appsCategory === 'database' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold' : 'px-3 py-1.5 rounded-lg bg-slate-900/60 text-slate-400 hover:text-white'">
+                                Database
+                            </button>
+                            <button @click="appsCategory = 'php'"
+                                :class="appsCategory === 'php' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold' : 'px-3 py-1.5 rounded-lg bg-slate-900/60 text-slate-400 hover:text-white'">
+                                PHP Runtime
+                            </button>
+                            <button @click="appsCategory = 'tools'"
+                                :class="appsCategory === 'tools' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold' : 'px-3 py-1.5 rounded-lg bg-slate-900/60 text-slate-400 hover:text-white'">
+                                Công Cụ & Bảo Mật
+                            </button>
+                        </div>
+
+                        <!-- Danh Sách Apps Grid -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div class="glass-card rounded-2xl p-5 space-y-3">
-                                <div class="flex justify-between items-start">
-                                    <div class="text-2xl">⚡</div>
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-800">Đã Cài</span>
-                                </div>
-                                <h4 class="font-bold text-white">OpenLiteSpeed</h4>
-                                <p class="text-xs text-slate-400">Web Server hiệu năng cao hỗ trợ LSCache native cho WordPress</p>
-                                <button class="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">Cấu Hình</button>
-                            </div>
+                            <div v-for="app in filteredApps" :key="app.id"
+                                class="aapanel-card rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:border-slate-600 transition shadow-lg">
+                                <div>
+                                    <!-- Top Card Header -->
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div class="w-10 h-10 rounded-xl bg-[#141921] border border-[#232b36] flex items-center justify-center text-xl">
+                                            {{ app.icon }}
+                                        </div>
+                                        <div class="flex flex-col items-end">
+                                            <span v-if="app.running" class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                                <span>Đang Chạy</span>
+                                            </span>
+                                            <span v-else-if="app.installed" class="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-950 text-amber-400 border border-amber-800">
+                                                Đã Dừng
+                                            </span>
+                                            <span v-else class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400 border border-slate-700">
+                                                Chưa Cài Đặt
+                                            </span>
+                                        </div>
+                                    </div>
 
-                            <div class="glass-card rounded-2xl p-5 space-y-3">
-                                <div class="flex justify-between items-start">
-                                    <div class="text-2xl">🐘</div>
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-800">Đã Cài</span>
+                                    <!-- App Title & Version -->
+                                    <div class="flex items-center space-x-2">
+                                        <h4 class="font-bold text-white text-sm">{{ app.name }}</h4>
+                                        <span class="text-[10px] text-slate-500 font-mono">v{{ app.default_version }}</span>
+                                    </div>
+                                    <p class="text-xs text-slate-400 mt-1 leading-relaxed">{{ app.desc }}</p>
                                 </div>
-                                <h4 class="font-bold text-white">Multi-PHP Runtime</h4>
-                                <p class="text-xs text-slate-400">Hỗ trợ các phiên bản PHP 7.4, 8.1, 8.2, 8.3 và 8.4</p>
-                                <button class="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">Quản Lý Extensions</button>
-                            </div>
 
-                            <div class="glass-card rounded-2xl p-5 space-y-3">
-                                <div class="flex justify-between items-start">
-                                    <div class="text-2xl">🐬</div>
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-800">Đã Cài</span>
+                                <!-- Action Buttons -->
+                                <div class="pt-2 border-t border-[#232b36] flex items-center justify-between text-xs">
+                                    <div v-if="!app.installed" class="w-full">
+                                        <button @click="handleAppAction(app.id, 'install')"
+                                            :disabled="installingAppId === app.id"
+                                            class="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-white shadow-lg shadow-blue-500/20 transition flex items-center justify-center space-x-1.5">
+                                            <span v-if="installingAppId === app.id" class="animate-spin">⏳</span>
+                                            <span v-else>⚡</span>
+                                            <span>{{ installingAppId === app.id ? 'Đang gửi lệnh...' : 'Cài Đặt (1-Click)' }}</span>
+                                        </button>
+                                    </div>
+                                    <div v-else class="w-full flex items-center justify-between gap-2">
+                                        <button v-if="app.service" @click="handleAppAction(app.id, 'restart')"
+                                            class="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition">
+                                            Khởi động lại
+                                        </button>
+                                        <button v-if="app.service" @click="handleAppAction(app.id, app.running ? 'stop' : 'start')"
+                                            class="flex-1 py-1.5 rounded-lg transition"
+                                            :class="app.running ? 'bg-amber-950/70 text-amber-300 hover:bg-amber-900 border border-amber-800/60' : 'bg-emerald-950/70 text-emerald-300 hover:bg-emerald-900 border border-emerald-800/60'">
+                                            {{ app.running ? 'Dừng' : 'Bật' }}
+                                        </button>
+                                        <button @click="handleAppAction(app.id, 'uninstall')"
+                                            class="px-2.5 py-1.5 rounded-lg bg-rose-950/40 text-rose-400 hover:bg-rose-900/60 border border-rose-900/60 transition"
+                                            title="Gỡ cài đặt">
+                                            🗑️
+                                        </button>
+                                    </div>
                                 </div>
-                                <h4 class="font-bold text-white">MariaDB Database</h4>
-                                <p class="text-xs text-slate-400">Cơ sở dữ liệu quan hệ tối ưu hóa bộ đệm InnoDB cho WordPress</p>
-                                <button class="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">Cấu Hình Service</button>
                             </div>
                         </div>
                     </div>
@@ -837,6 +924,73 @@
                 const loggingIn = ref(false);
 
                 const newDomain = ref({ domain_name: '', webserver: 'ols', php_version: '8.2', install_wp: true });
+
+                // Dữ liệu App Store & Software Manager
+                const appsList = ref([]);
+                const appsCategory = ref('all');
+                const installingAppId = ref('');
+
+                const getApp = (id) => {
+                    const found = appsList.value.find(a => a.id === id);
+                    if (found) return found;
+                    return { id, name: id, installed: false, running: false, default_version: '' };
+                };
+
+                const installedAppsCount = computed(() => {
+                    return appsList.value.filter(a => a.installed).length;
+                });
+
+                const filteredApps = computed(() => {
+                    if (appsCategory.value === 'all') return appsList.value;
+                    return appsList.value.filter(a => a.category === appsCategory.value);
+                });
+
+                const fetchAppsList = async () => {
+                    if (!token.value) return;
+                    try {
+                        const res = await fetch('/api/v1/apps/list', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            appsList.value = data.apps || [];
+                        }
+                    } catch (e) {
+                        console.error('Loi tai apps list:', e);
+                    }
+                };
+
+                const handleAppAction = async (appId, action) => {
+                    if (action === 'install') {
+                        installingAppId.value = appId;
+                    }
+                    try {
+                        const res = await fetch('/api/v1/apps/action', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ app_id: appId, action })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Thực thi thành công!');
+                            setTimeout(() => {
+                                fetchAppsList();
+                                fetchSystemStatus();
+                            }, 1500);
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể thực hiện tác vụ'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        if (action === 'install') {
+                            installingAppId.value = '';
+                        }
+                    }
+                };
 
                 // Dữ liệu giám sát System aaPanel Widget
                 const sysStats = ref({
@@ -982,6 +1136,7 @@
                             currentTab.value = 'dashboard';
                             fetchDomains();
                             fetchSystemStatus();
+                            fetchAppsList();
                         } else {
                             loginError.value = data.detail || 'Sai tên đăng nhập hoặc mật khẩu';
                         }
@@ -1014,6 +1169,7 @@
                             newDomain.value.domain_name = '';
                             fetchDomains();
                             fetchSystemStatus();
+                            fetchAppsList();
                             alert('Tạo website thành công!');
                         } else {
                             alert('Lỗi: ' + (data.detail || 'Không thể tạo website'));
@@ -1063,6 +1219,7 @@
                     if (token.value) {
                         fetchDomains();
                         fetchSystemStatus();
+                        fetchAppsList();
                     }
                     // Tự động làm mới số liệu mỗi 3 giây
                     timer = setInterval(() => {
@@ -1081,6 +1238,8 @@
                     loginForm, loginError, loggingIn, newDomain, tabTitle,
                     sysStats, trafficHistory, timeLabels, downstreamCurvePath,
                     upstreamCurvePath, downstreamAreaPath, upstreamAreaPath,
+                    appsList, appsCategory, installingAppId, installedAppsCount, filteredApps,
+                    getApp, fetchAppsList, handleAppAction,
                     navClass, handleLogin, handleLogout, handleAddDomain,
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
                     fetchSystemStatus, restartPanel

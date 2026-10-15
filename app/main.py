@@ -12,6 +12,7 @@ from app.api.v1.domains import router as domains_router
 from app.api.v1.wp import router as wp_router
 from app.api.v1.files import router as files_router
 from app.api.v1.system import router as system_router
+from app.api.v1.apps import router as apps_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -44,6 +45,7 @@ app.include_router(domains_router, prefix=settings.API_V1_STR)
 app.include_router(wp_router, prefix=settings.API_V1_STR)
 app.include_router(files_router, prefix=settings.API_V1_STR)
 app.include_router(system_router, prefix=settings.API_V1_STR)
+app.include_router(apps_router, prefix=settings.API_V1_STR)
 
 @app.get("/health", tags=["System"])
 async def health_check():
