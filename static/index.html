@@ -147,24 +147,61 @@
 
                         <!-- Menu Items -->
                         <div class="p-3 space-y-1 text-xs">
-                            <!-- 1. Tổng quan (All Roles) -->
-                            <button @click="currentTab = 'dashboard'" :class="navClass('dashboard')">
+                            <!-- 1. Tổng quan (Chỉ Admin & Hosting User) -->
+                            <button v-if="currentUser.role !== 'user'" @click="currentTab = 'dashboard'" :class="navClass('dashboard')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="layout-dashboard" class="w-4 h-4 text-slate-400"></i>
                                     <span>Tổng quan</span>
                                 </div>
                             </button>
 
-                            <!-- 2. Website & Tên miền (All Roles) -->
+                            <!-- 2. Websites & Domains (Tất cả vai trò) -->
                             <button @click="currentTab = 'domains'" :class="navClass('domains')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="globe" class="w-4 h-4 text-slate-400"></i>
-                                    <span>{{ currentUser.role === 'user' ? 'Website của tôi' : 'Website & Domains' }}</span>
+                                    <span>Websites & Domains</span>
                                 </div>
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 3. WordPress (All Roles) -->
+                            <!-- 3. Mail (Plesk Style: Hỗ trợ Hosting & Web User) -->
+                            <button @click="currentTab = 'mail'" :class="navClass('mail')">
+                                <div class="flex items-center space-x-3">
+                                    <i data-lucide="mail" class="w-4 h-4 text-slate-400"></i>
+                                    <span>Mail</span>
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                            </button>
+
+                            <!-- 4. Files / File Manager (Tất cả vai trò) -->
+                            <button @click="currentTab = 'files'" :class="navClass('files')">
+                                <div class="flex items-center space-x-3">
+                                    <i data-lucide="folder" class="w-4 h-4 text-slate-400"></i>
+                                    <span>Files</span>
+                                </div>
+                                <span v-if="currentUser.role === 'user'" class="text-[9px] px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 font-mono">SSH</span>
+                                <i v-else data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                            </button>
+
+                            <!-- 5. Databases & Users (Admin, Hosting User & Web User) -->
+                            <button @click="currentTab = 'databases'" :class="navClass('databases')">
+                                <div class="flex items-center space-x-3">
+                                    <i data-lucide="database" class="w-4 h-4 text-slate-400"></i>
+                                    <span>Databases</span>
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                            </button>
+
+                            <!-- 6. Statistics (Hosting User & Web User) -->
+                            <button @click="currentTab = 'monitoring'" :class="navClass('monitoring')">
+                                <div class="flex items-center space-x-3">
+                                    <i data-lucide="bar-chart-2" class="w-4 h-4 text-slate-400"></i>
+                                    <span>Statistics</span>
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                            </button>
+
+                            <!-- 7. WordPress Toolkit (All Roles) -->
                             <button @click="currentTab = 'wp'" :class="navClass('wp')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="layers" class="w-4 h-4 text-slate-400"></i>
@@ -173,7 +210,7 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 4. Service Plans (Chỉ Admin) -->
+                            <!-- 8. Service Plans (Chỉ Admin) -->
                             <button v-if="currentUser.role === 'admin'" @click="currentTab = 'service_plans'" :class="navClass('service_plans')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="cpu" class="w-4 h-4 text-slate-400"></i>
@@ -182,32 +219,13 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 5. Quản Lý Hosting Users / Khách Hàng (Chỉ Admin) -->
+                            <!-- 9. Quản Lý Hosting Users / Khách Hàng (Chỉ Admin) -->
                             <button v-if="currentUser.role === 'admin'" @click="currentTab = 'customers'" :class="navClass('customers')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
                                     <span>Hosting Users</span>
                                 </div>
                                 <span class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">{{ customers.length }}</span>
-                            </button>
-
-                            <!-- 6. Cơ sở dữ liệu & Database Users (Chỉ Hosting User / Reseller & Admin) -->
-                            <button v-if="['admin', 'reseller'].includes(currentUser.role)" @click="currentTab = 'databases'" :class="navClass('databases')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="database" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Databases & Users</span>
-                                </div>
-                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
-                            </button>
-
-                            <!-- 7. File Manager & SSH (Tất cả vai trò: Admin, Hosting User & Web User) -->
-                            <button @click="currentTab = 'files'" :class="navClass('files')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="folder" class="w-4 h-4 text-slate-400"></i>
-                                    <span>File Manager</span>
-                                </div>
-                                <span v-if="currentUser.role === 'user'" class="text-[9px] px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 font-mono">SSH</span>
-                                <i v-else data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
                             <!-- 8. Tiến trình & Hỗ trợ (All Roles) -->
@@ -877,138 +895,371 @@
 
                         <div v-else class="space-y-4">
                             <!-- Card Domain Plesk Obsidian Light -->
+                            <!-- Plesk Obsidian 360 Website Overview Layout (Giống hình ảnh Plesk tham chiếu) -->
                             <div v-for="d in domains" :key="d.id"
                                 :class="selectedDomainIds.includes(d.id) ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-md' : 'border-slate-200/90 hover:border-slate-300 shadow-sm'"
-                                class="wp-card rounded-2xl overflow-hidden border transition bg-white">
-                                <!-- Card Header -->
+                                class="wp-card rounded-2xl overflow-hidden border transition bg-white text-slate-800">
+                                
+                                <!-- Header bar: Domain Name, Status Active, Action Buttons -->
                                 <div class="px-6 py-4 bg-slate-50/90 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
                                     <div class="flex items-center space-x-3.5">
                                         <input type="checkbox" :value="d.id" v-model="selectedDomainIds"
                                             class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500 w-4 h-4 cursor-pointer">
-                                        <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 border border-blue-200 flex items-center justify-center text-lg shadow-sm">
-                                            🌐
-                                        </div>
                                         <div>
-                                            <div class="flex items-center space-x-2">
-                                                <a :href="'http://' + d.domain_name" target="_blank" class="font-bold text-slate-800 hover:text-blue-600 text-base transition">
-                                                    {{ d.domain_name }}
+                                            <div class="text-[11px] text-slate-400 font-medium flex items-center gap-1.5 mb-0.5">
+                                                <span>Websites & Domains</span>
+                                                <span>&gt;</span>
+                                            </div>
+                                            <div class="flex items-center space-x-3">
+                                                <a :href="'http://' + d.domain_name" target="_blank" class="font-extrabold text-slate-900 hover:text-blue-600 text-xl tracking-tight transition flex items-center gap-2">
+                                                    <span>{{ d.domain_name }}</span>
+                                                    <i data-lucide="external-link" class="w-4 h-4 text-slate-400"></i>
                                                 </a>
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                    <span>Active</span>
+                                                </span>
                                                 <span class="text-[10px] px-2 py-0.5 rounded font-mono uppercase font-bold"
                                                     :class="d.webserver === 'ols' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'">
                                                     {{ d.webserver === 'ols' ? 'OpenLiteSpeed' : 'Nginx' }}
                                                 </span>
                                             </div>
-                                            <div class="text-xs text-slate-500 font-mono mt-0.5 flex items-center gap-1.5">
-                                                <span>📁</span> <span>{{ d.document_root }}</span>
-                                            </div>
                                         </div>
                                     </div>
 
                                     <div class="flex items-center space-x-2">
-                                        <span class="text-xs px-3 py-1 rounded-full flex items-center space-x-1.5 font-semibold"
-                                            :class="d.ssl_enabled ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'">
-                                            <span>{{ d.ssl_enabled ? '🔒 SSL Hợp Lệ' : '🔓 Chưa Có SSL' }}</span>
-                                        </span>
-                                        <button @click="installSSL(d)" class="px-3 py-1 rounded-xl bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 border border-slate-200 shadow-sm transition">
-                                            Cấp Let's Encrypt
+                                        <!-- Cấp SSL -->
+                                        <button @click="installSSL(d)" class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 border border-slate-200 shadow-sm transition flex items-center space-x-1.5">
+                                            <span>🔒</span>
+                                            <span>{{ d.ssl_enabled ? 'Cấp lại SSL' : 'Cấp Let\'s Encrypt' }}</span>
                                         </button>
                                         <!-- Nút LOGIN AS WEBSITE USER -->
                                         <button v-if="['admin', 'reseller'].includes(currentUser.role)" @click="impersonateWebsiteUser(d)" title="Đăng nhập trực tiếp dưới quyền Web User quản trị website này"
-                                            class="px-3 py-1 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-xs text-blue-700 font-semibold transition flex items-center space-x-1 shadow-sm">
+                                            class="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-xs text-blue-700 font-semibold transition flex items-center space-x-1.5 shadow-sm">
                                             <i data-lucide="key" class="w-3.5 h-3.5 text-blue-600"></i>
                                             <span>Login as Web User</span>
                                         </button>
+                                        <!-- 1-Click WordPress SSO -->
+                                        <button @click="handleWPSSO(d)" title="Vào thẳng trang quản trị WP-Admin"
+                                            class="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-xs text-indigo-700 font-semibold transition flex items-center space-x-1 shadow-sm">
+                                            <span>🚀 WP-Admin</span>
+                                        </button>
                                         <!-- Nút XÓA WEBSITE -->
                                         <button @click="handleDeleteDomain(d)" title="Xóa hoàn toàn website này"
-                                            class="px-3 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs text-rose-600 font-semibold transition flex items-center space-x-1 shadow-sm">
+                                            class="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs text-rose-600 font-semibold transition flex items-center space-x-1 shadow-sm">
                                             <span>🗑️</span>
-                                            <span>Xóa Web</span>
                                         </button>
                                     </div>
                                 </div>
 
+                                <!-- Subtabs Header: Dashboard, Hosting & DNS, Mail (Plesk Obsidian Style) -->
+                                <div class="px-6 pt-3 border-b border-slate-200 bg-white flex items-center space-x-6 text-xs font-semibold">
+                                    <button @click="setDomainSubTab(d.id, 'dashboard')"
+                                        :class="getDomainSubTab(d.id) === 'dashboard' ? 'text-blue-600 border-b-2 border-blue-600 pb-2.5' : 'text-slate-500 hover:text-slate-800 pb-2.5'">
+                                        Dashboard
+                                    </button>
+                                    <button @click="setDomainSubTab(d.id, 'hosting_dns')"
+                                        :class="getDomainSubTab(d.id) === 'hosting_dns' ? 'text-blue-600 border-b-2 border-blue-600 pb-2.5' : 'text-slate-500 hover:text-slate-800 pb-2.5'">
+                                        Hosting & DNS
+                                    </button>
+                                    <button @click="setDomainSubTab(d.id, 'mail')"
+                                        :class="getDomainSubTab(d.id) === 'mail' ? 'text-blue-600 border-b-2 border-blue-600 pb-2.5' : 'text-slate-500 hover:text-slate-800 pb-2.5'">
+                                        Mail
+                                    </button>
+                                </div>
 
-                                <!-- Card Body: 3 Cột Tiện Ích Chuẩn Plesk -->
-                                <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <!-- Cột 1: Dev & Files -->
-                                    <div class="space-y-3">
-                                        <div class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                                            <span>🛠️</span> <span>Công Cụ & Tệp Tin</span>
-                                        </div>
-                                        <div class="space-y-2 text-xs">
-                                            <button @click="openFileManager(d.document_root)" class="w-full text-left px-3.5 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-700 font-medium flex items-center justify-between transition shadow-sm">
-                                                <span class="flex items-center gap-2">📁 <span>File Manager (Quản lý tệp)</span></span>
-                                                <span class="text-slate-400 font-bold">&rarr;</span>
-                                            </button>
-                                            <div class="px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
-                                                <span class="text-slate-500 font-medium">Phiên bản PHP:</span>
-                                                <span class="font-bold text-blue-600 font-mono bg-blue-50 px-2 py-0.5 rounded border border-blue-100">PHP {{ d.php_version }}</span>
+                                <!-- TAB 1: DASHBOARD (PLESK 360 GRID) -->
+                                <div v-if="getDomainSubTab(d.id) === 'dashboard'" class="p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
+                                    <!-- Left Column: Website Preview & Statistics -->
+                                    <div class="lg:col-span-3 space-y-5">
+                                        <!-- Screenshot Box -->
+                                        <div class="rounded-xl overflow-hidden border border-slate-200 bg-slate-900 shadow-sm relative group">
+                                            <div class="h-44 w-full bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 flex flex-col items-center justify-center p-4 text-center">
+                                                <div class="w-12 h-12 rounded-2xl bg-blue-500/20 text-blue-400 flex items-center justify-center mb-2 text-2xl border border-blue-500/30">
+                                                    🌐
+                                                </div>
+                                                <span class="text-white text-xs font-bold truncate max-w-full">{{ d.domain_name }}</span>
+                                                <span class="text-[10px] text-slate-400 mt-1">Default Webpage / WordPress</span>
+                                                <a :href="'http://' + d.domain_name" target="_blank"
+                                                    class="mt-3 px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-[11px] font-semibold text-white shadow transition">
+                                                    Truy cập web
+                                                </a>
                                             </div>
-                                            <button class="w-full text-left px-3.5 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-700 font-medium flex items-center justify-between transition shadow-sm">
-                                                <span class="flex items-center gap-2">📜 <span>Xem Error Log</span></span>
-                                                <span class="text-slate-400 font-bold">&rarr;</span>
+                                        </div>
+
+                                        <!-- Statistics Section -->
+                                        <div class="space-y-3 pt-2">
+                                            <div class="flex items-center justify-between text-xs font-bold text-slate-700">
+                                                <span>Statistics</span>
+                                                <button class="text-slate-400 hover:text-slate-600">
+                                                    <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                            </div>
+                                            <div class="space-y-2 text-xs">
+                                                <div class="flex justify-between items-center text-slate-600">
+                                                    <span>Disk space</span>
+                                                    <span class="font-bold text-slate-800 font-mono">1.3 MB / 5.0 GB</span>
+                                                </div>
+                                                <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                    <div class="h-full bg-blue-500 rounded-full" style="width: 5%"></div>
+                                                </div>
+                                                <div class="flex justify-between items-center text-slate-600 pt-1">
+                                                    <span>Traffic this month</span>
+                                                    <span class="font-bold text-slate-800 font-mono">284.3 MB</span>
+                                                </div>
+                                                <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                    <div class="h-full bg-emerald-500 rounded-full" style="width: 12%"></div>
+                                                </div>
+                                            </div>
+                                            <button class="text-blue-600 hover:text-blue-700 text-xs font-medium flex items-center gap-1 pt-1">
+                                                <span>More statistics</span>
+                                                <i data-lucide="chevron-down" class="w-3 h-3"></i>
                                             </button>
                                         </div>
                                     </div>
 
-                                    <!-- Cột 2: WordPress Toolkit Card -->
-                                    <div class="space-y-3 p-4 rounded-xl bg-gradient-to-br from-blue-50/70 to-indigo-50/40 border border-blue-100">
-                                        <div class="text-xs font-bold uppercase tracking-wider text-blue-700 flex items-center justify-between">
-                                            <span class="flex items-center gap-1.5"><span>🚀</span> <span>WordPress Toolkit</span></span>
-                                            <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-mono font-bold">v6.x</span>
-                                        </div>
-                                        <div class="space-y-2">
-                                            <button @click="handleWPSSO(d)" class="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition shadow-md shadow-blue-500/20 flex items-center justify-center space-x-2">
-                                                <span>🔑</span> <span>1-Click WP-Admin (SSO)</span>
-                                            </button>
-                                            <div class="grid grid-cols-2 gap-2 text-xs">
-                                                <button @click="handleWPClone(d)" class="py-2 px-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold transition text-center truncate shadow-sm">
-                                                    Nhân bản Staging
-                                                </button>
-                                                <button @click="handleWPSecure(d)" class="py-2 px-2 rounded-xl bg-white hover:bg-slate-50 border border-emerald-200 text-emerald-700 font-semibold transition text-center truncate shadow-sm">
-                                                    Khóa Bảo Mật
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <!-- Right Column: Categorized Tiles (Files & DB, Dev Tools, Security) -->
+                                    <div class="lg:col-span-9 space-y-6">
+                                        
+                                        <!-- Section 1: Files & Databases -->
+                                        <div>
+                                            <h4 class="text-xs font-extrabold text-slate-700 mb-3.5 flex items-center gap-2">
+                                                <span>Files & Databases</span>
+                                            </h4>
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                                <!-- Connection Info -->
+                                                <div class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl bg-lime-50 text-lime-600 flex items-center justify-center shrink-0 border border-lime-200 text-lg">
+                                                        🔌
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Connection Info</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">for FTP, Database</div>
+                                                    </div>
+                                                </div>
 
-                                    <!-- Cột 3: Tài Nguyên Cgroups v2 & Database -->
-                                    <div class="space-y-3">
-                                        <div class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                                            <span>📊</span> <span>Tài Nguyên Cgroups v2</span>
+                                                <!-- Files (File Manager) -->
+                                                <div @click="openFileManager(d.document_root)"
+                                                    class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0 border border-sky-200 text-lg">
+                                                        📁
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Files</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">{{ d.document_root }}</div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Databases -->
+                                                <div @click="currentTab = 'databases'"
+                                                    class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-200 text-lg">
+                                                        🗄️
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Databases</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">phpMyAdmin & MariaDB</div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- FTP Accounts -->
+                                                <div class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-200 text-lg">
+                                                        📡
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">FTP Accounts</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">Manage FTP users</div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Backup & Restore -->
+                                                <div class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 border border-slate-200 text-lg">
+                                                        💾
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Backup & Restore</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">Automatic snapshots</div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Website Copying / Staging -->
+                                                <div @click="handleWPClone(d)"
+                                                    class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0 border border-teal-200 text-lg">
+                                                        📑
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Website Copying</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">Clone to Staging</div>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="space-y-2.5 text-xs">
-                                            <!-- RAM Meter -->
-                                            <div>
-                                                <div class="flex justify-between text-[11px] text-slate-500 mb-1">
-                                                    <span class="font-medium">RAM Tiêu Thụ</span>
-                                                    <span class="font-mono text-slate-700 font-semibold">28MB / 1024MB</span>
+
+                                        <!-- Section 2: Dev Tools (TÍCH HỢP CHỌN PHP UX CHUẨN PLESK) -->
+                                        <div>
+                                            <h4 class="text-xs font-extrabold text-slate-700 mb-3.5 flex items-center gap-2">
+                                                <span>Dev Tools</span>
+                                            </h4>
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                                <!-- PHP Settings & Version Switcher (UX ĐỔI PHP CHUẨN PLESK) -->
+                                                <div @click="openChangePhpModal(d)"
+                                                    class="p-3.5 rounded-xl border-2 border-blue-500/30 hover:border-blue-500 hover:shadow-md bg-gradient-to-br from-blue-50/50 to-indigo-50/30 cursor-pointer transition flex items-center space-x-3.5 group relative">
+                                                    <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 font-bold text-xs shadow-sm">
+                                                        PHP
+                                                    </div>
+                                                    <div class="min-w-0 flex-1">
+                                                        <div class="flex items-center justify-between">
+                                                            <span class="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition">PHP Settings</span>
+                                                            <span class="text-[10px] bg-blue-600 text-white font-bold px-1.5 py-0.5 rounded shadow-sm">Thay đổi</span>
+                                                        </div>
+                                                        <div class="text-[11px] font-mono font-bold text-blue-700 mt-0.5">
+                                                            Version {{ d.php_version }}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                                    <div class="h-full bg-blue-500 rounded-full transition-all duration-500" style="width: 15%"></div>
+
+                                                <!-- Logs -->
+                                                <div class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200 text-lg">
+                                                        📜
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Logs</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">Access & Error log</div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Terminal / SSH -->
+                                                <div class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center shrink-0 font-mono text-sm font-bold">
+                                                        &gt;_
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Web Terminal</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">Chroot Cage Shell</div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Git -->
+                                                <div class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0 border border-orange-200 text-lg">
+                                                        🔀
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Git Repository</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">Auto deploy webhook</div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- PHP Composer -->
+                                                <div class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200 text-lg">
+                                                        🎼
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">PHP Composer</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">Dependency manager</div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Website Importing -->
+                                                <div class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200 text-lg">
+                                                        📥
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Website Importing</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">Migrate from cPanel/Plesk</div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <!-- CPU Meter -->
-                                            <div>
-                                                <div class="flex justify-between text-[11px] text-slate-500 mb-1">
-                                                    <span class="font-medium">CPU Hạn Mức</span>
-                                                    <span class="font-mono text-slate-700 font-semibold">1 Core (100%)</span>
+                                        </div>
+
+                                        <!-- Section 3: Security -->
+                                        <div>
+                                            <h4 class="text-xs font-extrabold text-slate-700 mb-3.5 flex items-center gap-2">
+                                                <span>Security</span>
+                                            </h4>
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                                <!-- SSL/TLS Certificates -->
+                                                <div @click="installSSL(d)"
+                                                    class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-lg"
+                                                        :class="d.ssl_enabled ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-amber-50 text-amber-600 border border-amber-200'">
+                                                        🔒
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">SSL/TLS Certificates</div>
+                                                        <div class="text-[10px] font-semibold truncate" :class="d.ssl_enabled ? 'text-emerald-600' : 'text-amber-600'">
+                                                            {{ d.ssl_enabled ? 'Let\'s Encrypt Active' : 'Chưa có SSL' }}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                                    <div class="h-full bg-emerald-500 rounded-full transition-all duration-500" style="width: 8%"></div>
+
+                                                <!-- Password-Protected Directories -->
+                                                <div class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-200 text-lg">
+                                                        🛡️
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Password Protection</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">Protect directories</div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Hotlink Protection -->
+                                                <div class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200 text-lg">
+                                                        🔗
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Hotlink Protection</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">Direct link defense</div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <!-- Database Info -->
-                                            <div class="pt-1.5 flex items-center justify-between text-slate-700 border-t border-slate-100">
-                                                <span class="font-medium">MariaDB Database:</span>
-                                                <button class="text-blue-600 hover:text-blue-700 font-mono text-[11px] font-bold flex items-center gap-1">
-                                                    <span>phpMyAdmin</span>
-                                                    <span>&rarr;</span>
-                                                </button>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                                <!-- TAB 2: HOSTING & DNS -->
+                                <div v-if="getDomainSubTab(d.id) === 'hosting_dns'" class="p-6 space-y-4 text-xs">
+                                    <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                                        <h4 class="font-bold text-slate-800">Cấu hình Hosting & DNS của {{ d.domain_name }}</h4>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <span class="text-slate-500">Document Root:</span>
+                                                <span class="font-mono font-bold text-slate-800 block mt-0.5">{{ d.document_root }}</span>
+                                            </div>
+                                            <div>
+                                                <span class="text-slate-500">Web Server Engine:</span>
+                                                <span class="font-bold text-slate-800 block mt-0.5">{{ d.webserver === 'ols' ? 'OpenLiteSpeed (LSWS)' : 'Nginx Web Server' }}</span>
+                                            </div>
+                                            <div>
+                                                <span class="text-slate-500">Isolated Linux User:</span>
+                                                <span class="font-mono font-bold text-blue-600 block mt-0.5">{{ d.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) }}</span>
+                                            </div>
+                                            <div>
+                                                <span class="text-slate-500">PHP Socket:</span>
+                                                <span class="font-mono text-slate-700 block mt-0.5">/run/php/php{{ d.php_version }}-fpm-{{ d.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) }}.sock</span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
+
+                                <!-- TAB 3: MAIL -->
+                                <div v-if="getDomainSubTab(d.id) === 'mail'" class="p-6 space-y-4 text-xs">
+                                    <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center py-8">
+                                        <div class="text-3xl mb-2">✉️</div>
+                                        <h4 class="font-bold text-slate-800">Quản Lý Mail Server Cho {{ d.domain_name }}</h4>
+                                        <p class="text-slate-500 mt-1 max-w-md mx-auto">Thiết lập tài khoản email theo tên miền, cấu hình bản ghi DKIM, SPF, DMARC và Webmail.</p>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
                     </div>
@@ -1790,12 +2041,10 @@
 
                         <div>
                             <label class="block font-semibold text-slate-300 mb-1">Phiên Bản PHP</label>
-                            <select v-model="newDomain.php_version" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500">
-                                <option value="8.4">PHP 8.4 (Mới nhất)</option>
-                                <option value="8.3">PHP 8.3</option>
-                                <option value="8.2" selected>PHP 8.2 (Khuyên dùng)</option>
-                                <option value="8.1">PHP 8.1</option>
-                                <option value="7.4">PHP 7.4 (Tương thích cũ)</option>
+                            <select v-model="newDomain.php_version" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500 font-mono text-xs">
+                                <option v-for="p in allPhpVersions" :key="p.ver" :value="p.ver">
+                                    {{ p.label }}
+                                </option>
                             </select>
                         </div>
 
@@ -1809,6 +2058,75 @@
                             <button type="submit" class="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-500 shadow-lg shadow-blue-500/20">Tạo Website</button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- MODAL: PHP SETTINGS & VERSION SWITCHER (UX CHỌN PHP CHUẨN PLESK) -->
+            <div v-if="showChangePhpModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-200 text-slate-800 animate-fadeIn">
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-md">
+                                PHP
+                            </div>
+                            <div>
+                                <h3 class="text-base font-bold text-slate-900">PHP Settings - {{ targetPhpDomain?.domain_name }}</h3>
+                                <p class="text-xs text-slate-500">Thay đổi môi trường thực thi PHP (hỗ trợ từ PHP 5.6 đến 8.5)</p>
+                            </div>
+                        </div>
+                        <button @click="showChangePhpModal = false" class="text-slate-400 hover:text-slate-700 text-xl leading-none p-1 rounded-lg hover:bg-slate-100 transition">&times;</button>
+                    </div>
+
+                    <div class="space-y-4 text-xs">
+                        <!-- Thông tin hiện tại -->
+                        <div class="p-3.5 rounded-xl bg-blue-50/70 border border-blue-100 flex items-center justify-between">
+                            <div>
+                                <div class="text-slate-500">Phiên bản PHP hiện tại:</div>
+                                <div class="font-bold text-blue-800 text-sm font-mono mt-0.5">PHP {{ targetPhpDomain?.php_version }}</div>
+                            </div>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold font-mono">
+                                {{ targetPhpDomain?.webserver === 'ols' ? 'LSAPI LSPHP' : 'PHP-FPM Socket' }}
+                            </span>
+                        </div>
+
+                        <!-- Dropdown chọn PHP Version mới -->
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1.5">Chọn phiên bản PHP mới:</label>
+                            <select v-model="selectedNewPhpVersion"
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 font-mono text-xs shadow-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20">
+                                <option v-for="p in allPhpVersions" :key="'switch_' + p.ver" :value="p.ver">
+                                    {{ p.label }}
+                                </option>
+                            </select>
+                            <p class="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                                💡 Khi chuyển đổi, hệ thống sẽ tự động cấu hình lại VirtualHost web server (Nginx fastcgi_pass hoặc OpenLiteSpeed lsapi), tạo socket FPM cô lập và reload dịch vụ mà không làm gián đoạn website.
+                            </p>
+                        </div>
+
+                        <!-- FastCGI / Handler Info -->
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5 text-[11px] text-slate-600">
+                            <div class="flex justify-between">
+                                <span>Kiểu xử lý (Handler Type):</span>
+                                <span class="font-semibold text-slate-800">{{ targetPhpDomain?.webserver === 'ols' ? 'LiteSpeed SAPI (lsapi)' : 'FPM application served by Nginx' }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Isolated Linux User:</span>
+                                <span class="font-mono text-slate-800 font-bold">{{ targetPhpDomain?.domain_name ? targetPhpDomain.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) : 'www-data' }}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                            <button type="button" @click="showChangePhpModal = false" :disabled="changingPhp"
+                                class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition">
+                                Hủy
+                            </button>
+                            <button type="button" @click="confirmChangePhp" :disabled="changingPhp"
+                                class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-500/20 transition flex items-center space-x-1.5">
+                                <span v-if="changingPhp" class="animate-spin">⏳</span>
+                                <span>{{ changingPhp ? 'Đang chuyển đổi...' : 'Áp Dụng Phiên Bản' }}</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1968,10 +2286,9 @@
                                         <label class="block text-[11px] font-semibold text-slate-600 mb-1">Phiên Bản PHP</label>
                                         <select v-model="newCustomer.php_version"
                                             class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 font-mono text-xs shadow-sm focus:outline-none focus:border-blue-500">
-                                            <option value="8.3">PHP 8.3 (Mới nhất)</option>
-                                            <option value="8.2">PHP 8.2 (Khuyên dùng)</option>
-                                            <option value="8.1">PHP 8.1</option>
-                                            <option value="7.4">PHP 7.4 (Tương thích cũ)</option>
+                                            <option v-for="p in allPhpVersions" :key="'cust_' + p.ver" :value="p.ver">
+                                                {{ p.label }}
+                                            </option>
                                         </select>
                                     </div>
                                 </div>
@@ -2778,6 +3095,27 @@
                 const loggingIn = ref(false);
 
                 const newDomain = ref({ domain_name: '', webserver: 'ols', php_version: '8.2', install_wp: true });
+
+                // Plesk 360 UI: Tabs chi tiết cho Website & Modal đổi PHP
+                const activeDomainSubTab = ref({});
+                const showChangePhpModal = ref(false);
+                const targetPhpDomain = ref(null);
+                const selectedNewPhpVersion = ref('8.2');
+                const changingPhp = ref(false);
+                const allPhpVersions = ref([
+                    { ver: '8.5', label: 'PHP 8.5 (Bản mới nhất)' },
+                    { ver: '8.4', label: 'PHP 8.4' },
+                    { ver: '8.3', label: 'PHP 8.3' },
+                    { ver: '8.2', label: 'PHP 8.2 (Khuyên dùng)' },
+                    { ver: '8.1', label: 'PHP 8.1' },
+                    { ver: '8.0', label: 'PHP 8.0' },
+                    { ver: '7.4', label: 'PHP 7.4 (WordPress legacy)' },
+                    { ver: '7.3', label: 'PHP 7.3' },
+                    { ver: '7.2', label: 'PHP 7.2' },
+                    { ver: '7.1', label: 'PHP 7.1' },
+                    { ver: '7.0', label: 'PHP 7.0' },
+                    { ver: '5.6', label: 'PHP 5.6 (Legacy)' }
+                ]);
 
                 // Dữ liệu App Store & Software Manager
                 const appsList = ref([]);
@@ -3743,6 +4081,48 @@
                 const handleWPClone = (d) => alert(`Chức năng Clone Staging cho ${d.domain_name}`);
                 const handleWPSecure = (d) => alert(`Đã kích hoạt Security Hardening cho ${d.domain_name}`);
 
+                const getDomainSubTab = (domainId) => {
+                    return activeDomainSubTab.value[domainId] || 'dashboard';
+                };
+
+                const setDomainSubTab = (domainId, tab) => {
+                    activeDomainSubTab.value = { ...activeDomainSubTab.value, [domainId]: tab };
+                };
+
+                const openChangePhpModal = (domain) => {
+                    targetPhpDomain.value = domain;
+                    selectedNewPhpVersion.value = domain.php_version || '8.2';
+                    showChangePhpModal.value = true;
+                };
+
+                const confirmChangePhp = async () => {
+                    if (!targetPhpDomain.value) return;
+                    changingPhp.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${targetPhpDomain.value.id}/change-php`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ php_version: selectedNewPhpVersion.value })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || `Đã chuyển sang PHP ${selectedNewPhpVersion.value} thành công!`);
+                            targetPhpDomain.value.php_version = selectedNewPhpVersion.value;
+                            showChangePhpModal.value = false;
+                            fetchDomains();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể đổi phiên bản PHP'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        changingPhp.value = false;
+                    }
+                };
+
                 // ==========================================
                 // FILE MANAGER LOGIC & METHODS
                 // ==========================================
@@ -4159,6 +4539,9 @@
                     phpExtensions, loadingExtensions, phpDirectives, savingDirectives,
                     phpInfoContent, loadingPhpInfo, fetchPhpExtensions, togglePhpExtensionAction,
                     fetchPhpDirectives, savePhpDirectives, fetchPhpInfo,
+                    activeDomainSubTab, showChangePhpModal, targetPhpDomain, selectedNewPhpVersion,
+                    changingPhp, allPhpVersions, getDomainSubTab, setDomainSubTab,
+                    openChangePhpModal, confirmChangePhp,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain,
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
                     fetchSystemStatus, restartPanel, refreshLucideIcons,

@@ -270,4 +270,54 @@ async def impersonate_website_user(
         }
     }
 
+class ChangePhpRequest(BaseModel):
+    php_version: str
+
+@router.post("/{domain_id}/change-php")
+async def change_domain_php(
+    domain_id: int,
+    req: ChangePhpRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Thay đổi phiên bản PHP (5.6 -> 8.5) cho một website cụ thể"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+
+    if not domain:
+        await db.close()
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            await db.close()
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    active_ws = domain["webserver"]
+    new_php = req.php_version
+
+    # Thực thi Gatekeeper: vhost set-php <user> <domain> <ols|nginx> <php_ver>
+    res = await run_gatekeeper("vhost", "set-php", isolated_user, clean_domain, active_ws, new_php)
+    if res.get("status") == "error":
+        await db.close()
+        raise HTTPException(status_code=400, detail=res.get("message", "Không thể đổi phiên bản PHP"))
+
+    # Cập nhật database
+    await db.execute("UPDATE domains SET php_version = ? WHERE id = ?", (new_php, domain_id))
+    await db.commit()
+    await db.close()
+
+    return {
+        "status": "success",
+        "message": f"Đã chuyển website {clean_domain} sang PHP {new_php} thành công!",
+        "php_version": new_php
+    }
+
 
