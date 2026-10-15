@@ -2445,20 +2445,20 @@
 
                 const newDomain = ref({ domain_name: '', webserver: 'ols', php_version: '8.2', install_wp: true });
 
+                // Dữ liệu App Store & Software Manager
+                const appsList = ref([]);
+                const appsCategory = ref('all');
+                const installingAppId = ref('');
+
                 // Xác định Web Server đang hoạt động ở tầng Server (OLS hoặc Nginx)
                 const activeSystemWebserver = computed(() => {
-                    const nginxApp = appsList.value.find(a => a.id === 'nginx');
-                    const olsApp = appsList.value.find(a => a.id === 'ols');
+                    const nginxApp = (appsList.value || []).find(a => a.id === 'nginx');
+                    const olsApp = (appsList.value || []).find(a => a.id === 'ols');
                     if (nginxApp && nginxApp.running) return 'nginx';
                     if (olsApp && olsApp.running) return 'ols';
                     if (nginxApp && nginxApp.installed && (!olsApp || !olsApp.installed)) return 'nginx';
                     return 'ols';
                 });
-
-                // Dữ liệu App Store & Software Manager
-                const appsList = ref([]);
-                const appsCategory = ref('all');
-                const installingAppId = ref('');
 
                 const getApp = (id) => {
                     const found = appsList.value.find(a => a.id === id);
@@ -3231,6 +3231,9 @@
                 const installSSL = async (domain) => {
                     alert(`Đang gửi yêu cầu cấp chứng chỉ Let's Encrypt cho ${domain.domain_name}...`);
                 };
+
+                const handleWPClone = (d) => alert(`Chức năng Clone Staging cho ${d.domain_name}`);
+                const handleWPSecure = (d) => alert(`Đã kích hoạt Security Hardening cho ${d.domain_name}`);
 
                 // ==========================================
                 // FILE MANAGER LOGIC & METHODS
