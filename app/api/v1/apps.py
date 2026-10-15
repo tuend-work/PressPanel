@@ -545,15 +545,18 @@ async def rewrite_webserver_config(
             except Exception as e:
                 backup_notes.append(f"Lỗi sao lưu OLS: {str(e)}")
 
-    # 2. Truy vấn tất cả website trong DB thuộc về webserver này (hoặc tất cả nếu match)
+    # 2. Lấy TOÀN BỘ websites trong DB để áp dụng Web Server cấp hệ thống
     db = await get_db_connection()
     cursor = await db.execute("""
-        SELECT d.domain_name, d.webserver, d.php_version, d.document_root, u.username
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.document_root, u.username
         FROM domains d
         JOIN users u ON d.user_id = u.id
-        WHERE d.webserver = ?
-    """, (ws,))
+    """)
     domains = await cursor.fetchall()
+    
+    # Cập nhật webserver của toàn bộ websites trong DB sang webserver hệ thống được chọn
+    await db.execute("UPDATE domains SET webserver = ?", (ws,))
+    await db.commit()
     await db.close()
 
     gatekeeper_vhost = "/opt/presspanel/bin/vhost"

@@ -73,18 +73,32 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
     isolated_user = domain_to_linux_user(clean_domain)
     doc_root = f"/home/{isolated_user}/httpdocs/{clean_domain}"
 
+    # TỰ ĐỘNG CHỌN WEBSERVER TẦNG SERVER:
+    # QTV cấu hình/bật webserver nào (OLS hoặc Nginx) thì hệ thống sử dụng webserver đó cho tất cả web.
+    active_ws = req.webserver or "ols"
+    db = await get_db_connection()
+    # Kiểm tra xem có cấu hình webserver hệ thống nào đang được dùng gần nhất không
+    ws_cur = await db.execute("SELECT webserver FROM domains ORDER BY id DESC LIMIT 1")
+    last_ws = await ws_cur.fetchone()
+    if last_ws and last_ws["webserver"]:
+        active_ws = last_ws["webserver"]
+    elif os.path.exists("/usr/sbin/nginx") and not os.path.exists("/usr/local/lsws/bin/lswsctrl"):
+        active_ws = "nginx"
+    else:
+        active_ws = "ols"
+
     # Gọi C gatekeeper: vhost add <user> <domain> <ols|nginx> <php_ver>
     # Script vhost_manager.sh sẽ tự động gọi ensure_linux_user tạo isolated_user & phân quyền an toàn
-    res = await run_gatekeeper("vhost", "add", isolated_user, clean_domain, req.webserver, req.php_version)
+    res = await run_gatekeeper("vhost", "add", isolated_user, clean_domain, active_ws, req.php_version)
     if res.get("status") == "error":
+        await db.close()
         raise HTTPException(status_code=400, detail=res.get("message", "Không thể tạo VirtualHost"))
 
-    db = await get_db_connection()
     try:
         await db.execute("""
             INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version)
             VALUES (?, ?, ?, ?, ?)
-        """, (current_user["id"], clean_domain, doc_root, req.webserver, req.php_version))
+        """, (current_user["id"], clean_domain, doc_root, active_ws, req.php_version))
         await db.commit()
     except Exception as e:
         await db.close()

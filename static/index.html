@@ -30,6 +30,8 @@
     </script>
     <!-- Vue 3 CDN (Chạy trực tiếp không cần build npm) -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <!-- Lucide Icons (Free official icons https://lucide.dev/icons/) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Google Font Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
@@ -132,8 +134,8 @@
                     <div>
                         <!-- Logo Header WPCloud -->
                         <div class="h-16 px-5 flex items-center space-x-3 border-b border-slate-800/80 bg-[#0a111c]">
-                            <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/30 font-bold text-lg">
-                                ☁️
+                            <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/30 font-bold">
+                                <i data-lucide="cloud" class="w-5 h-5"></i>
                             </div>
                             <div class="flex flex-col">
                                 <span class="text-base font-bold text-white tracking-tight leading-tight flex items-center gap-1.5">
@@ -148,7 +150,7 @@
                             <!-- 1. Tổng quan (All Roles) -->
                             <button @click="currentTab = 'dashboard'" :class="navClass('dashboard')">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-base">🏠</span>
+                                    <i data-lucide="layout-dashboard" class="w-4 h-4 text-slate-400"></i>
                                     <span>Tổng quan</span>
                                 </div>
                             </button>
@@ -156,105 +158,96 @@
                             <!-- 2. Website & Tên miền (All Roles) -->
                             <button @click="currentTab = 'domains'" :class="navClass('domains')">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-base">🌐</span>
+                                    <i data-lucide="globe" class="w-4 h-4 text-slate-400"></i>
                                     <span>{{ currentUser.role === 'user' ? 'Website của tôi' : 'Website & Domains' }}</span>
                                 </div>
-                                <span class="text-[10px] text-slate-400">⌵</span>
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
                             <!-- 3. WordPress (All Roles) -->
                             <button @click="currentTab = 'wp'" :class="navClass('wp')">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-base">🇼</span>
+                                    <i data-lucide="layers" class="w-4 h-4 text-slate-400"></i>
                                     <span>WordPress</span>
                                 </div>
-                                <span class="text-[10px] text-slate-400">⌵</span>
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 4. Hosting & Subscriptions (Admin & Hosting User) -->
-                            <button v-if="['admin', 'reseller'].includes(currentUser.role)" @click="currentTab = 'subscriptions'" :class="navClass('subscriptions')">
-                                <div class="flex items-center space-x-3">
-                                    <span class="text-base">🗄️</span>
-                                    <span>Hosting & Subscriptions</span>
-                                </div>
-                                <span class="text-[10px] text-slate-400">⌵</span>
-                            </button>
-
-                            <!-- 5. Service Plans (Chỉ Admin) -->
+                            <!-- 4. Service Plans (Chỉ Admin) -->
                             <button v-if="currentUser.role === 'admin'" @click="currentTab = 'service_plans'" :class="navClass('service_plans')">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-base">🖥️</span>
+                                    <i data-lucide="cpu" class="w-4 h-4 text-slate-400"></i>
                                     <span>Gói Dịch Vụ (Plans)</span>
                                 </div>
-                                <span class="text-[10px] text-slate-400">⌵</span>
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 6. Quản Lý Hosting Users / Khách Hàng (Chỉ Admin) -->
+                            <!-- 5. Quản Lý Hosting Users / Khách Hàng (Chỉ Admin) -->
                             <button v-if="currentUser.role === 'admin'" @click="currentTab = 'customers'" :class="navClass('customers')">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-base">👥</span>
+                                    <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
                                     <span>Hosting Users</span>
                                 </div>
                                 <span class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">{{ customers.length }}</span>
                             </button>
 
-                            <!-- 7. Cơ sở dữ liệu & Database Users (Chỉ Hosting User / Reseller & Admin) -->
+                            <!-- 6. Cơ sở dữ liệu & Database Users (Chỉ Hosting User / Reseller & Admin) -->
                             <button v-if="['admin', 'reseller'].includes(currentUser.role)" @click="currentTab = 'databases'" :class="navClass('databases')">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-base">🗃️</span>
+                                    <i data-lucide="database" class="w-4 h-4 text-slate-400"></i>
                                     <span>Databases & Users</span>
                                 </div>
-                                <span class="text-[10px] text-slate-400">⌵</span>
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 8. File Manager & SSH (Web User & Admin) -->
+                            <!-- 7. File Manager & SSH (Web User & Admin) -->
                             <button v-if="['admin', 'user'].includes(currentUser.role)" @click="currentTab = 'files'" :class="navClass('files')">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-base">📁</span>
+                                    <i data-lucide="folder" class="w-4 h-4 text-slate-400"></i>
                                     <span>File Manager</span>
                                 </div>
                                 <span v-if="currentUser.role === 'user'" class="text-[9px] px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 font-mono">SSH</span>
                             </button>
 
-                            <!-- 9. Tiến trình & Hỗ trợ (All Roles) -->
+                            <!-- 8. Tiến trình & Hỗ trợ (All Roles) -->
                             <button @click="openMessageBox('tasks')" :class="msgBoxTab === 'tasks' && showMessagesBox ? navClass('support') : 'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-[#142338] transition'">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-base">🎧</span>
+                                    <i data-lucide="activity" class="w-4 h-4 text-slate-400"></i>
                                     <span>Tiến trình & Hỗ trợ</span>
                                 </div>
                                 <span v-if="runningTasks.length > 0" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                                <span v-else class="text-[10px] text-slate-400">⌵</span>
+                                <i v-else data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 10. Công cụ / App Store (Chỉ Admin mới cài đặt và quản trị server app) -->
+                            <!-- 9. Công cụ / App Store (Chỉ Admin mới cài đặt và quản trị server app) -->
                             <button v-if="currentUser.role === 'admin'" @click="currentTab = 'apps'" :class="navClass('apps')">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-base">🔧</span>
+                                    <i data-lucide="store" class="w-4 h-4 text-slate-400"></i>
                                     <span>Công cụ & App Store</span>
                                 </div>
-                                <span class="text-[10px] text-slate-400">⌵</span>
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 11. Bảo mật (Chỉ Admin) -->
+                            <!-- 10. Bảo mật (Chỉ Admin) -->
                             <button v-if="currentUser.role === 'admin'" @click="currentTab = 'firewall'" :class="navClass('firewall')">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-base">🛡️</span>
+                                    <i data-lucide="shield-check" class="w-4 h-4 text-slate-400"></i>
                                     <span>Bảo mật</span>
                                 </div>
                             </button>
 
-                            <!-- 12. Báo cáo (Admin & Hosting User) -->
+                            <!-- 11. Báo cáo (Admin & Hosting User) -->
                             <button v-if="['admin', 'reseller'].includes(currentUser.role)" @click="currentTab = 'monitoring'" :class="navClass('monitoring')">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-base">📊</span>
+                                    <i data-lucide="line-chart" class="w-4 h-4 text-slate-400"></i>
                                     <span>Báo cáo</span>
                                 </div>
                             </button>
 
-                            <!-- 13. Cài đặt (Admin & Hosting User) -->
+                            <!-- 12. Cài đặt (Admin) -->
                             <button v-if="currentUser.role === 'admin'" @click="currentTab = 'tools_settings'" :class="navClass('tools_settings')">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-base">⚙️</span>
+                                    <i data-lucide="settings" class="w-4 h-4 text-slate-400"></i>
                                     <span>Cài đặt hệ thống</span>
                                 </div>
                             </button>
@@ -300,11 +293,11 @@
                     <!-- Left: Hamburger toggle & Rounded Search Input -->
                     <div class="flex items-center space-x-4 flex-1 max-w-xl">
                         <button class="text-slate-500 hover:text-slate-800 p-1.5 rounded-lg hover:bg-slate-100 transition md:hidden">
-                            <span class="text-lg">☰</span>
+                            <i data-lucide="menu" class="w-5 h-5"></i>
                         </button>
                         <div class="relative w-full max-w-md">
-                            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 text-xs">
-                                🔍
+                            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                <i data-lucide="search" class="w-4 h-4"></i>
                             </span>
                             <input type="text" placeholder="Tìm kiếm domain, server, khách hàng..."
                                 class="w-full pl-9 pr-4 py-2 rounded-full bg-slate-50 border border-slate-200/80 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white transition shadow-sm">
@@ -315,7 +308,7 @@
                     <div class="flex items-center space-x-4">
                         <!-- Tasks Box Button -->
                         <button @click="openMessageBox('tasks')" title="Tiến trình đang chạy" class="relative p-2 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition">
-                            <span class="text-base">🔔</span>
+                            <i data-lucide="bell" class="w-4 h-4"></i>
                             <span v-if="runningTasks.length > 0" class="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white font-bold text-[9px] flex items-center justify-center ring-2 ring-white animate-pulse">
                                 {{ runningTasks.length }}
                             </span>
@@ -339,7 +332,7 @@
 
                         <!-- Logout Button -->
                         <button @click="handleLogout" title="Đăng Xuất" class="text-slate-400 hover:text-rose-600 transition text-sm p-1.5 rounded-lg hover:bg-rose-50">
-                            🚪
+                            <i data-lucide="log-out" class="w-4 h-4"></i>
                         </button>
                     </div>
                 </header>
@@ -1391,129 +1384,7 @@
                         </div>
                     </div>
 
-                    <!-- ========================================== -->
-                    <!-- VIEW 6.5: SUBSCRIPTIONS (CHUẨN GIAO DIỆN PLESK THEO ẢNH USER) -->
-                    <!-- ========================================== -->
-                    <div v-if="currentTab === 'subscriptions'" class="space-y-6 max-w-7xl mx-auto">
-                        <div>
-                            <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Subscriptions (Gói Lưu Trữ Hosting)</h2>
-                            <p class="text-xs text-slate-500 mt-1 max-w-4xl leading-relaxed">
-                                Khách hàng nhận tài nguyên lưu trữ và tên miền thông qua Subscription. Bạn có thể quản trị các gói thuê bao tại đây hoặc chuyển sang quyền của Customer để cấu hình sâu cho từng web.
-                            </p>
-                        </div>
 
-                        <!-- Plesk Action Buttons Toolbar -->
-                        <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <!-- Nút Add Subscription -->
-                                <button @click="showAddCustomerModal = true; fetchServicePlans();"
-                                    class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white shadow-sm transition flex items-center space-x-1.5">
-                                    <span>➕ Add Subscription</span>
-                                </button>
-
-                                <button @click="currentTab = 'service_plans'"
-                                    class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 border border-slate-200 transition flex items-center space-x-1">
-                                    <span>📋 Change Plan</span>
-                                </button>
-
-                                <button @click="currentTab = 'customers'"
-                                    class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 border border-slate-200 transition flex items-center space-x-1">
-                                    <span>👤 Change Subscriber</span>
-                                </button>
-
-                                <!-- Set Status Dropdown -->
-                                <div class="relative">
-                                    <button @click="showSubStatusMenu = !showSubStatusMenu"
-                                        class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-semibold transition flex items-center space-x-1">
-                                        <span>Set Status</span>
-                                        <span class="text-[10px]">▼</span>
-                                    </button>
-                                    <div v-if="showSubStatusMenu" class="absolute left-0 mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-xl py-1 z-30">
-                                        <button @click="showSubStatusMenu = false" class="w-full text-left px-3 py-1.5 text-xs text-emerald-600 hover:bg-slate-50 flex items-center space-x-1.5 font-medium">
-                                            <span>●</span> <span>Active</span>
-                                        </button>
-                                        <button @click="showSubStatusMenu = false" class="w-full text-left px-3 py-1.5 text-xs text-rose-600 hover:bg-slate-50 flex items-center space-x-1.5 font-medium">
-                                            <span>●</span> <span>Suspended</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <button @click="handleBatchDeleteDomains(selectedSubIds)"
-                                    :disabled="selectedSubIds.length === 0"
-                                    :class="selectedSubIds.length === 0 ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border border-slate-200' : 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200'"
-                                    class="px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-1">
-                                    <span>✕ Remove</span>
-                                    <span v-if="selectedSubIds.length > 0" class="text-[10px] font-mono font-bold">({{ selectedSubIds.length }})</span>
-                                </button>
-                            </div>
-
-                            <div class="text-xs text-slate-500 font-mono font-medium">
-                                {{ domains.length }} items total
-                            </div>
-                        </div>
-
-                        <!-- Subscriptions Table -->
-                        <div class="wp-card rounded-2xl overflow-hidden shadow-sm border border-slate-200/90 bg-white">
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left text-xs text-slate-700">
-                                    <thead class="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                                        <tr>
-                                            <th class="py-3 px-3 w-10 text-center">
-                                                <input type="checkbox" :checked="isAllSubsSelected" @change="toggleSelectAllSubs"
-                                                    class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500">
-                                            </th>
-                                            <th class="py-3 px-4">Subscription ↑</th>
-                                            <th class="py-3 px-4">Subscriber</th>
-                                            <th class="py-3 px-4">Setup Date</th>
-                                            <th class="py-3 px-4">Expiration Date</th>
-                                            <th class="py-3 px-4 text-right">Customer Panel</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-slate-100">
-                                        <tr v-if="domains.length === 0">
-                                            <td colspan="6" class="py-12 text-center text-slate-500">
-                                                <div class="text-3xl mb-2">🗂️</div>
-                                                <div class="font-medium">Chưa có subscription nào</div>
-                                                <div class="text-[11px] text-slate-400 mt-1">Bấm nút "➕ Add Subscription" ở trên để tạo subscription đầu tiên.</div>
-                                            </td>
-                                        </tr>
-                                        <tr v-for="d in domains" :key="d.id" :class="selectedSubIds.includes(d.id) ? 'bg-blue-50/40' : 'hover:bg-slate-50/70'" class="transition">
-                                            <td class="py-3.5 px-3 text-center">
-                                                <input type="checkbox" :value="d.id" v-model="selectedSubIds"
-                                                    class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500">
-                                            </td>
-                                            <td class="py-3.5 px-4 font-medium text-slate-800 flex items-center space-x-2">
-                                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500" title="Active"></span>
-                                                <a :href="'http://' + d.domain_name" target="_blank" class="font-bold text-slate-800 hover:text-blue-600 transition">
-                                                    {{ d.domain_name }}
-                                                </a>
-                                                <span class="text-slate-500 font-mono text-[11px] bg-slate-100 px-1.5 py-0.5 rounded">
-                                                    ({{ d.plan_name || 'HOSTING-PLAN' }})
-                                                </span>
-                                            </td>
-                                            <td class="py-3.5 px-4">
-                                                <div class="text-slate-800 font-semibold">{{ d.owner_username || 'Administrator' }}</div>
-                                                <div class="text-[10px] text-slate-400">{{ d.owner_email || 'admin@presspanel.local' }}</div>
-                                            </td>
-                                            <td class="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
-                                                {{ (d.created_at || '').slice(0, 10) || '2026-10-15' }}
-                                            </td>
-                                            <td class="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
-                                                Never expires
-                                            </td>
-                                            <td class="py-3.5 px-4 text-right">
-                                                <button @click="currentTab = 'domains'"
-                                                    class="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold text-xs transition inline-flex items-center space-x-1 shadow-sm">
-                                                    <span>➡️</span>
-                                                    <span>Manage in Customer Panel</span>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
 
                     <!-- ========================================== -->
                     <!-- VIEW 6.8: DATABASES & DATABASE USERS (CHO HOSTING USER & ADMIN) -->
@@ -1637,11 +1508,15 @@
                         </div>
 
                         <div>
-                            <label class="block font-semibold text-slate-300 mb-1">Máy Chủ Web (Web Server)</label>
-                            <select v-model="newDomain.webserver" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500">
-                                <option value="ols">OpenLiteSpeed (Khuyên dùng - Siêu tốc)</option>
-                                <option value="nginx">Nginx Server</option>
-                            </select>
+                            <label class="block font-semibold text-slate-300 mb-1">Máy Chủ Web (Web Server Tầng Server)</label>
+                            <div class="px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <i data-lucide="server" class="w-4 h-4 text-blue-400"></i>
+                                    <span class="font-bold text-white">{{ activeSystemWebserver === 'nginx' ? 'Nginx Web Server' : 'OpenLiteSpeed (LSWS)' }}</span>
+                                </div>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">Định cấu hình tự động</span>
+                            </div>
+                            <p class="text-[10px] text-slate-400 mt-1">Hệ thống áp dụng Web Server mặc định tầng server. Quản trị viên thay đổi Web Server tại Kho Ứng Dụng.</p>
                         </div>
 
                         <div>
@@ -1791,15 +1666,14 @@
                                     </select>
                                 </div>
 
-                                <!-- Web Server & PHP & WP -->
+                                <!-- Web Server Tầng Server & PHP -->
                                 <div class="grid grid-cols-2 gap-3 pt-1">
                                     <div>
-                                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Web Server</label>
-                                        <select v-model="newCustomer.webserver"
-                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white">
-                                            <option value="ols">⚡ OpenLiteSpeed (LSWS)</option>
-                                            <option value="nginx">🌐 Nginx Web Server</option>
-                                        </select>
+                                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Web Server Hệ Thống</label>
+                                        <div class="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs flex items-center space-x-1.5">
+                                            <i data-lucide="server" class="w-3.5 h-3.5 text-blue-400"></i>
+                                            <span class="font-medium">{{ activeSystemWebserver === 'nginx' ? 'Nginx' : 'OpenLiteSpeed' }}</span>
+                                        </div>
                                     </div>
                                     <div>
                                         <label class="block text-[11px] font-semibold text-slate-400 mb-1">Phiên Bản PHP</label>
@@ -2270,7 +2144,7 @@
     </div>
 
     <script>
-        const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
+        const { createApp, ref, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 
         createApp({
             setup() {
@@ -2361,6 +2235,15 @@
 
                 const newDomain = ref({ domain_name: '', webserver: 'ols', php_version: '8.2', install_wp: true });
 
+                // Xác định Web Server đang hoạt động ở tầng Server (OLS hoặc Nginx)
+                const activeSystemWebserver = computed(() => {
+                    const nginxApp = appsList.value.find(a => a.id === 'nginx');
+                    const olsApp = appsList.value.find(a => a.id === 'ols');
+                    if (nginxApp && nginxApp.running) return 'nginx';
+                    if (olsApp && olsApp.running) return 'ols';
+                    if (nginxApp && nginxApp.installed && (!olsApp || !olsApp.installed)) return 'nginx';
+                    return 'ols';
+                });
 
                 // Dữ liệu App Store & Software Manager
                 const appsList = ref([]);
@@ -2605,6 +2488,10 @@
                         const data = await res.json();
                         if (res.ok) {
                             alert(data.message || 'Thực thi thành công!');
+                            // Nếu vừa khởi động (start/restart) Webserver (OLS hoặc Nginx), tự động đồng bộ cấu hình VirtualHost cho toàn bộ websites
+                            if (['start', 'restart'].includes(action) && ['ols', 'nginx'].includes(appId)) {
+                                handleRewriteWebserverConfig(appId);
+                            }
                             setTimeout(() => {
                                 fetchAppsList();
                                 fetchSystemStatus();
@@ -3188,6 +3075,26 @@
                     }
                 };
 
+                const refreshLucideIcons = () => {
+                    nextTick(() => {
+                        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                            window.lucide.createIcons();
+                        }
+                    });
+                };
+
+                watch(currentTab, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showMessagesBox, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(appsList, () => {
+                    refreshLucideIcons();
+                }, { deep: true });
+
                 let timer = null;
                 onMounted(() => {
                     const savedUser = localStorage.getItem('presspanel_user');
@@ -3202,6 +3109,7 @@
                         fetchAppsList();
                         fetchTasks();
                     }
+                    refreshLucideIcons();
                     // Tự động làm mới số liệu và kiểm tra task chạy ngầm mỗi 3 giây
                     timer = setInterval(() => {
                         if (token.value) {
@@ -3229,7 +3137,7 @@
                     showMessagesBox, msgBoxTab, runningTasks, completedTasks,
                     selectedTaskId, selectedTaskLog, fetchTasks, viewTaskLog,
                     refreshSelectedLog, openMessageBox, currentFormattedDate,
-                    loginForm, loginError, loggingIn, newDomain, tabTitle,
+                    loginForm, loginError, loggingIn, newDomain, tabTitle, activeSystemWebserver,
                     sysStats, trafficHistory, timeLabels, downstreamCurvePath,
                     upstreamCurvePath, downstreamAreaPath, upstreamAreaPath,
                     appsList, appsCategory, installingAppId, installedAppsCount, filteredApps,
@@ -3240,7 +3148,7 @@
                     saveCurrentAppConfig, toggleAppAutorestart,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain,
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
-                    fetchSystemStatus, restartPanel
+                    fetchSystemStatus, restartPanel, refreshLucideIcons
                 };
             }
         }).mount('#app');
