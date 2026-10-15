@@ -106,9 +106,31 @@ echo "[+] Đăng ký và khởi động lại dịch vụ WPCloud Control Panel.
 if [ -f "$TMP_DIR/systemd/presspanel.service" ]; then
     cp "$TMP_DIR/systemd/presspanel.service" /etc/systemd/system/presspanel.service
 fi
+
+# Cấu hình drop-in override tự động gán Cgroup cho tất cả các phiên bản PHP-FPM đang có
+for php_svc in /lib/systemd/system/php*-fpm.service /etc/systemd/system/php*-fpm.service; do
+    [ -f "$php_svc" ] || continue
+    SVC_BASE=$(basename "$php_svc")
+    DROPIN_DIR="/etc/systemd/system/${SVC_BASE}.d"
+    mkdir -p "$DROPIN_DIR"
+    cat << 'EOF' > "$DROPIN_DIR/cgroup_attach.conf"
+[Service]
+ExecStartPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
+ExecReloadPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
+EOF
+done
+
 systemctl daemon-reload
 systemctl enable presspanel
 systemctl restart presspanel
+
+# Khởi động lại các PHP-FPM để nhận drop-in và gán ngay PID vào Cgroups v2
+for php_ver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+    if systemctl is-active --quiet "php${php_ver}-fpm" 2>/dev/null; then
+        systemctl restart "php${php_ver}-fpm" 2>/dev/null || true
+    fi
+done
+/opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true
 
 # 8. Dọn dẹp thư mục tạm
 rm -rf "$TMP_DIR"

@@ -74,9 +74,20 @@ case "$ACTION" in
                 sed -i 's/^max_input_time = .*/max_input_time = 300/' "$PHP_INI" || true
             fi
 
+            # Cấu hình drop-in override cho PHP-FPM để tự động gán worker vào Cgroup v2 của user khi start/reload
+            PHP_OVERRIDE_DIR="/etc/systemd/system/php${VERSION_CLEAN}-fpm.service.d"
+            mkdir -p "$PHP_OVERRIDE_DIR"
+            cat << 'EOF' > "$PHP_OVERRIDE_DIR/cgroup_attach.conf"
+[Service]
+ExecStartPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
+ExecReloadPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
+EOF
+
             # Kích hoạt và khởi chạy service PHP-FPM
+            systemctl daemon-reload 2>/dev/null || true
             systemctl enable "php${VERSION_CLEAN}-fpm" || true
             systemctl restart "php${VERSION_CLEAN}-fpm" || true
+            /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true
 
             # Nếu có OpenLiteSpeed thì cài thêm cả LSPHP tương ứng nếu có repo
             LSPHP_PKG="lsphp$(echo "$VERSION_CLEAN" | tr -d '.')"

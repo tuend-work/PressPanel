@@ -181,14 +181,23 @@ EOF
                     sed -e "s/{{USERNAME}}/$USERNAME/g" \
                         -e "s/{{PHP_VER}}/$PHP_VER/g" \
                         "$PRESSPANEL_DIR/templates/vhost_nginx/php_fpm_pool.tpl" > "$POOL_DIR/${USERNAME}.conf"
+
+                    # Đảm bảo PHP-FPM service có drop-in ExecStartPost tự động attach worker vào Cgroups v2
+                    PHP_DROPIN="/etc/systemd/system/php${PHP_VER}-fpm.service.d"
+                    if [ ! -f "$PHP_DROPIN/cgroup_attach.conf" ]; then
+                        mkdir -p "$PHP_DROPIN"
+                        cat << 'EOF' > "$PHP_DROPIN/cgroup_attach.conf"
+[Service]
+ExecStartPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
+ExecReloadPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
+EOF
+                        systemctl daemon-reload 2>/dev/null || true
+                    fi
+
                     # Khởi động lại hoặc reload php-fpm để nhận pool mới
                     systemctl reload "php${PHP_VER}-fpm" 2>/dev/null || systemctl restart "php${PHP_VER}-fpm" 2>/dev/null || true
                     # Tự động gán các tiến trình worker của user vào đúng nhánh Cgroups v2
-                    (sleep 1 && pgrep -u "$USERNAME" | while read -r pid; do
-                        for cg_proc in /sys/fs/cgroup/wpc/reseller_*/user_${USERNAME}/cgroup.procs /sys/fs/cgroup/wpc/user_${USERNAME}/cgroup.procs; do
-                            [ -f "$cg_proc" ] && echo "$pid" > "$cg_proc" 2>/dev/null || true
-                        done
-                    done) &>/dev/null &
+                    (sleep 1 && /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true) &>/dev/null &
                 fi
 
                 # Kiểm tra và đảm bảo dịch vụ php-fpm tương ứng đang hoạt động
@@ -280,13 +289,22 @@ EOF
                 sed -e "s/{{USERNAME}}/$USERNAME/g" \
                     -e "s/{{PHP_VER}}/$PHP_VER/g" \
                     "$PRESSPANEL_DIR/templates/vhost_nginx/php_fpm_pool.tpl" > "$NEW_POOL_DIR/${USERNAME}.conf"
+
+                # Đảm bảo PHP-FPM service có drop-in ExecStartPost tự động attach worker vào Cgroups v2
+                PHP_DROPIN="/etc/systemd/system/php${PHP_VER}-fpm.service.d"
+                if [ ! -f "$PHP_DROPIN/cgroup_attach.conf" ]; then
+                    mkdir -p "$PHP_DROPIN"
+                    cat << 'EOF' > "$PHP_DROPIN/cgroup_attach.conf"
+[Service]
+ExecStartPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
+ExecReloadPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
+EOF
+                    systemctl daemon-reload 2>/dev/null || true
+                fi
+
                 systemctl reload "php${PHP_VER}-fpm" 2>/dev/null || systemctl restart "php${PHP_VER}-fpm" 2>/dev/null || true
                 # Tự động gán các tiến trình worker của user vào đúng nhánh Cgroups v2
-                (sleep 1 && pgrep -u "$USERNAME" | while read -r pid; do
-                    for cg_proc in /sys/fs/cgroup/wpc/reseller_*/user_${USERNAME}/cgroup.procs /sys/fs/cgroup/wpc/user_${USERNAME}/cgroup.procs; do
-                        [ -f "$cg_proc" ] && echo "$pid" > "$cg_proc" 2>/dev/null || true
-                    done
-                done) &>/dev/null &
+                (sleep 1 && /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true) &>/dev/null &
             fi
 
             if command -v systemctl &>/dev/null; then
