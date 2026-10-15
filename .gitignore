@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.venv/
+env/
+*.env
+
+# C Gatekeeper Binaries & Objects
+gatekeepers/*.o
+gatekeepers/user
+gatekeepers/cgroup
+gatekeepers/cage
+gatekeepers/vhost
+gatekeepers/db
+gatekeepers/app
+gatekeepers/wp
+gatekeepers/template
+
+# Data & Database
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.secret
+*.sqlite3
+
+# Logs
+logs/*.log
+logs/tasks/*.log
+*.log
+
+# Web UI
+web/node_modules/
+web/dist/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
