@@ -71,7 +71,8 @@ static inline void init_security_env(void) {
     clearenv();
     setenv("PATH", SAFE_PATH, 1);
     setenv("LC_ALL", "C.UTF-8", 1);
-    umask(0027);
+    umask(0022);
 }
+
 
 #endif // PRESSPANEL_COMMON_H
