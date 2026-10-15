@@ -69,18 +69,23 @@ cd "$INSTALL_DIR"
 # 6. Đảm bảo phân quyền chính xác
 chown -R presspanel:presspanel "$INSTALL_DIR/app" "$INSTALL_DIR/data" "$INSTALL_DIR/logs"
 
-# 7. Khởi động lại dịch vụ
-echo "[+] Khởi động lại dịch vụ PressPanel..."
+# 7. Đăng ký & Khởi động lại dịch vụ
+echo "[+] Đăng ký và khởi động lại dịch vụ PressPanel..."
+if [ -f "$TMP_DIR/systemd/presspanel.service" ]; then
+    cp "$TMP_DIR/systemd/presspanel.service" /etc/systemd/system/presspanel.service
+fi
 systemctl daemon-reload
+systemctl enable presspanel
 systemctl restart presspanel
 
 # 8. Dọn dẹp thư mục tạm
 rm -rf "$TMP_DIR"
 
 NEW_VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "latest")
+PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
 
 echo "=========================================================="
 echo "   CẬP NHẬT THÀNH CÔNG LÊN PHIÊN BẢN: $NEW_VER           "
 echo "   Trạng thái dịch vụ: $(systemctl is-active presspanel) "
-echo "   Giao diện quản trị: http://<IP_MAY_CHU>:8888          "
+echo "   Giao diện quản trị: http://<IP_MAY_CHU>:$PANEL_PORT   "
 echo "=========================================================="
