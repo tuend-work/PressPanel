@@ -157,6 +157,11 @@ EOF
             fi
 
             /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || true
+            (sleep 1 && pgrep -u "$USERNAME" | while read -r pid; do
+                for cg_proc in /sys/fs/cgroup/wpc/reseller_*/user_${USERNAME}/cgroup.procs /sys/fs/cgroup/wpc/user_${USERNAME}/cgroup.procs; do
+                    [ -f "$cg_proc" ] && echo "$pid" > "$cg_proc" 2>/dev/null || true
+                done
+            done) &>/dev/null &
         fi
 
         # Cấu hình Nginx nếu có Nginx
@@ -257,6 +262,11 @@ EOF
         if [ -f "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf" ]; then
             sed -i -E "s/lsapi:lsphp[0-9]+/lsapi:lsphp$PHP_NUM/" "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf"
             /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lsws 2>/dev/null || true
+            (sleep 1 && pgrep -u "$USERNAME" | while read -r pid; do
+                for cg_proc in /sys/fs/cgroup/wpc/reseller_*/user_${USERNAME}/cgroup.procs /sys/fs/cgroup/wpc/user_${USERNAME}/cgroup.procs; do
+                    [ -f "$cg_proc" ] && echo "$pid" > "$cg_proc" 2>/dev/null || true
+                done
+            done) &>/dev/null &
         fi
         # Nginx
         if [ -f "/etc/nginx/conf.d/$DOMAIN.conf" ]; then

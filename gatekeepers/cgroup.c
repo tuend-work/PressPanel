@@ -67,6 +67,9 @@ int main(int argc, char *argv[]) {
         char path[512];
         snprintf(path, sizeof(path), "%s/reseller_%s/user_%s", CGROUP_ROOT, reseller_id, username);
 
+        struct passwd *pw = getpwnam(username);
+        uid_t uid = pw ? pw->pw_uid : 0;
+
         char cmd[4096];
         snprintf(cmd, sizeof(cmd),
             "mkdir -p /sys/fs/cgroup/wpc && "
@@ -76,9 +79,13 @@ int main(int argc, char *argv[]) {
             "echo '%lld' > %s/memory.max 2>/dev/null; "
             "echo '%d 100000' > %s/cpu.max 2>/dev/null; "
             "echo '%d' > %s/pids.max 2>/dev/null; "
-            "systemctl set-property user-%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true",
+            "systemctl set-property user-%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; "
+            "if [ %u -gt 0 ]; then systemctl set-property user-%u.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; fi; "
+            "pgrep -u %s | while read -r p; do echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; done",
             path, mem_mb * 1024 * 1024, path, cpu * 1000, path, pids, path,
-            username, cpu, mem_mb, pids);
+            username, cpu, mem_mb, pids,
+            (unsigned int)uid, (unsigned int)uid, cpu, mem_mb, pids,
+            username, path);
         IGNORE_RESULT(system(cmd));
 
         send_json_ok("\"message\":\"Da cap nhat cgroup user thanh cong\"");
