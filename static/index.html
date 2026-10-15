@@ -200,13 +200,14 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 7. File Manager & SSH (Web User & Admin) -->
-                            <button v-if="['admin', 'user'].includes(currentUser.role)" @click="currentTab = 'files'" :class="navClass('files')">
+                            <!-- 7. File Manager & SSH (Tất cả vai trò: Admin, Hosting User & Web User) -->
+                            <button @click="currentTab = 'files'" :class="navClass('files')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="folder" class="w-4 h-4 text-slate-400"></i>
                                     <span>File Manager</span>
                                 </div>
                                 <span v-if="currentUser.role === 'user'" class="text-[9px] px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 font-mono">SSH</span>
+                                <i v-else data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
                             <!-- 8. Tiến trình & Hỗ trợ (All Roles) -->
@@ -1466,6 +1467,187 @@
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- VIEW 6.8: FILE MANAGER (QUẢN LÝ TỆP TIN & MÃ NGUỒN) -->
+                    <!-- ========================================== -->
+                    <div v-if="currentTab === 'files'" class="space-y-5 max-w-7xl mx-auto">
+                        <!-- Top Header & Actions -->
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                    <i data-lucide="folder" class="w-5 h-5 text-blue-600"></i>
+                                    <span>File Manager (Quản Lý Tệp Tin)</span>
+                                </h2>
+                                <p class="text-xs text-slate-500 mt-0.5">Duyệt thư mục, chỉnh sửa mã nguồn và quản lý quyền tệp tin website.</p>
+                            </div>
+                            <!-- Action Buttons -->
+                            <div class="flex items-center space-x-2">
+                                <button @click="openCreateItemModal('file')" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition flex items-center space-x-1.5">
+                                    <i data-lucide="file-plus" class="w-4 h-4"></i>
+                                    <span>Tạo Tệp Tin</span>
+                                </button>
+                                <button @click="openCreateItemModal('folder')" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs border border-slate-200 transition flex items-center space-x-1.5">
+                                    <i data-lucide="folder-plus" class="w-4 h-4"></i>
+                                    <span>Tạo Thư Mục</span>
+                                </button>
+                                <button @click="fetchFilesList(fileCurrentPath)" class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 transition" title="Làm mới">
+                                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Breadcrumb & Path Navigator -->
+                        <div class="bg-white px-5 py-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs shadow-sm">
+                            <div class="flex items-center space-x-2 font-mono overflow-x-auto text-slate-600">
+                                <button @click="fetchFilesList('')" class="text-blue-600 hover:underline flex items-center gap-1 font-semibold">
+                                    <i data-lucide="home" class="w-3.5 h-3.5"></i>
+                                    <span>/home/{{ fileTargetUser || currentUser.username }}</span>
+                                </button>
+                                <template v-for="(part, idx) in pathParts" :key="idx">
+                                    <span class="text-slate-300">/</span>
+                                    <button @click="navigateBreadcrumb(idx)" class="text-blue-600 hover:underline font-semibold">
+                                        {{ part }}
+                                    </button>
+                                </template>
+                            </div>
+                            <span class="text-[11px] text-slate-400 font-mono shrink-0 pl-3">
+                                {{ filesList.length }} mục
+                            </span>
+                        </div>
+
+                        <!-- Files Table / Explorer -->
+                        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs text-slate-600">
+                                    <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase text-[11px] tracking-wider">
+                                        <tr>
+                                            <th class="py-3 px-4">Tên Tệp / Thư Mục</th>
+                                            <th class="py-3 px-4">Dung Lượng</th>
+                                            <th class="py-3 px-4">Phân Quyền</th>
+                                            <th class="py-3 px-4">Ngày Sửa Đổi</th>
+                                            <th class="py-3 px-4 text-right">Thao Tác</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100">
+                                        <!-- Back to parent directory row -->
+                                        <tr v-if="fileCurrentPath" @click="goUpDirectory" class="hover:bg-slate-50 cursor-pointer font-bold text-slate-700 transition">
+                                            <td colspan="5" class="py-3 px-4 flex items-center space-x-2">
+                                                <i data-lucide="corner-left-up" class="w-4 h-4 text-blue-600"></i>
+                                                <span>.. (Lên thư mục cấp cha)</span>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Empty folder state -->
+                                        <tr v-if="filesList.length === 0 && !loadingFiles">
+                                            <td colspan="5" class="py-12 text-center text-slate-400">
+                                                <i data-lucide="folder-open" class="w-10 h-10 mx-auto text-slate-300 mb-2"></i>
+                                                <div class="font-semibold text-slate-600">Thư mục đang trống</div>
+                                                <p class="text-[11px] text-slate-400 mt-0.5">Chưa có tệp tin hoặc thư mục nào ở đây.</p>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Loading state -->
+                                        <tr v-if="loadingFiles">
+                                            <td colspan="5" class="py-8 text-center text-slate-500 font-medium">
+                                                <i data-lucide="loader" class="w-6 h-6 mx-auto animate-spin text-blue-600 mb-1"></i>
+                                                <span>Đang tải danh sách tệp tin...</span>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Files list -->
+                                        <tr v-for="item in filesList" :key="item.name" class="hover:bg-slate-50/80 transition group">
+                                            <td class="py-3.5 px-4 font-medium text-slate-800 flex items-center space-x-2.5">
+                                                <div @click="item.is_dir ? enterDirectory(item.name) : openEditFileModal(item.name)" class="flex items-center space-x-2.5 cursor-pointer">
+                                                    <i v-if="item.is_dir" data-lucide="folder" class="w-5 h-5 text-amber-500 fill-amber-500/20 shrink-0"></i>
+                                                    <i v-else-if="item.name.endsWith('.php')" data-lucide="file-code" class="w-5 h-5 text-indigo-500 shrink-0"></i>
+                                                    <i v-else-if="item.name.endsWith('.html') || item.name.endsWith('.htm')" data-lucide="file-code-2" class="w-5 h-5 text-orange-500 shrink-0"></i>
+                                                    <i v-else-if="item.name.endsWith('.css') || item.name.endsWith('.js')" data-lucide="code" class="w-5 h-5 text-cyan-600 shrink-0"></i>
+                                                    <i v-else-if="item.name.endsWith('.zip') || item.name.endsWith('.tar.gz')" data-lucide="archive" class="w-5 h-5 text-emerald-600 shrink-0"></i>
+                                                    <i v-else-if="['.jpg', '.png', '.svg', '.webp'].some(ext => item.name.endsWith(ext))" data-lucide="image" class="w-5 h-5 text-purple-500 shrink-0"></i>
+                                                    <i v-else data-lucide="file-text" class="w-5 h-5 text-slate-400 shrink-0"></i>
+
+                                                    <span class="group-hover:text-blue-600 transition truncate max-w-sm font-semibold">
+                                                        {{ item.name }}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td class="py-3.5 px-4 font-mono text-[11px] text-slate-500">
+                                                {{ item.is_dir ? '-' : formatBytes(item.size) }}
+                                            </td>
+                                            <td class="py-3.5 px-4 font-mono text-[11px] text-slate-500">
+                                                <span class="px-2 py-0.5 rounded bg-slate-100 border border-slate-200">{{ item.mode }}</span>
+                                            </td>
+                                            <td class="py-3.5 px-4 text-slate-400 text-[11px]">
+                                                {{ formatTimestamp(item.modified) }}
+                                            </td>
+                                            <td class="py-3.5 px-4 text-right space-x-1.5">
+                                                <button v-if="!item.is_dir" @click="openEditFileModal(item.name)" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium text-xs transition inline-flex items-center gap-1">
+                                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                                    <span>Chỉnh sửa</span>
+                                                </button>
+                                                <button @click="handleDeleteItem(item.name)" class="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium text-xs transition inline-flex items-center gap-1">
+                                                    <i data-lucide="trash-2" class="w-3 h-3"></i>
+                                                    <span>Xóa</span>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MODAL: CHỈNH SỬA TỆP TIN (FILE EDITOR) -->
+                    <div v-if="showEditFileModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div class="bg-white rounded-2xl max-w-4xl w-full h-[85vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
+                            <!-- Header -->
+                            <div class="h-14 px-6 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
+                                        <i data-lucide="file-code" class="w-4 h-4"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-sm font-bold text-slate-800">{{ editingFileName }}</h3>
+                                        <p class="text-[10px] text-slate-400 font-mono">{{ editingFilePath }}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button @click="saveFileContent" :disabled="savingFile" class="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition flex items-center space-x-1.5">
+                                        <span v-if="savingFile" class="animate-spin">⏳</span>
+                                        <i v-else data-lucide="save" class="w-3.5 h-3.5"></i>
+                                        <span>{{ savingFile ? 'Đang Lưu...' : 'Lưu Tệp' }}</span>
+                                    </button>
+                                    <button @click="showEditFileModal = false" class="text-slate-400 hover:text-slate-700 text-xl font-bold p-1 leading-none">&times;</button>
+                                </div>
+                            </div>
+                            <!-- Editor Content Area -->
+                            <div class="flex-1 p-4 bg-slate-900 overflow-hidden flex flex-col">
+                                <textarea v-model="editingFileContent" class="w-full flex-1 bg-transparent text-slate-200 font-mono text-xs focus:outline-none resize-none leading-relaxed custom-scrollbar select-text" spellcheck="false" placeholder="Nội dung tệp..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MODAL: TẠO TỆP TIN / THƯ MỤC MỚI -->
+                    <div v-if="showCreateItemModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200">
+                            <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                <i :data-lucide="newItemType === 'folder' ? 'folder-plus' : 'file-plus'" class="w-4 h-4 text-blue-600"></i>
+                                <span>{{ newItemType === 'folder' ? 'Tạo Thư Mục Mới' : 'Tạo Tệp Tin Mới' }}</span>
+                            </h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Tên {{ newItemType === 'folder' ? 'thư mục' : 'tệp tin' }}</label>
+                                    <input type="text" v-model="newItemName" :placeholder="newItemType === 'folder' ? 'vd: assets, public' : 'vd: index.php, config.php'"
+                                        class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-mono text-xs focus:outline-none focus:border-blue-500 shadow-sm">
+                                </div>
+                                <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+                                    <button @click="showCreateItemModal = false" class="px-3.5 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-medium transition">Hủy</button>
+                                    <button @click="confirmCreateItem" class="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition">Xác Nhận Tạo</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -3050,10 +3232,210 @@
                     alert(`Đang gửi yêu cầu cấp chứng chỉ Let's Encrypt cho ${domain.domain_name}...`);
                 };
 
-                const handleWPClone = (d) => alert(`Chức năng Clone Staging cho ${d.domain_name}`);
-                const handleWPSecure = (d) => alert(`Đã kích hoạt Security Hardening cho ${d.domain_name}`);
-                const openFileManager = (path) => {
+                // ==========================================
+                // FILE MANAGER LOGIC & METHODS
+                // ==========================================
+                const filesList = ref([]);
+                const fileCurrentPath = ref('');
+                const fileTargetUser = ref('');
+                const loadingFiles = ref(false);
+                const showEditFileModal = ref(false);
+                const editingFileName = ref('');
+                const editingFilePath = ref('');
+                const editingFileContent = ref('');
+                const savingFile = ref(false);
+                const showCreateItemModal = ref(false);
+                const newItemType = ref('file'); // 'file' | 'folder'
+                const newItemName = ref('');
+
+                const pathParts = computed(() => {
+                    if (!fileCurrentPath.value) return [];
+                    return fileCurrentPath.value.split('/').filter(Boolean);
+                });
+
+                const fetchFilesList = async (subpath = '') => {
+                    loadingFiles.value = true;
+                    fileCurrentPath.value = subpath;
+                    try {
+                        const targetUserParam = fileTargetUser.value ? `&target_user=${encodeURIComponent(fileTargetUser.value)}` : '';
+                        const res = await fetch(`/api/v1/files/list?path=${encodeURIComponent(subpath)}${targetUserParam}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            filesList.value = data.items || [];
+                        } else {
+                            filesList.value = [];
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải tệp tin:', e);
+                        filesList.value = [];
+                    } finally {
+                        loadingFiles.value = false;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const enterDirectory = (folderName) => {
+                    const next = fileCurrentPath.value ? `${fileCurrentPath.value}/${folderName}` : folderName;
+                    fetchFilesList(next);
+                };
+
+                const goUpDirectory = () => {
+                    if (!fileCurrentPath.value) return;
+                    const parts = fileCurrentPath.value.split('/').filter(Boolean);
+                    parts.pop();
+                    fetchFilesList(parts.join('/'));
+                };
+
+                const navigateBreadcrumb = (index) => {
+                    const parts = pathParts.value.slice(0, index + 1);
+                    fetchFilesList(parts.join('/'));
+                };
+
+                const openEditFileModal = async (fileName) => {
+                    editingFileName.value = fileName;
+                    const filePath = fileCurrentPath.value ? `${fileCurrentPath.value}/${fileName}` : fileName;
+                    editingFilePath.value = filePath;
+                    editingFileContent.value = 'Đang tải nội dung tệp...';
+                    showEditFileModal.value = true;
+                    try {
+                        const targetUserParam = fileTargetUser.value ? `&target_user=${encodeURIComponent(fileTargetUser.value)}` : '';
+                        const res = await fetch(`/api/v1/files/content?path=${encodeURIComponent(filePath)}${targetUserParam}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            editingFileContent.value = data.content || '';
+                        } else {
+                            editingFileContent.value = '// Không thể đọc nội dung tệp này';
+                        }
+                    } catch (e) {
+                        editingFileContent.value = '// Lỗi: ' + e.message;
+                    }
+                    refreshLucideIcons();
+                };
+
+                const saveFileContent = async () => {
+                    savingFile.value = true;
+                    try {
+                        const res = await fetch('/api/v1/files/content', {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                path: editingFilePath.value,
+                                content: editingFileContent.value,
+                                target_user: fileTargetUser.value || undefined
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Lưu tệp tin thành công!');
+                            showEditFileModal.value = false;
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể lưu tệp'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        savingFile.value = false;
+                    }
+                };
+
+                const openCreateItemModal = (type) => {
+                    newItemType.value = type;
+                    newItemName.value = '';
+                    showCreateItemModal.value = true;
+                    refreshLucideIcons();
+                };
+
+                const confirmCreateItem = async () => {
+                    if (!newItemName.value.trim()) {
+                        alert('Vui lòng nhập tên!');
+                        return;
+                    }
+                    const fullItemPath = fileCurrentPath.value ? `${fileCurrentPath.value}/${newItemName.value.trim()}` : newItemName.value.trim();
+                    try {
+                        const res = await fetch('/api/v1/files/create', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                path: fullItemPath,
+                                item_type: newItemType.value,
+                                target_user: fileTargetUser.value || undefined
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showCreateItemModal.value = false;
+                            fetchFilesList(fileCurrentPath.value);
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể tạo'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi: ' + e.message);
+                    }
+                };
+
+                const handleDeleteItem = async (itemName) => {
+                    if (!confirm(`Bạn có chắc chắn muốn xóa "${itemName}" không? Hành động này không thể hoàn tác!`)) return;
+                    const itemPath = fileCurrentPath.value ? `${fileCurrentPath.value}/${itemName}` : itemName;
+                    try {
+                        const res = await fetch('/api/v1/files/delete', {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                path: itemPath,
+                                target_user: fileTargetUser.value || undefined
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            fetchFilesList(fileCurrentPath.value);
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể xóa'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi: ' + e.message);
+                    }
+                };
+
+                const formatBytes = (bytes) => {
+                    if (bytes === 0) return '0 B';
+                    const k = 1024;
+                    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+                };
+
+                const formatTimestamp = (ts) => {
+                    if (!ts) return '-';
+                    const d = new Date(ts * 1000);
+                    return d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                };
+
+                const openFileManager = (path = '') => {
                     currentTab.value = 'files';
+                    if (path) {
+                        // Trích xuất path tương đối từ document_root ví dụ: /home/clean_domain/httpdocs/domain.com -> httpdocs/domain.com
+                        const match = path.match(/\/home\/([^\/]+)\/?(.*)/);
+                        if (match) {
+                            fileTargetUser.value = match[1];
+                            fetchFilesList(match[2] || '');
+                            return;
+                        }
+                    }
+                    fileTargetUser.value = '';
+                    fetchFilesList('');
                 };
                 const showUpdateModal = ref(false);
                 const isUpdating = ref(false);
@@ -3111,7 +3493,10 @@
                     });
                 };
 
-                watch(currentTab, () => {
+                watch(currentTab, (newTab) => {
+                    if (newTab === 'files') {
+                        fetchFilesList(fileCurrentPath.value || '');
+                    }
                     refreshLucideIcons();
                 });
 
@@ -3124,6 +3509,14 @@
                 });
 
                 watch(showAddDomainModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showEditFileModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showCreateItemModal, () => {
                     refreshLucideIcons();
                 });
 
@@ -3184,7 +3577,13 @@
                     saveCurrentAppConfig, toggleAppAutorestart,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain,
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
-                    fetchSystemStatus, restartPanel, refreshLucideIcons
+                    fetchSystemStatus, restartPanel, refreshLucideIcons,
+                    filesList, fileCurrentPath, fileTargetUser, loadingFiles, pathParts,
+                    showEditFileModal, editingFileName, editingFilePath, editingFileContent, savingFile,
+                    showCreateItemModal, newItemType, newItemName,
+                    fetchFilesList, enterDirectory, goUpDirectory, navigateBreadcrumb,
+                    openEditFileModal, saveFileContent, openCreateItemModal, confirmCreateItem,
+                    handleDeleteItem, formatBytes, formatTimestamp
                 };
             }
         }).mount('#app');
