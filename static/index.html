@@ -278,14 +278,15 @@
 
             <!-- Main Content Area (Trắng / Xám nhạt #f3f6fa) -->
             <div class="flex-1 flex flex-col min-w-0 bg-[#f3f6fa]">
-                <!-- Impersonation Notice Bar (Khi Admin Login As User) -->
-                <div v-if="isImpersonating" class="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-5 py-2 flex items-center justify-between text-xs shadow-sm font-medium shrink-0 animate-fadeIn">
-                    <div class="flex items-center space-x-2">
+                <!-- Impersonation Notice Bar (Khi Admin / Reseller Login As User hoặc Login as Web User) -->
+                <div v-if="isImpersonating" class="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-5 py-2.5 flex items-center justify-between text-xs shadow-sm font-medium shrink-0 animate-fadeIn">
+                    <div class="flex items-center space-x-2.5">
                         <span class="text-base">⚠️</span>
-                        <span>Đang đăng nhập dưới quyền Customer: <b>{{ currentUser.username }}</b> (Chế độ Login as User)</span>
+                        <span>Đang đăng nhập dưới quyền {{ currentUser.role === 'user' ? 'Web User' : 'Hosting User' }}: <b>{{ currentUser.username }}</b> (Chế độ Login as User)</span>
                     </div>
                     <button @click="exitImpersonation" class="px-3 py-1 rounded-lg bg-slate-900 hover:bg-black text-white font-bold transition flex items-center space-x-1.5 shadow">
-                        <span>🔙</span> <span>Quay lại quyền Admin</span>
+                        <i data-lucide="corner-up-left" class="w-3.5 h-3.5"></i>
+                        <span>Thoát Chế Độ Login As</span>
                     </button>
                 </div>
 
@@ -910,6 +911,12 @@
                                         </span>
                                         <button @click="installSSL(d)" class="px-3 py-1 rounded-xl bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 border border-slate-200 shadow-sm transition">
                                             Cấp Let's Encrypt
+                                        </button>
+                                        <!-- Nút LOGIN AS WEBSITE USER -->
+                                        <button v-if="['admin', 'reseller'].includes(currentUser.role)" @click="impersonateWebsiteUser(d)" title="Đăng nhập trực tiếp dưới quyền Web User quản trị website này"
+                                            class="px-3 py-1 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-xs text-blue-700 font-semibold transition flex items-center space-x-1 shadow-sm">
+                                            <i data-lucide="key" class="w-3.5 h-3.5 text-blue-600"></i>
+                                            <span>Login as Web User</span>
                                         </button>
                                         <!-- Nút XÓA WEBSITE -->
                                         <button @click="handleDeleteDomain(d)" title="Xóa hoàn toàn website này"
@@ -3186,6 +3193,45 @@
                     }
                 };
 
+                const impersonateWebsiteUser = async (domain) => {
+                    if (!confirm(`Bạn có chắc chắn muốn đăng nhập dưới quyền Web User của website "${domain.domain_name}"?`)) return;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${domain.id}/impersonate-user`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.access_token) {
+                            // Lưu token ban đầu nếu chưa có backup
+                            if (!sessionStorage.getItem('presspanel_admin_backup_token')) {
+                                sessionStorage.setItem('presspanel_admin_backup_token', token.value);
+                                sessionStorage.setItem('presspanel_admin_backup_user', JSON.stringify(currentUser.value));
+                            }
+
+                            token.value = data.access_token;
+                            currentUser.value = {
+                                id: data.web_user.id,
+                                username: data.web_user.username,
+                                role: 'user',
+                                domain_name: data.web_user.domain_name,
+                                document_root: data.web_user.document_root
+                            };
+                            localStorage.setItem('presspanel_token', data.access_token);
+                            localStorage.setItem('presspanel_user', JSON.stringify(currentUser.value));
+                            isImpersonating.value = true;
+
+                            // Chuyển sang File Manager hoặc Website view của Web User
+                            currentTab.value = 'files';
+                            openFileManager(data.web_user.document_root);
+                            refreshLucideIcons();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể đăng nhập dưới quyền Web User này'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
                 const exitImpersonation = () => {
                     const backupToken = sessionStorage.getItem('presspanel_admin_backup_token');
                     const backupUser = sessionStorage.getItem('presspanel_admin_backup_user');
@@ -3202,10 +3248,11 @@
                         sessionStorage.removeItem('presspanel_admin_backup_user');
                         isImpersonating.value = false;
 
-                        // Trở về tab Customers của Admin
-                        currentTab.value = 'customers';
+                        // Trở về tab Domains hoặc Customers của tài khoản quản trị
+                        currentTab.value = currentUser.value.role === 'admin' ? 'domains' : 'domains';
                         fetchCustomers();
                         fetchDomains();
+                        refreshLucideIcons();
                     } else {
                         window.location.reload();
                     }
@@ -3563,7 +3610,7 @@
                     selectedCustomerIds, selectedDomainIds, selectedSubIds, showCustomerStatusMenu, showSubStatusMenu,
                     isAllCustomersSelected, toggleSelectAllCustomers, isAllDomainsSelected, toggleSelectAllDomains,
                     isAllSubsSelected, toggleSelectAllSubs, handleSetCustomerStatus, handleBatchDeleteCustomers, handleBatchDeleteDomains,
-                    fetchCustomers, handleAddCustomer, impersonateUser, exitImpersonation,
+                    fetchCustomers, handleAddCustomer, impersonateUser, impersonateWebsiteUser, exitImpersonation,
                     servicePlans, showAddPlanModal, creatingPlan, newPlan, fetchServicePlans, handleAddPlan,
                     showUpdateModal, isUpdating, updateCountdown, handlePanelUpdate,
                     showMessagesBox, msgBoxTab, runningTasks, completedTasks,

@@ -208,3 +208,54 @@ async def delete_domain(domain_id: int, current_user: dict = Depends(get_current
         "deleted_domain": domain["domain_name"]
     }
 
+@router.post("/{domain_id}/impersonate-user")
+async def impersonate_website_user(
+    domain_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Đăng nhập trực tiếp dưới quyền Web User của Website (Isolated Linux User).
+    Cho phép Admin hoặc Hosting User đăng nhập vào phiên quản trị của chính website đó.
+    """
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.document_root, d.user_id, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    # Kiểm tra quyền: Admin, hoặc Hosting User sở hữu website
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    web_user_name = domain_to_linux_user(domain["domain_name"])
+    from app.core.security import create_access_token
+    # Tạo JWT token mang role 'user' (Web User) đại diện cho website này
+    web_user_token = create_access_token(
+        subject=domain["user_id"],
+        role="user",
+        parent_id=domain["user_id"]
+    )
+
+    return {
+        "status": "success",
+        "impersonated": True,
+        "access_token": web_user_token,
+        "token_type": "bearer",
+        "web_user": {
+            "id": domain["user_id"],
+            "username": web_user_name,
+            "domain_name": domain["domain_name"],
+            "document_root": domain["document_root"],
+            "role": "user"
+        }
+    }
+
+
