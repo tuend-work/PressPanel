@@ -127,7 +127,8 @@ fi
 
 # 10. Khởi tạo Database SQLite
 echo "[+] Khởi tạo cơ sở dữ liệu SQLite..."
-"$INSTALL_DIR/venv/bin/python" -c "
+cd "$INSTALL_DIR"
+PYTHONPATH="$INSTALL_DIR" "$INSTALL_DIR/venv/bin/python" -c "
 import asyncio
 from app.db.init_db import init_database
 asyncio.run(init_database())

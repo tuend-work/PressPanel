@@ -43,7 +43,7 @@ cp -r "$TMP_DIR/app" "$INSTALL_DIR/"
 cp -r "$TMP_DIR/scripts"/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
 cp -r "$TMP_DIR/templates"/* "$INSTALL_DIR/templates/" 2>/dev/null || true
 cp "$TMP_DIR/VERSION" "$INSTALL_DIR/" 2>/dev/null || true
-chmod +x "$INSTALL_DIR"/scripts/*.sh 2>/dev/null || true
+chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/presspanel 2>/dev/null || true
 
 # Cập nhật CLI tool /usr/local/bin/presspanel
 if [ -f "$TMP_DIR/scripts/presspanel" ]; then
@@ -58,7 +58,8 @@ echo "[+] Kiểm tra và cập nhật dependencies Python..."
 
 # 5. Chạy database migration (nếu có bảng/cột mới)
 echo "[+] Kiểm tra và cập nhật cấu trúc cơ sở dữ liệu SQLite..."
-"$INSTALL_DIR/venv/bin/python" -c "
+cd "$INSTALL_DIR"
+PYTHONPATH="$INSTALL_DIR" "$INSTALL_DIR/venv/bin/python" -c "
 import asyncio
 from app.db.init_db import init_database
 asyncio.run(init_database())
