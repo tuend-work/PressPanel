@@ -12,6 +12,7 @@ router = APIRouter(prefix="/apps", tags=["App Store & Software Manager"])
 class AppActionRequest(BaseModel):
     app_id: str
     action: str  # install | restart | stop | start | uninstall
+    version: str = "default"
 
 # Định nghĩa các ứng dụng hỗ trợ trong App Store
 SUPPORTED_APPS = [
@@ -23,7 +24,11 @@ SUPPORTED_APPS = [
         "desc": "Web Server siêu tốc với Native LSCache tối ưu hóa đặc biệt cho WordPress.",
         "service": "lshttpd",
         "binary_checks": ["/usr/local/lsws/bin/lswsctrl", "/usr/local/lsws/bin/openlitespeed"],
-        "default_version": "1.8.x"
+        "default_version": "1.8.x",
+        "versions": [
+            {"value": "1.8.x", "label": "OpenLiteSpeed 1.8.x (Khuyên dùng)"},
+            {"value": "1.7.x", "label": "OpenLiteSpeed 1.7.x (Legacy)"}
+        ]
     },
     {
         "id": "nginx",
@@ -33,27 +38,26 @@ SUPPORTED_APPS = [
         "desc": "Máy chủ Web & Reverse Proxy tin cậy, hiệu năng cao và phổ biến hàng đầu.",
         "service": "nginx",
         "binary_checks": ["/usr/sbin/nginx", "/usr/bin/nginx"],
-        "default_version": "1.24.x"
-    },
-    {
-        "id": "mariadb",
-        "name": "MariaDB Database",
-        "category": "database",
-        "icon": "🐬",
-        "desc": "Hệ quản trị cơ sở dữ liệu quan hệ mã nguồn mở thay thế hoàn hảo cho MySQL.",
-        "service": "mariadb",
-        "binary_checks": ["/usr/bin/mariadb", "/usr/sbin/mariadbd", "/usr/bin/mysql"],
-        "default_version": "10.11"
+        "default_version": "1.24.x",
+        "versions": [
+            {"value": "1.24.x", "label": "Nginx 1.24.x (Ổn định)"},
+            {"value": "latest", "label": "Nginx Mainline (Mới nhất)"}
+        ]
     },
     {
         "id": "mysql",
-        "name": "MySQL Server",
+        "name": "MySQL / MariaDB Database",
         "category": "database",
-        "icon": "🗄️",
-        "desc": "Hệ quản trị CSDL MySQL chính thức của Oracle Corporation.",
-        "service": "mysql",
-        "binary_checks": ["/usr/sbin/mysqld", "/usr/bin/mysql"],
-        "default_version": "8.0"
+        "icon": "🐬",
+        "desc": "Hệ quản trị CSDL quan hệ tốc độ cao, hỗ trợ tùy chọn cài MariaDB hoặc Oracle MySQL.",
+        "service": "mariadb",
+        "binary_checks": ["/usr/bin/mariadb", "/usr/sbin/mariadbd", "/usr/sbin/mysqld", "/usr/bin/mysql"],
+        "default_version": "mariadb-10.11",
+        "versions": [
+            {"value": "mariadb-10.11", "label": "MariaDB 10.11 LTS (Khuyên dùng, nhanh & nhẹ)"},
+            {"value": "mariadb-10.6", "label": "MariaDB 10.6 LTS (Cũ, tương thích cao)"},
+            {"value": "mysql-8.0", "label": "Oracle MySQL 8.0 (Chính thức)"}
+        ]
     },
     {
         "id": "redis",
@@ -63,8 +67,13 @@ SUPPORTED_APPS = [
         "desc": "Bộ nhớ đệm trong RAM tốc độ cao, hỗ trợ Redis Object Cache cho WordPress.",
         "service": "redis-server",
         "binary_checks": ["/usr/bin/redis-server", "/usr/local/bin/redis-server"],
-        "default_version": "7.0"
+        "default_version": "7.0",
+        "versions": [
+            {"value": "7.0", "label": "Redis 7.0"},
+            {"value": "6.2", "label": "Redis 6.2"}
+        ]
     },
+
     {
         "id": "php82",
         "name": "PHP 8.2 Runtime",
@@ -250,15 +259,17 @@ async def app_action(
     if req.action == "install":
         gatekeeper_bin = "/opt/presspanel/bin/app"
         script_path = f"/opt/presspanel/scripts/apps/{req.app_id}.sh"
+        version_param = req.version if req.version and req.version != "default" else app.get("default_version", "latest")
         
         if os.path.isfile(gatekeeper_bin):
-            # C Gatekeeper đã có cờ SUID root (chmod 4750), thực thi trực tiếp với quyền root không cần sudo mật khẩu!
-            cmd = f"{gatekeeper_bin} install {req.app_id}"
+            # C Gatekeeper đã có cờ SUID root (chmod 4750), truyền tham số version
+            cmd = f"{gatekeeper_bin} install {req.app_id} {version_param}"
         elif os.path.exists(script_path):
-            cmd = f"sudo bash {script_path} install"
+            cmd = f"sudo bash {script_path} install {version_param}"
         else:
             pkg_map = {
                 "nginx": "nginx",
+                "mysql": "mariadb-server mariadb-client",
                 "mariadb": "mariadb-server mariadb-client",
                 "redis": "redis-server",
                 "certbot": "certbot python3-certbot-nginx",
@@ -270,10 +281,11 @@ async def app_action(
 
         task_id = await add_system_task(
             user_id=current_user["id"],
-            action_name=f"Install [{app['name']}]",
+            action_name=f"Install [{app['name']} - {version_param}]",
             cmd=cmd,
             background_tasks=background_tasks
         )
+
 
         return {
             "status": "ok",
