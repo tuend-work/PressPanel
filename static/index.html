@@ -1543,90 +1543,107 @@
                 </div>
             </div>
 
-            <!-- MODAL: THÊM CUSTOMER MỚI (TẠO USER CON CHO ADMIN) -->
-            <div v-if="showAddCustomerModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-                <div class="glass rounded-2xl max-w-xl w-full p-6 shadow-2xl relative border border-slate-700 my-8 max-h-[92vh] flex flex-col">
-                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800 shrink-0">
-                        <div class="flex items-center space-x-2">
-                            <span class="text-xl">👤</span>
+            <!-- MODAL: THÊM HOSTING USER MỚI (TẠO TÀI KHOẢN KHÁCH HÀNG & PHÂN QUYỀN LƯU TRỮ MỚI) -->
+            <div v-if="showAddCustomerModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+                <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl relative border border-slate-200 my-8 max-h-[92vh] flex flex-col text-slate-800">
+                    <!-- Modal Header -->
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100 shrink-0">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-inner">
+                                <i data-lucide="user-plus" class="w-5 h-5"></i>
+                            </div>
                             <div>
-                                <h3 class="text-base font-bold text-white">Adding New Customer</h3>
-                                <p class="text-[11px] text-slate-400">Tạo tài khoản khách hàng và cấu hình Subscription lưu trữ</p>
+                                <h3 class="text-base font-bold text-slate-800">Thêm Hosting User Mới</h3>
+                                <p class="text-[11px] text-slate-500">Tạo tài khoản Hosting User quản lý nhiều website, phân quyền lưu trữ độc lập</p>
                             </div>
                         </div>
-                        <button @click="showAddCustomerModal = false" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+                        <button @click="showAddCustomerModal = false" class="text-slate-400 hover:text-slate-700 text-xl leading-none p-1 rounded-lg hover:bg-slate-100 transition">&times;</button>
                     </div>
 
                     <form @submit.prevent="handleAddCustomer" class="space-y-4 text-xs overflow-y-auto pr-1 custom-scrollbar flex-1">
-                        <!-- Customer Account Information -->
-                        <div class="space-y-3 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-                            <h4 class="font-bold text-slate-200 text-xs flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
-                                <span>🔑</span> Thông Tin Tài Khoản
+                        <!-- 1. Thông Tin Tài Khoản Hosting User -->
+                        <div class="space-y-3 p-4 rounded-xl bg-slate-50/80 border border-slate-200">
+                            <h4 class="font-bold text-slate-700 text-xs flex items-center gap-2 uppercase tracking-wider text-[11px]">
+                                <i data-lucide="key" class="w-3.5 h-3.5 text-blue-600"></i>
+                                <span>Thông Tin Tài Khoản Hosting</span>
                             </h4>
                             <div>
-                                <label class="block font-semibold text-slate-300 mb-1">Tên Người Dùng (Linux Username) <span class="text-rose-400">*</span></label>
+                                <label class="block font-semibold text-slate-700 mb-1">
+                                    Tên Đăng Nhập (Hosting Username) <span class="text-rose-500">*</span>
+                                </label>
                                 <input type="text" v-model="newCustomer.username" placeholder="vd: myclient, shoponline" required
-                                    class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono">
-                                <p class="text-[10px] text-slate-400 mt-1">Sẽ tự động tạo Linux user và thư mục riêng biệt <code>/home/&lt;username&gt;</code></p>
+                                    class="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono text-xs shadow-sm">
+                                <p class="text-[10px] text-slate-500 mt-1 flex items-center gap-1.5">
+                                    <i data-lucide="shield-check" class="w-3 h-3 text-emerald-600"></i>
+                                    <span>Tài khoản Web Panel (không cấp SSH). Mỗi website khi tạo sẽ có Web User Linux riêng biệt <code>/home/&lt;domain&gt;</code></span>
+                                </p>
                             </div>
 
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">Email Liên Hệ <span class="text-rose-400">*</span></label>
+                                    <label class="block font-semibold text-slate-700 mb-1">Email Khách Hàng <span class="text-rose-500">*</span></label>
                                     <input type="email" v-model="newCustomer.email" placeholder="client@example.com" required
-                                        class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+                                        class="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 text-xs shadow-sm">
                                 </div>
                                 <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">Mật Khẩu Đăng Nhập <span class="text-rose-400">*</span></label>
+                                    <label class="block font-semibold text-slate-700 mb-1">Mật Khẩu Đăng Nhập <span class="text-rose-500">*</span></label>
                                     <input type="password" v-model="newCustomer.password" placeholder="Tối thiểu 6 ký tự" required
-                                        class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+                                        class="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 text-xs shadow-sm">
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Subscription Section (Plesk Style) -->
-                        <div class="space-y-4 p-4 rounded-xl bg-slate-900/90 border border-cyan-900/40 shadow-inner">
-                            <div class="flex items-center justify-between pb-2 border-b border-slate-800">
-                                <div>
-                                    <h4 class="font-bold text-cyan-300 text-sm flex items-center gap-1.5">
-                                        <span>📦</span> Subscription
-                                    </h4>
-                                    <p class="text-[10px] text-slate-400">Khởi tạo gói dịch vụ và website đầu tiên cho khách hàng</p>
+                        <!-- 2. Khởi Tạo Website Đầu Tiên Cho Hosting User -->
+                        <div class="space-y-4 p-4 rounded-xl bg-blue-50/40 border border-blue-100 shadow-sm">
+                            <div class="flex items-center justify-between pb-2.5 border-b border-blue-100">
+                                <div class="flex items-center space-x-2.5">
+                                    <div class="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-sm">
+                                        <i data-lucide="globe" class="w-4 h-4"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-bold text-slate-800 text-xs">Khởi Tạo Website Đầu Tiên</h4>
+                                        <p class="text-[10px] text-slate-500">Tự động cấu hình Web User Linux độc lập và VirtualHost</p>
+                                    </div>
                                 </div>
                                 <label class="flex items-center gap-2 cursor-pointer select-none">
-                                    <input type="checkbox" v-model="newCustomer.create_subscription" class="w-4 h-4 rounded text-cyan-600 bg-slate-950 border-slate-700 focus:ring-cyan-500">
-                                    <span class="font-semibold text-xs text-white">Create subscription for the customer</span>
+                                    <input type="checkbox" v-model="newCustomer.create_subscription" class="w-4 h-4 rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500">
+                                    <span class="font-semibold text-xs text-slate-700">Tạo website ngay</span>
                                 </label>
                             </div>
 
-                            <p v-if="!newCustomer.create_subscription" class="text-[11px] text-amber-400/90 italic p-2 rounded bg-amber-950/30 border border-amber-900/40">
-                                ℹ️ Bỏ chọn mục này nếu bạn chỉ muốn tạo user mà chưa muốn kích hoạt gói hosting hoặc gán website ngay lúc này.
+                            <p v-if="!newCustomer.create_subscription" class="text-[11px] text-slate-500 italic p-2.5 rounded-xl bg-white border border-slate-200 flex items-center gap-1.5">
+                                <i data-lucide="info" class="w-3.5 h-3.5 text-blue-600 shrink-0"></i>
+                                <span>Chỉ tạo tài khoản Hosting User rỗng. Người dùng có thể tự thêm các website vào tài khoản sau đó.</span>
                             </p>
 
                             <div v-if="newCustomer.create_subscription" class="space-y-3.5 pt-1">
-                                <!-- Select your domain name tabs -->
+                                <!-- Chọn loại tên miền: Registered vs Temporary -->
                                 <div>
-                                    <label class="block font-semibold text-slate-300 mb-2">Select your domain name</label>
+                                    <label class="block font-semibold text-slate-700 mb-2">Loại Tên Miền Của Website</label>
                                     <div class="grid grid-cols-2 gap-3">
                                         <!-- Registered domain card -->
                                         <div @click="newCustomer.domain_type = 'registered'"
-                                            :class="newCustomer.domain_type === 'registered' ? 'border-cyan-500 bg-cyan-950/40 text-cyan-200 ring-1 ring-cyan-500' : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'"
-                                            class="p-3 rounded-xl border cursor-pointer transition flex items-start space-x-3">
-                                            <span class="text-xl">🎖️</span>
+                                            :class="newCustomer.domain_type === 'registered' ? 'border-blue-600 bg-blue-50/80 text-blue-900 ring-2 ring-blue-500/20' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'"
+                                            class="p-3 rounded-xl border cursor-pointer transition flex items-start space-x-3 shadow-sm">
+                                            <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                                                <i data-lucide="award" class="w-4 h-4"></i>
+                                            </div>
                                             <div>
-                                                <div class="font-bold text-xs text-white">Registered domain name</div>
-                                                <div class="text-[10px] text-slate-400 mt-0.5">I already have a registered domain name</div>
+                                                <div class="font-bold text-xs">Tên miền riêng</div>
+                                                <div class="text-[10px] text-slate-500 mt-0.5">Tôi đã sở hữu tên miền chính thức</div>
                                             </div>
                                         </div>
 
                                         <!-- Temporary domain card -->
                                         <div @click="newCustomer.domain_type = 'temporary'"
-                                            :class="newCustomer.domain_type === 'temporary' ? 'border-cyan-500 bg-cyan-950/40 text-cyan-200 ring-1 ring-cyan-500' : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'"
-                                            class="p-3 rounded-xl border cursor-pointer transition flex items-start space-x-3">
-                                            <span class="text-xl">🚀</span>
+                                            :class="newCustomer.domain_type === 'temporary' ? 'border-blue-600 bg-blue-50/80 text-blue-900 ring-2 ring-blue-500/20' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'"
+                                            class="p-3 rounded-xl border cursor-pointer transition flex items-start space-x-3 shadow-sm">
+                                            <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                                            </div>
                                             <div>
-                                                <div class="font-bold text-xs text-white">Temporary domain name</div>
-                                                <div class="text-[10px] text-slate-400 mt-0.5">I don't have a registered domain name yet</div>
+                                                <div class="font-bold text-xs">Tên miền tạm thời</div>
+                                                <div class="text-[10px] text-slate-500 mt-0.5">Cấp subdomain test chạy thử ngay</div>
                                             </div>
                                         </div>
                                     </div>
@@ -1634,32 +1651,32 @@
 
                                 <!-- Domain Input -->
                                 <div v-if="newCustomer.domain_type === 'registered'">
-                                    <label class="block font-semibold text-slate-300 mb-1">
-                                        Registered domain name <span class="text-rose-400">*</span>
+                                    <label class="block font-semibold text-slate-700 mb-1">
+                                        Tên miền chính thức <span class="text-rose-500">*</span>
                                     </label>
-                                    <div class="flex items-center rounded-xl bg-slate-950 border border-slate-700 focus-within:border-cyan-500 overflow-hidden">
-                                        <span class="px-3 py-2 text-slate-400 bg-slate-900 border-r border-slate-800 font-mono text-xs">www.</span>
+                                    <div class="flex items-center rounded-xl bg-white border border-slate-200 focus-within:border-blue-500 overflow-hidden shadow-sm">
+                                        <span class="px-3 py-2 text-slate-400 bg-slate-50 border-r border-slate-200 font-mono text-xs">www.</span>
                                         <input type="text" v-model="newCustomer.domain_name" placeholder="example.com" :required="newCustomer.create_subscription && newCustomer.domain_type === 'registered'"
-                                            class="w-full px-3 py-2 bg-transparent text-white placeholder-slate-500 focus:outline-none font-mono text-xs">
+                                            class="w-full px-3 py-2 bg-transparent text-slate-800 placeholder-slate-400 focus:outline-none font-mono text-xs">
                                     </div>
                                 </div>
 
-                                <div v-else class="p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-300">
+                                <div v-else class="p-3 rounded-xl bg-white border border-slate-200 text-slate-700 shadow-sm">
                                     <div class="flex items-center justify-between">
-                                        <span class="text-slate-400">Tên miền tạm thời được cấp:</span>
-                                        <span class="font-mono text-cyan-400 font-bold">
-                                            {{ (newCustomer.username || 'customer') }}.presspanel.local
+                                        <span class="text-slate-500">Tên miền tạm thời tự động cấp:</span>
+                                        <span class="font-mono text-blue-600 font-bold">
+                                            {{ (newCustomer.username || 'user') }}.presspanel.local
                                         </span>
                                     </div>
-                                    <p class="text-[10px] text-slate-500 mt-1">Khách hàng có thể thay đổi tên miền chính thức bất cứ lúc nào sau đó.</p>
+                                    <p class="text-[10px] text-slate-400 mt-1">Website sẽ tạo user linux riêng <code>/home/{{ (newCustomer.username || 'user') }}presspanellocal</code></p>
                                 </div>
 
                                 <!-- Service Plan dropdown -->
                                 <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">Service plan</label>
+                                    <label class="block font-semibold text-slate-700 mb-1">Gói Dịch Vụ Mẫu (Service Plan)</label>
                                     <select v-model="newCustomer.package_id"
-                                        class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-cyan-500">
-                                        <option :value="null">-- Mặc định (Tự điều chỉnh thông số bên dưới) --</option>
+                                        class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 focus:outline-none focus:border-blue-500 text-xs shadow-sm">
+                                        <option :value="null">-- Mặc định (Tùy chỉnh Quota tài nguyên bên dưới) --</option>
                                         <option v-for="plan in servicePlans" :key="plan.id" :value="plan.id">
                                             {{ plan.name }} ({{ plan.disk_mb }} MB Disk, {{ plan.max_domains }} Sites)
                                         </option>
@@ -1669,65 +1686,76 @@
                                 <!-- Web Server Tầng Server & PHP -->
                                 <div class="grid grid-cols-2 gap-3 pt-1">
                                     <div>
-                                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Web Server Hệ Thống</label>
-                                        <div class="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs flex items-center space-x-1.5">
-                                            <i data-lucide="server" class="w-3.5 h-3.5 text-blue-400"></i>
-                                            <span class="font-medium">{{ activeSystemWebserver === 'nginx' ? 'Nginx' : 'OpenLiteSpeed' }}</span>
+                                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Web Server Hệ Thống</label>
+                                        <div class="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs flex items-center justify-between shadow-sm">
+                                            <div class="flex items-center space-x-1.5 font-medium">
+                                                <i data-lucide="server" class="w-3.5 h-3.5 text-blue-600"></i>
+                                                <span>{{ activeSystemWebserver === 'nginx' ? 'Nginx' : 'OpenLiteSpeed' }}</span>
+                                            </div>
+                                            <span class="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-mono border border-blue-200">Server-wide</span>
                                         </div>
                                     </div>
                                     <div>
-                                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Phiên Bản PHP</label>
+                                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Phiên Bản PHP</label>
                                         <select v-model="newCustomer.php_version"
-                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono">
+                                            class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 font-mono text-xs shadow-sm focus:outline-none focus:border-blue-500">
                                             <option value="8.3">PHP 8.3 (Mới nhất)</option>
-                                            <option value="8.2">PHP 8.2 (Chuẩn khuyên dùng)</option>
+                                            <option value="8.2">PHP 8.2 (Khuyên dùng)</option>
                                             <option value="8.1">PHP 8.1</option>
-                                            <option value="7.4">PHP 7.4 (Legacy)</option>
+                                            <option value="7.4">PHP 7.4 (Tương thích cũ)</option>
                                         </select>
                                     </div>
                                 </div>
 
-                                <div class="p-2.5 rounded-xl bg-cyan-950/30 border border-cyan-800/40 flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-base">🚀</span>
+                                <!-- WordPress 1-Click Install -->
+                                <div class="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between shadow-sm">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
+                                            <i data-lucide="layers" class="w-4 h-4"></i>
+                                        </div>
                                         <div>
-                                            <div class="font-semibold text-slate-200 text-xs">Cài đặt sẵn WordPress</div>
-                                            <div class="text-[10px] text-slate-400">Tự động khởi tạo mã nguồn WP & cơ sở dữ liệu ngay khi tạo xong</div>
+                                            <div class="font-semibold text-slate-800 text-xs">Cài đặt sẵn WordPress 1-Click</div>
+                                            <div class="text-[10px] text-slate-500">Tự động khởi tạo source code, DB MySQL và kích hoạt SSO</div>
                                         </div>
                                     </div>
-                                    <input type="checkbox" v-model="newCustomer.install_wp" class="w-4 h-4 rounded text-cyan-600 bg-slate-950 border-slate-700 focus:ring-cyan-500">
+                                    <input type="checkbox" v-model="newCustomer.install_wp" class="w-4 h-4 rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500">
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Resource Quotas (Additional subscription settings) -->
-                        <div class="space-y-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                            <label class="block font-semibold text-slate-400 text-[11px]">Hạn mức tài nguyên máy chủ (Resource Quotas)</label>
+                        <!-- 3. Hạn Mức Tài Nguyên Cho Gói Hosting (Resource Quotas) -->
+                        <div class="space-y-2 p-4 rounded-xl bg-slate-50/80 border border-slate-200">
+                            <label class="block font-semibold text-slate-700 text-[11px] flex items-center gap-1.5">
+                                <i data-lucide="pie-chart" class="w-3.5 h-3.5 text-blue-600"></i>
+                                <span>Hạn mức tài nguyên lưu trữ (Resource Quotas)</span>
+                            </label>
                             <div class="grid grid-cols-3 gap-3">
                                 <div>
                                     <label class="block text-[10px] text-slate-500 mb-1">Ổ Cứng (MB)</label>
                                     <input type="number" v-model.number="newCustomer.disk_mb" min="500" max="500000"
-                                        class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center">
+                                        class="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 font-mono text-center text-xs shadow-sm">
                                 </div>
                                 <div>
                                     <label class="block text-[10px] text-slate-500 mb-1">RAM (MB)</label>
                                     <input type="number" v-model.number="newCustomer.mem_mb" min="256" max="65536"
-                                        class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center">
+                                        class="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 font-mono text-center text-xs shadow-sm">
                                 </div>
                                 <div>
                                     <label class="block text-[10px] text-slate-500 mb-1">CPU (%)</label>
                                     <input type="number" v-model.number="newCustomer.cpu_pct" min="10" max="400"
-                                        class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-center">
+                                        class="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 font-mono text-center text-xs shadow-sm">
                                 </div>
                             </div>
                         </div>
 
-                        <div class="flex justify-end space-x-2 pt-2 border-t border-slate-800 shrink-0">
-                            <button type="button" @click="showAddCustomerModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
+                        <!-- Modal Actions -->
+                        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100 shrink-0">
+                            <button type="button" @click="showAddCustomerModal = false" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition">Hủy</button>
                             <button type="submit" :disabled="creatingCustomer"
-                                class="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold shadow-lg shadow-cyan-500/20 flex items-center space-x-1.5">
+                                class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-500/20 flex items-center space-x-2 transition">
                                 <span v-if="creatingCustomer" class="animate-spin">⏳</span>
-                                <span>{{ creatingCustomer ? 'Đang Tạo Customer & Subscription...' : 'Add Customer' }}</span>
+                                <i v-else data-lucide="check" class="w-4 h-4"></i>
+                                <span>{{ creatingCustomer ? 'Đang Khởi Tạo...' : 'Tạo Hosting User' }}</span>
                             </button>
                         </div>
                     </form>
@@ -3088,6 +3116,14 @@
                 });
 
                 watch(showMessagesBox, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showAddCustomerModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showAddDomainModal, () => {
                     refreshLucideIcons();
                 });
 
