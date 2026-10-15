@@ -117,6 +117,7 @@ Sau khi cài đặt hoàn tất, bạn có thể truy cập ngay vào giao diệ
 /opt/presspanel/
 ├── bin/                  # 8 Binary C SUID Gatekeeper (chmod 4750 root:presspanel)
 ├── app/                  # Mã nguồn Backend Python FastAPI
+├── conf/                 # File cấu hình trung tâm (presspanel.conf giống directadmin.conf)
 ├── venv/                 # Môi trường ảo Python độc lập (FastAPI + Uvicorn)
 ├── static/               # Thư mục Web UI tĩnh (Vue 3 Single Page Application)
 ├── data/                 # SQLite Database (panel.db chế độ WAL)
@@ -125,6 +126,9 @@ Sau khi cài đặt hoàn tất, bạn có thể truy cập ngay vào giao diệ
 ├── server/               # Dịch vụ đã cài đặt (OpenLiteSpeed, Nginx, PHP, MariaDB)
 └── templates/            # Hệ thống mẫu cấu hình kế thừa 3 cấp (User -> Package -> Default)
 ```
+
+> [!NOTE]
+> **File cấu hình trung tâm (`/opt/presspanel/conf/presspanel.conf`):** Tương tự như `directadmin.conf` của DirectAdmin, toàn bộ thông số cốt lõi (cổng port, SSL panel, session, default webserver, quota, đường dẫn) đều được cấu hình theo định dạng `key=value` trực quan, dễ chỉnh sửa và tự động nạp khi khởi động panel.
 
 ---
 

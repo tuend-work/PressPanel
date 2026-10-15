@@ -61,11 +61,19 @@ fi
 
 # 5. Tạo cây thư mục triển khai
 echo "[+] Khởi tạo cấu trúc thư mục tại $INSTALL_DIR..."
-mkdir -p "$INSTALL_DIR"/{bin,app,static,data,logs/tasks,scripts/apps,server,templates}
+mkdir -p "$INSTALL_DIR"/{bin,app,conf,static,data,logs/tasks,scripts/apps,server,templates}
 chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"
 chmod 750 "$INSTALL_DIR"
 
-# 6. Biên dịch 8 C Gatekeeper
+# 6. Sao chép file cấu hình trung tâm (presspanel.conf giống directadmin.conf)
+if [ ! -f "$INSTALL_DIR/conf/presspanel.conf" ] && [ -f "conf/presspanel.conf" ]; then
+    echo "[+] Khởi tạo file cấu hình trung tâm: $INSTALL_DIR/conf/presspanel.conf..."
+    cp conf/presspanel.conf "$INSTALL_DIR/conf/presspanel.conf"
+    chmod 640 "$INSTALL_DIR/conf/presspanel.conf"
+    chown "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR/conf/presspanel.conf"
+fi
+
+# 7. Biên dịch 8 C Gatekeeper
 echo "[+] Biên dịch các module C Gatekeeper..."
 cd gatekeepers
 make clean
@@ -73,21 +81,21 @@ make all
 make install PREFIX="$INSTALL_DIR"
 cd "$SRC_DIR"
 
-# 7. Thiết lập môi trường Python venv
+# 8. Thiết lập môi trường Python venv
 echo "[+] Thiết lập Python Virtualenv..."
 python3 -m venv "$INSTALL_DIR/venv"
 "$INSTALL_DIR/venv/bin/pip" install --upgrade pip
 "$INSTALL_DIR/venv/bin/pip" install -r requirements.txt
 
-# 8. Sao chép mã nguồn ứng dụng
+# 9. Sao chép mã nguồn ứng dụng
 echo "[+] Cài đặt mã nguồn ứng dụng..."
 cp -r app "$INSTALL_DIR/"
 cp -r scripts/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
 cp -r templates/* "$INSTALL_DIR/templates/" 2>/dev/null || true
 chmod +x "$INSTALL_DIR"/scripts/*.sh 2>/dev/null || true
-chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"/app "$INSTALL_DIR"/data "$INSTALL_DIR"/logs
+chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"/app "$INSTALL_DIR"/conf "$INSTALL_DIR"/data "$INSTALL_DIR"/logs
 
-# 9. Khởi tạo Database SQLite
+# 10. Khởi tạo Database SQLite
 echo "[+] Khởi tạo cơ sở dữ liệu SQLite..."
 "$INSTALL_DIR/venv/bin/python" -c "
 import asyncio
@@ -95,7 +103,7 @@ from app.db.init_db import init_database
 asyncio.run(init_database())
 "
 
-# 10. Cài đặt Systemd Service
+# 11. Cài đặt Systemd Service
 echo "[+] Đăng ký dịch vụ systemd presspanel..."
 cp systemd/presspanel.service /etc/systemd/system/presspanel.service
 systemctl daemon-reload
@@ -111,5 +119,6 @@ echo "=========================================================="
 echo "   PRESSPANEL ĐÃ CÀI ĐẶT VÀ KHỞI ĐỘNG THÀNH CÔNG!         "
 echo "   Giao diện quản trị: http://<IP_MAY_CHU>:8888          "
 echo "   Tài liệu Swagger API: http://<IP_MAY_CHU>:8888/docs    "
+echo "   File cấu hình: /opt/presspanel/conf/presspanel.conf   "
 echo "   Tài khoản mặc định: admin / admin123456               "
 echo "=========================================================="

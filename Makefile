@@ -34,12 +34,16 @@ frontend:
 
 install: gatekeepers
 	@echo "==> Đang cài đặt PressPanel vào $(PREFIX)..."
-	mkdir -p $(PREFIX)/{bin,app,static,data,logs/tasks,scripts/apps,server,templates}
+	mkdir -p $(PREFIX)/{bin,app,conf,static,data,logs/tasks,scripts/apps,server,templates}
 	install -m 755 -d $(PREFIX)/bin
 	$(MAKE) -C gatekeepers install PREFIX=$(PREFIX)
 	cp -r app $(PREFIX)/
 	cp -r scripts/* $(PREFIX)/scripts/ 2>/dev/null || true
 	cp -r templates/* $(PREFIX)/templates/ 2>/dev/null || true
+	@if [ ! -f "$(PREFIX)/conf/presspanel.conf" ] && [ -f "conf/presspanel.conf" ]; then \
+		cp conf/presspanel.conf $(PREFIX)/conf/; \
+		chmod 640 $(PREFIX)/conf/presspanel.conf; \
+	fi
 	@if [ -d "web/dist" ]; then cp -r web/dist/* $(PREFIX)/static/ 2>/dev/null || true; fi
 	@echo "==> Hoàn tất cài đặt PressPanel!"
 
