@@ -353,497 +353,439 @@
                             </div>
                         </div>
 
-                        <!-- 2. HÀNG 4 METRIC CARDS (Website, Hosting, Gói dịch vụ, Khách hàng) -->
+                        <!-- 1. HÀNG 4 CIRCLE GAUGE WIDGETS CHUẨN AAPANEL -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <!-- Card 1: Website -->
-                            <div @click="currentTab = 'domains'" class="wp-card p-5 cursor-pointer hover:shadow-md transition flex flex-col justify-between">
-                                <div class="flex items-center justify-between">
-                                    <div class="w-10 h-10 rounded-xl bg-blue-500 text-white flex items-center justify-center text-lg shadow-sm shadow-blue-500/30">
-                                        🌐
-                                    </div>
-                                    <span class="text-slate-400 text-xs">›</span>
+                            <!-- Gauge 1: Load Status -->
+                            <div class="wp-card p-5 flex flex-col justify-between hover:shadow-md transition">
+                                <div class="flex items-center justify-between pb-2 mb-1 border-b border-slate-100">
+                                    <span class="text-xs font-bold text-slate-700">Tải máy chủ (Load)</span>
+                                    <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                                          :class="(sysStats.load?.percent || 33) < 70 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'">
+                                        {{ sysStats.load?.status || 'Bình thường' }}
+                                    </span>
                                 </div>
-                                <div class="mt-4">
-                                    <div class="text-xs font-semibold text-slate-500">Website</div>
-                                    <div class="text-2xl font-extrabold text-slate-800 mt-0.5">
-                                        {{ domains.length }}
-                                    </div>
-                                    <div class="flex items-center space-x-1 text-[11px] text-emerald-600 font-semibold mt-1">
-                                        <span>●</span>
-                                        <span class="text-slate-400 font-normal">Đang cấu hình vhost</span>
+                                <div class="flex items-center justify-center my-3">
+                                    <div class="relative w-28 h-28 flex items-center justify-center">
+                                        <svg class="w-28 h-28 transform -rotate-90">
+                                            <circle cx="56" cy="56" r="44" stroke="#f1f5f9" stroke-width="8" fill="transparent"/>
+                                            <circle cx="56" cy="56" r="44" stroke="#10b981" stroke-width="8" fill="transparent"
+                                                :stroke-dasharray="276.4"
+                                                :stroke-dashoffset="276.4 * (1 - (sysStats.load?.percent || 33) / 100)"
+                                                stroke-linecap="round" class="transition-all duration-700"/>
+                                        </svg>
+                                        <div class="absolute inset-0 flex items-center justify-center font-extrabold text-xl text-slate-800">
+                                            {{ sysStats.load?.percent || 33 }}%
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-
-                            <!-- Card 2: Hosting Subscriptions -->
-                            <div @click="currentTab = 'subscriptions'" class="wp-card p-5 cursor-pointer hover:shadow-md transition flex flex-col justify-between">
-                                <div class="flex items-center justify-between">
-                                    <div class="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center text-lg shadow-sm shadow-emerald-500/30">
-                                        🗄️
-                                    </div>
-                                    <span class="text-slate-400 text-xs">›</span>
-                                </div>
-                                <div class="mt-4">
-                                    <div class="text-xs font-semibold text-slate-500">Gói Hosting (Subs)</div>
-                                    <div class="text-2xl font-extrabold text-slate-800 mt-0.5">
-                                        {{ domains.length }}
-                                    </div>
-                                    <div class="flex items-center space-x-1 text-[11px] text-emerald-600 font-semibold mt-1">
-                                        <span>●</span>
-                                        <span class="text-slate-400 font-normal">User Linux cô lập</span>
+                                <div class="text-center pt-2 border-t border-slate-100">
+                                    <div class="text-[11px] text-slate-400 font-mono">
+                                        1m: <b class="text-slate-700">{{ sysStats.load?.['1m'] || '0.85' }}</b> | 
+                                        5m: <b class="text-slate-700">{{ sysStats.load?.['5m'] || '0.72' }}</b> | 
+                                        15m: <b class="text-slate-700">{{ sysStats.load?.['15m'] || '0.64' }}</b>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Card 3: Service Plans -->
-                            <div @click="currentTab = 'service_plans'" class="wp-card p-5 cursor-pointer hover:shadow-md transition flex flex-col justify-between">
-                                <div class="flex items-center justify-between">
-                                    <div class="w-10 h-10 rounded-xl bg-indigo-500 text-white flex items-center justify-center text-lg shadow-sm shadow-indigo-500/30">
-                                        📋
-                                    </div>
-                                    <span class="text-slate-400 text-xs">›</span>
+                            <!-- Gauge 2: CPU -->
+                            <div class="wp-card p-5 flex flex-col justify-between hover:shadow-md transition">
+                                <div class="flex items-center justify-between pb-2 mb-1 border-b border-slate-100">
+                                    <span class="text-xs font-bold text-slate-700">CPU Usage</span>
+                                    <span class="text-[11px] text-blue-600 font-semibold">{{ sysStats.cpu_cores || 4 }} Cores</span>
                                 </div>
-                                <div class="mt-4">
-                                    <div class="text-xs font-semibold text-slate-500">Gói Dịch Vụ (Plans)</div>
-                                    <div class="text-2xl font-extrabold text-slate-800 mt-0.5">
-                                        {{ servicePlans.length }}
+                                <div class="flex items-center justify-center my-3">
+                                    <div class="relative w-28 h-28 flex items-center justify-center">
+                                        <svg class="w-28 h-28 transform -rotate-90">
+                                            <circle cx="56" cy="56" r="44" stroke="#f1f5f9" stroke-width="8" fill="transparent"/>
+                                            <circle cx="56" cy="56" r="44" stroke="#2563eb" stroke-width="8" fill="transparent"
+                                                :stroke-dasharray="276.4"
+                                                :stroke-dashoffset="276.4 * (1 - (sysStats.cpu?.percent || 25) / 100)"
+                                                stroke-linecap="round" class="transition-all duration-700"/>
+                                        </svg>
+                                        <div class="absolute inset-0 flex items-center justify-center font-extrabold text-xl text-slate-800">
+                                            {{ sysStats.cpu?.percent || 25 }}%
+                                        </div>
                                     </div>
-                                    <div class="flex items-center space-x-1 text-[11px] text-indigo-600 font-semibold mt-1">
-                                        <span>●</span>
-                                        <span class="text-slate-400 font-normal">Hạn mức CPU/RAM/Disk</span>
+                                </div>
+                                <div class="text-center pt-2 border-t border-slate-100">
+                                    <div class="text-xs font-semibold text-slate-700">Bộ vi xử lý</div>
+                                    <div class="text-[11px] text-slate-400 font-mono mt-0.5">
+                                        {{ sysStats.cpu_cores || 4 }} vCPU Cores ảo hóa
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Card 4: Khách hàng -->
-                            <div @click="currentTab = 'customers'" class="wp-card p-5 cursor-pointer hover:shadow-md transition flex flex-col justify-between">
-                                <div class="flex items-center justify-between">
-                                    <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center text-lg shadow-sm shadow-amber-500/30">
-                                        👥
-                                    </div>
-                                    <span class="text-slate-400 text-xs">›</span>
+                            <!-- Gauge 3: RAM (Memory) -->
+                            <div class="wp-card p-5 flex flex-col justify-between hover:shadow-md transition">
+                                <div class="flex items-center justify-between pb-2 mb-1 border-b border-slate-100">
+                                    <span class="text-xs font-bold text-slate-700">RAM (Bộ nhớ)</span>
+                                    <span class="text-[11px] font-semibold text-emerald-600">Đang khả dụng</span>
                                 </div>
-                                <div class="mt-4">
-                                    <div class="text-xs font-semibold text-slate-500">Khách hàng</div>
-                                    <div class="text-2xl font-extrabold text-slate-800 mt-0.5">
-                                        {{ customers.length }}
+                                <div class="flex items-center justify-center my-3">
+                                    <div class="relative w-28 h-28 flex items-center justify-center">
+                                        <svg class="w-28 h-28 transform -rotate-90">
+                                            <circle cx="56" cy="56" r="44" stroke="#f1f5f9" stroke-width="8" fill="transparent"/>
+                                            <circle cx="56" cy="56" r="44" stroke="#10b981" stroke-width="8" fill="transparent"
+                                                :stroke-dasharray="276.4"
+                                                :stroke-dashoffset="276.4 * (1 - (sysStats.ram?.percent || 22) / 100)"
+                                                stroke-linecap="round" class="transition-all duration-700"/>
+                                        </svg>
+                                        <div class="absolute inset-0 flex items-center justify-center font-extrabold text-xl text-slate-800">
+                                            {{ sysStats.ram?.percent || 22 }}%
+                                        </div>
                                     </div>
-                                    <div class="flex items-center space-x-1 text-[11px] text-amber-600 font-semibold mt-1">
-                                        <span>●</span>
-                                        <span class="text-slate-400 font-normal">Tài khoản quản lý</span>
+                                </div>
+                                <div class="text-center pt-2 border-t border-slate-100">
+                                    <div class="text-xs font-mono">
+                                        <span class="text-emerald-600 font-bold">{{ sysStats.ram?.used_gb || '1.8' }}GB</span>
+                                        <span class="text-slate-400"> / {{ sysStats.ram?.total_gb || '8.0' }}GB</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Gauge 4: DISK (Root /) -->
+                            <div class="wp-card p-5 flex flex-col justify-between hover:shadow-md transition">
+                                <div class="flex items-center justify-between pb-2 mb-1 border-b border-slate-100">
+                                    <span class="text-xs font-bold text-slate-700">Ổ cứng (Disk /)</span>
+                                    <span class="text-[11px] font-semibold" :class="(sysStats.disk?.percent || 42) > 80 ? 'text-amber-600' : 'text-blue-600'">
+                                        Hệ thống /
+                                    </span>
+                                </div>
+                                <div class="flex items-center justify-center my-3">
+                                    <div class="relative w-28 h-28 flex items-center justify-center">
+                                        <svg class="w-28 h-28 transform -rotate-90">
+                                            <circle cx="56" cy="56" r="44" stroke="#f1f5f9" stroke-width="8" fill="transparent"/>
+                                            <circle cx="56" cy="56" r="44"
+                                                :stroke="(sysStats.disk?.percent || 42) > 80 ? '#f59e0b' : '#3b82f6'"
+                                                stroke-width="8" fill="transparent"
+                                                :stroke-dasharray="276.4"
+                                                :stroke-dashoffset="276.4 * (1 - (sysStats.disk?.percent || 42) / 100)"
+                                                stroke-linecap="round" class="transition-all duration-700"/>
+                                        </svg>
+                                        <div class="absolute inset-0 flex items-center justify-center font-extrabold text-xl text-slate-800">
+                                            {{ sysStats.disk?.percent || 42 }}%
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-center pt-2 border-t border-slate-100">
+                                    <div class="text-xs font-mono">
+                                        <span :class="(sysStats.disk?.percent || 42) > 80 ? 'text-amber-600 font-bold' : 'text-blue-600 font-bold'">
+                                            {{ sysStats.disk?.used_gb || '42.0' }}GB
+                                        </span>
+                                        <span class="text-slate-400"> / {{ sysStats.disk?.total_gb || '100.0' }}GB</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- 3. MAIN DASHBOARD GRID (CỘT TRÁI RỘNG 8 COLS, CỘT PHẢI 4 COLS) -->
-                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                            
-                            <!-- === CỘT TRÁI (8 COLS) === -->
-                            <div class="lg:col-span-8 space-y-5">
-                                
-                                <!-- Hàng Biểu đồ tài nguyên hệ thống + Tình trạng dịch vụ -->
-                                <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
-                                    
-                                    <!-- Biểu đồ Thống kê tài nguyên hệ thống (7 cols) -->
-                                    <div class="md:col-span-7 wp-card p-5 flex flex-col justify-between">
-                                        <div class="flex items-center justify-between mb-3">
-                                            <h3 class="font-bold text-slate-800 text-sm">Thống kê tài nguyên hệ thống</h3>
-                                            <div class="flex items-center space-x-3 text-[11px] font-medium text-slate-500">
-                                                <div class="flex items-center space-x-1">
-                                                    <span class="w-2 h-2 rounded-full bg-blue-600"></span>
-                                                    <span>CPU ({{ sysStats.cpu?.percent || 25 }}%)</span>
-                                                </div>
-                                                <div class="flex items-center space-x-1">
-                                                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                                    <span>RAM ({{ sysStats.ram?.percent || 22 }}%)</span>
-                                                </div>
-                                                <div class="flex items-center space-x-1">
-                                                    <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
-                                                    <span>Disk ({{ sysStats.disk?.percent || 42 }}%)</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <!-- Biểu đồ Spline SVG mượt mà như mockup -->
-                                        <div class="relative w-full h-48 bg-slate-50/50 rounded-xl p-2 border border-slate-100 flex flex-col justify-between overflow-hidden">
-                                            <div class="absolute inset-0 p-3 flex flex-col justify-between pointer-events-none opacity-40">
-                                                <div class="border-b border-dashed border-slate-200 w-full flex justify-between text-[9px] text-slate-400"><span>100%</span></div>
-                                                <div class="border-b border-dashed border-slate-200 w-full flex justify-between text-[9px] text-slate-400"><span>75%</span></div>
-                                                <div class="border-b border-dashed border-slate-200 w-full flex justify-between text-[9px] text-slate-400"><span>50%</span></div>
-                                                <div class="border-b border-dashed border-slate-200 w-full flex justify-between text-[9px] text-slate-400"><span>25%</span></div>
-                                                <div class="border-b border-dashed border-slate-200 w-full flex justify-between text-[9px] text-slate-400"><span>0%</span></div>
-                                            </div>
-
-                                            <svg class="w-full h-36" viewBox="0 0 500 120" preserveAspectRatio="none">
-                                                <defs>
-                                                    <linearGradient id="wpGradBlue" x1="0%" y1="0%" x2="0%" y2="100%">
-                                                        <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.25"/>
-                                                        <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.0"/>
-                                                    </linearGradient>
-                                                    <linearGradient id="wpGradGreen" x1="0%" y1="0%" x2="0%" y2="100%">
-                                                        <stop offset="0%" stop-color="#10b981" stop-opacity="0.25"/>
-                                                        <stop offset="100%" stop-color="#10b981" stop-opacity="0.0"/>
-                                                    </linearGradient>
-                                                </defs>
-
-                                                <!-- Downstream / CPU Curve (Xanh dương) -->
-                                                <path :d="downstreamAreaPath" fill="url(#wpGradBlue)"/>
-                                                <path :d="downstreamCurvePath" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round"/>
-
-                                                <!-- Upstream / RAM Curve (Xanh ngọc / Emerald) -->
-                                                <path :d="upstreamAreaPath" fill="url(#wpGradGreen)"/>
-                                                <path :d="upstreamCurvePath" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"/>
-                                            </svg>
-
-                                            <div class="flex justify-between text-[9px] text-slate-400 font-mono px-2 pt-1 border-t border-slate-200">
-                                                <span>00:00</span>
-                                                <span>04:00</span>
-                                                <span>08:00</span>
-                                                <span>12:00</span>
-                                                <span>16:00</span>
-                                                <span>20:00</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Tình trạng dịch vụ (5 cols) -->
-                                    <div class="md:col-span-5 wp-card p-5 flex flex-col justify-between">
-                                        <div class="flex items-center justify-between mb-2">
-                                            <h3 class="font-bold text-slate-800 text-sm">Tình trạng dịch vụ</h3>
-                                            <button @click="fetchAppsList" class="text-xs text-blue-600 hover:underline">Chi tiết</button>
-                                        </div>
-
-                                        <div class="space-y-3.5 my-auto text-xs">
-                                            <!-- Web Server -->
-                                            <div class="flex items-center justify-between">
-                                                <div class="flex items-center space-x-2.5">
-                                                    <span class="w-2 h-2 rounded-full" :class="(getApp('ols').running || getApp('nginx').running) ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'"></span>
-                                                    <span class="font-medium text-slate-700">Web Server (OLS / Nginx)</span>
-                                                </div>
-                                                <span class="text-[11px] font-semibold" :class="(getApp('ols').running || getApp('nginx').running) ? 'text-emerald-600' : 'text-slate-400'">
-                                                    {{ (getApp('ols').running || getApp('nginx').running) ? 'Hoạt động' : 'Chưa bật' }}
-                                                </span>
-                                            </div>
-
-                                            <!-- Database -->
-                                            <div class="flex items-center justify-between">
-                                                <div class="flex items-center space-x-2.5">
-                                                    <span class="w-2 h-2 rounded-full" :class="getApp('mariadb').running ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'"></span>
-                                                    <span class="font-medium text-slate-700">Database (MariaDB / MySQL)</span>
-                                                </div>
-                                                <span class="text-[11px] font-semibold" :class="getApp('mariadb').running ? 'text-emerald-600' : 'text-slate-400'">
-                                                    {{ getApp('mariadb').running ? 'Hoạt động' : (getApp('mariadb').installed ? 'Đã dừng' : 'Chưa cài') }}
-                                                </span>
-                                            </div>
-
-                                            <!-- PHP Processor -->
-                                            <div class="flex items-center justify-between">
-                                                <div class="flex items-center space-x-2.5">
-                                                    <span class="w-2 h-2 rounded-full" :class="getApp('php82').installed ? 'bg-emerald-500' : 'bg-slate-300'"></span>
-                                                    <span class="font-medium text-slate-700">PHP Processor (Multi-PHP)</span>
-                                                </div>
-                                                <span class="text-[11px] font-semibold" :class="getApp('php82').installed ? 'text-emerald-600' : 'text-slate-400'">
-                                                    {{ getApp('php82').installed ? 'Sẵn sàng' : 'Chưa cài' }}
-                                                </span>
-                                            </div>
-
-                                            <!-- Redis Cache -->
-                                            <div class="flex items-center justify-between">
-                                                <div class="flex items-center space-x-2.5">
-                                                    <span class="w-2 h-2 rounded-full" :class="getApp('redis').running ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'"></span>
-                                                    <span class="font-medium text-slate-700">Bộ nhớ đệm (Redis Cache)</span>
-                                                </div>
-                                                <span class="text-[11px] font-semibold" :class="getApp('redis').running ? 'text-emerald-600' : 'text-slate-400'">
-                                                    {{ getApp('redis').running ? 'Hoạt động' : (getApp('redis').installed ? 'Đã dừng' : 'Chưa cài') }}
-                                                </span>
-                                            </div>
-
-                                            <!-- WordPress CLI Tool -->
-                                            <div class="flex items-center justify-between">
-                                                <div class="flex items-center space-x-2.5">
-                                                    <span class="w-2 h-2 rounded-full" :class="getApp('wp-cli').installed ? 'bg-emerald-500' : 'bg-slate-300'"></span>
-                                                    <span class="font-medium text-slate-700">Công cụ WP-CLI Toolkit</span>
-                                                </div>
-                                                <span class="text-[11px] font-semibold" :class="getApp('wp-cli').installed ? 'text-emerald-600' : 'text-slate-400'">
-                                                    {{ getApp('wp-cli').installed ? 'Sẵn sàng' : 'Chưa cài' }}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
+                        <!-- 2. CARD OVERVIEW (TỔNG QUAN TÀI NGUYÊN AAPANEL) -->
+                        <div class="wp-card p-5">
+                            <div class="flex justify-between items-center pb-3 mb-4 border-b border-slate-100">
+                                <h3 class="text-sm font-bold text-slate-800">Overview (Tổng Quan Hệ Thống)</h3>
+                                <div class="flex items-center space-x-2 text-xs text-slate-400">
+                                    <span>IP: <b class="text-slate-700 font-mono">{{ sysStats.server_ip || '127.0.0.1' }}</b></span>
+                                    <span>•</span>
+                                    <span>OS: <b class="text-slate-700">{{ sysStats.os_name || 'Linux' }}</b></span>
                                 </div>
-
-                                <!-- Bảng Website gần đây & Hoạt động gần đây -->
-                                <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
-                                    
-                                    <!-- Bảng Website gần đây (7 cols) -->
-                                    <div class="md:col-span-7 wp-card p-5">
-                                        <div class="flex items-center justify-between mb-4">
-                                            <h3 class="font-bold text-slate-800 text-sm">Website gần đây</h3>
-                                            <button @click="currentTab = 'domains'" class="text-xs font-semibold text-blue-600 hover:underline">
-                                                Xem tất cả
-                                            </button>
-                                        </div>
-
-                                        <div class="overflow-x-auto">
-                                            <table class="w-full text-left text-xs">
-                                                <thead class="text-[11px] text-slate-400 border-b border-slate-100 font-semibold">
-                                                    <tr>
-                                                        <th class="pb-2.5 font-medium">Domain</th>
-                                                        <th class="pb-2.5 font-medium">Trạng thái</th>
-                                                        <th class="pb-2.5 font-medium">SSL</th>
-                                                        <th class="pb-2.5 font-medium">Hạn dùng</th>
-                                                        <th class="pb-2.5 font-medium text-right">Thao tác</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody class="divide-y divide-slate-100">
-                                                    <tr v-if="domains.length === 0">
-                                                        <td colspan="5" class="py-6 text-center text-slate-400">
-                                                            Chưa có website nào. Bấm <b>+ Tạo mới</b> để thêm!
-                                                        </td>
-                                                    </tr>
-                                                    <tr v-for="d in domains.slice(0, 5)" :key="d.id" class="hover:bg-slate-50/60 transition">
-                                                        <td class="py-3 flex items-center space-x-2">
-                                                            <div class="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold">
-                                                                🌐
-                                                            </div>
-                                                            <div>
-                                                                <div class="font-semibold text-slate-800">{{ d.domain_name }}</div>
-                                                                <div class="text-[10px] text-slate-400 font-mono">{{ d.document_root || ('/home/' + d.domain_name) }}</div>
-                                                            </div>
-                                                        </td>
-                                                        <td class="py-3">
-                                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200/60 uppercase">
-                                                                {{ d.webserver || 'OLS' }} (PHP {{ d.php_version || '8.2' }})
-                                                            </span>
-                                                        </td>
-                                                        <td class="py-3">
-                                                            <span v-if="d.ssl_enabled" class="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
-                                                                <span>🔒</span> <span>SSL Active</span>
-                                                            </span>
-                                                            <span v-else class="text-[11px] text-amber-500 font-medium flex items-center gap-1">
-                                                                <span>⚠️</span> <span>HTTP</span>
-                                                            </span>
-                                                        </td>
-                                                        <td class="py-3 text-slate-500 font-mono text-[11px]">
-                                                            {{ d.created_at ? d.created_at.split(' ')[0] : 'Vĩnh viễn' }}
-                                                        </td>
-                                                        <td class="py-3 text-right">
-                                                            <div class="flex items-center justify-end space-x-1 text-slate-400">
-                                                                <a :href="'http://' + d.domain_name" target="_blank" class="p-1 hover:text-blue-600 transition" title="Mở trang">🔗</a>
-                                                                <button @click="currentTab = 'domains'" class="p-1 hover:text-slate-800 transition" title="Cấu hình">⚙️</button>
-                                                                <button class="p-1 hover:text-slate-800 transition">⋮</button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-
-                                    <!-- Hoạt động gần đây (5 cols) -->
-                                    <div class="md:col-span-5 wp-card p-5 flex flex-col justify-between">
-                                        <div class="flex items-center justify-between mb-3">
-                                            <h3 class="font-bold text-slate-800 text-sm">Hoạt động gần đây</h3>
-                                            <button @click="openMessageBox('tasks')" class="text-xs font-semibold text-blue-600 hover:underline">
-                                                Xem tất cả ({{ runningTasks.length + completedTasks.length }})
-                                            </button>
-                                        </div>
-
-                                        <!-- Danh sách hoạt động thực tế -->
-                                        <div class="space-y-3 text-xs overflow-y-auto max-h-[220px] custom-scrollbar pr-1">
-                                            <div v-if="runningTasks.length === 0 && completedTasks.length === 0 && domains.length === 0" class="py-6 text-center text-slate-400">
-                                                Chưa có lịch sử tác vụ nào được thực thi.
-                                            </div>
-
-                                            <!-- Các tác vụ đang chạy -->
-                                            <div v-for="t in runningTasks.slice(0, 3)" :key="t.id" @click="viewTaskLog(t.id)" class="flex items-start space-x-3 p-2 rounded-lg bg-blue-50/70 cursor-pointer hover:bg-blue-100/60 transition">
-                                                <div class="w-7 h-7 rounded-xl bg-blue-500 text-white flex items-center justify-center shrink-0 text-xs animate-spin">
-                                                    ⚙️
-                                                </div>
-                                                <div class="flex-1 min-w-0">
-                                                    <div class="font-semibold text-blue-900 truncate">{{ t.action_name || 'Đang thực thi tác vụ' }}</div>
-                                                    <div class="text-[11px] text-blue-600 truncate font-mono">#{{ t.id.substring(0, 8) }} - Đang chạy...</div>
-                                                </div>
-                                                <span class="text-[10px] text-blue-500 font-semibold shrink-0">Live</span>
-                                            </div>
-
-                                            <!-- Các tác vụ đã hoàn thành gần nhất -->
-                                            <div v-for="t in completedTasks.slice(0, 4)" :key="t.id" @click="viewTaskLog(t.id)" class="flex items-start space-x-3 p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer transition">
-                                                <div class="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold"
-                                                     :class="t.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'">
-                                                    {{ t.status === 'completed' ? '✓' : '✕' }}
-                                                </div>
-                                                <div class="flex-1 min-w-0">
-                                                    <div class="font-semibold text-slate-800 truncate">{{ t.action_name || 'Hệ thống thực thi' }}</div>
-                                                    <div class="text-[11px] text-slate-400 truncate font-mono">{{ t.created_at || t.id.substring(0, 8) }}</div>
-                                                </div>
-                                                <span class="text-[10px] text-slate-400 shrink-0 font-medium">Chi tiết ›</span>
-                                            </div>
-
-                                            <!-- Nếu không có task, hiện danh sách website đã tạo -->
-                                            <div v-if="completedTasks.length === 0 && runningTasks.length === 0 && domains.length > 0">
-                                                <div v-for="d in domains.slice(0, 3)" :key="'act_' + d.id" class="flex items-start space-x-3 p-1 rounded hover:bg-slate-50">
-                                                    <div class="w-7 h-7 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 text-xs">
-                                                        🌐
-                                                    </div>
-                                                    <div class="flex-1 min-w-0">
-                                                        <div class="font-semibold text-slate-800 truncate">Khởi tạo website {{ d.domain_name }}</div>
-                                                        <div class="text-[11px] text-slate-400 truncate">{{ d.webserver?.toUpperCase() }} | PHP {{ d.php_version }}</div>
-                                                    </div>
-                                                    <span class="text-[10px] text-emerald-600 shrink-0 font-medium">Sẵn sàng</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                </div>
-
                             </div>
 
-                            <!-- === CỘT PHẢI (4 COLS) === -->
-                            <div class="lg:col-span-4 space-y-5">
-                                
-                                <!-- 1. NÚT + TẠO MỚI & SHORTCUTS LIST -->
-                                <div class="space-y-3">
-                                    <!-- Nút lớn + Tạo mới xanh dương -->
-                                    <button @click="showAddDomainModal = true" class="w-full py-3 px-4 rounded-xl bg-[#2b66ff] hover:bg-blue-600 text-white font-bold text-sm shadow-md shadow-blue-500/25 flex items-center justify-between transition">
-                                        <div class="flex items-center space-x-2">
-                                            <span class="text-base font-black">＋</span>
-                                            <span>Tạo mới</span>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <!-- Site - ALL -->
+                                <div @click="currentTab = 'domains'" class="cursor-pointer group flex items-start justify-between p-3.5 rounded-xl bg-slate-50/70 border border-slate-100 hover:bg-blue-50/50 hover:border-blue-200 transition">
+                                    <div>
+                                        <div class="text-xs text-slate-500 mb-1 group-hover:text-blue-600 font-semibold transition">Site - ALL</div>
+                                        <div class="text-xs space-x-1.5">
+                                            <span class="text-slate-700">Running: <b class="text-emerald-600 font-mono">{{ sysStats.overview?.sites?.running || domains.length }}</b></span>
+                                            <span class="text-slate-300">|</span>
+                                            <span class="text-slate-500">Stopped: <b class="text-slate-600 font-mono">{{ sysStats.overview?.sites?.stopped || 0 }}</b></span>
                                         </div>
-                                        <span class="text-xs">⌵</span>
-                                    </button>
-
-                                    <!-- Quick Actions List Box -->
-                                    <div class="wp-card p-2 divide-y divide-slate-100 text-xs">
-                                        <button @click="showAddDomainModal = true" class="w-full p-2.5 rounded-lg hover:bg-slate-50 transition flex items-center justify-between text-slate-700 font-medium">
-                                            <div class="flex items-center space-x-3">
-                                                <span class="text-blue-600 text-base">🌐</span>
-                                                <span>Tạo website mới</span>
-                                            </div>
-                                            <span class="text-slate-400">›</span>
-                                        </button>
-
-                                        <button @click="currentTab = 'subscriptions'" class="w-full p-2.5 rounded-lg hover:bg-slate-50 transition flex items-center justify-between text-slate-700 font-medium">
-                                            <div class="flex items-center space-x-3">
-                                                <span class="text-emerald-600 text-base">🗄️</span>
-                                                <span>Đăng ký hosting</span>
-                                            </div>
-                                            <span class="text-slate-400">›</span>
-                                        </button>
-
-                                        <button @click="currentTab = 'service_plans'" class="w-full p-2.5 rounded-lg hover:bg-slate-50 transition flex items-center justify-between text-slate-700 font-medium">
-                                            <div class="flex items-center space-x-3">
-                                                <span class="text-indigo-600 text-base">☁️</span>
-                                                <span>Tạo VPS</span>
-                                            </div>
-                                            <span class="text-slate-400">›</span>
-                                        </button>
-
-                                        <button @click="currentTab = 'domains'" class="w-full p-2.5 rounded-lg hover:bg-slate-50 transition flex items-center justify-between text-slate-700 font-medium">
-                                            <div class="flex items-center space-x-3">
-                                                <span class="text-blue-600 text-base">🔗</span>
-                                                <span>Đăng ký tên miền</span>
-                                            </div>
-                                            <span class="text-slate-400">›</span>
-                                        </button>
-
-                                        <button @click="currentTab = 'wp'" class="w-full p-2.5 rounded-lg hover:bg-slate-50 transition flex items-center justify-between text-slate-700 font-medium">
-                                            <div class="flex items-center space-x-3">
-                                                <span class="text-blue-500 text-base">🇼</span>
-                                                <span>Cài đặt WordPress</span>
-                                            </div>
-                                            <span class="text-slate-400">›</span>
-                                        </button>
-
-                                        <button @click="openMessageBox('tasks')" class="w-full p-2.5 rounded-lg hover:bg-slate-50 transition flex items-center justify-between text-slate-700 font-medium">
-                                            <div class="flex items-center space-x-3">
-                                                <span class="text-blue-500 text-base">🎧</span>
-                                                <span>Tạo ticket hỗ trợ</span>
-                                            </div>
-                                            <span class="text-slate-400">›</span>
-                                        </button>
+                                        <div class="text-xs text-slate-400 mt-1 font-mono">Tổng: {{ sysStats.overview?.sites?.all || domains.length }} websites</div>
+                                    </div>
+                                    <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg">
+                                        🌐
                                     </div>
                                 </div>
 
-                                <!-- 2. BANNER "AN TOÀN LÀ TRÊN HẾT" (MÀU TỐI SANG TRỌNG) -->
-                                <div class="bg-gradient-to-br from-[#121c2e] to-[#0c1320] text-white rounded-2xl p-5 shadow-md relative overflow-hidden">
-                                    <div class="flex items-start space-x-3 mb-2">
-                                        <div class="w-9 h-9 rounded-xl bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-lg shrink-0">
-                                            🛡️
+                                <!-- FTP -->
+                                <div class="flex items-start justify-between p-3.5 rounded-xl bg-slate-50/70 border border-slate-100">
+                                    <div>
+                                        <div class="text-xs text-slate-500 mb-1 font-semibold">FTP</div>
+                                        <div class="text-xs text-slate-700">
+                                            Tài khoản: <b class="text-emerald-600 font-mono">{{ sysStats.overview?.ftp?.accounts || 1 }}</b>
                                         </div>
-                                        <div>
-                                            <h4 class="font-bold text-sm text-white">An toàn là trên hết</h4>
-                                            <p class="text-[11px] text-slate-300 mt-1 leading-relaxed">
-                                                Hệ thống của bạn được bảo vệ bởi tường lửa, Imunify360, Cgroups v2 và các lớp bảo mật cao nhất.
-                                            </p>
-                                        </div>
+                                        <div class="text-xs text-slate-400 mt-1">Quản lý Pure-FTPd / SFTP</div>
                                     </div>
-                                    <button @click="currentTab = 'firewall'" class="mt-3 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition flex items-center space-x-1.5 border border-white/10">
-                                        <span>Xem chi tiết</span>
-                                        <span>›</span>
-                                    </button>
-                                </div>
-
-                                <!-- 3. THÔNG TIN HỆ THỐNG CARD -->
-                                <div class="wp-card p-5">
-                                    <h3 class="font-bold text-slate-800 text-sm mb-4">Thông tin hệ thống</h3>
-                                    
-                                    <div class="space-y-3.5 text-xs">
-                                        <!-- IP máy chủ -->
-                                        <div class="flex items-center justify-between">
-                                            <div class="flex items-center space-x-2 text-slate-500">
-                                                <span>🌐</span>
-                                                <span>IP máy chủ</span>
-                                            </div>
-                                            <span class="font-mono font-semibold text-slate-800">{{ sysStats.server_ip || '103.22.12.34' }}</span>
-                                        </div>
-
-                                        <!-- Hệ điều hành -->
-                                        <div class="flex items-center justify-between">
-                                            <div class="flex items-center space-x-2 text-slate-500">
-                                                <span>🐧</span>
-                                                <span>Hệ điều hành</span>
-                                            </div>
-                                            <span class="font-semibold text-slate-800">{{ sysStats.os_name || 'Linux' }}</span>
-                                        </div>
-
-                                        <!-- PHP -->
-                                        <div class="flex items-center justify-between">
-                                            <div class="flex items-center space-x-2 text-slate-500">
-                                                <span>🐘</span>
-                                                <span>PHP Engine</span>
-                                            </div>
-                                            <span class="font-mono font-semibold text-slate-800">
-                                                {{ getApp('php82').installed ? 'PHP 8.2 (Multi-PHP)' : (getApp('php83').installed ? 'PHP 8.3' : '8.1 - 8.3') }}
-                                            </span>
-                                        </div>
-
-                                        <!-- MySQL / Database -->
-                                        <div class="flex items-center justify-between">
-                                            <div class="flex items-center space-x-2 text-slate-500">
-                                                <span>🐬</span>
-                                                <span>Cơ sở dữ liệu</span>
-                                            </div>
-                                            <span class="font-mono font-semibold text-slate-800">
-                                                {{ getApp('mariadb').running ? 'MariaDB (Active)' : (getApp('mariadb').installed ? 'MariaDB (Stopped)' : 'MariaDB / MySQL') }}
-                                            </span>
-                                        </div>
-
-                                        <!-- Uptime -->
-                                        <div class="flex items-center justify-between">
-                                            <div class="flex items-center space-x-2 text-slate-500">
-                                                <span>⏱️</span>
-                                                <span>Uptime hệ thống</span>
-                                            </div>
-                                            <span class="font-mono font-semibold text-emerald-600">{{ sysStats.uptime || 'Đang trực tuyến' }}</span>
-                                        </div>
+                                    <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+                                        📁
                                     </div>
                                 </div>
 
+                                <!-- Database -->
+                                <div class="flex items-start justify-between p-3.5 rounded-xl bg-slate-50/70 border border-slate-100">
+                                    <div>
+                                        <div class="text-xs text-slate-500 mb-1 font-semibold">Database</div>
+                                        <div class="text-xs text-slate-700">
+                                            Cơ sở dữ liệu: <b class="text-emerald-600 font-mono">{{ sysStats.overview?.database?.all || 1 }}</b>
+                                        </div>
+                                        <div class="text-xs text-slate-400 mt-1">MariaDB 10.11 / MySQL</div>
+                                    </div>
+                                    <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg">
+                                        🗄️
+                                    </div>
+                                </div>
+
+                                <!-- Security -->
+                                <div @click="currentTab = 'firewall'" class="cursor-pointer group flex items-start justify-between p-3.5 rounded-xl bg-slate-50/70 border border-slate-100 hover:bg-emerald-50/50 hover:border-emerald-200 transition">
+                                    <div>
+                                        <div class="text-xs text-slate-500 mb-1 group-hover:text-emerald-600 font-semibold transition">Security</div>
+                                        <div class="text-xs">
+                                            <span class="text-emerald-600 font-bold">Cgroups v2 + User Cage</span>
+                                        </div>
+                                        <div class="text-[10px] text-slate-400 font-mono mt-1">
+                                            {{ sysStats.overview?.security?.status || 'Bảo vệ an toàn' }}
+                                        </div>
+                                    </div>
+                                    <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+                                        🛡️
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. HÀNG 2 CỘT: SOFTWARE & TRAFFIC CHUẨN AAPANEL -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <!-- Cột Trái: Software (aaPanel Style) -->
+                            <div class="wp-card p-5 flex flex-col justify-between">
+                                <div>
+                                    <div class="flex justify-between items-center pb-3 mb-4 border-b border-slate-100">
+                                        <h3 class="text-sm font-bold text-slate-800">Software (Phần Mềm Hệ Thống)</h3>
+                                        <button @click="currentTab = 'apps'" class="text-xs text-blue-600 hover:underline font-semibold">App Store ›</button>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                        <!-- OpenLiteSpeed -->
+                                        <div class="p-3 rounded-xl bg-slate-50/70 border border-slate-100 flex flex-col justify-between">
+                                            <div class="flex items-center space-x-2.5 mb-2">
+                                                <div class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold">
+                                                    ⚡
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs font-bold text-slate-800">OpenLiteSpeed</div>
+                                                    <div class="text-[10px] flex items-center gap-1 font-mono">
+                                                        <span class="w-1.5 h-1.5 rounded-full"
+                                                            :class="getApp('ols').running ? 'bg-emerald-500 animate-pulse' : (getApp('ols').installed ? 'bg-amber-500' : 'bg-slate-300')"></span>
+                                                        <span :class="getApp('ols').running ? 'text-emerald-600 font-semibold' : (getApp('ols').installed ? 'text-amber-600' : 'text-slate-400')">
+                                                            {{ getApp('ols').running ? 'Running' : (getApp('ols').installed ? 'Stopped' : 'Not installed') }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-end space-x-1 pt-1 text-[11px]">
+                                                <button v-if="!getApp('ols').installed" @click="handleAppAction('ols', 'install')" class="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium">Cài Đặt</button>
+                                                <button v-else @click="openAppSettings(getApp('ols'))" class="px-2 py-0.5 rounded bg-slate-200/80 hover:bg-slate-300 text-slate-700 font-medium">Cài đặt</button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Nginx Web Server -->
+                                        <div class="p-3 rounded-xl bg-slate-50/70 border border-slate-100 flex flex-col justify-between">
+                                            <div class="flex items-center space-x-2.5 mb-2">
+                                                <div class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold">
+                                                    🟢
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs font-bold text-slate-800">Nginx Web Server</div>
+                                                    <div class="text-[10px] flex items-center gap-1 font-mono">
+                                                        <span class="w-1.5 h-1.5 rounded-full"
+                                                            :class="getApp('nginx').running ? 'bg-emerald-500 animate-pulse' : (getApp('nginx').installed ? 'bg-amber-500' : 'bg-slate-300')"></span>
+                                                        <span :class="getApp('nginx').running ? 'text-emerald-600 font-semibold' : (getApp('nginx').installed ? 'text-amber-600' : 'text-slate-400')">
+                                                            {{ getApp('nginx').running ? 'Running' : (getApp('nginx').installed ? 'Stopped' : 'Not installed') }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-end space-x-1 pt-1 text-[11px]">
+                                                <button v-if="!getApp('nginx').installed" @click="handleAppAction('nginx', 'install')" class="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium">Cài Đặt</button>
+                                                <button v-else @click="openAppSettings(getApp('nginx'))" class="px-2 py-0.5 rounded bg-slate-200/80 hover:bg-slate-300 text-slate-700 font-medium">Cài đặt</button>
+                                            </div>
+                                        </div>
+
+                                        <!-- MariaDB / MySQL -->
+                                        <div class="p-3 rounded-xl bg-slate-50/70 border border-slate-100 flex flex-col justify-between">
+                                            <div class="flex items-center space-x-2.5 mb-2">
+                                                <div class="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-sm font-bold">
+                                                    🐬
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs font-bold text-slate-800">MariaDB / MySQL</div>
+                                                    <div class="text-[10px] flex items-center gap-1 font-mono">
+                                                        <span class="w-1.5 h-1.5 rounded-full"
+                                                            :class="getApp('mariadb').running ? 'bg-emerald-500 animate-pulse' : (getApp('mariadb').installed ? 'bg-amber-500' : 'bg-slate-300')"></span>
+                                                        <span :class="getApp('mariadb').running ? 'text-emerald-600 font-semibold' : (getApp('mariadb').installed ? 'text-amber-600' : 'text-slate-400')">
+                                                            {{ getApp('mariadb').running ? 'Running' : (getApp('mariadb').installed ? 'Stopped' : 'Not installed') }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-end space-x-1 pt-1 text-[11px]">
+                                                <button v-if="!getApp('mariadb').installed" @click="handleAppAction('mariadb', 'install')" class="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium">Cài Đặt</button>
+                                                <button v-else @click="openAppSettings(getApp('mariadb'))" class="px-2 py-0.5 rounded bg-slate-200/80 hover:bg-slate-300 text-slate-700 font-medium">Cài đặt</button>
+                                            </div>
+                                        </div>
+
+                                        <!-- PHP Processor (Multi-PHP) -->
+                                        <div class="p-3 rounded-xl bg-slate-50/70 border border-slate-100 flex flex-col justify-between">
+                                            <div class="flex items-center space-x-2.5 mb-2">
+                                                <div class="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold">
+                                                    🐘
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs font-bold text-slate-800">PHP Processor</div>
+                                                    <div class="text-[10px] flex items-center gap-1 font-mono">
+                                                        <span class="w-1.5 h-1.5 rounded-full"
+                                                            :class="getApp('php82').installed ? 'bg-emerald-500' : 'bg-slate-300'"></span>
+                                                        <span :class="getApp('php82').installed ? 'text-emerald-600 font-semibold' : 'text-slate-400'">
+                                                            {{ getApp('php82').installed ? 'Multi-PHP 8.2' : 'Chưa cài PHP' }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-end space-x-1 pt-1 text-[11px]">
+                                                <button v-if="!getApp('php82').installed" @click="handleAppAction('php82', 'install')" class="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium">Cài Đặt</button>
+                                                <button v-else @click="openAppSettings(getApp('php82'))" class="px-2 py-0.5 rounded bg-slate-200/80 hover:bg-slate-300 text-slate-700 font-medium">Cài đặt</button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Redis Cache Server -->
+                                        <div class="p-3 rounded-xl bg-slate-50/70 border border-slate-100 flex flex-col justify-between">
+                                            <div class="flex items-center space-x-2.5 mb-2">
+                                                <div class="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center text-sm font-bold">
+                                                    ⚡
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs font-bold text-slate-800">Redis Cache</div>
+                                                    <div class="text-[10px] flex items-center gap-1 font-mono">
+                                                        <span class="w-1.5 h-1.5 rounded-full"
+                                                            :class="getApp('redis').running ? 'bg-emerald-500 animate-pulse' : (getApp('redis').installed ? 'bg-amber-500' : 'bg-slate-300')"></span>
+                                                        <span :class="getApp('redis').running ? 'text-emerald-600 font-semibold' : (getApp('redis').installed ? 'text-amber-600' : 'text-slate-400')">
+                                                            {{ getApp('redis').running ? 'Running' : (getApp('redis').installed ? 'Stopped' : 'Chưa cài') }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-end space-x-1 pt-1 text-[11px]">
+                                                <button v-if="!getApp('redis').installed" @click="handleAppAction('redis', 'install')" class="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium">Cài Đặt</button>
+                                                <button v-else @click="openAppSettings(getApp('redis'))" class="px-2 py-0.5 rounded bg-slate-200/80 hover:bg-slate-300 text-slate-700 font-medium">Cài đặt</button>
+                                            </div>
+                                        </div>
+
+                                        <!-- WP-CLI Toolkit -->
+                                        <div class="p-3 rounded-xl bg-slate-50/70 border border-slate-100 flex flex-col justify-between">
+                                            <div class="flex items-center space-x-2.5 mb-2">
+                                                <div class="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold">
+                                                    🇼
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs font-bold text-slate-800">WP-CLI Toolkit</div>
+                                                    <div class="text-[10px] flex items-center gap-1 font-mono">
+                                                        <span class="w-1.5 h-1.5 rounded-full"
+                                                            :class="getApp('wp-cli').installed ? 'bg-emerald-500' : 'bg-slate-300'"></span>
+                                                        <span :class="getApp('wp-cli').installed ? 'text-emerald-600 font-semibold' : 'text-slate-400'">
+                                                            {{ getApp('wp-cli').installed ? 'Active (SSO & CLI)' : 'Chưa cài' }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-end space-x-1 pt-1 text-[11px]">
+                                                <button v-if="!getApp('wp-cli').installed" @click="handleAppAction('wp-cli', 'install')" class="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium">Cài Đặt</button>
+                                                <button v-else @click="currentTab = 'wp'" class="px-2 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 font-medium">Mở Toolkit</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                                    <span>Cài đặt thêm các gói máy chủ:</span>
+                                    <button @click="currentTab = 'apps'" class="text-blue-600 hover:underline font-semibold">Vào App Store &rarr;</button>
+                                </div>
                             </div>
 
+                            <!-- Cột Phải: Traffic Realtime Graph (aaPanel Style) -->
+                            <div class="wp-card p-5">
+                                <div class="flex justify-between items-center pb-3 mb-3 border-b border-slate-100">
+                                    <div class="flex items-center space-x-3 text-xs">
+                                        <span class="font-bold text-slate-800 text-sm">Traffic Realtime</span>
+                                        <span class="text-slate-400">Network I/O</span>
+                                    </div>
+                                    <div class="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">
+                                        Net: All
+                                    </div>
+                                </div>
+
+                                <!-- Traffic Stats Numbers -->
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-3 font-mono">
+                                    <div>
+                                        <div class="text-slate-400 text-[11px] flex items-center gap-1">
+                                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                            <span>Upstream</span>
+                                        </div>
+                                        <div class="text-emerald-600 font-bold mt-0.5">{{ sysStats.network?.up_speed_kb || '12.4' }} KB/s</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-slate-400 text-[11px] flex items-center gap-1">
+                                            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                                            <span>Downstream</span>
+                                        </div>
+                                        <div class="text-blue-600 font-bold mt-0.5">{{ sysStats.network?.down_speed_kb || '18.2' }} KB/s</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-slate-400 text-[11px]">Total sent</div>
+                                        <div class="text-slate-700 mt-0.5">{{ sysStats.network?.total_sent_gb || '2.55' }} GB</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-slate-400 text-[11px]">Total received</div>
+                                        <div class="text-slate-700 mt-0.5">{{ sysStats.network?.total_recv_gb || '1.18' }} GB</div>
+                                    </div>
+                                </div>
+
+                                <!-- Realtime Spline Chart (SVG Tối Ưu Tự Động) -->
+                                <div class="relative w-full h-44 bg-slate-50/50 rounded-xl p-2 border border-slate-100 overflow-hidden flex flex-col justify-between">
+                                    <!-- Trục Y Tọa Độ Đứt Nét -->
+                                    <div class="absolute inset-0 p-3 flex flex-col justify-between pointer-events-none opacity-40">
+                                        <div class="border-b border-dashed border-slate-200 w-full flex justify-between text-[9px] text-slate-400"><span>200 KB</span></div>
+                                        <div class="border-b border-dashed border-slate-200 w-full flex justify-between text-[9px] text-slate-400"><span>150 KB</span></div>
+                                        <div class="border-b border-dashed border-slate-200 w-full flex justify-between text-[9px] text-slate-400"><span>100 KB</span></div>
+                                        <div class="border-b border-dashed border-slate-200 w-full flex justify-between text-[9px] text-slate-400"><span>50 KB</span></div>
+                                        <div class="border-b border-dashed border-slate-200 w-full flex justify-between text-[9px] text-slate-400"><span>0 KB</span></div>
+                                    </div>
+
+                                    <!-- SVG Đường Cong Realtime Spline -->
+                                    <svg class="w-full h-36" viewBox="0 0 500 120" preserveAspectRatio="none">
+                                        <defs>
+                                            <linearGradient id="gradDown" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.25"/>
+                                                <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.0"/>
+                                            </linearGradient>
+                                            <linearGradient id="gradUp" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                <stop offset="0%" stop-color="#10b981" stop-opacity="0.25"/>
+                                                <stop offset="100%" stop-color="#10b981" stop-opacity="0.0"/>
+                                            </linearGradient>
+                                        </defs>
+
+                                        <!-- Downstream Area & Curve (Xanh dương) -->
+                                        <path :d="downstreamAreaPath" fill="url(#gradDown)"/>
+                                        <path :d="downstreamCurvePath" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round"/>
+
+                                        <!-- Upstream Area & Curve (Xanh ngọc) -->
+                                        <path :d="upstreamAreaPath" fill="url(#gradUp)"/>
+                                        <path :d="upstreamCurvePath" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"/>
+                                    </svg>
+
+                                    <!-- Mốc Thời Gian Trục X -->
+                                    <div class="flex justify-between text-[9px] text-slate-400 font-mono px-2 pt-1 border-t border-slate-200">
+                                        <span v-for="t in timeLabels" :key="t">{{ t }}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                     </div>
