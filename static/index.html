@@ -180,7 +180,7 @@
                                     <span>Files</span>
                                 </div>
                                 <span v-if="currentUser.role === 'user'" class="text-[9px] px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 font-mono">SSH</span>
-                                <i v-else data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                                <span v-else class="text-slate-500 text-xs">›</span>
                             </button>
 
                             <!-- 5. Databases & Users (Admin, Hosting User & Web User) -->
@@ -234,8 +234,10 @@
                                     <i data-lucide="activity" class="w-4 h-4 text-slate-400"></i>
                                     <span>Tiến trình & Hỗ trợ</span>
                                 </div>
-                                <span v-if="runningTasks.length > 0" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                                <i v-else data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                                <div class="flex items-center">
+                                    <span v-if="runningTasks.length > 0" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    <span v-else class="text-slate-500 text-xs">›</span>
+                                </div>
                             </button>
 
                             <!-- 9. Công cụ / App Store (Chỉ Admin mới cài đặt và quản trị server app) -->
@@ -328,12 +330,15 @@
                     <div class="flex items-center space-x-4">
                         <!-- Tasks Box Button -->
                         <button @click="openMessageBox('tasks')" title="Tiến trình đang chạy" class="relative p-2 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition">
-                            <i data-lucide="bell" class="w-4 h-4"></i>
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+                                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+                            </svg>
                             <span v-if="runningTasks.length > 0" class="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white font-bold text-[9px] flex items-center justify-center ring-2 ring-white animate-pulse">
                                 {{ runningTasks.length }}
                             </span>
-                            <span v-else class="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white font-bold text-[9px] flex items-center justify-center ring-2 ring-white">
-                                3
+                            <span v-else class="absolute top-1 right-1 w-4 h-4 rounded-full bg-slate-300 text-slate-700 font-bold text-[9px] flex items-center justify-center ring-2 ring-white">
+                                0
                             </span>
                         </button>
 
@@ -1848,13 +1853,15 @@
                                             </td>
                                             <td class="py-3.5 px-4 font-medium text-slate-800 flex items-center space-x-2.5">
                                                 <div @click="item.is_dir ? enterDirectory(item.name) : openEditFileModal(item.name)" class="flex items-center space-x-2.5 cursor-pointer">
-                                                    <i v-if="item.is_dir" data-lucide="folder" class="w-5 h-5 text-amber-500 fill-amber-500/20 shrink-0"></i>
-                                                    <i v-else-if="item.name.endsWith('.php')" data-lucide="file-code" class="w-5 h-5 text-indigo-500 shrink-0"></i>
-                                                    <i v-else-if="item.name.endsWith('.html') || item.name.endsWith('.htm')" data-lucide="file-code-2" class="w-5 h-5 text-orange-500 shrink-0"></i>
-                                                    <i v-else-if="item.name.endsWith('.css') || item.name.endsWith('.js')" data-lucide="code" class="w-5 h-5 text-cyan-600 shrink-0"></i>
-                                                    <i v-else-if="item.name.endsWith('.zip') || item.name.endsWith('.tar.gz')" data-lucide="archive" class="w-5 h-5 text-emerald-600 shrink-0"></i>
-                                                    <i v-else-if="['.jpg', '.png', '.svg', '.webp'].some(ext => item.name.endsWith(ext))" data-lucide="image" class="w-5 h-5 text-purple-500 shrink-0"></i>
-                                                    <i v-else data-lucide="file-text" class="w-5 h-5 text-slate-400 shrink-0"></i>
+                                                    <span class="text-lg shrink-0 select-none">
+                                                        <template v-if="item.is_dir">📁</template>
+                                                        <template v-else-if="item.name.endsWith('.php')">🐘</template>
+                                                        <template v-else-if="item.name.endsWith('.html') || item.name.endsWith('.htm')">🌐</template>
+                                                        <template v-else-if="item.name.endsWith('.css') || item.name.endsWith('.js')">⚡</template>
+                                                        <template v-else-if="item.name.endsWith('.zip') || item.name.endsWith('.tar.gz')">📦</template>
+                                                        <template v-else-if="['.jpg', '.png', '.svg', '.webp'].some(ext => item.name.endsWith(ext))">🖼️</template>
+                                                        <template v-else>📄</template>
+                                                    </span>
 
                                                     <span class="group-hover:text-blue-600 transition truncate max-w-sm font-semibold">
                                                         {{ item.name }}
@@ -1904,7 +1911,7 @@
                                 <div class="flex items-center space-x-2">
                                     <button @click="saveFileContent" :disabled="savingFile" class="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition flex items-center space-x-1.5">
                                         <span v-if="savingFile" class="animate-spin">⏳</span>
-                                        <i v-else data-lucide="save" class="w-3.5 h-3.5"></i>
+                                        <span v-else>💾</span>
                                         <span>{{ savingFile ? 'Đang Lưu...' : 'Lưu Tệp' }}</span>
                                     </button>
                                     <button @click="showEditFileModal = false" class="text-slate-400 hover:text-slate-700 text-xl font-bold p-1 leading-none">&times;</button>
@@ -2349,7 +2356,7 @@
                             <button type="submit" :disabled="creatingCustomer"
                                 class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-500/20 flex items-center space-x-2 transition">
                                 <span v-if="creatingCustomer" class="animate-spin">⏳</span>
-                                <i v-else data-lucide="check" class="w-4 h-4"></i>
+                                <span v-else>✓</span>
                                 <span>{{ creatingCustomer ? 'Đang Khởi Tạo...' : 'Tạo Hosting User' }}</span>
                             </button>
                         </div>
@@ -4497,10 +4504,6 @@
                 watch(showCreateItemModal, () => {
                     refreshLucideIcons();
                 });
-
-                watch(appsList, () => {
-                    refreshLucideIcons();
-                }, { deep: true });
 
                 let timer = null;
                 onMounted(() => {
