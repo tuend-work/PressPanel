@@ -96,6 +96,7 @@ int main(int argc, char *argv[]) {
             "echo '%d 100000' > %s/cpu.max 2>/dev/null || true; "
             "echo '%d' > %s/pids.max 2>/dev/null || true; "
             "if [ %u -gt 0 ]; then systemctl set-property user-%u.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; fi; "
+            "systemctl set-property wpc-user-%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; "
             "pgrep -u %s | while read -r p; do echo \"$p\" > %s/cgroup.procs 2>/dev/null || echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; done",
             reseller_path,
             reseller_path,
@@ -108,6 +109,7 @@ int main(int argc, char *argv[]) {
             cpu * 1000, user_flat_path,
             pids, user_flat_path,
             (unsigned int)uid, (unsigned int)uid, cpu, mem_mb, pids,
+            username, cpu, mem_mb, pids,
             username, path, user_flat_path);
         IGNORE_RESULT(system(cmd));
 

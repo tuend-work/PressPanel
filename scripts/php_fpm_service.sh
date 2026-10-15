@@ -90,8 +90,7 @@ Type=notify
 PIDFile=/run/php/php__PHP_VER__-fpm-%i.pid
 ExecStart=/usr/sbin/php-fpm__PHP_VER__ --nodaemonize --fpm-config /etc/php/__PHP_VER__/fpm/users/%i.conf
 ExecReload=/bin/kill -USR2 $MAINPID
-TimeoutSec=15
-Slice=wpc.slice
+Slice=wpc-user-%i.slice
 
 [Install]
 WantedBy=multi-user.target
@@ -103,15 +102,26 @@ EOF
         # 4. Kích hoạt và khởi động service riêng của user
         systemctl daemon-reload 2>/dev/null || true
         systemctl enable "$SVC_NAME" 2>/dev/null || true
-        systemctl restart "$SVC_NAME" 2>/dev/null || true
 
-        # 4. Gán PID master và workers vào Cgroup của User
-        sleep 0.5
-        pgrep -f "php-fpm: pool ${USERNAME}" 2>/dev/null | while read -r pid; do
-            for cg in /sys/fs/cgroup/wpc/reseller_*/user_${USERNAME}/cgroup.procs /sys/fs/cgroup/wpc/user_${USERNAME}/cgroup.procs; do
-                [ -f "$cg" ] && echo "$pid" > "$cg" 2>/dev/null || true
-            done
-        done
+        # Đọc hạn mức từ file cgroup của user nếu có để set-property cho slice này
+        USER_CG_PATH="/sys/fs/cgroup/wpc/reseller_1/user_${USERNAME}"
+        [ -d "$USER_CG_PATH" ] || USER_CG_PATH="/sys/fs/cgroup/wpc/user_${USERNAME}"
+        if [ -f "$USER_CG_PATH/cpu.max" ]; then
+            CPU_MAX_VAL=$(awk '{print $1}' "$USER_CG_PATH/cpu.max" 2>/dev/null || echo "100000")
+            if [ "$CPU_MAX_VAL" != "max" ] && [ "$CPU_MAX_VAL" -gt 0 ]; then
+                CPU_PCT=$((CPU_MAX_VAL / 1000))
+                systemctl set-property "wpc-user-${USERNAME}.slice" CPUQuota="${CPU_PCT}%" 2>/dev/null || true
+            fi
+        fi
+        if [ -f "$USER_CG_PATH/memory.max" ]; then
+            MEM_MAX_VAL=$(cat "$USER_CG_PATH/memory.max" 2>/dev/null || echo "max")
+            if [ "$MEM_MAX_VAL" != "max" ] && [ "$MEM_MAX_VAL" -gt 0 ]; then
+                MEM_MB=$((MEM_MAX_VAL / 1024 / 1024))
+                systemctl set-property "wpc-user-${USERNAME}.slice" MemoryMax="${MEM_MB}M" 2>/dev/null || true
+            fi
+        fi
+
+        systemctl restart "$SVC_NAME" 2>/dev/null || true
         ;;
 
     start)

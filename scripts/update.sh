@@ -139,7 +139,7 @@ PIDFile=/run/php/php${pver}-fpm-%i.pid
 ExecStart=/usr/sbin/php-fpm${pver} --nodaemonize --fpm-config /etc/php/${pver}/fpm/users/%i.conf
 ExecReload=/bin/kill -USR2 \$MAINPID
 TimeoutSec=15
-Slice=wpc.slice
+Slice=wpc-user-%i.slice
 
 [Install]
 WantedBy=multi-user.target
