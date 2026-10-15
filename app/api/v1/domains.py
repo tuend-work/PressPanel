@@ -11,6 +11,7 @@ class DomainCreate(BaseModel):
     domain_name: str
     webserver: str = "ols"
     php_version: str = "8.2"
+    install_wp: bool = False
 
 @router.get("/")
 async def list_domains(current_user: dict = Depends(get_current_user)):
@@ -53,4 +54,9 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
         raise HTTPException(status_code=400, detail=f"Domain da ton tai: {str(e)}")
     
     await db.close()
+
+    # Tự động khởi tạo WordPress nếu được yêu cầu
+    if req.install_wp:
+        await run_gatekeeper("wp", "install", username, req.domain_name)
+
     return {"status": "ok", "message": f"Da tao website {req.domain_name} thanh cong!"}
