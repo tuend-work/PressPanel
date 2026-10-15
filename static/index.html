@@ -116,7 +116,7 @@
                             </span>
                             <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800/60 font-mono font-bold">PressPanel</span>
                         </div>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">v0.4.3</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">v0.4.4</span>
 
 
 
@@ -173,7 +173,7 @@
                                         <span class="text-sm opacity-80">📖</span>
                                         <span>Service Plans</span>
                                     </div>
-                                    <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-300 font-semibold">1</span>
+                                    <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-300 font-semibold">{{ servicePlans.length }}</span>
                                 </button>
                             </div>
                         </div>
@@ -1127,8 +1127,78 @@
                         </div>
                     </div>
 
-                    <!-- VIEW 6: PLACEHOLDER CHO CÁC MỤC PLESK (Resellers, Subscriptions, Service Plans, Tools & Settings...) -->
-                    <div v-if="['resellers', 'subscriptions', 'service_plans', 'seo', 'tools_settings', 'monitoring', 'laravel', 'nodejs', 'profile', 'password'].includes(currentTab)" class="space-y-6 max-w-7xl mx-auto">
+                    <!-- ========================================== -->
+                    <!-- VIEW 6: SERVICE PLANS (CÁC GÓI HOSTING MẪU PLESK) -->
+                    <!-- ========================================== -->
+                    <div v-if="currentTab === 'service_plans'" class="space-y-6 max-w-7xl mx-auto">
+                        <!-- Action Bar -->
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                                    <span>📖</span> <span>Gói Dịch Vụ Lưu Trữ (Service Plans)</span>
+                                </h2>
+                                <p class="text-xs text-slate-400">Định nghĩa các gói hosting mẫu (Disk Quota, RAM, CPU, số lượng tên miền & database) cho khách hàng.</p>
+                            </div>
+                            <button @click="showAddPlanModal = true" class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-semibold text-xs text-white shadow-lg shadow-cyan-500/20 transition flex items-center space-x-2">
+                                <span>➕ Thêm Service Plan Mới</span>
+                            </button>
+                        </div>
+
+                        <!-- Grid các gói Hosting Mẫu chuẩn Plesk -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div v-for="plan in servicePlans" :key="plan.id"
+                                class="aapanel-card rounded-2xl p-5 flex flex-col justify-between border border-[#232b36] hover:border-cyan-600 transition shadow-xl space-y-4">
+                                <div>
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div class="w-9 h-9 rounded-xl bg-cyan-950/80 border border-cyan-800 text-cyan-400 flex items-center justify-center font-bold text-sm">
+                                            📦
+                                        </div>
+                                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-full uppercase font-bold"
+                                            :class="plan.package_type === 'reseller' ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-blue-950 text-blue-400 border border-blue-800'">
+                                            {{ plan.package_type }}
+                                        </span>
+                                    </div>
+
+                                    <h3 class="font-bold text-white text-base">{{ plan.name }}</h3>
+                                    <div class="text-[11px] text-slate-500 font-mono mt-0.5">Plan ID: #{{ plan.id }}</div>
+
+                                    <!-- Thông số kỹ thuật của gói -->
+                                    <div class="mt-4 space-y-2 text-xs divide-y divide-slate-800/80">
+                                        <div class="flex justify-between pt-1.5 text-slate-300">
+                                            <span class="text-slate-400">💾 Dung lượng ổ cứng:</span>
+                                            <span class="font-bold text-cyan-400 font-mono">{{ (plan.disk_mb / 1024).toFixed(1) }} GB</span>
+                                        </div>
+                                        <div class="flex justify-between pt-1.5 text-slate-300">
+                                            <span class="text-slate-400">⚡ Bộ nhớ RAM:</span>
+                                            <span class="font-bold text-slate-200 font-mono">{{ plan.mem_mb }} MB</span>
+                                        </div>
+                                        <div class="flex justify-between pt-1.5 text-slate-300">
+                                            <span class="text-slate-400">🖥️ Hạn mức CPU:</span>
+                                            <span class="font-bold text-slate-200 font-mono">{{ plan.cpu_pct }}% Core</span>
+                                        </div>
+                                        <div class="flex justify-between pt-1.5 text-slate-300">
+                                            <span class="text-slate-400">🌐 Số tên miền tối đa:</span>
+                                            <span class="font-bold text-slate-200 font-mono">{{ plan.max_domains }}</span>
+                                        </div>
+                                        <div class="flex justify-between pt-1.5 text-slate-300">
+                                            <span class="text-slate-400">🗄️ Số database tối đa:</span>
+                                            <span class="font-bold text-slate-200 font-mono">{{ plan.max_databases }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="pt-3 border-t border-[#232b36] flex items-center justify-between text-xs">
+                                    <span class="text-slate-400">Đang sử dụng:</span>
+                                    <span class="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 font-mono text-cyan-300 font-bold">
+                                        {{ plan.subscriber_count || 0 }} Users
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VIEW 7: PLACEHOLDER CHO CÁC MỤC PLESK (Resellers, Subscriptions, SEO, Tools & Settings...) -->
+                    <div v-if="['resellers', 'subscriptions', 'seo', 'tools_settings', 'monitoring', 'laravel', 'nodejs', 'profile', 'password'].includes(currentTab)" class="space-y-6 max-w-7xl mx-auto">
                         <div class="glass-card rounded-2xl p-8 text-center space-y-3">
                             <div class="text-4xl">⚡</div>
                             <h3 class="text-base font-bold text-white capitalize">{{ currentTab.replace('_', ' ') }}</h3>
@@ -1139,12 +1209,13 @@
                                 <button @click="currentTab = 'customers'" class="px-3 py-1.5 rounded-xl bg-cyan-600 text-white text-xs font-semibold">
                                     Vào Quản Lý Customers
                                 </button>
-                                <button @click="currentTab = 'domains'" class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">
-                                    Xem Danh Sách Domains
+                                <button @click="currentTab = 'service_plans'" class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">
+                                    Quản Lý Service Plans
                                 </button>
                             </div>
                         </div>
                     </div>
+
                 </main>
             </div>
 
@@ -1258,6 +1329,80 @@
                 </div>
             </div>
 
+            <!-- MODAL: THÊM SERVICE PLAN MỚI (PLESK HOSTING PACKAGE) -->
+            <div v-if="showAddPlanModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="glass rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-700">
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xl">📦</span>
+                            <h3 class="text-base font-bold text-white">Thêm Service Plan (Gói Hosting Mới)</h3>
+                        </div>
+                        <button @click="showAddPlanModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <form @submit.prevent="handleAddPlan" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Tên Gói Dịch Vụ</label>
+                            <input type="text" v-model="newPlan.name" placeholder="vd: WordPress Business, VIP Turbo" required
+                                class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Loại Gói</label>
+                                <select v-model="newPlan.package_type"
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-cyan-500">
+                                    <option value="user">User Hosting (Khách hàng con)</option>
+                                    <option value="reseller">Reseller Plan (Đại lý)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Giới Hạn CPU (%)</label>
+                                <input type="number" v-model.number="newPlan.cpu_pct" min="10" max="800" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Dung Lượng Ổ Cứng (MB)</label>
+                                <input type="number" v-model.number="newPlan.disk_mb" min="500" max="500000" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                                <span class="text-[10px] text-slate-500 font-mono mt-0.5 block">≈ {{ (newPlan.disk_mb / 1024).toFixed(1) }} GB</span>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Bộ Nhớ RAM (MB)</label>
+                                <input type="number" v-model.number="newPlan.mem_mb" min="256" max="65536" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                                <span class="text-[10px] text-slate-500 font-mono mt-0.5 block">≈ {{ (newPlan.mem_mb / 1024).toFixed(1) }} GB</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Số Tên Miền Tối Đa</label>
+                                <input type="number" v-model.number="newPlan.max_domains" min="1" max="1000" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Số Database Tối Đa</label>
+                                <input type="number" v-model.number="newPlan.max_databases" min="1" max="1000" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-2 border-t border-slate-800">
+                            <button type="button" @click="showAddPlanModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
+                            <button type="submit" :disabled="creatingPlan"
+                                class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold shadow-lg shadow-cyan-500/20 flex items-center space-x-1.5">
+                                <span v-if="creatingPlan" class="animate-spin">⏳</span>
+                                <span>{{ creatingPlan ? 'Đang Tạo Plan...' : 'Tạo Service Plan' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- MODAL: CẬP NHẬT PHIÊN BẢN PRESSPANEL (AAPANEL STYLE UPDATE MODAL) -->
             <div v-if="showUpdateModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
 
@@ -1274,7 +1419,7 @@
                         <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Phiên bản hiện tại:</span>
-                                <span class="font-mono text-white font-bold bg-blue-950 px-2 py-0.5 rounded border border-blue-800">v0.3.7</span>
+                                <span class="font-mono text-white font-bold bg-blue-950 px-2 py-0.5 rounded border border-blue-800">v0.4.4</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Kênh cập nhật:</span>
@@ -1455,6 +1600,20 @@
                     cpu_pct: 100
                 });
                 const isImpersonating = ref(!!sessionStorage.getItem('presspanel_admin_backup_token'));
+
+                // Gói Dịch Vụ Lưu Trữ (Service Plans / Hosting Packages)
+                const servicePlans = ref([]);
+                const showAddPlanModal = ref(false);
+                const creatingPlan = ref(false);
+                const newPlan = ref({
+                    name: '',
+                    package_type: 'user',
+                    disk_mb: 5120,
+                    mem_mb: 1024,
+                    cpu_pct: 100,
+                    max_domains: 10,
+                    max_databases: 10
+                });
 
                 const loginForm = ref({ username: 'admin', password: 'admin123456' });
                 const loginError = ref('');
@@ -1747,8 +1906,11 @@
                             localStorage.setItem('presspanel_user', JSON.stringify(currentUser.value));
                             currentTab.value = 'dashboard';
                             fetchDomains();
+                            fetchCustomers();
+                            fetchServicePlans();
                             fetchSystemStatus();
                             fetchAppsList();
+                            fetchTasks();
                         } else {
                             loginError.value = data.detail || 'Sai tên đăng nhập hoặc mật khẩu';
                         }
@@ -1833,6 +1995,58 @@
                         }
                     } catch (e) {
                         console.error('Lỗi tải customers:', e);
+                    }
+                };
+
+                // ==========================================
+                // QUẢN TRỊ SERVICE PLANS (HOSTING PACKAGES)
+                // ==========================================
+                const fetchServicePlans = async () => {
+                    if (!token.value) return;
+                    try {
+                        const res = await fetch('/api/v1/users/plans', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            servicePlans.value = await res.json();
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải service plans:', e);
+                    }
+                };
+
+                const handleAddPlan = async () => {
+                    creatingPlan.value = true;
+                    try {
+                        const res = await fetch('/api/v1/users/plans', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify(newPlan.value)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Tạo gói dịch vụ thành công!');
+                            showAddPlanModal.value = false;
+                            newPlan.value = {
+                                name: '',
+                                package_type: 'user',
+                                disk_mb: 5120,
+                                mem_mb: 1024,
+                                cpu_pct: 100,
+                                max_domains: 10,
+                                max_databases: 10
+                            };
+                            fetchServicePlans();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể tạo Service Plan'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        creatingPlan.value = false;
                     }
                 };
 
@@ -2015,6 +2229,7 @@
                     if (token.value) {
                         fetchDomains();
                         fetchCustomers();
+                        fetchServicePlans();
                         fetchSystemStatus();
                         fetchAppsList();
                         fetchTasks();
@@ -2038,6 +2253,7 @@
                     token, currentUser, currentTab, domains, showAddDomainModal,
                     customers, showAddCustomerModal, creatingCustomer, newCustomer, isImpersonating,
                     fetchCustomers, handleAddCustomer, impersonateUser, exitImpersonation,
+                    servicePlans, showAddPlanModal, creatingPlan, newPlan, fetchServicePlans, handleAddPlan,
                     showUpdateModal, isUpdating, updateCountdown, handlePanelUpdate,
                     showMessagesBox, msgBoxTab, runningTasks, completedTasks,
                     selectedTaskId, selectedTaskLog, fetchTasks, viewTaskLog,
@@ -2050,8 +2266,6 @@
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain,
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
                     fetchSystemStatus, restartPanel
-
-
                 };
             }
         }).mount('#app');

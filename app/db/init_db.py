@@ -181,13 +181,40 @@ async def init_database():
         await db.execute("PRAGMA journal_mode = WAL;")
         await db.executescript(SCHEMA_SQL)
         
-        # Tạo gói Default nếu chưa có
+        # Tạo các gói Service Plans mẫu (Hosting Plans) nếu chưa có
         cursor = await db.execute("SELECT id FROM packages WHERE id = 1")
-        pkg = await cursor.fetchone()
-        if not pkg:
+        pkg1 = await cursor.fetchone()
+        if not pkg1:
             await db.execute("""
-                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max)
-                VALUES (1, 0, 'Default Admin Package', 'reseller', 400, 8192, 51200, 100, 500)
+                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases)
+                VALUES (1, 0, 'Admin Unlimited Plan', 'reseller', 400, 8192, 102400, 100, 500, 100, 100)
+            """)
+
+        # Gói 2: Standard Plan (Mặc định cho Customer)
+        cursor = await db.execute("SELECT id FROM packages WHERE id = 2")
+        pkg2 = await cursor.fetchone()
+        if not pkg2:
+            await db.execute("""
+                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases)
+                VALUES (2, 0, 'Standard Web Hosting', 'user', 100, 1024, 5120, 100, 100, 5, 5)
+            """)
+
+        # Gói 3: Pro WordPress Plan
+        cursor = await db.execute("SELECT id FROM packages WHERE id = 3")
+        pkg3 = await cursor.fetchone()
+        if not pkg3:
+            await db.execute("""
+                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases)
+                VALUES (3, 0, 'Pro WordPress Turbo', 'user', 200, 2048, 20480, 150, 200, 15, 15)
+            """)
+
+        # Gói 4: Starter Mini Plan
+        cursor = await db.execute("SELECT id FROM packages WHERE id = 4")
+        pkg4 = await cursor.fetchone()
+        if not pkg4:
+            await db.execute("""
+                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases)
+                VALUES (4, 0, 'Starter Mini', 'user', 50, 512, 2048, 80, 50, 1, 1)
             """)
 
         # Tạo tài khoản Admin mặc định nếu chưa có
@@ -197,10 +224,11 @@ async def init_database():
             admin_pass_hash = get_password_hash("admin123456")
             await db.execute("""
                 INSERT INTO users (username, password_hash, email, role, package_id, cpu_pct, mem_mb, disk_mb, io_weight, pids_max)
-                VALUES ('admin', ?, 'admin@presspanel.local', 'admin', 1, 400, 8192, 51200, 100, 500)
+                VALUES ('admin', ?, 'admin@presspanel.local', 'admin', 1, 400, 8192, 102400, 100, 500)
             """, (admin_pass_hash,))
 
         await db.commit()
+
     print("[+] SQLite Database initialized successfully with 12 tables!")
 
 if __name__ == "__main__":

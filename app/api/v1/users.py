@@ -78,16 +78,26 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
     try:
         # Lưu vào SQLite
         pwd_hash = get_password_hash(req.password)
-        # Lấy package mặc định
-        pkg_cur = await db.execute("SELECT id FROM packages WHERE package_type = 'user' LIMIT 1")
+        # Lấy package mặc định, nếu chưa có thì tự động tạo gói Standard
+        pkg_cur = await db.execute("SELECT id FROM packages WHERE package_type = 'user' ORDER BY id ASC LIMIT 1")
         pkg = await pkg_cur.fetchone()
-        package_id = pkg["id"] if pkg else 2
+        if not pkg:
+            # Tự động tạo gói Standard Web Hosting
+            await db.execute("""
+                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases)
+                VALUES (2, 0, 'Standard Web Hosting', 'user', 100, 1024, 5120, 100, 100, 5, 5)
+            """)
+            await db.commit()
+            package_id = 2
+        else:
+            package_id = pkg["id"]
 
         await db.execute("""
             INSERT INTO users (parent_id, username, password_hash, email, role, package_id, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, status)
             VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?, 100, 100, 'active')
         """, (current_user["id"], username, pwd_hash, req.email.strip(), package_id, req.cpu_pct, req.mem_mb, req.disk_mb))
         await db.commit()
+
 
         # Lấy id vừa tạo
         id_cur = await db.execute("SELECT id FROM users WHERE username = ?", (username,))
@@ -152,3 +162,46 @@ async def impersonate_customer(user_id: int, current_user: dict = Depends(requir
             "role": target_user["role"]
         }
     }
+
+# ==========================================
+# SERVICE PLANS (PACKAGES MANAGEMENT)
+# ==========================================
+class PlanCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=64)
+    package_type: str = Field("user", regex="^(user|reseller)$")
+    disk_mb: int = Field(5120, ge=500, le=500000)
+    mem_mb: int = Field(1024, ge=256, le=65536)
+    cpu_pct: int = Field(100, ge=10, le=400)
+    max_domains: int = Field(10, ge=1, le=1000)
+    max_databases: int = Field(10, ge=1, le=1000)
+
+@router.get("/plans")
+async def list_service_plans(current_user: dict = Depends(get_current_user)):
+    """Lấy danh sách các gói dịch vụ (Service Plans / Hosting Packages)"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT p.*, (SELECT COUNT(*) FROM users u WHERE u.package_id = p.id) as subscriber_count
+        FROM packages p
+        ORDER BY p.id ASC
+    """)
+    rows = await cursor.fetchall()
+    await db.close()
+    return [dict(r) for r in rows]
+
+@router.post("/plans")
+async def create_service_plan(req: PlanCreate, current_user: dict = Depends(require_role("admin", "reseller"))):
+    """Tạo gói dịch vụ (Service Plan) mới"""
+    db = await get_db_connection()
+    try:
+        await db.execute("""
+            INSERT INTO packages (owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases)
+            VALUES (?, ?, ?, ?, ?, ?, 100, 100, ?, ?)
+        """, (current_user["id"], req.name, req.package_type, req.cpu_pct, req.mem_mb, req.disk_mb, req.max_domains, req.max_databases))
+        await db.commit()
+    except Exception as e:
+        await db.close()
+        raise HTTPException(status_code=400, detail=f"Không thể tạo gói: {str(e)}")
+    
+    await db.close()
+    return {"status": "ok", "message": f"Tạo gói dịch vụ '{req.name}' thành công!"}
+
