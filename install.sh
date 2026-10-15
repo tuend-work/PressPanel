@@ -59,6 +59,10 @@ if ! id -u "$PANEL_USER" >/dev/null 2>&1; then
     useradd -r -s /usr/sbin/nologin -d "$INSTALL_DIR" "$PANEL_USER"
 fi
 
+# Cấu hình sudoers an toàn cho presspanel thực hiện update và restart
+echo "$PANEL_USER ALL=(ALL) NOPASSWD: $INSTALL_DIR/scripts/update.sh, /usr/bin/systemctl restart presspanel, /usr/bin/systemctl reload presspanel, /bin/systemctl restart presspanel, /bin/systemctl reload presspanel" > /etc/sudoers.d/presspanel 2>/dev/null || true
+chmod 440 /etc/sudoers.d/presspanel 2>/dev/null || true
+
 # 5. Tạo cây thư mục triển khai
 echo "[+] Khởi tạo cấu trúc thư mục tại $INSTALL_DIR..."
 mkdir -p "$INSTALL_DIR"/{bin,app,conf,static,data,logs/tasks,scripts/apps,server,templates}

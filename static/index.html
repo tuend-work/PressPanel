@@ -51,7 +51,7 @@
                         ⚡
                     </div>
                     <span class="font-bold text-2xl tracking-tight bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">PressPanel</span>
-                    <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.5</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.6</span>
                 </div>
                 <a href="/docs" target="_blank" class="text-xs font-medium text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 transition">
                     📖 Swagger API
@@ -111,7 +111,7 @@
                             </div>
                             <span class="font-bold text-lg tracking-tight text-white">PressPanel</span>
                         </div>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.5</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.6</span>
                     </div>
 
                     <!-- Navigation Items -->
@@ -185,13 +185,13 @@
 
                     <!-- Right Controls (Update, Fix, Restart) -->
                     <div class="flex items-center space-x-2 text-xs">
-                        <button @click="fetchSystemStatus" title="Làm mới trạng thái" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center space-x-1 transition">
-                            <span>🔄</span> <span class="hidden sm:inline">Cập nhật</span>
+                        <button @click="showUpdateModal = true" title="Cập nhật phiên bản PressPanel từ GitHub" class="px-2.5 py-1 rounded bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 flex items-center space-x-1 transition font-medium">
+                            <span>🔄</span> <span>Update</span>
                         </button>
-                        <button @click="restartPanel" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-rose-900/50 text-slate-300 hover:text-rose-300 border border-slate-700 flex items-center space-x-1 transition">
-                            <span>⚡</span> <span class="hidden sm:inline">Restart</span>
+                        <button @click="restartPanel" title="Khởi động lại dịch vụ PressPanel" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-rose-900/50 text-slate-300 hover:text-rose-300 border border-slate-700 flex items-center space-x-1 transition">
+                            <span>⚡</span> <span>Restart</span>
                         </button>
-                        <a href="/docs" target="_blank" class="px-2.5 py-1 rounded bg-blue-600/20 text-blue-400 border border-blue-500/30 font-medium hover:bg-blue-600/30 transition">
+                        <a href="/docs" target="_blank" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-medium transition">
                             API
                         </a>
                     </div>
@@ -905,6 +905,54 @@
                     </form>
                 </div>
             </div>
+
+            <!-- MODAL: CẬP NHẬT PHIÊN BẢN PRESSPANEL (AAPANEL STYLE UPDATE MODAL) -->
+            <div v-if="showUpdateModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="glass rounded-2xl max-w-md w-full p-6 shadow-2xl relative border border-slate-700">
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xl">🔄</span>
+                            <h3 class="text-base font-bold text-white">Cập Nhật PressPanel</h3>
+                        </div>
+                        <button v-if="!isUpdating" @click="showUpdateModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <div class="space-y-4 text-xs">
+                        <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-400">Phiên bản hiện tại:</span>
+                                <span class="font-mono text-white font-bold bg-blue-950 px-2 py-0.5 rounded border border-blue-800">v0.3.6</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-400">Kênh cập nhật:</span>
+                                <span class="text-emerald-400 font-mono">GitHub Official (main)</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-400">Bảo toàn dữ liệu:</span>
+                                <span class="text-emerald-400">100% (DB & Websites an toàn)</span>
+                            </div>
+                        </div>
+
+                        <div v-if="isUpdating" class="p-4 rounded-xl bg-blue-950/40 border border-blue-800 text-center space-y-2">
+                            <div class="text-2xl animate-spin">⚡</div>
+                            <div class="font-bold text-white text-sm">Đang Tiến Hành Cập Nhật...</div>
+                            <p class="text-slate-300 text-[11px]">Hệ thống đang kéo mã nguồn mới nhất, biên dịch C Gatekeepers và khởi động lại dịch vụ.</p>
+                            <div class="text-blue-400 font-mono text-xs pt-1">Tự động tải lại trang sau {{ updateCountdown }} giây...</div>
+                        </div>
+
+                        <div v-else class="text-slate-400 text-[11px] leading-relaxed">
+                            Nhấn nút bên dưới để cập nhật mã nguồn mới nhất, bổ sung tính năng và bản vá bảo mật từ GitHub. Hệ thống sẽ tự động khởi động lại dịch vụ sau khi hoàn tất.
+                        </div>
+
+                        <div v-if="!isUpdating" class="flex justify-end space-x-2 pt-2">
+                            <button type="button" @click="showUpdateModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Đóng</button>
+                            <button type="button" @click="handlePanelUpdate" class="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold shadow-lg shadow-blue-500/25 flex items-center space-x-1.5">
+                                <span>⚡</span> <span>Bắt Đầu Cập Nhật</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1204,9 +1252,51 @@
                 const openFileManager = (path) => {
                     currentTab.value = 'files';
                 };
-                const restartPanel = () => {
-                    if (confirm('Bạn có chắc chắn muốn khởi động lại dịch vụ PressPanel?')) {
-                        alert('Đang gửi tín hiệu khởi động lại service...');
+                const showUpdateModal = ref(false);
+                const isUpdating = ref(false);
+                const updateCountdown = ref(12);
+
+                const handlePanelUpdate = async () => {
+                    isUpdating.value = true;
+                    updateCountdown.value = 12;
+                    try {
+                        const res = await fetch('/api/v1/system/update', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            const interval = setInterval(() => {
+                                updateCountdown.value--;
+                                if (updateCountdown.value <= 0) {
+                                    clearInterval(interval);
+                                    window.location.reload();
+                                }
+                            }, 1000);
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể bắt đầu cập nhật'));
+                            isUpdating.value = false;
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                        isUpdating.value = false;
+                    }
+                };
+
+                const restartPanel = async () => {
+                    if (!confirm('Bạn có chắc chắn muốn khởi động lại dịch vụ PressPanel?')) return;
+                    try {
+                        const res = await fetch('/api/v1/system/restart', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        alert(data.message || 'Đang khởi động lại dịch vụ... Trang sẽ tự tải lại sau 3 giây.');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 3000);
+                    } catch (e) {
+                        alert('Lỗi: ' + e.message);
                     }
                 };
 
@@ -1235,6 +1325,7 @@
 
                 return {
                     token, currentUser, currentTab, domains, showAddDomainModal,
+                    showUpdateModal, isUpdating, updateCountdown, handlePanelUpdate,
                     loginForm, loginError, loggingIn, newDomain, tabTitle,
                     sysStats, trafficHistory, timeLabels, downstreamCurvePath,
                     upstreamCurvePath, downstreamAreaPath, upstreamAreaPath,

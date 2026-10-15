@@ -2,7 +2,8 @@ import os
 import shutil
 import platform
 import time
-from fastapi import APIRouter, Depends
+import asyncio
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from app.api.deps import get_current_user
 from app.db.session import get_db_connection
 
@@ -179,3 +180,69 @@ async def system_status(current_user: dict = Depends(get_current_user)):
     }
     
     return stats
+
+@router.get("/version")
+async def get_version(current_user: dict = Depends(get_current_user)):
+    """Lấy thông tin phiên bản hiện tại"""
+    ver = "0.3.5"
+    v_file = "/opt/presspanel/VERSION"
+    if os.path.exists(v_file):
+        try:
+            with open(v_file, "r") as f:
+                ver = f.read().strip()
+        except Exception:
+            pass
+    return {
+        "current_version": ver,
+        "repo_url": "https://github.com/tuend-work/PressPanel",
+        "latest_url": "https://raw.githubusercontent.com/tuend-work/PressPanel/main/VERSION"
+    }
+
+async def run_update_process():
+    await asyncio.sleep(1)
+    cmd = "sudo /opt/presspanel/scripts/update.sh" if os.path.exists("/opt/presspanel/scripts/update.sh") else "echo Mock update"
+    proc = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    await proc.communicate()
+
+@router.post("/update")
+async def trigger_update(
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user)
+):
+    """Kích hoạt tiến trình cập nhật PressPanel từ GitHub"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ quản trị viên cấp cao mới có quyền cập nhật panel.")
+    
+    background_tasks.add_task(run_update_process)
+    return {
+        "status": "ok",
+        "message": "Đang tiến hành tải mã nguồn mới nhất từ GitHub và biên dịch lại hệ thống. Panel sẽ tự động khởi động lại trong 10-15 giây."
+    }
+
+async def run_restart_process():
+    await asyncio.sleep(1)
+    proc = await asyncio.create_subprocess_shell(
+        "sudo systemctl restart presspanel",
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL
+    )
+    await proc.communicate()
+
+@router.post("/restart")
+async def trigger_restart(
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user)
+):
+    """Khởi động lại dịch vụ PressPanel"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền khởi động lại.")
+    
+    background_tasks.add_task(run_restart_process)
+    return {
+        "status": "ok",
+        "message": "Đang gửi lệnh khởi động lại dịch vụ PressPanel..."
+    }

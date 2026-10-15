@@ -69,7 +69,9 @@ cd "$INSTALL_DIR"
 "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/app/db/init_db.py"
 
 # 6. Đảm bảo phân quyền chính xác
-chown -R presspanel:presspanel "$INSTALL_DIR/app" "$INSTALL_DIR/data" "$INSTALL_DIR/logs"
+chown -R presspanel:presspanel "$INSTALL_DIR/app" "$INSTALL_DIR/data" "$INSTALL_DIR/logs" "$INSTALL_DIR/static" 2>/dev/null || true
+echo "presspanel ALL=(ALL) NOPASSWD: $INSTALL_DIR/scripts/update.sh, /usr/bin/systemctl restart presspanel, /usr/bin/systemctl reload presspanel, /bin/systemctl restart presspanel, /bin/systemctl reload presspanel" > /etc/sudoers.d/presspanel 2>/dev/null || true
+chmod 440 /etc/sudoers.d/presspanel 2>/dev/null || true
 
 # 7. Đăng ký & Khởi động lại dịch vụ
 echo "[+] Đăng ký và khởi động lại dịch vụ PressPanel..."
