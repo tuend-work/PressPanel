@@ -57,12 +57,12 @@ int main(int argc, char *argv[]) {
             username,
             username,
             username, username, username, username);
-        (void)system(cmd);
+        IGNORE_RESULT(system(cmd));
 
 
         // Thiết lập quota ổ cứng
         snprintf(cmd, sizeof(cmd), "setquota -u %s 0 %dM 0 0 -a 2>/dev/null || true", username, disk_mb);
-        (void)system(cmd);
+        IGNORE_RESULT(system(cmd));
 
         char extra[128];
         snprintf(extra, sizeof(extra), "\"username\":\"%s\",\"disk_mb\":%d", username, disk_mb);
@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
         int disk_mb = atoi(argv[3]);
         char cmd[256];
         snprintf(cmd, sizeof(cmd), "setquota -u %s 0 %dM 0 0 -a 2>/dev/null || true", username, disk_mb);
-        (void)system(cmd);
+        IGNORE_RESULT(system(cmd));
 
         char extra[128];
         snprintf(extra, sizeof(extra), "\"username\":\"%s\",\"disk_mb\":%d", username, disk_mb);

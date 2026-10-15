@@ -133,8 +133,8 @@ int main(int argc, char *argv[]) {
 
         // Khôi phục quyền sở hữu cho Linux Web User nếu đã tồn tại trước đó
         if (has_dest_stat) {
-            chown(dest_path, st_dest.st_uid, st_dest.st_gid);
-            chmod(dest_path, st_dest.st_mode);
+            IGNORE_RESULT(chown(dest_path, st_dest.st_uid, st_dest.st_gid));
+            IGNORE_RESULT(chmod(dest_path, st_dest.st_mode));
         }
 
         send_json_ok("\"message\":\"Da luu cau hinh thanh cong\"");
@@ -164,10 +164,10 @@ int main(int argc, char *argv[]) {
             *slash = '\0';
             struct stat st_parent;
             if (stat(parent, &st_parent) == 0) {
-                chown(filepath, st_parent.st_uid, st_parent.st_gid);
+                IGNORE_RESULT(chown(filepath, st_parent.st_uid, st_parent.st_gid));
             }
         }
-        chmod(filepath, 0644);
+        IGNORE_RESULT(chmod(filepath, 0644));
         send_json_ok("\"message\":\"Da tao file thanh cong\"");
         return 0;
     }
@@ -191,10 +191,10 @@ int main(int argc, char *argv[]) {
                 *slash = '\0';
                 struct stat st_parent;
                 if (stat(parent, &st_parent) == 0) {
-                    chown(dirpath, st_parent.st_uid, st_parent.st_gid);
+                    IGNORE_RESULT(chown(dirpath, st_parent.st_uid, st_parent.st_gid));
                 }
             }
-            chmod(dirpath, 0755);
+            IGNORE_RESULT(chmod(dirpath, 0755));
             send_json_ok("\"message\":\"Da tao thu muc thanh cong\"");
             return 0;
         }
@@ -253,8 +253,8 @@ int main(int argc, char *argv[]) {
             snprintf(archive_full, sizeof(archive_full), "%s/%s", work_dir, archive_name);
             struct stat st_work;
             if (stat(work_dir, &st_work) == 0) {
-                chown(archive_full, st_work.st_uid, st_work.st_gid);
-                chmod(archive_full, 0644);
+                IGNORE_RESULT(chown(archive_full, st_work.st_uid, st_work.st_gid));
+                IGNORE_RESULT(chmod(archive_full, 0644));
             }
             send_json_ok("\"message\":\"Nen tap tin thanh cong\"");
             return 0;

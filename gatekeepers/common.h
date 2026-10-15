@@ -17,6 +17,8 @@
 #define PANEL_GROUP "presspanel"
 #define SAFE_PATH   "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
+#define IGNORE_RESULT(fn) do { if (fn) {} } while (0)
+
 static inline void send_json_ok(const char *extra_json) {
     if (extra_json && *extra_json) {
         printf("{\"status\":\"ok\",%s}\n", extra_json);

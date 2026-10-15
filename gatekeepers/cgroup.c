@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
         char path[512];
         snprintf(path, sizeof(path), "%s/reseller_%s", CGROUP_ROOT, reseller_id);
         
-        char cmd[2048];
+        char cmd[4096];
         snprintf(cmd, sizeof(cmd), 
             "mkdir -p %s && "
             "echo '+cpu +memory +io +pids' > %s/cgroup.subtree_control 2>/dev/null || true; "
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
             "echo '%d 100000' > %s/cpu.max 2>/dev/null; "
             "echo '%d' > %s/pids.max 2>/dev/null",
             path, path, mem_mb * 1024 * 1024, path, cpu * 1000, path, pids, path);
-        (void)system(cmd);
+        IGNORE_RESULT(system(cmd));
 
         send_json_ok("\"message\":\"Da cap nhat cgroup reseller thanh cong\"");
         return 0;
@@ -67,14 +67,14 @@ int main(int argc, char *argv[]) {
         char path[512];
         snprintf(path, sizeof(path), "%s/reseller_%s/user_%s", CGROUP_ROOT, reseller_id, username);
 
-        char cmd[2048];
+        char cmd[4096];
         snprintf(cmd, sizeof(cmd),
             "mkdir -p %s && "
             "echo '%lld' > %s/memory.max 2>/dev/null; "
             "echo '%d 100000' > %s/cpu.max 2>/dev/null; "
             "echo '%d' > %s/pids.max 2>/dev/null",
             path, mem_mb * 1024 * 1024, path, cpu * 1000, path, pids, path);
-        (void)system(cmd);
+        IGNORE_RESULT(system(cmd));
 
         send_json_ok("\"message\":\"Da cap nhat cgroup user thanh cong\"");
         return 0;
