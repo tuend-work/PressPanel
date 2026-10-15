@@ -1,0 +1,130 @@
+/*
+ * PressPanel: cgroup.c - Quản lý Cgroups v2 Phân Cấp & Khóa Trần 2 Lớp
+ * SUID Binary (chmod 4750 root:PressPanel)
+ */
+
+#include "common.h"
+
+#define CGROUP_ROOT "/sys/fs/cgroup/presspanel"
+
+int main(int argc, char *argv[]) {
+    init_security_env();
+
+    if (argc < 2) {
+        send_json_error("cgroup", "Thieu lenh cgroup. Cu phap: cgroup <set-reseller|set-user|stats|freeze> [args...]");
+        return 1;
+    }
+
+    const char *action = argv[1];
+
+    if (strcmp(action, "set-reseller") == 0) {
+        if (argc < 7) {
+            send_json_error("cgroup", "Cu phap: cgroup set-reseller <reseller_id> <cpu> <mem_mb> <io> <pids>");
+            return 1;
+        }
+        const char *reseller_id = argv[2];
+        int cpu = atoi(argv[3]);
+        long long mem_mb = atoll(argv[4]);
+        int pids = atoi(argv[6]);
+
+        if (!is_safe_id(reseller_id)) {
+            send_json_error("cgroup", "Reseller ID khong hop le");
+            return 1;
+        }
+
+        char path[512];
+        snprintf(path, sizeof(path), "%s/reseller_%s", CGROUP_ROOT, reseller_id);
+        
+        char cmd[1024];
+        snprintf(cmd, sizeof(cmd), 
+            "mkdir -p %s && "
+            "echo '+cpu +memory +io +pids' > %s/cgroup.subtree_control 2>/dev/null || true; "
+            "echo '%lld' > %s/memory.max 2>/dev/null; "
+            "echo '%d 100000' > %s/cpu.max 2>/dev/null; "
+            "echo '%d' > %s/pids.max 2>/dev/null",
+            path, path, mem_mb * 1024 * 1024, path, cpu * 1000, path, pids, path);
+        system(cmd);
+
+        send_json_ok("\"message\":\"Da cap nhat cgroup reseller thanh cong\"");
+        return 0;
+    }
+    else if (strcmp(action, "set-user") == 0) {
+        if (argc < 8) {
+            send_json_error("cgroup", "Cu phap: cgroup set-user <reseller_id> <username> <cpu> <mem_mb> <io> <pids>");
+            return 1;
+        }
+        const char *reseller_id = argv[2];
+        const char *username = argv[3];
+        int cpu = atoi(argv[4]);
+        long long mem_mb = atoll(argv[5]);
+        int pids = atoi(argv[7]);
+
+        if (!is_safe_id(reseller_id) || !is_safe_id(username)) {
+            send_json_error("cgroup", "Tham so ID hoac Username khong hop le");
+            return 1;
+        }
+
+        char path[512];
+        snprintf(path, sizeof(path), "%s/reseller_%s/user_%s", CGROUP_ROOT, reseller_id, username);
+
+        char cmd[1024];
+        snprintf(cmd, sizeof(cmd),
+            "mkdir -p %s && "
+            "echo '%lld' > %s/memory.max 2>/dev/null; "
+            "echo '%d 100000' > %s/cpu.max 2>/dev/null; "
+            "echo '%d' > %s/pids.max 2>/dev/null",
+            path, mem_mb * 1024 * 1024, path, cpu * 1000, path, pids, path);
+        system(cmd);
+
+        send_json_ok("\"message\":\"Da cap nhat cgroup user thanh cong\"");
+        return 0;
+    }
+    else if (strcmp(action, "stats") == 0) {
+        if (argc < 4) {
+            send_json_error("cgroup", "Cu phap: cgroup stats <reseller_id> <username>");
+            return 1;
+        }
+        const char *reseller_id = argv[2];
+        const char *username = argv[3];
+
+        char path[512];
+        snprintf(path, sizeof(path), "%s/reseller_%s/user_%s/memory.current", CGROUP_ROOT, reseller_id, username);
+        
+        long long mem_current = 0;
+        FILE *fp = fopen(path, "r");
+        if (fp) {
+            if (fscanf(fp, "%lld", &mem_current) != 1) mem_current = 0;
+            fclose(fp);
+        }
+
+        char extra[256];
+        snprintf(extra, sizeof(extra), "\"username\":\"%s\",\"memory_bytes\":%lld,\"pids\":0", username, mem_current);
+        send_json_ok(extra);
+        return 0;
+    }
+    else if (strcmp(action, "freeze") == 0) {
+        if (argc < 5) {
+            send_json_error("cgroup", "Cu phap: cgroup freeze <reseller_id> <username> <0|1>");
+            return 1;
+        }
+        const char *reseller_id = argv[2];
+        const char *username = argv[3];
+        int freeze_state = atoi(argv[4]);
+
+        char path[512];
+        snprintf(path, sizeof(path), "%s/reseller_%s/user_%s/cgroup.freeze", CGROUP_ROOT, reseller_id, username);
+        FILE *fp = fopen(path, "w");
+        if (fp) {
+            fprintf(fp, "%d\n", freeze_state ? 1 : 0);
+            fclose(fp);
+            send_json_ok(freeze_state ? "\"message\":\"Da dong bang tien trinh\"" : "\"message\":\"Da giai phong tien trinh\"");
+            return 0;
+        }
+        send_json_error("cgroup", "Khong the thay doi trang thai dong bang cgroup");
+        return 1;
+    }
+
+    send_json_error("cgroup", "Hanh dong khong hop le");
+    return 1;
+}
+
