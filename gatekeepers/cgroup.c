@@ -67,6 +67,12 @@ int main(int argc, char *argv[]) {
         char path[512];
         snprintf(path, sizeof(path), "%s/reseller_%s/user_%s", CGROUP_ROOT, reseller_id, username);
 
+        char reseller_path[512];
+        snprintf(reseller_path, sizeof(reseller_path), "%s/reseller_%s", CGROUP_ROOT, reseller_id);
+
+        char user_flat_path[512];
+        snprintf(user_flat_path, sizeof(user_flat_path), "%s/user_%s", CGROUP_ROOT, username);
+
         struct passwd *pw = getpwnam(username);
         uid_t uid = pw ? pw->pw_uid : 0;
 
@@ -76,16 +82,26 @@ int main(int argc, char *argv[]) {
             "echo '+cpu +memory +io +pids' > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true; "
             "echo '+cpu +memory +io +pids' > /sys/fs/cgroup/wpc/cgroup.subtree_control 2>/dev/null || true; "
             "mkdir -p %s && "
+            "echo '+cpu +memory +io +pids' > %s/cgroup.subtree_control 2>/dev/null || true; "
+            "mkdir -p %s %s && "
             "echo '%lld' > %s/memory.max 2>/dev/null; "
             "echo '%d 100000' > %s/cpu.max 2>/dev/null; "
             "echo '%d' > %s/pids.max 2>/dev/null; "
-            "systemctl set-property user-%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; "
+            "echo '%lld' > %s/memory.max 2>/dev/null; "
+            "echo '%d 100000' > %s/cpu.max 2>/dev/null; "
+            "echo '%d' > %s/pids.max 2>/dev/null; "
             "if [ %u -gt 0 ]; then systemctl set-property user-%u.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; fi; "
-            "pgrep -u %s | while read -r p; do echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; done",
-            path, mem_mb * 1024 * 1024, path, cpu * 1000, path, pids, path,
-            username, cpu, mem_mb, pids,
+            "pgrep -u %s | while read -r p; do echo \"$p\" > %s/cgroup.procs 2>/dev/null || echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; done",
+            reseller_path, reseller_path,
+            path, user_flat_path,
+            mem_mb * 1024 * 1024, path,
+            cpu * 1000, path,
+            pids, path,
+            mem_mb * 1024 * 1024, user_flat_path,
+            cpu * 1000, user_flat_path,
+            pids, user_flat_path,
             (unsigned int)uid, (unsigned int)uid, cpu, mem_mb, pids,
-            username, path);
+            username, path, user_flat_path);
         IGNORE_RESULT(system(cmd));
 
         send_json_ok("\"message\":\"Da cap nhat cgroup user thanh cong\"");
