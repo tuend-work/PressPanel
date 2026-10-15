@@ -30,21 +30,31 @@ int main(int argc, char *argv[]) {
         if (disk_mb <= 0) disk_mb = 5120; // Default 5GB
 
         char cmd[1024];
-        snprintf(cmd, sizeof(cmd), "useradd -m -s /bin/bash %s", username);
+        // 1. Kiểm tra xem user Linux đã tồn tại chưa (ví dụ tài khoản hệ thống hoặc tạo trước đó)
+        snprintf(cmd, sizeof(cmd), "id -u %s >/dev/null 2>&1", username);
         if (system(cmd) != 0) {
-            send_json_error("user", "Khong the tao Linux user");
-            return 1;
+            // Chưa tồn tại -> tạo mới
+            snprintf(cmd, sizeof(cmd), "useradd -m -s /bin/bash %s 2>/dev/null", username);
+            if (system(cmd) != 0) {
+                // Thử tạo không cần -m nếu thư mục /home/username đã có
+                snprintf(cmd, sizeof(cmd), "useradd -s /bin/bash %s", username);
+                if (system(cmd) != 0) {
+                    send_json_error("user", "Khong the tao Linux user (ten da bi trung hoac he thong tu choi)");
+                    return 1;
+                }
+            }
         }
 
         // Tạo cấu trúc thư mục chuẩn
         snprintf(cmd, sizeof(cmd), 
             "mkdir -p /home/%s/{httpdocs,logs,tmp,ssl,backups} && "
-            "chown -R %s:%s /home/%s && "
+            "chown -R %s:%s /home/%s 2>/dev/null || true && "
             "chmod 0750 /home/%s && "
             "chmod 0755 /home/%s/httpdocs && "
             "chmod 0700 /home/%s/{logs,tmp,ssl,backups}",
             username, username, username, username, username, username, username);
         (void)system(cmd);
+
 
         // Thiết lập quota ổ cứng
         snprintf(cmd, sizeof(cmd), "setquota -u %s 0 %dM 0 0 -a 2>/dev/null || true", username, disk_mb);
