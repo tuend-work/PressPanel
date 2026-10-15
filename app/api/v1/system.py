@@ -3,8 +3,8 @@ import shutil
 import platform
 import time
 from fastapi import APIRouter, Depends
-from app.api.v1.auth import get_current_user
-from app.db.init_db import get_db
+from app.api.deps import get_current_user
+from app.db.session import get_db_connection
 
 router = APIRouter(prefix="/system", tags=["System Status"])
 
@@ -140,19 +140,20 @@ async def system_status(current_user: dict = Depends(get_current_user)):
     db_total = 0
 
     try:
-        async with get_db() as db:
-            async with db.execute("SELECT status, count(*) FROM domains GROUP BY status") as cursor:
-                rows = await cursor.fetchall()
-                for r in rows:
-                    if r[0] == "active":
-                        sites_running += r[1]
-                    else:
-                        sites_stopped += r[1]
-            sites_total = sites_running + sites_stopped
+        db = await get_db_connection()
+        cursor = await db.execute("SELECT status, count(*) FROM domains GROUP BY status")
+        rows = await cursor.fetchall()
+        for r in rows:
+            if r["status"] == "active":
+                sites_running += r[1]
+            else:
+                sites_stopped += r[1]
+        sites_total = sites_running + sites_stopped
 
-            async with db.execute("SELECT count(*) FROM databases") as cursor:
-                row = await cursor.fetchone()
-                db_total = row[0] if row else 0
+        cursor = await db.execute("SELECT count(*) FROM databases")
+        row = await cursor.fetchone()
+        db_total = row[0] if row else 0
+        await db.close()
     except Exception:
         pass
 
