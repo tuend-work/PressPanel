@@ -132,6 +132,35 @@ Sau khi cài đặt hoàn tất, bạn có thể truy cập ngay vào giao diệ
 
 ---
 
+## 🤝 Khả Năng Chạy Song Song Cùng Panel Khác (Co-existence Mode)
+
+PressPanel được thiết kế với triết lý **Cách Ly Tuyệt Đối (Zero Conflict Footprint)**, cho phép **cài đặt và vận hành song song trên cùng một máy chủ** đã có sẵn các Control Panel khác (như **aaPanel, cPanel, DirectAdmin, CyberPanel hay Plesk**) mà không làm gián đoạn hệ thống hiện tại:
+
+### 1. Kiến Trúc Không Xung Đột (Isolated Architecture)
+* **Thư mục độc lập 100%:** Toàn bộ file thực thi, mã nguồn, log và data nằm gọn trong `/opt/presspanel`, tuyệt đối không ghi đè vào `/www` (aaPanel), `/usr/local/directadmin` (DirectAdmin), hay `/usr/local/cpanel` (cPanel).
+* **Môi trường Python Virtualenv riêng biệt:** Chạy trong `/opt/presspanel/venv/`, không đụng chạm đến Python hệ thống hay phiên bản Python của aaPanel.
+* **Cơ sở dữ liệu độc lập:** Sử dụng SQLite nhúng WAL (`/opt/presspanel/data/panel.db`), không phụ thuộc vào tiến trình MySQL/MariaDB của hệ điều hành để vận hành panel.
+* **Kernel Namespace & Cgroups v2 riêng:** Quản lý tài nguyên tại nhánh riêng `/sys/fs/cgroup/presspanel`.
+
+### 2. Tự Động Xử Lý Trùng Cổng (Smart Port Auto-Detection)
+* Khi cài đặt, nếu phát hiện cổng mặc định **`8888`** đang bị chiếm dụng (ví dụ bởi **aaPanel**):
+  * Bộ cài `install.sh` sẽ **tự động chuyển sang cổng khả dụng tiếp theo (ví dụ: `8889`)** và ghi nhận vào `presspanel.conf`.
+* Bạn có thể đổi sang bất kỳ cổng nào tùy ý bất cứ lúc nào chỉ với 1 câu lệnh:
+  ```bash
+  sudo presspanel port 8899
+  ```
+
+### 3. Chạy Phía Sau Reverse Proxy / Chế Độ Nội Bộ
+Nếu máy chủ đã có web server chiếm cổng 80/443, bạn có thể cấu hình PressPanel lắng nghe trên localhost để chạy qua Cloudflare Tunnel, VPN hoặc Nginx Reverse Proxy:
+Chỉnh sửa trong `/opt/presspanel/conf/presspanel.conf`:
+```properties
+bind_address=127.0.0.1
+port=8889
+```
+Sau đó khởi động lại: `sudo presspanel restart`.
+
+---
+
 ## 🔄 Cập Nhật & Cài Đặt Lại Panel (Update & Reinstall)
 
 ### 1. Cập Nhật Lên Bản Mới Nhất Từ GitHub (Update)

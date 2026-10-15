@@ -2,18 +2,19 @@
 # ==============================================================================
 # PressPanel CLI Management Tool
 # Cài đặt tại: /usr/local/bin/presspanel
-# Cách dùng: presspanel <update|reinstall|status|restart|stop|start|logs|version|password>
+# Cách dùng: presspanel <update|reinstall|status|restart|stop|start|logs|version|password|port>
 # ==============================================================================
 
 set -euo pipefail
 
 INSTALL_DIR="/opt/presspanel"
+CONF_FILE="$INSTALL_DIR/conf/presspanel.conf"
 
 function show_help() {
     echo "=========================================================="
     echo "       PRESSPANEL CLI - BỘ ĐIỀU KHIỂN HỆ THỐNG MÁY CHỦ    "
     echo "=========================================================="
-    echo "Sử dụng: presspanel <lệnh>"
+    echo "Sử dụng: presspanel <lệnh> [tham số]"
     echo ""
     echo "Các lệnh hỗ trợ:"
     echo "  update      - Cập nhật panel lên phiên bản mới nhất từ GitHub"
@@ -25,6 +26,7 @@ function show_help() {
     echo "  logs        - Theo dõi nhật ký hoạt động thời gian thực"
     echo "  version     - Xem phiên bản hiện tại của PressPanel"
     echo "  password    - Đổi mật khẩu tài khoản quản trị admin"
+    echo "  port <số>   - Đổi cổng truy cập panel (tránh trùng với aaPanel/cPanel...)"
     echo "  help        - Hiển thị menu hướng dẫn này"
     echo "=========================================================="
 }
@@ -65,6 +67,52 @@ case "$ACTION" in
         else
             echo "PressPanel Version: Unknown"
         fi
+        ;;
+    port)
+        if [ "$EUID" -ne 0 ]; then
+            echo "[-] Vui lòng chạy lệnh này với quyền root: sudo presspanel port <cổng_mới>"
+            exit 1
+        fi
+        NEW_PORT="${2:-}"
+        if [ -z "$NEW_PORT" ] || ! [[ "$NEW_PORT" =~ ^[0-9]+$ ]] || [ "$NEW_PORT" -lt 1 ] || [ "$NEW_PORT" -gt 65535 ]; then
+            echo "[-] Vui lòng nhập số cổng hợp lệ (từ 1 đến 65535). Ví dụ: sudo presspanel port 8889"
+            exit 1
+        fi
+        
+        # Kiểm tra xem cổng mới có đang bị chiếm dụng không
+        if command -v ss >/dev/null 2>&1; then
+            PORT_IN_USE=$(ss -tulpn | grep ":$NEW_PORT " || true)
+        elif command -v netstat >/dev/null 2>&1; then
+            PORT_IN_USE=$(netstat -tulpn | grep ":$NEW_PORT " || true)
+        else
+            PORT_IN_USE=""
+        fi
+
+        if [ -n "$PORT_IN_USE" ]; then
+            echo "[!] Cảnh báo: Cổng $NEW_PORT dường như đang bị tiến trình khác chiếm dụng!"
+            echo "$PORT_IN_USE"
+            read -p "Bạn có chắc chắn vẫn muốn gán cổng này? (y/N): " CONFIRM
+            if [[ ! "$CONFIRM" =~ ^[yY]$ ]]; then
+                echo "[-] Đã hủy thao tác đổi cổng."
+                exit 1
+            fi
+        fi
+
+        echo "[+] Đang cập nhật cổng sang $NEW_PORT trong $CONF_FILE..."
+        if [ -f "$CONF_FILE" ]; then
+            if grep -q "^port=" "$CONF_FILE"; then
+                sed -i "s/^port=.*/port=$NEW_PORT/" "$CONF_FILE"
+            else
+                echo "port=$NEW_PORT" >> "$CONF_FILE"
+            fi
+        fi
+
+        echo "[+] Khởi động lại dịch vụ PressPanel..."
+        systemctl restart presspanel
+        echo "=========================================================="
+        echo "   ĐÃ ĐỔI CỔNG THÀNH CÔNG SANG: $NEW_PORT                 "
+        echo "   Đường dẫn truy cập mới: http://<IP_MAY_CHU>:$NEW_PORT "
+        echo "=========================================================="
         ;;
     password)
         if [ "$EUID" -ne 0 ]; then

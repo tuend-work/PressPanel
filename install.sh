@@ -65,10 +65,33 @@ mkdir -p "$INSTALL_DIR"/{bin,app,conf,static,data,logs/tasks,scripts/apps,server
 chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"
 chmod 750 "$INSTALL_DIR"
 
-# 6. Sao chép file cấu hình trung tâm (presspanel.conf giống directadmin.conf)
-if [ ! -f "$INSTALL_DIR/conf/presspanel.conf" ] && [ -f "conf/presspanel.conf" ]; then
-    echo "[+] Khởi tạo file cấu hình trung tâm: $INSTALL_DIR/conf/presspanel.conf..."
+# 6. Sao chép và cấu hình cổng tự động (Tránh xung đột với aaPanel/cPanel/DirectAdmin...)
+PANEL_PORT=8888
+if [ -f "$INSTALL_DIR/conf/presspanel.conf" ]; then
+    PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/presspanel.conf" | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
+else
+    # Kiểm tra cổng 8888 có bị chiếm dụng không (ví dụ bởi aaPanel)
+    CHECK_PORT=8888
+    while true; do
+        IS_BUSY=0
+        if command -v ss >/dev/null 2>&1; then
+            if ss -tulpn 2>/dev/null | grep -q ":$CHECK_PORT "; then IS_BUSY=1; fi
+        elif command -v netstat >/dev/null 2>&1; then
+            if netstat -tulpn 2>/dev/null | grep -q ":$CHECK_PORT "; then IS_BUSY=1; fi
+        fi
+
+        if [ "$IS_BUSY" -eq 1 ]; then
+            echo "[!] Phát hiện cổng $CHECK_PORT đang bị tiến trình khác chiếm dụng. Đang thử cổng tiếp theo..."
+            CHECK_PORT=$((CHECK_PORT + 1))
+        else
+            PANEL_PORT=$CHECK_PORT
+            break
+        fi
+    done
+
+    echo "[+] Khởi tạo file cấu hình trung tâm: $INSTALL_DIR/conf/presspanel.conf (Gán cổng an toàn: $PANEL_PORT)..."
     cp conf/presspanel.conf "$INSTALL_DIR/conf/presspanel.conf"
+    sed -i "s/^port=.*/port=$PANEL_PORT/" "$INSTALL_DIR/conf/presspanel.conf"
     chmod 640 "$INSTALL_DIR/conf/presspanel.conf"
     chown "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR/conf/presspanel.conf"
 fi
@@ -124,8 +147,8 @@ fi
 
 echo "=========================================================="
 echo "   PRESSPANEL ĐÃ CÀI ĐẶT VÀ KHỞI ĐỘNG THÀNH CÔNG!         "
-echo "   Giao diện quản trị: http://<IP_MAY_CHU>:8888          "
-echo "   Tài liệu Swagger API: http://<IP_MAY_CHU>:8888/docs    "
+echo "   Giao diện quản trị: http://<IP_MAY_CHU>:$PANEL_PORT   "
+echo "   Tài liệu Swagger API: http://<IP_MAY_CHU>:$PANEL_PORT/docs "
 echo "   File cấu hình: /opt/presspanel/conf/presspanel.conf   "
 echo "   Lệnh quản trị hệ thống CLI: presspanel                 "
 echo "   Tài khoản mặc định: admin / admin123456               "
