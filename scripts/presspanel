@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# PressPanel CLI Management Tool
+# Cài đặt tại: /usr/local/bin/presspanel
+# Cách dùng: presspanel <update|reinstall|status|restart|stop|start|logs|version|password>
+# ==============================================================================
+
+set -euo pipefail
+
+INSTALL_DIR="/opt/presspanel"
+
+function show_help() {
+    echo "=========================================================="
+    echo "       PRESSPANEL CLI - BỘ ĐIỀU KHIỂN HỆ THỐNG MÁY CHỦ    "
+    echo "=========================================================="
+    echo "Sử dụng: presspanel <lệnh>"
+    echo ""
+    echo "Các lệnh hỗ trợ:"
+    echo "  update      - Cập nhật panel lên phiên bản mới nhất từ GitHub"
+    echo "  reinstall   - Cài đặt lại toàn bộ panel (tự động sao lưu dữ liệu)"
+    echo "  status      - Xem trạng thái dịch vụ panel"
+    echo "  restart     - Khởi động lại dịch vụ panel"
+    echo "  start       - Bật dịch vụ panel"
+    echo "  stop        - Dừng dịch vụ panel"
+    echo "  logs        - Theo dõi nhật ký hoạt động thời gian thực"
+    echo "  version     - Xem phiên bản hiện tại của PressPanel"
+    echo "  password    - Đổi mật khẩu tài khoản quản trị admin"
+    echo "  help        - Hiển thị menu hướng dẫn này"
+    echo "=========================================================="
+}
+
+ACTION="${1:-help}"
+
+case "$ACTION" in
+    update)
+        sudo bash "$INSTALL_DIR/scripts/update.sh"
+        ;;
+    reinstall)
+        sudo bash "$INSTALL_DIR/scripts/reinstall.sh"
+        ;;
+    status)
+        sudo systemctl status presspanel
+        ;;
+    restart)
+        echo "[+] Đang khởi động lại dịch vụ PressPanel..."
+        sudo systemctl restart presspanel
+        echo "[+] Hoàn tất! Trạng thái: $(systemctl is-active presspanel)"
+        ;;
+    start)
+        echo "[+] Đang bật dịch vụ PressPanel..."
+        sudo systemctl start presspanel
+        echo "[+] Hoàn tất! Trạng thái: $(systemctl is-active presspanel)"
+        ;;
+    stop)
+        echo "[+] Đang dừng dịch vụ PressPanel..."
+        sudo systemctl stop presspanel
+        echo "[+] Hoàn tất!"
+        ;;
+    logs)
+        sudo journalctl -u presspanel -f
+        ;;
+    version)
+        if [ -f "$INSTALL_DIR/VERSION" ]; then
+            echo "PressPanel Version: $(cat "$INSTALL_DIR/VERSION")"
+        else
+            echo "PressPanel Version: Unknown"
+        fi
+        ;;
+    password)
+        if [ "$EUID" -ne 0 ]; then
+            echo "[-] Vui lòng chạy lệnh này với quyền root: sudo presspanel password"
+            exit 1
+        fi
+        read -s -p "Nhập mật khẩu mới cho tài khoản admin: " NEW_PASS
+        echo ""
+        if [ -z "$NEW_PASS" ]; then
+            echo "[-] Mật khẩu không được để trống!"
+            exit 1
+        fi
+        "$INSTALL_DIR/venv/bin/python" -c "
+import asyncio, aiosqlite
+from app.core.security import get_password_hash
+from app.core.config import settings
+
+async def reset_pass():
+    hashed = get_password_hash('$NEW_PASS')
+    async with aiosqlite.connect(settings.DB_PATH) as db:
+        await db.execute('UPDATE users SET password_hash = ? WHERE username = ?', (hashed, 'admin'))
+        await db.commit()
+    print('[+] Đã đổi mật khẩu tài khoản admin thành công!')
+
+asyncio.run(reset_pass())
+"
+        ;;
+    help|--help|-h)
+        show_help
+        ;;
+    *)
+        echo "[-] Lệnh không hợp lệ: $ACTION"
+        show_help
+        exit 1
+        ;;
+esac

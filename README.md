@@ -132,9 +132,59 @@ Sau khi cài đặt hoàn tất, bạn có thể truy cập ngay vào giao diệ
 
 ---
 
-## 🛠️ Quản Lý Dịch Vụ Hệ Thống
+## 🔄 Cập Nhật & Cài Đặt Lại Panel (Update & Reinstall)
 
-PressPanel được quản lý như một dịch vụ nền Linux tiêu chuẩn thông qua `systemd`:
+### 1. Cập Nhật Lên Bản Mới Nhất Từ GitHub (Update)
+Lệnh update sẽ tự động kéo mã nguồn mới nhất, biên dịch lại C Gatekeeper, cập nhật dependencies và chạy migration DB mà **bảo toàn 100% dữ liệu database, website và file cấu hình**:
+
+* **Cách 1: Sử dụng lệnh CLI (Nếu đã cài đặt):**
+  ```bash
+  sudo presspanel update
+  ```
+* **Cách 2: Chạy lệnh 1 dòng từ xa:**
+  ```bash
+  curl -sSL https://raw.githubusercontent.com/tuend-work/PressPanel/main/scripts/update.sh | sudo bash
+  ```
+
+---
+
+### 2. Cài Đặt Lại Toàn Bộ Panel (Reinstall)
+Khi hệ thống gặp sự cố hoặc bạn muốn làm sạch toàn bộ môi trường và cài đặt lại từ đầu:
+Script sẽ **tự động sao lưu `panel.db` và `presspanel.conf`** trước khi reset để bạn không bị mất dữ liệu:
+
+* **Cách 1: Sử dụng lệnh CLI:**
+  ```bash
+  sudo presspanel reinstall
+  ```
+* **Cách 2: Chạy lệnh 1 dòng từ xa:**
+  ```bash
+  curl -sSL https://raw.githubusercontent.com/tuend-work/PressPanel/main/scripts/reinstall.sh | sudo bash
+  ```
+
+---
+
+## 💻 Bộ Lệnh Quản Trị Hệ Thống (`presspanel` CLI)
+
+Sau khi cài đặt, bạn có thể gõ trực tiếp lệnh `presspanel` trên terminal máy chủ bất kỳ lúc nào:
+
+| Lệnh | Mô tả |
+| :--- | :--- |
+| `presspanel update` | Cập nhật panel lên bản mới nhất từ GitHub |
+| `presspanel reinstall` | Cài đặt lại toàn bộ panel (tự động backup an toàn) |
+| `presspanel status` | Kiểm tra trạng thái hoạt động của dịch vụ panel |
+| `presspanel restart` | Khởi động lại dịch vụ panel |
+| `presspanel stop` | Dừng dịch vụ panel |
+| `presspanel start` | Bật dịch vụ panel |
+| `presspanel logs` | Xem nhật ký hoạt động thời gian thực (`journalctl`) |
+| `presspanel version` | Xem phiên bản PressPanel đang cài đặt |
+| `presspanel password` | Đổi mật khẩu tài khoản quản trị `admin` qua terminal |
+| `presspanel help` | Hiển thị menu hướng dẫn các lệnh |
+
+---
+
+## 🛠️ Quản Lý Dịch Vụ Hệ Thống (Systemd)
+
+Bạn cũng có thể điều khiển trực tiếp qua `systemctl`:
 
 ```bash
 # Xem trạng thái hoạt động của panel

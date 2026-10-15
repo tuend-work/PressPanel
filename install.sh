@@ -87,13 +87,20 @@ python3 -m venv "$INSTALL_DIR/venv"
 "$INSTALL_DIR/venv/bin/pip" install --upgrade pip
 "$INSTALL_DIR/venv/bin/pip" install -r requirements.txt
 
-# 9. Sao chép mã nguồn ứng dụng
+# 9. Sao chép mã nguồn ứng dụng & scripts
 echo "[+] Cài đặt mã nguồn ứng dụng..."
 cp -r app "$INSTALL_DIR/"
 cp -r scripts/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
 cp -r templates/* "$INSTALL_DIR/templates/" 2>/dev/null || true
-chmod +x "$INSTALL_DIR"/scripts/*.sh 2>/dev/null || true
+cp VERSION "$INSTALL_DIR/" 2>/dev/null || true
+chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/presspanel 2>/dev/null || true
 chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"/app "$INSTALL_DIR"/conf "$INSTALL_DIR"/data "$INSTALL_DIR"/logs
+
+# Cài đặt lệnh CLI presspanel toàn hệ thống
+if [ -f "$INSTALL_DIR/scripts/presspanel" ]; then
+    cp "$INSTALL_DIR/scripts/presspanel" /usr/local/bin/presspanel
+    chmod +x /usr/local/bin/presspanel
+fi
 
 # 10. Khởi tạo Database SQLite
 echo "[+] Khởi tạo cơ sở dữ liệu SQLite..."
@@ -120,5 +127,6 @@ echo "   PRESSPANEL ĐÃ CÀI ĐẶT VÀ KHỞI ĐỘNG THÀNH CÔNG!         "
 echo "   Giao diện quản trị: http://<IP_MAY_CHU>:8888          "
 echo "   Tài liệu Swagger API: http://<IP_MAY_CHU>:8888/docs    "
 echo "   File cấu hình: /opt/presspanel/conf/presspanel.conf   "
+echo "   Lệnh quản trị hệ thống CLI: presspanel                 "
 echo "   Tài khoản mặc định: admin / admin123456               "
 echo "=========================================================="
