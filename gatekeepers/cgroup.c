@@ -5,7 +5,7 @@
 
 #include "common.h"
 
-#define CGROUP_ROOT "/sys/fs/cgroup/presspanel"
+#define CGROUP_ROOT "/sys/fs/cgroup/wpc"
 
 int main(int argc, char *argv[]) {
     init_security_env();
@@ -69,14 +69,43 @@ int main(int argc, char *argv[]) {
 
         char cmd[4096];
         snprintf(cmd, sizeof(cmd),
+            "mkdir -p /sys/fs/cgroup/wpc && "
+            "echo '+cpu +memory +io +pids' > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true; "
+            "echo '+cpu +memory +io +pids' > /sys/fs/cgroup/wpc/cgroup.subtree_control 2>/dev/null || true; "
             "mkdir -p %s && "
             "echo '%lld' > %s/memory.max 2>/dev/null; "
             "echo '%d 100000' > %s/cpu.max 2>/dev/null; "
-            "echo '%d' > %s/pids.max 2>/dev/null",
-            path, mem_mb * 1024 * 1024, path, cpu * 1000, path, pids, path);
+            "echo '%d' > %s/pids.max 2>/dev/null; "
+            "systemctl set-property user-%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true",
+            path, mem_mb * 1024 * 1024, path, cpu * 1000, path, pids, path,
+            username, cpu, mem_mb, pids);
         IGNORE_RESULT(system(cmd));
 
         send_json_ok("\"message\":\"Da cap nhat cgroup user thanh cong\"");
+        return 0;
+    }
+    else if (strcmp(action, "attach") == 0) {
+        if (argc < 4) {
+            send_json_error("cgroup", "Cu phap: cgroup attach <username> <pid>");
+            return 1;
+        }
+        const char *username = argv[2];
+        int pid = atoi(argv[3]);
+
+        if (!is_safe_id(username) || pid <= 0) {
+            send_json_error("cgroup", "Tham so Username hoac PID khong hop le");
+            return 1;
+        }
+
+        char cmd[1024];
+        snprintf(cmd, sizeof(cmd),
+            "for p in /sys/fs/cgroup/wpc/reseller_*/user_%s/cgroup.procs /sys/fs/cgroup/wpc/user_%s/cgroup.procs; do "
+            "  if [ -f \"$p\" ]; then echo '%d' > \"$p\" 2>/dev/null || true; fi; "
+            "done",
+            username, username, pid);
+        IGNORE_RESULT(system(cmd));
+
+        send_json_ok("\"message\":\"Da gan pid vao cgroup\"");
         return 0;
     }
     else if (strcmp(action, "stats") == 0) {

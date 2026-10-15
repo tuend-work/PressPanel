@@ -178,6 +178,12 @@ EOF
                         "$PRESSPANEL_DIR/templates/vhost_nginx/php_fpm_pool.tpl" > "$POOL_DIR/${USERNAME}.conf"
                     # Khởi động lại hoặc reload php-fpm để nhận pool mới
                     systemctl reload "php${PHP_VER}-fpm" 2>/dev/null || systemctl restart "php${PHP_VER}-fpm" 2>/dev/null || true
+                    # Tự động gán các tiến trình worker của user vào đúng nhánh Cgroups v2
+                    (sleep 1 && pgrep -u "$USERNAME" | while read -r pid; do
+                        for cg_proc in /sys/fs/cgroup/wpc/reseller_*/user_${USERNAME}/cgroup.procs /sys/fs/cgroup/wpc/user_${USERNAME}/cgroup.procs; do
+                            [ -f "$cg_proc" ] && echo "$pid" > "$cg_proc" 2>/dev/null || true
+                        done
+                    done) &>/dev/null &
                 fi
 
                 # Kiểm tra và đảm bảo dịch vụ php-fpm tương ứng đang hoạt động
@@ -265,6 +271,12 @@ EOF
                     -e "s/{{PHP_VER}}/$PHP_VER/g" \
                     "$PRESSPANEL_DIR/templates/vhost_nginx/php_fpm_pool.tpl" > "$NEW_POOL_DIR/${USERNAME}.conf"
                 systemctl reload "php${PHP_VER}-fpm" 2>/dev/null || systemctl restart "php${PHP_VER}-fpm" 2>/dev/null || true
+                # Tự động gán các tiến trình worker của user vào đúng nhánh Cgroups v2
+                (sleep 1 && pgrep -u "$USERNAME" | while read -r pid; do
+                    for cg_proc in /sys/fs/cgroup/wpc/reseller_*/user_${USERNAME}/cgroup.procs /sys/fs/cgroup/wpc/user_${USERNAME}/cgroup.procs; do
+                        [ -f "$cg_proc" ] && echo "$pid" > "$cg_proc" 2>/dev/null || true
+                    done
+                done) &>/dev/null &
             fi
 
             if command -v systemctl &>/dev/null; then

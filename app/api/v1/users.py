@@ -170,6 +170,10 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
         created_user = await id_cur.fetchone()
         user_id = created_user["id"]
 
+        # Thiết lập hạn mức Cgroups v2 & Systemd User Slice (Khóa trần CPU, RAM, Tasks)
+        parent_reseller_id = str(current_user.get("id", 1))
+        await run_gatekeeper("cgroup", "set-user", parent_reseller_id, username, str(req.cpu_pct), str(req.mem_mb), "100", "100")
+
         # Xử lý Subscription nếu được chọn
         subscription_info = None
         if req.create_subscription:

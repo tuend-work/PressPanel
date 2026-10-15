@@ -104,6 +104,12 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
         await db.close()
         raise HTTPException(status_code=400, detail=res.get("message", "Không thể tạo VirtualHost"))
 
+    # Áp dụng giới hạn Cgroups v2 cho Linux User của website này
+    u_cpu = current_user.get("cpu_pct", 100) or 100
+    u_mem = current_user.get("mem_mb", 1024) or 1024
+    reseller_id = str(current_user.get("parent_id", 1) or 1)
+    await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
+
     try:
         await db.execute("""
             INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version)
