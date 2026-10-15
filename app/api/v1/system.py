@@ -198,15 +198,7 @@ async def get_version(current_user: dict = Depends(get_current_user)):
         "latest_url": "https://raw.githubusercontent.com/tuend-work/PressPanel/main/VERSION"
     }
 
-async def run_update_process():
-    await asyncio.sleep(1)
-    cmd = "sudo /opt/presspanel/scripts/update.sh" if os.path.exists("/opt/presspanel/scripts/update.sh") else "echo Mock update"
-    proc = await asyncio.create_subprocess_shell(
-        cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    await proc.communicate()
+from app.api.v1.tasks import add_system_task
 
 @router.post("/update")
 async def trigger_update(
@@ -217,9 +209,16 @@ async def trigger_update(
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên cấp cao mới có quyền cập nhật panel.")
     
-    background_tasks.add_task(run_update_process)
+    cmd = "sudo /opt/presspanel/scripts/update.sh" if os.path.exists("/opt/presspanel/scripts/update.sh") else "echo Mock update"
+    task_id = await add_system_task(
+        user_id=current_user["id"],
+        action_name="Update PressPanel Core",
+        cmd=cmd,
+        background_tasks=background_tasks
+    )
     return {
         "status": "ok",
+        "task_id": task_id,
         "message": "Đang tiến hành tải mã nguồn mới nhất từ GitHub và biên dịch lại hệ thống. Panel sẽ tự động khởi động lại trong 10-15 giây."
     }
 

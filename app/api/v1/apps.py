@@ -234,6 +234,8 @@ async def run_install_task(app_id: str):
             )
             await proc.communicate()
 
+from app.api.v1.tasks import add_system_task
+
 @router.post("/action")
 async def app_action(
     req: AppActionRequest,
@@ -246,10 +248,31 @@ async def app_action(
         raise HTTPException(status_code=404, detail="Ứng dụng không tồn tại trong danh mục")
 
     if req.action == "install":
-        background_tasks.add_task(run_install_task, req.app_id)
+        script_path = f"/opt/presspanel/scripts/apps/{req.app_id}.sh"
+        if os.path.exists(script_path):
+            cmd = f"sudo bash {script_path} install"
+        else:
+            pkg_map = {
+                "nginx": "nginx",
+                "mariadb": "mariadb-server mariadb-client",
+                "redis": "redis-server",
+                "certbot": "certbot python3-certbot-nginx",
+                "fail2ban": "fail2ban",
+                "pure-ftpd": "pure-ftpd"
+            }
+            pkg = pkg_map.get(req.app_id, req.app_id)
+            cmd = f"DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y {pkg}"
+
+        task_id = await add_system_task(
+            user_id=current_user["id"],
+            action_name=f"Install [{app['name']}]",
+            cmd=cmd,
+            background_tasks=background_tasks
+        )
         return {
             "status": "ok",
-            "message": f"Đã gửi lệnh cài đặt {app['name']}. Hệ thống đang tiến hành cài đặt trong nền."
+            "task_id": task_id,
+            "message": f"Đã thêm tác vụ cài đặt {app['name']} vào danh sách tiến trình chạy ngầm (Task list)."
         }
     
     if req.action in ["start", "stop", "restart"]:

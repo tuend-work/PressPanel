@@ -51,7 +51,7 @@
                         ⚡
                     </div>
                     <span class="font-bold text-2xl tracking-tight bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">PressPanel</span>
-                    <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.6</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.7</span>
                 </div>
                 <a href="/docs" target="_blank" class="text-xs font-medium text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 transition">
                     📖 Swagger API
@@ -111,7 +111,7 @@
                             </div>
                             <span class="font-bold text-lg tracking-tight text-white">PressPanel</span>
                         </div>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.6</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.3.7</span>
                     </div>
 
                     <!-- Navigation Items -->
@@ -183,8 +183,18 @@
                         </div>
                     </div>
 
-                    <!-- Right Controls (Update, Fix, Restart) -->
+                    <!-- Right Controls (Tasks, Update, Restart, API) -->
                     <div class="flex items-center space-x-2 text-xs">
+                        <!-- Tasks Box Button (aaPanel Style) -->
+                        <button @click="openMessageBox('tasks')" title="Xem danh sách tiến trình chạy ngầm (Task list)"
+                            class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center space-x-1.5 transition">
+                            <span class="text-xs">📋</span>
+                            <span class="hidden sm:inline">Tasks</span>
+                            <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold"
+                                :class="runningTasks.length > 0 ? 'bg-emerald-500 text-slate-950 animate-pulse' : 'bg-slate-700 text-slate-300'">
+                                {{ runningTasks.length }}
+                            </span>
+                        </button>
                         <button @click="showUpdateModal = true" title="Cập nhật phiên bản PressPanel từ GitHub" class="px-2.5 py-1 rounded bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 flex items-center space-x-1 transition font-medium">
                             <span>🔄</span> <span>Update</span>
                         </button>
@@ -921,7 +931,7 @@
                         <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Phiên bản hiện tại:</span>
-                                <span class="font-mono text-white font-bold bg-blue-950 px-2 py-0.5 rounded border border-blue-800">v0.3.6</span>
+                                <span class="font-mono text-white font-bold bg-blue-950 px-2 py-0.5 rounded border border-blue-800">v0.3.7</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Kênh cập nhật:</span>
@@ -949,6 +959,128 @@
                             <button type="button" @click="handlePanelUpdate" class="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold shadow-lg shadow-blue-500/25 flex items-center space-x-1.5">
                                 <span>⚡</span> <span>Bắt Đầu Cập Nhật</span>
                             </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: MESSAGES BOX & TASK LIST (AAPANEL EXACT STYLE) -->
+            <div v-if="showMessagesBox" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="aapanel-card rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col border border-[#2b3545] h-[550px]">
+                    <!-- Header -->
+                    <div class="h-12 px-5 border-b border-[#232b36] flex items-center justify-between bg-[#151a22] shrink-0">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-base">📋</span>
+                            <h3 class="text-sm font-bold text-white tracking-wide">Messages Box</h3>
+                        </div>
+                        <button @click="showMessagesBox = false" class="text-slate-400 hover:text-white text-xl p-1 leading-none">&times;</button>
+                    </div>
+
+                    <!-- Body: 2 Columns Layout -->
+                    <div class="flex-1 flex min-h-0">
+                        <!-- Left Sidebar Tabs -->
+                        <div class="w-48 bg-[#131720] border-r border-[#232b36] p-2 space-y-1 shrink-0 text-xs font-medium">
+                            <button @click="msgBoxTab = 'tasks'"
+                                class="w-full text-left px-3.5 py-2.5 rounded-xl transition flex items-center justify-between"
+                                :class="msgBoxTab === 'tasks' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>Task list ({{ runningTasks.length }})</span>
+                                <span v-if="runningTasks.length > 0" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            </button>
+                            <button @click="msgBoxTab = 'messages'"
+                                class="w-full text-left px-3.5 py-2.5 rounded-xl transition"
+                                :class="msgBoxTab === 'messages' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>Message list ({{ completedTasks.length }})</span>
+                            </button>
+                            <button @click="msgBoxTab = 'log'"
+                                class="w-full text-left px-3.5 py-2.5 rounded-xl transition"
+                                :class="msgBoxTab === 'log' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>Execution log</span>
+                            </button>
+                        </div>
+
+                        <!-- Right Content Panel -->
+                        <div class="flex-1 bg-[#171d26] p-5 overflow-y-auto custom-scrollbar flex flex-col justify-between">
+                            
+                            <!-- TAB 1: TASK LIST (TIẾN TRÌNH ĐANG CHẠY NGẦM) -->
+                            <div v-if="msgBoxTab === 'tasks'" class="h-full flex flex-col">
+                                <!-- Empty State (Ảnh 1 chuẩn aaPanel) -->
+                                <div v-if="runningTasks.length === 0" class="my-auto text-center py-12 flex flex-col items-center justify-center space-y-3">
+                                    <div class="w-16 h-16 rounded-2xl bg-slate-800/50 border border-slate-700/60 flex items-center justify-center text-3xl opacity-60">
+                                        📦
+                                    </div>
+                                    <div class="text-sm font-semibold text-slate-400">Currently no tasks!</div>
+                                    <p class="text-xs text-slate-500 max-w-xs">Không có tác vụ nào đang chạy ngầm trong hệ thống.</p>
+                                </div>
+
+                                <!-- Tasks List (Khi có tiến trình) -->
+                                <div v-else class="space-y-3">
+                                    <div v-for="t in runningTasks" :key="t.id"
+                                        class="p-4 rounded-xl bg-[#141922] border border-[#232b36] flex items-center justify-between shadow-md">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="text-xl animate-spin text-emerald-400">⚡</div>
+                                            <div>
+                                                <div class="text-xs font-bold text-white">{{ t.action }}</div>
+                                                <div class="text-[11px] text-slate-400 font-mono mt-0.5">Khởi tạo: {{ t.created_at }}</div>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <button @click="viewTaskLog(t.id)" class="px-3 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 text-xs font-medium transition">
+                                                Xem Log
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- TAB 2: MESSAGE LIST (LỊCH SỬ TÁC VỤ HOÀN THÀNH - Ảnh 2 aaPanel) -->
+                            <div v-if="msgBoxTab === 'messages'" class="h-full flex flex-col">
+                                <div v-if="completedTasks.length === 0" class="my-auto text-center py-12 text-slate-400 text-xs">
+                                    Chưa có lịch sử tác vụ nào được lưu lại.
+                                </div>
+                                <div v-else class="overflow-x-auto">
+                                    <table class="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr class="border-b border-[#232b36] text-slate-400 font-semibold">
+                                                <th class="py-2.5 px-3">Name</th>
+                                                <th class="py-2.5 px-3">Creation time</th>
+                                                <th class="py-2.5 px-3">Time Consumption</th>
+                                                <th class="py-2.5 px-3 text-right">Operate</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-[#202733] font-mono">
+                                            <tr v-for="t in completedTasks" :key="t.id" class="hover:bg-slate-800/20 transition">
+                                                <td class="py-2.5 px-3 flex items-center space-x-2">
+                                                    <span :class="t.status === 'completed' ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'">
+                                                        {{ t.status === 'completed' ? '✓' : '✗' }}
+                                                    </span>
+                                                    <span class="text-slate-200">{{ t.action }}</span>
+                                                </td>
+                                                <td class="py-2.5 px-3 text-slate-400">{{ t.created_at }}</td>
+                                                <td class="py-2.5 px-3 text-slate-300">{{ t.time_consumption || '12s' }}</td>
+                                                <td class="py-2.5 px-3 text-right">
+                                                    <button @click="viewTaskLog(t.id)" class="text-emerald-400 hover:text-emerald-300 font-medium">
+                                                        Detail
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- TAB 3: EXECUTION LOG (TERMINAL LOG TRỰC TIẾP - Ảnh 3 aaPanel) -->
+                            <div v-if="msgBoxTab === 'log'" class="h-full flex flex-col space-y-2">
+                                <div class="flex justify-between items-center text-xs text-slate-400 pb-1">
+                                    <span class="font-mono">Task ID: <b class="text-white">{{ selectedTaskId || 'N/A' }}</b></span>
+                                    <button @click="refreshSelectedLog" class="hover:text-white flex items-center gap-1 font-mono">
+                                        <span>🔄 Làm mới log</span>
+                                    </button>
+                                </div>
+                                <div class="flex-1 bg-[#0f131a] rounded-xl p-4 font-mono text-xs text-slate-300 overflow-y-auto custom-scrollbar border border-[#232b36] whitespace-pre-wrap select-text leading-relaxed">
+{{ selectedTaskLog || 'Loading...' }}
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>
@@ -992,6 +1124,69 @@
                     if (appsCategory.value === 'all') return appsList.value;
                     return appsList.value.filter(a => a.category === appsCategory.value);
                 });
+
+                // Dữ liệu Messages Box & Task List (aaPanel Style)
+                const showMessagesBox = ref(false);
+                const msgBoxTab = ref('tasks');
+                const runningTasks = ref([]);
+                const completedTasks = ref([]);
+                const selectedTaskId = ref('');
+                const selectedTaskLog = ref('');
+
+                const fetchTasks = async () => {
+                    if (!token.value) return;
+                    try {
+                        const [resRun, resComp] = await Promise.all([
+                            fetch('/api/v1/tasks/list?status_filter=running', { headers: { 'Authorization': `Bearer ${token.value}` } }),
+                            fetch('/api/v1/tasks/list?status_filter=completed', { headers: { 'Authorization': `Bearer ${token.value}` } })
+                        ]);
+                        if (resRun.ok) runningTasks.value = await resRun.json();
+                        if (resComp.ok) completedTasks.value = await resComp.json();
+
+                        if (showMessagesBox.value && msgBoxTab.value === 'log' && selectedTaskId.value) {
+                            refreshSelectedLog();
+                        }
+                    } catch (e) {
+                        console.error('Loi tai tasks:', e);
+                    }
+                };
+
+                const viewTaskLog = async (taskId) => {
+                    selectedTaskId.value = taskId;
+                    selectedTaskLog.value = 'Đang tải dữ liệu log trực tiếp...';
+                    msgBoxTab.value = 'log';
+                    showMessagesBox.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/tasks/${taskId}/log`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            selectedTaskLog.value = data.log || 'Không có log.';
+                        }
+                    } catch (e) {
+                        selectedTaskLog.value = 'Lỗi tải log: ' + e.message;
+                    }
+                };
+
+                const refreshSelectedLog = async () => {
+                    if (!selectedTaskId.value) return;
+                    try {
+                        const res = await fetch(`/api/v1/tasks/${selectedTaskId.value}/log`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            selectedTaskLog.value = data.log || 'Không có log.';
+                        }
+                    } catch (e) {}
+                };
+
+                const openMessageBox = (tab = 'tasks') => {
+                    msgBoxTab.value = tab;
+                    showMessagesBox.value = true;
+                    fetchTasks();
+                };
 
                 const fetchAppsList = async () => {
                     if (!token.value) return;
@@ -1310,11 +1505,15 @@
                         fetchDomains();
                         fetchSystemStatus();
                         fetchAppsList();
+                        fetchTasks();
                     }
-                    // Tự động làm mới số liệu mỗi 3 giây
+                    // Tự động làm mới số liệu và kiểm tra task chạy ngầm mỗi 3 giây
                     timer = setInterval(() => {
-                        if (token.value && currentTab.value === 'dashboard') {
-                            fetchSystemStatus();
+                        if (token.value) {
+                            if (currentTab.value === 'dashboard') {
+                                fetchSystemStatus();
+                            }
+                            fetchTasks();
                         }
                     }, 3000);
                 });
@@ -1326,6 +1525,9 @@
                 return {
                     token, currentUser, currentTab, domains, showAddDomainModal,
                     showUpdateModal, isUpdating, updateCountdown, handlePanelUpdate,
+                    showMessagesBox, msgBoxTab, runningTasks, completedTasks,
+                    selectedTaskId, selectedTaskLog, fetchTasks, viewTaskLog,
+                    refreshSelectedLog, openMessageBox,
                     loginForm, loginError, loggingIn, newDomain, tabTitle,
                     sysStats, trafficHistory, timeLabels, downstreamCurvePath,
                     upstreamCurvePath, downstreamAreaPath, upstreamAreaPath,
