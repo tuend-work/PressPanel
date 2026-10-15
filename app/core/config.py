@@ -27,16 +27,20 @@ def parse_presspanel_conf(conf_path: str) -> Dict[str, str]:
 
 def get_conf_path() -> str:
     # 1. Từ biến môi trường
-    if "PRESSPANEL_CONF_PATH" in os.environ and os.path.isfile(os.environ["PRESSPANEL_CONF_PATH"]):
-        return os.environ["PRESSPANEL_CONF_PATH"]
-    # 2. Vị trí chính thức trên máy chủ Linux
-    if os.path.isfile("/opt/presspanel/conf/presspanel.conf"):
-        return "/opt/presspanel/conf/presspanel.conf"
+    for env_var in ("WPC_CONF_PATH", "PRESSPANEL_CONF_PATH"):
+        if env_var in os.environ and os.path.isfile(os.environ[env_var]):
+            return os.environ[env_var]
+    # 2. Vị trí chính thức trên máy chủ Linux (/opt/wpc hoặc /opt/presspanel)
+    for p in ("/opt/wpc/conf/wpc.conf", "/opt/wpc/conf/presspanel.conf", "/opt/presspanel/conf/presspanel.conf"):
+        if os.path.isfile(p):
+            return p
     # 3. Vị trí trong thư mục dự án khi dev
-    local_conf = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "conf", "presspanel.conf")
-    if os.path.isfile(local_conf):
-        return local_conf
-    return "/opt/presspanel/conf/presspanel.conf"
+    base_proj = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    for conf_name in ("wpc.conf", "presspanel.conf"):
+        local_conf = os.path.join(base_proj, "conf", conf_name)
+        if os.path.isfile(local_conf):
+            return local_conf
+    return "/opt/wpc/conf/wpc.conf"
 
 CONF_DATA = parse_presspanel_conf(get_conf_path())
 
@@ -58,21 +62,22 @@ class Settings:
     
     # SSL Panel
     ENABLE_SSL: bool = CONF_DATA.get("ssl", "0") in ("1", "true", "yes")
-    SSL_CERT: str = CONF_DATA.get("ssl_cert", "/opt/presspanel/data/ssl/panel.crt")
-    SSL_KEY: str = CONF_DATA.get("ssl_key", "/opt/presspanel/data/ssl/panel.key")
+    SSL_CERT: str = CONF_DATA.get("ssl_cert", f"{CONF_DATA.get('base_dir', '/opt/wpc')}/data/ssl/panel.crt")
+    SSL_KEY: str = CONF_DATA.get("ssl_key", f"{CONF_DATA.get('base_dir', '/opt/wpc')}/data/ssl/panel.key")
     
     # Dịch vụ mặc định
     DEFAULT_WEBSERVER: str = CONF_DATA.get("default_webserver", "ols")
     DEFAULT_PHP: str = CONF_DATA.get("default_php", "8.2")
     
-    # Đường dẫn hệ thống
-    BASE_DIR: str = CONF_DATA.get("base_dir", "/opt/presspanel")
-    BIN_DIR: str = CONF_DATA.get("bin_dir", "/opt/presspanel/bin")
-    DATA_DIR: str = CONF_DATA.get("data_dir", "/opt/presspanel/data")
-    DB_PATH: str = os.getenv("PRESSPANEL_DB_PATH", CONF_DATA.get("database_path", "/opt/presspanel/data/panel.db"))
-    LOGS_DIR: str = CONF_DATA.get("logs_dir", "/opt/presspanel/logs")
-    STATIC_DIR: str = CONF_DATA.get("static_dir", "/opt/presspanel/static")
-    BACKUP_DIR: str = CONF_DATA.get("backup_storage_path", "/opt/presspanel/data/backups")
+    # Đường dẫn hệ thống (Tự động phát hiện /opt/wpc hoặc fallback /opt/presspanel)
+    DEFAULT_BASE = "/opt/wpc" if os.path.exists("/opt/wpc") or not os.path.exists("/opt/presspanel") else "/opt/presspanel"
+    BASE_DIR: str = CONF_DATA.get("base_dir", DEFAULT_BASE)
+    BIN_DIR: str = CONF_DATA.get("bin_dir", f"{BASE_DIR}/bin")
+    DATA_DIR: str = CONF_DATA.get("data_dir", f"{BASE_DIR}/data")
+    DB_PATH: str = os.getenv("WPC_DB_PATH", os.getenv("PRESSPANEL_DB_PATH", CONF_DATA.get("database_path", f"{BASE_DIR}/data/panel.db")))
+    LOGS_DIR: str = CONF_DATA.get("logs_dir", f"{BASE_DIR}/logs")
+    STATIC_DIR: str = CONF_DATA.get("static_dir", f"{BASE_DIR}/static")
+    BACKUP_DIR: str = CONF_DATA.get("backup_storage_path", f"{BASE_DIR}/data/backups")
     
     # Tính năng
     ENABLE_CAGE: bool = CONF_DATA.get("enable_cage", "1") in ("1", "true", "yes")

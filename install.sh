@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-INSTALL_DIR="/opt/presspanel"
+INSTALL_DIR="/opt/wpc"
 PANEL_USER="wpc"
 PANEL_GROUP="wpc"
 REPO_URL="https://github.com/tuend-work/PressPanel.git"
@@ -166,7 +166,7 @@ echo "=========================================================="
 echo "   WPCLOUD CONTROL PANEL ĐÃ CÀI ĐẶT THÀNH CÔNG!          "
 echo "   Giao diện quản trị: http://<IP_MAY_CHU>:$PANEL_PORT   "
 echo "   Tài liệu Swagger API: http://<IP_MAY_CHU>:$PANEL_PORT/docs "
-echo "   File cấu hình: /opt/presspanel/conf/presspanel.conf   "
+echo "   File cấu hình: /opt/wpc/conf/presspanel.conf   "
 echo "   Lệnh quản trị hệ thống CLI: wpc (hoặc presspanel)     "
 echo "   Tài khoản mặc định: admin / admin123456               "
 echo "=========================================================="

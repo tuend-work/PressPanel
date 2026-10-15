@@ -1,6 +1,6 @@
 /*
- * PressPanel: cage.c - Lồng Cách Ly Namespace & PID 1 Reaper
- * SUID Binary (chmod 4750 root:PressPanel)
+ * WPC: cage.c - Lồng Cách Ly Namespace & PID 1 Reaper
+ * SUID Binary (chmod 4750 root:WPC)
  */
 
 #define _GNU_SOURCE
@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
     // 1. Gán vào Cgroup của User
     char cgroup_procs[512];
     snprintf(cgroup_procs, sizeof(cgroup_procs), 
-             "/sys/fs/cgroup/presspanel/reseller_%s/user_%s/cgroup.procs", reseller_id, username);
+             "/sys/fs/cgroup/wpc/reseller_%s/user_%s/cgroup.procs", reseller_id, username);
     FILE *fp = fopen(cgroup_procs, "w");
     if (fp) {
         fprintf(fp, "%d\n", getpid());

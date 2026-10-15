@@ -1,11 +1,11 @@
 /*
- * PressPanel: cgroup.c - Quản lý Cgroups v2 Phân Cấp & Khóa Trần 2 Lớp
- * SUID Binary (chmod 4750 root:PressPanel)
+ * WPC: cgroup.c - Quản lý Cgroups v2 Phân Cấp & Khóa Trần 2 Lớp
+ * SUID Binary (chmod 4750 root:WPC)
  */
 
 #include "common.h"
 
-#define CGROUP_ROOT "/sys/fs/cgroup/presspanel"
+#define CGROUP_ROOT "/sys/fs/cgroup/wpc"
 
 int main(int argc, char *argv[]) {
     init_security_env();

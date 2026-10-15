@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="PressPanel: Control Panel Tối Ưu WordPress Cho Linux (FastAPI + C Gatekeepers)",
+    description="WPC: Control Panel Tối Ưu WordPress Cho Linux (FastAPI + C Gatekeepers)",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan

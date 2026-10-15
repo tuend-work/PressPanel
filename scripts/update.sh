@@ -2,12 +2,12 @@
 # ==============================================================================
 # PressPanel: update.sh - Cập nhật Panel lên phiên bản mới nhất từ GitHub
 # Bảo toàn 100% dữ liệu database, website người dùng và file cấu hình
-# Cách chạy: sudo bash /opt/presspanel/scripts/update.sh
+# Cách chạy: sudo bash /opt/wpc/scripts/update.sh
 # ==============================================================================
 
 set -euo pipefail
 
-INSTALL_DIR="/opt/presspanel"
+INSTALL_DIR="/opt/wpc"
 REPO_URL="https://github.com/tuend-work/PressPanel.git"
 TMP_DIR="/tmp/presspanel-update-$$"
 
@@ -18,6 +18,12 @@ echo "=========================================================="
 if [ "$EUID" -ne 0 ]; then
     echo "[-] Vui lòng chạy lệnh với quyền root: sudo bash update.sh"
     exit 1
+fi
+
+# Tự động chuyển giao / migration nếu máy chủ hiện tại đang chạy tại /opt/presspanel
+if [ ! -d "$INSTALL_DIR" ] && [ -d "/opt/presspanel" ]; then
+    echo "[+] Phát hiện dữ liệu cũ tại /opt/presspanel, tự động tạo liên kết symlink sang /opt/wpc..."
+    ln -sfn /opt/presspanel /opt/wpc
 fi
 
 if [ ! -d "$INSTALL_DIR" ]; then
