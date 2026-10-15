@@ -131,9 +131,27 @@ async def get_file_content(
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Không tìm thấy tệp tin.")
 
+    # Thử đọc trực tiếp
     try:
         with open(file_path, "r", encoding="utf-8", errors="replace") as f:
             return {"path": path, "content": f.read(), "absolute_path": file_path}
+    except PermissionError:
+        # Fallback đọc qua gatekeeper SUID
+        gatekeeper_app = "/opt/presspanel/bin/app"
+        if os.path.isfile(gatekeeper_app):
+            import subprocess
+            proc = subprocess.run([gatekeeper_app, "config-read", file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if proc.returncode == 0:
+                return {"path": path, "content": proc.stdout, "absolute_path": file_path}
+        # Fallback sudo cat
+        try:
+            import subprocess
+            proc = subprocess.run(["sudo", "cat", file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if proc.returncode == 0:
+                return {"path": path, "content": proc.stdout, "absolute_path": file_path}
+        except Exception:
+            pass
+        raise HTTPException(status_code=403, detail="Không có quyền đọc tệp tin này.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Không thể đọc file: {str(e)}")
 
@@ -143,10 +161,37 @@ async def save_file_content(
     current_user: dict = Depends(get_current_user)
 ):
     file_path = resolve_target_path(current_user, req.target_user, req.path)
+    
+    # 1. Thử ghi trực tiếp
     try:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(req.content)
         return {"status": "ok", "message": "Đã lưu nội dung tệp tin thành công!"}
+    except PermissionError:
+        # 2. Nếu gặp lỗi Permission Denied do thuộc sở hữu web user Linux, dùng SUID Gatekeeper
+        gatekeeper_app = "/opt/presspanel/bin/app"
+        tmp_save_path = f"/tmp/presspanel_edit_{os.getpid()}_{os.path.basename(file_path)}.tmp"
+        try:
+            with open(tmp_save_path, "w", encoding="utf-8") as ftmp:
+                ftmp.write(req.content)
+
+            import subprocess
+            if os.path.isfile(gatekeeper_app):
+                proc = subprocess.run([gatekeeper_app, "config-write", tmp_save_path, file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.returncode == 0:
+                    return {"status": "ok", "message": "Đã lưu nội dung tệp tin thành công!"}
+
+            # Fallback sudo cp
+            proc_sudo = subprocess.run(["sudo", "cp", tmp_save_path, file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if os.path.exists(tmp_save_path):
+                os.remove(tmp_save_path)
+            if proc_sudo.returncode == 0:
+                return {"status": "ok", "message": "Đã lưu nội dung tệp tin thành công!"}
+            raise HTTPException(status_code=403, detail="Không có quyền ghi tệp tin này.")
+        except Exception as e:
+            if os.path.exists(tmp_save_path):
+                os.remove(tmp_save_path)
+            raise HTTPException(status_code=500, detail=f"Không thể lưu tệp: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Không thể lưu tệp: {str(e)}")
 
@@ -165,6 +210,17 @@ async def create_file_or_dir(
             with open(target_path, "w", encoding="utf-8") as f:
                 f.write("")
             return {"status": "ok", "message": f"Tạo tệp tin {os.path.basename(target_path)} thành công!"}
+    except PermissionError:
+        # Fallback quyền root nếu cha thư mục giới hạn quyền
+        try:
+            import subprocess
+            if req.item_type == "folder":
+                subprocess.run(["sudo", "mkdir", "-p", target_path], check=True)
+            else:
+                subprocess.run(["sudo", "touch", target_path], check=True)
+            return {"status": "ok", "message": f"Tạo {os.path.basename(target_path)} thành công!"}
+        except Exception as e:
+            raise HTTPException(status_code=403, detail=f"Không có quyền khởi tạo: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi khởi tạo: {str(e)}")
 
@@ -183,5 +239,12 @@ async def delete_file_or_dir(
         else:
             os.remove(target_path)
         return {"status": "ok", "message": f"Đã xóa {os.path.basename(target_path)} thành công!"}
+    except PermissionError:
+        try:
+            import subprocess
+            subprocess.run(["sudo", "rm", "-rf", target_path], check=True)
+            return {"status": "ok", "message": f"Đã xóa {os.path.basename(target_path)} thành công!"}
+        except Exception as e:
+            raise HTTPException(status_code=403, detail=f"Không có quyền xóa: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi khi xóa: {str(e)}")

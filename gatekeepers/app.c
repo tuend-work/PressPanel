@@ -112,6 +112,10 @@ int main(int argc, char *argv[]) {
             send_json_error("app", "Khong mo duoc file tam de doc");
             return 1;
         }
+        // Lưu lại UID/GID của file đích nếu đã tồn tại để tránh biến file thành root:root
+        struct stat st_dest;
+        int has_dest_stat = (stat(dest_path, &st_dest) == 0);
+
         FILE *fdest = fopen(dest_path, "w");
         if (!fdest) {
             fclose(fsrc);
@@ -126,6 +130,13 @@ int main(int argc, char *argv[]) {
         fclose(fsrc);
         fclose(fdest);
         unlink(src_tmp);
+
+        // Khôi phục quyền sở hữu cho Linux Web User nếu đã tồn tại trước đó
+        if (has_dest_stat) {
+            chown(dest_path, st_dest.st_uid, st_dest.st_gid);
+            chmod(dest_path, st_dest.st_mode);
+        }
+
         send_json_ok("\"message\":\"Da luu cau hinh thanh cong\"");
         return 0;
     }
