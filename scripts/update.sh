@@ -160,8 +160,16 @@ for pdir in /etc/php/*/fpm/pool.d; do
         # Xóa file cấu hình cũ trong pool.d và giải phóng socket cũ
         rm -f "$conf" "/run/php/php${PVER}-fpm-${UNAME}.sock" 2>/dev/null || true
         systemctl reload "php${PVER}-fpm" 2>/dev/null || true
-        bash "$INSTALL_DIR/scripts/php_fpm_service.sh" create "$UNAME" "$PVER" 2>/dev/null || true
+        bash "$INSTALL_DIR/scripts/php_fpm_service.sh" create "$UNAME" "$PVER" "$UNAME" 2>/dev/null || true
     done
+done
+
+# Cập nhật cấu hình slice cho các user đã có standalone service
+for uconf in /etc/php/*/fpm/users/*.conf; do
+    [ -f "$uconf" ] || continue
+    UNAME=$(basename "$uconf" .conf)
+    PVER=$(echo "$uconf" | cut -d'/' -f4)
+    bash "$INSTALL_DIR/scripts/php_fpm_service.sh" create "$UNAME" "$PVER" "$UNAME" 2>/dev/null || true
 done
 
 # Khởi động lại các PHP-FPM để nhận drop-in và gán ngay PID vào Cgroups v2

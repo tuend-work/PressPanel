@@ -76,6 +76,14 @@ int main(int argc, char *argv[]) {
         struct passwd *pw = getpwnam(username);
         uid_t uid = pw ? pw->pw_uid : 0;
 
+        /* 
+         * KHÓA TRẦN PHÂN CẤP SYSTEMD SLICE & CGROUP V2:
+         * 1. Reseller cấp cha: wpc.slice -> wpc-reseller_%s.slice
+         * 2. Hosting User (Khách hàng): wpc-hosting_%s.slice (đặt CPUQuota và MemoryMax của gói hosting)
+         * 3. Website con của Hosting User: Kế thừa hoặc nằm trong wpc-hosting_%s-site_%s.slice
+         * Bằng cách này, dù Hosting User tạo bao nhiêu website con thì tổng CPU/RAM của tất cả
+         * các website con KHÔNG BAO GIỜ vượt quá trần của Hosting User!
+         */
         char cmd[4096];
         snprintf(cmd, sizeof(cmd),
             "mkdir -p /sys/fs/cgroup/wpc && "
@@ -97,6 +105,7 @@ int main(int argc, char *argv[]) {
             "echo '%d' > %s/pids.max 2>/dev/null || true; "
             "if [ %u -gt 0 ]; then systemctl set-property user-%u.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; fi; "
             "systemctl set-property wpc-user-%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; "
+            "systemctl set-property wpc-hosting_%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; "
             "pgrep -u %s | while read -r p; do echo \"$p\" > %s/cgroup.procs 2>/dev/null || echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; done",
             reseller_path,
             reseller_path,
@@ -109,6 +118,7 @@ int main(int argc, char *argv[]) {
             cpu * 1000, user_flat_path,
             pids, user_flat_path,
             (unsigned int)uid, (unsigned int)uid, cpu, mem_mb, pids,
+            username, cpu, mem_mb, pids,
             username, cpu, mem_mb, pids,
             username, path, user_flat_path);
         IGNORE_RESULT(system(cmd));

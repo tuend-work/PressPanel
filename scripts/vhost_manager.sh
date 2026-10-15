@@ -11,6 +11,7 @@ USERNAME="${2:-}"
 DOMAIN="${3:-}"
 WEBSERVER="${4:-ols}"
 PHP_VER="${5:-8.2}"
+HOSTING_USER="${6:-$USERNAME}"
 
 PRESSPANEL_DIR="/opt/presspanel"
 
@@ -177,9 +178,9 @@ EOF
                 PHP_SOCK="$USER_POOL_SOCK"
 
                 if [ -f "$PRESSPANEL_DIR/scripts/php_fpm_service.sh" ]; then
-                    bash "$PRESSPANEL_DIR/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" 2>/dev/null || true
+                    bash "$PRESSPANEL_DIR/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" "$HOSTING_USER" 2>/dev/null || true
                 elif [ -f "/opt/wpc/scripts/php_fpm_service.sh" ]; then
-                    bash "/opt/wpc/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" 2>/dev/null || true
+                    bash "/opt/wpc/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" "$HOSTING_USER" 2>/dev/null || true
                 fi
 
                 # Nếu pool sock chưa sinh ra kịp (fallback sang pool mặc định nếu cần)
@@ -272,9 +273,9 @@ EOF
 
             # Tạo và kích hoạt Systemd Template Service độc lập cho phiên bản PHP mới
             if [ -f "$PRESSPANEL_DIR/scripts/php_fpm_service.sh" ]; then
-                bash "$PRESSPANEL_DIR/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" 2>/dev/null || true
+                bash "$PRESSPANEL_DIR/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" "$HOSTING_USER" 2>/dev/null || true
             elif [ -f "/opt/wpc/scripts/php_fpm_service.sh" ]; then
-                bash "/opt/wpc/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" 2>/dev/null || true
+                bash "/opt/wpc/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" "$HOSTING_USER" 2>/dev/null || true
             fi
             NEW_SOCK="/run/php/php${PHP_VER}-fpm-${USERNAME}.sock"
             if [ ! -e "$NEW_SOCK" ]; then

@@ -46,8 +46,13 @@ int main(int argc, char *argv[]) {
     if (strcmp(action, "add") == 0) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
         const char *php_ver = (argc > 5) ? argv[5] : "8.2";
-        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/vhost_manager.sh add %s %s %s %s",
-                 username, domain, webserver, php_ver);
+        const char *hosting_user = (argc > 6) ? argv[6] : username;
+        if (argc > 6 && !is_safe_id(hosting_user)) {
+            send_json_error("vhost", "Hosting user khong hop le");
+            return 1;
+        }
+        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/vhost_manager.sh add %s %s %s %s %s",
+                 username, domain, webserver, php_ver, hosting_user);
     }
     else if (strcmp(action, "remove") == 0) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
@@ -57,8 +62,13 @@ int main(int argc, char *argv[]) {
     else if (strcmp(action, "set-php") == 0) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
         const char *php_ver = (argc > 5) ? argv[5] : "8.2";
-        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/vhost_manager.sh set-php %s %s %s %s",
-                 username, domain, webserver, php_ver);
+        const char *hosting_user = (argc > 6) ? argv[6] : username;
+        if (argc > 6 && !is_safe_id(hosting_user)) {
+            send_json_error("vhost", "Hosting user khong hop le");
+            return 1;
+        }
+        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/vhost_manager.sh set-php %s %s %s %s %s",
+                 username, domain, webserver, php_ver, hosting_user);
     }
     else if (strcmp(action, "ssl") == 0) {
         snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/vhost_manager.sh ssl %s %s",

@@ -97,9 +97,13 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
     else:
         active_ws = "ols"
 
-    # Gọi C gatekeeper: vhost add <user> <domain> <ols|nginx> <php_ver>
-    # Script vhost_manager.sh sẽ tự động gọi ensure_linux_user tạo isolated_user & phân quyền an toàn
-    res = await run_gatekeeper("vhost", "add", isolated_user, clean_domain, active_ws, req.php_version)
+    # Lấy thông tin Hosting User sở hữu website này
+    hosting_username = current_user.get("username", isolated_user)
+
+    # Gọi C gatekeeper: vhost add <user> <domain> <ols|nginx> <php_ver> [hosting_user]
+    # Script vhost_manager.sh sẽ tự động gọi ensure_linux_user tạo isolated_user & phân quyền an toàn,
+    # đồng thời gán service PHP-FPM con vào Slice của Hosting User cha (wpc-hosting_<hosting_user>.slice)!
+    res = await run_gatekeeper("vhost", "add", isolated_user, clean_domain, active_ws, req.php_version, hosting_username)
     if res.get("status") == "error":
         await db.close()
         raise HTTPException(status_code=400, detail=res.get("message", "Không thể tạo VirtualHost"))
@@ -109,6 +113,8 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
     u_mem = current_user.get("mem_mb", 1024) or 1024
     reseller_id = str(current_user.get("parent_id", 1) or 1)
     await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
+    # Đảm bảo slice của Hosting user cha cũng được cập nhật hạn mức
+    await run_gatekeeper("cgroup", "set-user", reseller_id, hosting_username, str(u_cpu), str(u_mem), "100", "100")
 
     try:
         await db.execute("""
@@ -308,9 +314,10 @@ async def change_domain_php(
     isolated_user = domain_to_linux_user(clean_domain)
     active_ws = domain["webserver"]
     new_php = req.php_version
+    hosting_username = domain["owner_username"] or isolated_user
 
-    # Thực thi Gatekeeper: vhost set-php <user> <domain> <ols|nginx> <php_ver>
-    res = await run_gatekeeper("vhost", "set-php", isolated_user, clean_domain, active_ws, new_php)
+    # Thực thi Gatekeeper: vhost set-php <user> <domain> <ols|nginx> <php_ver> [hosting_user]
+    res = await run_gatekeeper("vhost", "set-php", isolated_user, clean_domain, active_ws, new_php, hosting_username)
     if res.get("status") == "error":
         await db.close()
         raise HTTPException(status_code=400, detail=res.get("message", "Không thể đổi phiên bản PHP"))

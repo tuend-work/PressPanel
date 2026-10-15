@@ -13,9 +13,10 @@ set -euo pipefail
 ACTION="${1:-help}"
 USERNAME="${2:-}"
 PHP_VER="${3:-8.2}"
+HOSTING_USER="${4:-$USERNAME}"
 
 if [ -z "$USERNAME" ] || [ -z "$PHP_VER" ]; then
-    echo "[-] Thiếu tham số: php_fpm_service.sh <create|start|stop|restart|reload|delete> <username> <php_version>"
+    echo "[-] Thiếu tham số: php_fpm_service.sh <create|start|stop|restart|reload|delete> <username> <php_version> [hosting_user]"
     exit 1
 fi
 
@@ -79,8 +80,7 @@ EOF
 
         # 3. Đảm bảo Systemd Template Service tồn tại: /etc/systemd/system/wpc-php${PHP_VER}-fpm@.service
         TEMPLATE_FILE="/etc/systemd/system/wpc-php${PHP_VER}-fpm@.service"
-        if [ ! -f "$TEMPLATE_FILE" ]; then
-            cat << 'EOF' > "$TEMPLATE_FILE"
+        cat << 'EOF' > "$TEMPLATE_FILE"
 [Unit]
 Description=WPCloud PHP-FPM Service for user %i
 After=network.target
@@ -90,34 +90,50 @@ Type=notify
 PIDFile=/run/php/php__PHP_VER__-fpm-%i.pid
 ExecStart=/usr/sbin/php-fpm__PHP_VER__ --nodaemonize --fpm-config /etc/php/__PHP_VER__/fpm/users/%i.conf
 ExecReload=/bin/kill -USR2 $MAINPID
+TimeoutSec=15
 Slice=wpc-user-%i.slice
 
 [Install]
 WantedBy=multi-user.target
 EOF
-            sed -i "s/__PHP_VER__/${PHP_VER}/g" "$TEMPLATE_FILE"
-            systemctl daemon-reload 2>/dev/null || true
+        sed -i "s/__PHP_VER__/${PHP_VER}/g" "$TEMPLATE_FILE"
+
+        # 4. Tạo Drop-in Override để gán service này vào Slice của Hosting User cha (nếu có hosting user)
+        # Hệ thống phân cấp Systemd Slice: wpc-hosting_<hosting_user>.slice
+        # Khi tất cả website của Hosting User cùng chạy dưới wpc-hosting_<hosting_user>.slice,
+        # tổng CPU và RAM của tất cả website con KHÔNG BAO GIỜ vượt quá trần của Hosting User!
+        TARGET_SLICE="wpc-user-${USERNAME}.slice"
+        if [ -n "$HOSTING_USER" ]; then
+            TARGET_SLICE="wpc-hosting_${HOSTING_USER}.slice"
         fi
 
-        # 4. Kích hoạt và khởi động service riêng của user
+        SVC_DROPIN_DIR="/etc/systemd/system/wpc-php${PHP_VER}-fpm@${USERNAME}.service.d"
+        mkdir -p "$SVC_DROPIN_DIR"
+        cat << EOF > "$SVC_DROPIN_DIR/slice.conf"
+[Service]
+Slice=${TARGET_SLICE}
+EOF
+
+        # 5. Kích hoạt và nạp lại daemon
         systemctl daemon-reload 2>/dev/null || true
         systemctl enable "$SVC_NAME" 2>/dev/null || true
 
-        # Đọc hạn mức từ file cgroup của user nếu có để set-property cho slice này
-        USER_CG_PATH="/sys/fs/cgroup/wpc/reseller_1/user_${USERNAME}"
-        [ -d "$USER_CG_PATH" ] || USER_CG_PATH="/sys/fs/cgroup/wpc/user_${USERNAME}"
+        # Đọc hạn mức từ file cgroup của hosting user hoặc user để set-property cho slice này
+        LOOKUP_USER="${HOSTING_USER:-$USERNAME}"
+        USER_CG_PATH="/sys/fs/cgroup/wpc/reseller_1/user_${LOOKUP_USER}"
+        [ -d "$USER_CG_PATH" ] || USER_CG_PATH="/sys/fs/cgroup/wpc/user_${LOOKUP_USER}"
         if [ -f "$USER_CG_PATH/cpu.max" ]; then
             CPU_MAX_VAL=$(awk '{print $1}' "$USER_CG_PATH/cpu.max" 2>/dev/null || echo "100000")
             if [ "$CPU_MAX_VAL" != "max" ] && [ "$CPU_MAX_VAL" -gt 0 ]; then
                 CPU_PCT=$((CPU_MAX_VAL / 1000))
-                systemctl set-property "wpc-user-${USERNAME}.slice" CPUQuota="${CPU_PCT}%" 2>/dev/null || true
+                systemctl set-property "${TARGET_SLICE}" CPUQuota="${CPU_PCT}%" 2>/dev/null || true
             fi
         fi
         if [ -f "$USER_CG_PATH/memory.max" ]; then
             MEM_MAX_VAL=$(cat "$USER_CG_PATH/memory.max" 2>/dev/null || echo "max")
             if [ "$MEM_MAX_VAL" != "max" ] && [ "$MEM_MAX_VAL" -gt 0 ]; then
                 MEM_MB=$((MEM_MAX_VAL / 1024 / 1024))
-                systemctl set-property "wpc-user-${USERNAME}.slice" MemoryMax="${MEM_MB}M" 2>/dev/null || true
+                systemctl set-property "${TARGET_SLICE}" MemoryMax="${MEM_MB}M" 2>/dev/null || true
             fi
         fi
 

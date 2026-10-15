@@ -193,9 +193,12 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
                 ws = req.webserver or "ols"
                 php_v = req.php_version or "8.2"
 
-                # 1. Gọi Gatekeeper tạo Vhost & tạo isolated user
-                vhost_res = await run_gatekeeper("vhost", "add", clean_d, d_name, ws, php_v)
+                # 1. Gọi Gatekeeper tạo Vhost & tạo isolated user (gán vào Slice của hosting user này)
+                vhost_res = await run_gatekeeper("vhost", "add", clean_d, d_name, ws, php_v, username)
                 vhost_status = "success" if vhost_res.get("status") != "error" else "warning"
+
+                # Áp dụng giới hạn Cgroups v2 cho Linux User của website này
+                await run_gatekeeper("cgroup", "set-user", parent_reseller_id, clean_d, str(req.cpu_pct), str(req.mem_mb), "100", "100")
 
                 # 2. Lưu vào bảng domains
                 try:
