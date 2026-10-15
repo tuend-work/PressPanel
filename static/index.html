@@ -254,11 +254,11 @@
                         </div>
                     </div>
 
-                    <!-- Bottom Card "Nâng cấp ngay" phong cách WPCloud -->
-                    <div class="p-3">
+                    <!-- Bottom Card "Nâng cấp ngay" phong cách WPCloud (Chỉ hiển thị cho Quản Trị Viên cấp cao và không hiển thị khi login as user) -->
+                    <div v-if="currentUser.role === 'admin' && !isImpersonating" class="p-3">
                         <div class="bg-gradient-to-b from-[#142338] to-[#0f1a2c] border border-blue-900/40 rounded-2xl p-4 text-center relative overflow-hidden shadow-lg">
-                            <div class="w-10 h-10 mx-auto rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center text-xl mb-2">
-                                🚀
+                            <div class="w-10 h-10 mx-auto rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center mb-2">
+                                <i data-lucide="rocket" class="w-5 h-5"></i>
                             </div>
                             <h4 class="font-bold text-white text-xs">Nâng cấp ngay</h4>
                             <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">
@@ -269,7 +269,7 @@
                             </button>
                         </div>
                         <div class="mt-3 text-center text-[10px] text-slate-500 font-mono">
-                            WPCloud Control Panel v0.4.10
+                            WPCloud Control Panel v0.4.15
                         </div>
                     </div>
                 </div>
