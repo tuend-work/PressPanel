@@ -102,33 +102,23 @@ if [ -f /etc/sudoers.d/presspanel ]; then
 fi
 
 # 7. Đăng ký & Khởi động lại dịch vụ
-echo "[+] Đăng ký và cập nhật dịch vụ systemd wpc (và alias presspanel)..."
+echo "[+] Đăng ký dịch vụ wpc.service và dọn dẹp presspanel.service cũ..."
+# Dừng và vô hiệu hóa triệt để presspanel.service cũ để tránh xung đột cổng
+if systemctl is-active --quiet presspanel 2>/dev/null; then
+    echo "[+] Dừng dịch vụ presspanel.service cũ..."
+    systemctl stop presspanel 2>/dev/null || true
+fi
+systemctl disable presspanel 2>/dev/null || true
+rm -f /etc/systemd/system/presspanel.service 2>/dev/null || true
+
 if [ -f "$TMP_DIR/systemd/wpc.service" ]; then
     cp "$TMP_DIR/systemd/wpc.service" /etc/systemd/system/wpc.service
-    cp "$TMP_DIR/systemd/wpc.service" /etc/systemd/system/presspanel.service
 elif [ -f "$TMP_DIR/systemd/presspanel.service" ]; then
-    cp "$TMP_DIR/systemd/presspanel.service" /etc/systemd/system/presspanel.service
     cp "$TMP_DIR/systemd/presspanel.service" /etc/systemd/system/wpc.service
 fi
 systemctl daemon-reload 2>/dev/null || true
-systemctl enable wpc presspanel 2>/dev/null || systemctl enable wpc 2>/dev/null || true
-
-# Cấu hình drop-in override tự động gán Cgroup cho tất cả các phiên bản PHP-FPM đang có
-for php_svc in /lib/systemd/system/php*-fpm.service /etc/systemd/system/php*-fpm.service; do
-    [ -f "$php_svc" ] || continue
-    SVC_BASE=$(basename "$php_svc")
-    DROPIN_DIR="/etc/systemd/system/${SVC_BASE}.d"
-    mkdir -p "$DROPIN_DIR"
-    cat << 'EOF' > "$DROPIN_DIR/cgroup_attach.conf"
-[Service]
-ExecStartPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
-ExecReloadPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
-EOF
-done
-
-systemctl daemon-reload
-systemctl enable presspanel
-systemctl restart presspanel
+systemctl enable wpc 2>/dev/null || true
+systemctl restart wpc 2>/dev/null || true
 
 # Khởi tạo các Systemd Template Service wpc-php<ver>-fpm@.service cho tất cả các bản PHP
 for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do

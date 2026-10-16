@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
-from typing import List
+from typing import List, Optional
+import re
 from pydantic import BaseModel
 from app.api.deps import get_current_user
 from app.db.session import get_db_connection
@@ -13,9 +14,6 @@ class DomainCreate(BaseModel):
     php_version: str = "8.2"
     install_wp: bool = False
     package_id: Optional[int] = None
-
-import re
-from typing import Optional
 
 class DomainBatchDeleteRequest(BaseModel):
     domain_ids: List[int]

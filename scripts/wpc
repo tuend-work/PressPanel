@@ -45,18 +45,19 @@ case "$ACTION" in
         sudo systemctl status wpc 2>/dev/null || sudo systemctl status presspanel
         ;;
     restart)
-        echo "[+] Đang khởi động lại dịch vụ WPCloud Control Panel..."
+        echo "[+] Đang khởi động lại dịch vụ WPCloud Control Panel (wpc.service)..."
         sudo systemctl restart wpc 2>/dev/null || sudo systemctl restart presspanel
         echo "[+] Hoàn tất! Trạng thái: $(systemctl is-active wpc 2>/dev/null || systemctl is-active presspanel)"
         ;;
     start)
-        echo "[+] Đang bật dịch vụ WPCloud Control Panel..."
+        echo "[+] Đang bật dịch vụ WPCloud Control Panel (wpc.service)..."
         sudo systemctl start wpc 2>/dev/null || sudo systemctl start presspanel
         echo "[+] Hoàn tất! Trạng thái: $(systemctl is-active wpc 2>/dev/null || systemctl is-active presspanel)"
         ;;
     stop)
         echo "[+] Đang dừng dịch vụ WPCloud Control Panel..."
-        sudo systemctl stop wpc 2>/dev/null || sudo systemctl stop presspanel
+        sudo systemctl stop wpc 2>/dev/null || true
+        sudo systemctl stop presspanel 2>/dev/null || true
         echo "[+] Hoàn tất!"
         ;;
     logs)
