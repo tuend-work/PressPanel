@@ -20,10 +20,19 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Tự động chuyển giao / migration nếu máy chủ hiện tại đang chạy tại /opt/presspanel
-if [ ! -d "$INSTALL_DIR" ] && [ -d "/opt/presspanel" ]; then
-    echo "[+] Phát hiện dữ liệu cũ tại /opt/presspanel, tự động tạo liên kết symlink sang /opt/wpc..."
+# Tự động di chuyển / migration nếu máy chủ hiện tại đang chạy tại /opt/presspanel
+if [ -d "/opt/presspanel" ] && [ ! -L "/opt/presspanel" ] && [ ! -d "/opt/wpc" ]; then
+    echo "[+] Di chuyển thư mục từ /opt/presspanel sang /opt/wpc..."
+    mv /opt/presspanel /opt/wpc
+    ln -sfn /opt/wpc /opt/presspanel
+elif [ ! -d "$INSTALL_DIR" ] && [ -d "/opt/presspanel" ]; then
+    echo "[+] Phát hiện dữ liệu tại /opt/presspanel, tạo liên kết sang /opt/wpc..."
     ln -sfn /opt/presspanel /opt/wpc
+fi
+
+# Đảm bảo có symlink ngược lại /opt/presspanel -> /opt/wpc để tương thích
+if [ -d "/opt/wpc" ] && [ ! -e "/opt/presspanel" ]; then
+    ln -sfn /opt/wpc /opt/presspanel
 fi
 
 if [ ! -d "$INSTALL_DIR" ]; then

@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
          * Bằng cách này, dù Hosting User tạo bao nhiêu website con thì tổng CPU/RAM của tất cả
          * các website con KHÔNG BAO GIỜ vượt quá trần của Hosting User!
          */
-        char cmd[4096];
+        char cmd[8192];
         snprintf(cmd, sizeof(cmd),
             "mkdir -p /sys/fs/cgroup/wpc && "
             "for c in cpu memory io pids; do "
