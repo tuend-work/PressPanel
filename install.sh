@@ -96,11 +96,16 @@ else
         fi
     done
 
-    echo "[+] Khởi tạo file cấu hình trung tâm: $INSTALL_DIR/conf/presspanel.conf (Gán cổng an toàn: $PANEL_PORT)..."
-    cp conf/presspanel.conf "$INSTALL_DIR/conf/presspanel.conf"
-    sed -i "s/^port=.*/port=$PANEL_PORT/" "$INSTALL_DIR/conf/presspanel.conf"
-    chmod 640 "$INSTALL_DIR/conf/presspanel.conf"
-    chown "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR/conf/presspanel.conf"
+    echo "[+] Khởi tạo file cấu hình trung tâm: $INSTALL_DIR/conf/wpc.conf (Gán cổng an toàn: $PANEL_PORT)..."
+    if [ -f "conf/wpc.conf" ]; then
+        cp conf/wpc.conf "$INSTALL_DIR/conf/wpc.conf"
+    else
+        cp conf/presspanel.conf "$INSTALL_DIR/conf/wpc.conf"
+    fi
+    sed -i "s/^port=.*/port=$PANEL_PORT/" "$INSTALL_DIR/conf/wpc.conf"
+    chmod 640 "$INSTALL_DIR/conf/wpc.conf"
+    chown "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR/conf/wpc.conf"
+    ln -sfn "$INSTALL_DIR/conf/wpc.conf" "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null || true
 fi
 
 # 7. Biên dịch 8 C Gatekeeper
@@ -188,7 +193,7 @@ echo "=========================================================="
 echo "   WPCLOUD CONTROL PANEL ĐÃ CÀI ĐẶT THÀNH CÔNG!          "
 echo "   Giao diện quản trị: http://<IP_MAY_CHU>:$PANEL_PORT   "
 echo "   Tài liệu Swagger API: http://<IP_MAY_CHU>:$PANEL_PORT/docs "
-echo "   File cấu hình: /opt/wpc/conf/presspanel.conf   "
+echo "   File cấu hình: /opt/wpc/conf/wpc.conf   "
 echo "   Lệnh quản trị hệ thống CLI: wpc (hoặc presspanel)     "
 echo "   Tài khoản mặc định: admin / admin123456               "
 echo "=========================================================="

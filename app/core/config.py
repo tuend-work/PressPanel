@@ -69,12 +69,17 @@ class Settings:
     DEFAULT_WEBSERVER: str = CONF_DATA.get("default_webserver", "ols")
     DEFAULT_PHP: str = CONF_DATA.get("default_php", "8.2")
     
-    # Đường dẫn hệ thống (Tự động phát hiện /opt/wpc hoặc fallback /opt/presspanel)
+    # Đường dẫn hệ thống (Ưu tiên tuyệt đối /opt/wpc)
     DEFAULT_BASE = "/opt/wpc" if os.path.exists("/opt/wpc") or not os.path.exists("/opt/presspanel") else "/opt/presspanel"
     BASE_DIR: str = CONF_DATA.get("base_dir", DEFAULT_BASE)
     BIN_DIR: str = CONF_DATA.get("bin_dir", f"{BASE_DIR}/bin")
     DATA_DIR: str = CONF_DATA.get("data_dir", f"{BASE_DIR}/data")
-    DB_PATH: str = os.getenv("WPC_DB_PATH", os.getenv("PRESSPANEL_DB_PATH", CONF_DATA.get("database_path", f"{BASE_DIR}/data/panel.db")))
+    
+    # DB_PATH: Luôn chuẩn hoá nếu CONF_DATA chứa đường dẫn cũ /opt/presspanel
+    _raw_db_path = os.getenv("WPC_DB_PATH", os.getenv("PRESSPANEL_DB_PATH", CONF_DATA.get("database_path", f"{BASE_DIR}/data/panel.db")))
+    if _raw_db_path.startswith("/opt/presspanel/") and os.path.exists("/opt/wpc"):
+        _raw_db_path = _raw_db_path.replace("/opt/presspanel/", "/opt/wpc/")
+    DB_PATH: str = _raw_db_path
     LOGS_DIR: str = CONF_DATA.get("logs_dir", f"{BASE_DIR}/logs")
     STATIC_DIR: str = CONF_DATA.get("static_dir", f"{BASE_DIR}/static")
     BACKUP_DIR: str = CONF_DATA.get("backup_storage_path", f"{BASE_DIR}/data/backups")

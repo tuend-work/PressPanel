@@ -65,7 +65,35 @@ cp -r "$TMP_DIR/templates"/* "$INSTALL_DIR/templates/" 2>/dev/null || true
 mkdir -p "$INSTALL_DIR/static"
 cp -r "$TMP_DIR/static"/* "$INSTALL_DIR/static/" 2>/dev/null || true
 cp "$TMP_DIR/VERSION" "$INSTALL_DIR/" 2>/dev/null || true
-# 3.1 Cập nhật tài khoản hệ thống sang wpc
+# 3.1 Đồng bộ và chuẩn hoá cấu hình & cơ sở dữ liệu sang /opt/wpc
+mkdir -p "$INSTALL_DIR/data" "$INSTALL_DIR/conf" "$INSTALL_DIR/logs"
+
+# Nếu database đang nằm ở /opt/presspanel/data/panel.db mà /opt/wpc/data/panel.db chưa có hoặc rỗng
+if [ -f "/opt/presspanel/data/panel.db" ] && [ ! -L "/opt/presspanel" ] && [ ! -f "$INSTALL_DIR/data/panel.db" ]; then
+    echo "[+] Sao chép cơ sở dữ liệu panel.db sang $INSTALL_DIR/data/panel.db..."
+    cp -a /opt/presspanel/data/panel.db* "$INSTALL_DIR/data/" 2>/dev/null || true
+fi
+
+# Chuẩn hoá file cấu hình wpc.conf
+if [ -f "$TMP_DIR/conf/wpc.conf" ]; then
+    if [ ! -f "$INSTALL_DIR/conf/wpc.conf" ]; then
+        if [ -f "$INSTALL_DIR/conf/presspanel.conf" ]; then
+            cp "$INSTALL_DIR/conf/presspanel.conf" "$INSTALL_DIR/conf/wpc.conf"
+        else
+            cp "$TMP_DIR/conf/wpc.conf" "$INSTALL_DIR/conf/wpc.conf"
+        fi
+    fi
+fi
+
+# Tự động thay thế /opt/presspanel thành /opt/wpc trong tất cả các file .conf hiện có trên máy
+for cf in "$INSTALL_DIR/conf/wpc.conf" "$INSTALL_DIR/conf/presspanel.conf"; do
+    if [ -f "$cf" ]; then
+        sed -i 's|/opt/presspanel|/opt/wpc|g' "$cf" 2>/dev/null || true
+        chmod 640 "$cf" 2>/dev/null || true
+    fi
+done
+
+# 3.2 Cập nhật tài khoản hệ thống sang wpc
 if ! id -u "wpc" >/dev/null 2>&1; then
     echo "[+] Khởi tạo user hệ thống mới: wpc..."
     useradd -r -s /usr/sbin/nologin -d "$INSTALL_DIR" wpc 2>/dev/null || true
@@ -207,7 +235,7 @@ chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_
 rm -rf "$TMP_DIR"
 
 NEW_VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "latest")
-PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
+PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || grep -E "^port=" "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
 
 echo "=========================================================="
 echo "   CẬP NHẬT THÀNH CÔNG LÊN PHIÊN BẢN: $NEW_VER           "

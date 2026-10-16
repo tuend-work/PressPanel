@@ -2,7 +2,7 @@
 # ==============================================================================
 # PressPanel: reinstall.sh - Cài đặt lại toàn bộ Panel từ GitHub
 # Tự động sao lưu panel.db và presspanel.conf trước khi cài đặt lại
-# Cách chạy: sudo bash /opt/presspanel/scripts/reinstall.sh
+# Cách chạy: sudo bash /opt/wpc/scripts/reinstall.sh
 # Hoặc 1 dòng: curl -sSL https://raw.githubusercontent.com/tuend-work/PressPanel/main/scripts/reinstall.sh | sudo bash
 # ==============================================================================
 

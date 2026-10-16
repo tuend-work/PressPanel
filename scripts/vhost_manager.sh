@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# PressPanel: vhost_manager.sh - Quản lý Vhost OpenLiteSpeed / Nginx & Let's Encrypt
-# Được thực thi an toàn bởi C Gatekeeper SUID: /opt/presspanel/bin/vhost
+# WPCloud: vhost_manager.sh - Quản lý Vhost OpenLiteSpeed / Nginx & Let's Encrypt
+# Được thực thi an toàn bởi C Gatekeeper SUID: /opt/wpc/bin/vhost
 # ==============================================================================
 
 set -uo pipefail
