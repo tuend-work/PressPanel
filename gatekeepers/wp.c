@@ -1,6 +1,6 @@
 /*
- * PressPanel: wp.c - Quản lý Vòng Đời WordPress (WP Toolkit Engine)
- * SUID Binary (chmod 4750 root:PressPanel)
+ * WPCloud: wp.c - Quản lý Vòng Đời WordPress (WP Toolkit Engine)
+ * SUID Binary (chmod 4750 root:wpc)
  */
 
 #include "common.h"

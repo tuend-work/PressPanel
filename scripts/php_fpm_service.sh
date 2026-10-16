@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# PressPanel: php_fpm_service.sh - Quản lý Systemd Service độc lập cho từng User
+# WPCloud: php_fpm_service.sh - Quản lý Systemd Service độc lập cho từng User
 # Đảm bảo mỗi User / Website sở hữu 1 Service PHP-FPM riêng chạy trong Slice riêng:
 #   - Tự động sinh file cấu hình standalone chứa [global] + [pool]
 #   - Service chạy trực tiếp dưới Slice=wpc.slice (hoặc user slice)

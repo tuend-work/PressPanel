@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PressPanel Installer Script
+# WPCloud (WPC) Installer Script
 # Hỗ trợ: Debian 11/12, Ubuntu 22.04/24.04, AlmaLinux 9, Rocky Linux 9
 # Cài đặt 1 dòng: curl -sSL https://raw.githubusercontent.com/tuend-work/PressPanel/main/install.sh | sudo bash
 
@@ -9,7 +9,7 @@ INSTALL_DIR="/opt/wpc"
 PANEL_USER="wpc"
 PANEL_GROUP="wpc"
 REPO_URL="https://github.com/tuend-work/PressPanel.git"
-TMP_DIR="/tmp/presspanel-install-$$"
+TMP_DIR="/tmp/wpc-install-$$"
 
 echo "=========================================================="
 echo "    CÀI ĐẶT WPCLOUD CONTROL PANEL - TỐI ƯU CHO WORDPRESS  "
@@ -47,13 +47,13 @@ fi
 # 3. Chuẩn bị mã nguồn dự án (nếu chạy qua curl | bash)
 SRC_DIR="$(pwd)"
 if [ ! -d "$SRC_DIR/gatekeepers" ] || [ ! -d "$SRC_DIR/app" ]; then
-    echo "[+] Đang tải mã nguồn PressPanel từ GitHub..."
+    echo "[+] Đang tải mã nguồn WPCloud từ GitHub..."
     git clone --depth 1 "$REPO_URL" "$TMP_DIR"
     SRC_DIR="$TMP_DIR"
 fi
 cd "$SRC_DIR"
 
-# 4. Tạo tài khoản hệ thống cho PressPanel
+# 4. Tạo tài khoản hệ thống cho WPCloud
 if ! id -u "$PANEL_USER" >/dev/null 2>&1; then
     echo "[+] Tạo user hệ thống: $PANEL_USER..."
     useradd -r -s /usr/sbin/nologin -d "$INSTALL_DIR" "$PANEL_USER"
@@ -62,9 +62,7 @@ fi
 # Cấu hình sudoers an toàn cho wpc thực hiện update, apps và service management
 echo "$PANEL_USER ALL=(ALL) NOPASSWD: $INSTALL_DIR/scripts/update.sh, $INSTALL_DIR/scripts/apps/*.sh, /usr/bin/bash $INSTALL_DIR/scripts/apps/*.sh, /bin/bash $INSTALL_DIR/scripts/apps/*.sh, /usr/bin/systemctl, /bin/systemctl, /usr/bin/apt-get, /usr/bin/dnf" > /etc/sudoers.d/wpc 2>/dev/null || true
 chmod 440 /etc/sudoers.d/wpc 2>/dev/null || true
-cp /etc/sudoers.d/wpc /etc/sudoers.d/presspanel 2>/dev/null || true
-chmod 440 /etc/sudoers.d/presspanel 2>/dev/null || true
-
+rm -f /etc/sudoers.d/presspanel 2>/dev/null || true
 
 # 5. Tạo cây thư mục triển khai
 echo "[+] Khởi tạo cấu trúc thư mục tại $INSTALL_DIR..."
@@ -72,12 +70,12 @@ mkdir -p "$INSTALL_DIR"/{bin,app,conf,static,data,logs/tasks,scripts/apps,server
 chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"
 chmod 750 "$INSTALL_DIR"
 
-# 6. Sao chép và cấu hình cổng tự động (Tránh xung đột với b?ng di?u khi?n kh�c...)
+# 6. Sao chép và cấu hình cổng tự động (Tránh xung đột cổng với dịch vụ khác)
 PANEL_PORT=8888
-if [ -f "$INSTALL_DIR/conf/presspanel.conf" ]; then
-    PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/presspanel.conf" | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
+if [ -f "$INSTALL_DIR/conf/wpc.conf" ]; then
+    PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/wpc.conf" | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
 else
-    # Kiểm tra cổng 8888 có bị chiếm dụng không (ví dụ bởi b?ng di?u khi?n kh�c)
+    # Kiểm tra cổng 8888 có bị chiếm dụng không
     CHECK_PORT=8888
     while true; do
         IS_BUSY=0
@@ -97,20 +95,17 @@ else
     done
 
     echo "[+] Khởi tạo file cấu hình trung tâm: $INSTALL_DIR/conf/wpc.conf (Gán cổng an toàn: $PANEL_PORT)..."
-    if [ -f "conf/wpc.conf" ]; then
-        cp conf/wpc.conf "$INSTALL_DIR/conf/wpc.conf"
-    else
-        cp conf/presspanel.conf "$INSTALL_DIR/conf/wpc.conf"
+    if [ -f "$SRC_DIR/conf/wpc.conf" ]; then
+        cp "$SRC_DIR/conf/wpc.conf" "$INSTALL_DIR/conf/wpc.conf"
     fi
     sed -i "s/^port=.*/port=$PANEL_PORT/" "$INSTALL_DIR/conf/wpc.conf"
     chmod 640 "$INSTALL_DIR/conf/wpc.conf"
     chown "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR/conf/wpc.conf"
-    ln -sfn "$INSTALL_DIR/conf/wpc.conf" "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null || true
 fi
 
 # 7. Biên dịch 8 C Gatekeeper
 echo "[+] Biên dịch các module C Gatekeeper..."
-cd gatekeepers
+cd "$SRC_DIR/gatekeepers"
 make clean
 make all
 make install PREFIX="$INSTALL_DIR"
@@ -151,20 +146,15 @@ cp -r templates/* "$INSTALL_DIR/templates/" 2>/dev/null || true
 mkdir -p "$INSTALL_DIR/static"
 cp -r static/* "$INSTALL_DIR/static/" 2>/dev/null || true
 cp VERSION "$INSTALL_DIR/" 2>/dev/null || true
-chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/presspanel 2>/dev/null || true
+chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
 chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"/app "$INSTALL_DIR"/conf "$INSTALL_DIR"/data "$INSTALL_DIR"/logs "$INSTALL_DIR"/static
 
-# Cài đặt lệnh CLI wpc và presspanel toàn hệ thống
+# Cài đặt lệnh CLI wpc toàn hệ thống
 if [ -f "$INSTALL_DIR/scripts/wpc" ]; then
     cp "$INSTALL_DIR/scripts/wpc" /usr/local/bin/wpc
     chmod +x /usr/local/bin/wpc
 fi
-if [ -f "$INSTALL_DIR/scripts/presspanel" ]; then
-    cp "$INSTALL_DIR/scripts/presspanel" /usr/local/bin/presspanel
-    chmod +x /usr/local/bin/presspanel
-else
-    ln -sf /usr/local/bin/wpc /usr/local/bin/presspanel 2>/dev/null || true
-fi
+rm -f /usr/local/bin/presspanel 2>/dev/null || true
 
 # 10. Khởi tạo Database SQLite
 echo "[+] Khởi tạo cơ sở dữ liệu SQLite..."
@@ -175,10 +165,11 @@ cd "$INSTALL_DIR"
 echo "[+] Đăng ký dịch vụ systemd wpc..."
 if [ -f "$SRC_DIR/systemd/wpc.service" ]; then
     cp "$SRC_DIR/systemd/wpc.service" /etc/systemd/system/wpc.service
-elif [ -f "$SRC_DIR/systemd/presspanel.service" ]; then
-    cp "$SRC_DIR/systemd/presspanel.service" /etc/systemd/system/wpc.service
+elif [ -f "$INSTALL_DIR/systemd/wpc.service" ]; then
+    cp "$INSTALL_DIR/systemd/wpc.service" /etc/systemd/system/wpc.service
 fi
-# Dọn dẹp presspanel.service cũ nếu có để tránh xung đột
+
+# Dọn dẹp presspanel cũ nếu có để tránh xung đột
 systemctl stop presspanel 2>/dev/null || true
 systemctl disable presspanel 2>/dev/null || true
 rm -f /etc/systemd/system/presspanel.service 2>/dev/null || true
@@ -197,7 +188,6 @@ echo "   WPCLOUD CONTROL PANEL ĐÃ CÀI ĐẶT THÀNH CÔNG!          "
 echo "   Giao diện quản trị: http://<IP_MAY_CHU>:$PANEL_PORT   "
 echo "   Tài liệu Swagger API: http://<IP_MAY_CHU>:$PANEL_PORT/docs "
 echo "   File cấu hình: /opt/wpc/conf/wpc.conf   "
-echo "   Lệnh quản trị hệ thống CLI: wpc (hoặc presspanel)     "
+echo "   Lệnh quản trị hệ thống CLI: wpc                       "
 echo "   Tài khoản mặc định: admin / admin123456               "
 echo "=========================================================="
-

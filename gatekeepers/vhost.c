@@ -1,6 +1,6 @@
 /*
- * PressPanel: vhost.c - Quản lý VirtualHost OpenLiteSpeed/Nginx & SSL
- * SUID Binary (chmod 4750 root:PressPanel)
+ * WPCloud: vhost.c - Quản lý VirtualHost OpenLiteSpeed/Nginx & SSL
+ * SUID Binary (chmod 4750 root:wpc)
  */
 
 #include "common.h"

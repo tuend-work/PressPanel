@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PressPanel: mysql.sh - Cài đặt MySQL / MariaDB Server với nhiều tùy chọn phiên bản
+# WPCloud: mysql.sh - Cài đặt MySQL / MariaDB Server với nhiều tùy chọn phiên bản
 set -euo pipefail
 
 ACTION="${1:-install}"

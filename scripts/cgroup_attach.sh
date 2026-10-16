@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# PressPanel: cgroup_attach.sh - Tự động quét và di chuyển PID của các Hosting User
+# WPCloud: cgroup_attach.sh - Tự động quét và di chuyển PID của các Hosting User
 # vào đúng Cgroup v2 (/sys/fs/cgroup/wpc/reseller_*/user_* hoặc user.slice)
 # Được kích hoạt định kỳ qua systemd timer hoặc hook sau khi PHP-FPM / Vhost reload
 # ==============================================================================

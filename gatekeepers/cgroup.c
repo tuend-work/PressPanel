@@ -1,6 +1,6 @@
 /*
- * PressPanel: cgroup.c - Quản lý Cgroups v2 Phân Cấp & Khóa Trần 2 Lớp
- * SUID Binary (chmod 4750 root:PressPanel)
+ * WPCloud: cgroup.c - Quản lý Cgroups v2 Phân Cấp & Khóa Trần 2 Lớp
+ * SUID Binary (chmod 4750 root:wpc)
  */
 
 #include "common.h"

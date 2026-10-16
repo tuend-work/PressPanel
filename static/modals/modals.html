@@ -251,7 +251,7 @@
                                             {{ (newCustomer.username || 'user') }}.wpc.local
                                         </span>
                                     </div>
-                                    <p class="text-[10px] text-slate-400 mt-1">Website sẽ tạo user linux riêng <code>/home/{{ (newCustomer.username || 'user') }}presspanellocal</code></p>
+                                    <p class="text-[10px] text-slate-400 mt-1">Website sẽ tạo user linux riêng <code>/home/{{ (newCustomer.username || 'user') }}wpclocal</code></p>
                                 </div>
 
                                 <!-- Service Plan dropdown -->
@@ -533,7 +533,7 @@
                             <div class="flex items-center space-x-2 pl-2">
                                 <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
                                 <span class="text-xs font-mono font-bold text-slate-200 tracking-wide">
-                                    SSH Terminal &mdash; {{ terminalTargetUser }}@{{ terminalHost || 'presspanel' }}
+                                    SSH Terminal &mdash; {{ terminalTargetUser }}@{{ terminalHost || 'wpc' }}
                                 </span>
                                 <span class="text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1">
                                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>

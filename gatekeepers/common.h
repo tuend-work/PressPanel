@@ -1,5 +1,5 @@
-#ifndef PRESSPANEL_COMMON_H
-#define PRESSPANEL_COMMON_H
+#ifndef WPC_COMMON_H
+#define WPC_COMMON_H
 
 #define _GNU_SOURCE
 #include <stdio.h>
@@ -77,4 +77,4 @@ static inline void init_security_env(void) {
 }
 
 
-#endif // PRESSPANEL_COMMON_H
+#endif // WPC_COMMON_H

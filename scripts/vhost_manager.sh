@@ -13,8 +13,7 @@ WEBSERVER="${4:-ols}"
 PHP_VER="${5:-8.2}"
 HOSTING_USER="${6:-$USERNAME}"
 
-PRESSPANEL_DIR="/opt/wpc"
-[ -d "/opt/presspanel" ] && [ ! -d "/opt/wpc" ] && PRESSPANEL_DIR="/opt/presspanel"
+WPC_DIR="/opt/wpc"
 
 # 1. Đảm bảo Linux user tồn tại trên hệ thống
 ensure_linux_user() {
@@ -59,13 +58,11 @@ case "$ACTION" in
         if id "$USERNAME" &>/dev/null; then
             chown -R "$USERNAME:$USERNAME" "/home/$USERNAME" 2>/dev/null || true
             # Thêm user wpc vào group của Web User để panel có thể quản lý file
-            for p_user in wpc presspanel; do
-                if id "$p_user" &>/dev/null; then
-                    usermod -a -G "$USERNAME" "$p_user" 2>/dev/null || true
-                fi
-            done
+            if id "wpc" &>/dev/null; then
+                usermod -a -G "$USERNAME" "wpc" 2>/dev/null || true
+            fi
         else
-            chown -R wpc:wpc "/home/$USERNAME" 2>/dev/null || chown -R presspanel:presspanel "/home/$USERNAME" 2>/dev/null || true
+            chown -R wpc:wpc "/home/$USERNAME" 2>/dev/null || true
         fi
         chmod 755 "/home/$USERNAME" "/home/$USERNAME/domains" "$DOMAIN_DIR" "$DOC_ROOT" 2>/dev/null || true
 
@@ -77,7 +74,7 @@ case "$ACTION" in
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chào mừng tới $DOMAIN - PressPanel</title>
+    <title>Chào mừng tới $DOMAIN - WPCloud</title>
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
         .card { background: #1e293b; padding: 2.5rem; border-radius: 1.25rem; border: 1px solid #334155; text-align: center; max-width: 520px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
@@ -89,7 +86,7 @@ case "$ACTION" in
 </head>
 <body>
     <div class="card">
-        <span class="badge">PressPanel Powered</span>
+        <span class="badge">WPCloud Powered</span>
         <h1>$DOMAIN</h1>
         <p>Website đã được khởi tạo thành công trên máy chủ Linux tối ưu WordPress.</p>
         <p>Tải mã nguồn lên thư mục: <code>/home/$USERNAME/domains/$DOMAIN/public_html</code> (hoặc <code>/home/$USERNAME/public_html</code>) để bắt đầu.</p>
@@ -108,12 +105,12 @@ EOF
         if [ -d "/usr/local/lsws/conf" ]; then
             VH_DIR="/usr/local/lsws/conf/vhosts/$DOMAIN"
             mkdir -p "$VH_DIR"
-            if [ -f "$PRESSPANEL_DIR/templates/vhost_ols/default.tpl" ]; then
+            if [ -f "$WPC_DIR/templates/vhost_ols/default.tpl" ]; then
                 sed -e "s/{{DOMAIN}}/$DOMAIN/g" \
                     -e "s/{{PHP_VERSION}}/$PHP_NUM/g" \
                     -e "s/{{USERNAME}}/$USERNAME/g" \
                     -e "s|{{DOCUMENT_ROOT}}|$DOC_ROOT|g" \
-                    "$PRESSPANEL_DIR/templates/vhost_ols/default.tpl" > "$VH_DIR/vhconf.conf"
+                    "$WPC_DIR/templates/vhost_ols/default.tpl" > "$VH_DIR/vhconf.conf"
             fi
             
             # Đăng ký vhost vào httpd_config.conf nếu chưa có
@@ -168,7 +165,7 @@ EOF
 
         # Cấu hình Nginx nếu có Nginx
         if [ -d "/etc/nginx/conf.d" ]; then
-            if [ -f "$PRESSPANEL_DIR/templates/vhost_nginx/default.tpl" ]; then
+            if [ -f "$WPC_DIR/templates/vhost_nginx/default.tpl" ]; then
                 # Tạo thư mục tạm và session riêng cho user nếu chưa có
                 mkdir -p "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" "/home/$USERNAME/logs"
                 chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
@@ -178,10 +175,8 @@ EOF
                 USER_POOL_SOCK="/run/php/php${PHP_VER}-fpm-${USERNAME}.sock"
                 PHP_SOCK="$USER_POOL_SOCK"
 
-                if [ -f "$PRESSPANEL_DIR/scripts/php_fpm_service.sh" ]; then
-                    bash "$PRESSPANEL_DIR/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" "$HOSTING_USER" 2>/dev/null || true
-                elif [ -f "/opt/wpc/scripts/php_fpm_service.sh" ]; then
-                    bash "/opt/wpc/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" "$HOSTING_USER" 2>/dev/null || true
+                if [ -f "$WPC_DIR/scripts/php_fpm_service.sh" ]; then
+                    bash "$WPC_DIR/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" "$HOSTING_USER" 2>/dev/null || true
                 fi
 
                 # Nếu pool sock chưa sinh ra kịp (fallback sang pool mặc định nếu cần)
@@ -198,7 +193,7 @@ EOF
                     -e "s/{{USERNAME}}/$USERNAME/g" \
                     -e "s|{{DOCUMENT_ROOT}}|$DOC_ROOT|g" \
                     -e "s|{{PHP_SOCK}}|$PHP_SOCK|g" \
-                    "$PRESSPANEL_DIR/templates/vhost_nginx/default.tpl" > "/etc/nginx/conf.d/$DOMAIN.conf"
+                    "$WPC_DIR/templates/vhost_nginx/default.tpl" > "/etc/nginx/conf.d/$DOMAIN.conf"
                 nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
             fi
         fi
@@ -233,7 +228,7 @@ EOF
         nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
         systemctl reload "php*-fpm" 2>/dev/null || true
         # Neu la user linux rieng biet cua domain (hoac user doc lap), xoa user va thu muc home neu can
-        if [ "$USERNAME" != "root" ] && [ "$USERNAME" != "wpc" ] && [ "$USERNAME" != "presspanel" ] && id "$USERNAME" &>/dev/null; then
+        if [ "$USERNAME" != "root" ] && [ "$USERNAME" != "wpc" ] && id "$USERNAME" &>/dev/null; then
             userdel -r "$USERNAME" 2>/dev/null || true
             rm -rf "/home/$USERNAME" 2>/dev/null || true
         fi
@@ -273,10 +268,8 @@ EOF
             done
 
             # Tạo và kích hoạt Systemd Template Service độc lập cho phiên bản PHP mới
-            if [ -f "$PRESSPANEL_DIR/scripts/php_fpm_service.sh" ]; then
-                bash "$PRESSPANEL_DIR/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" "$HOSTING_USER" 2>/dev/null || true
-            elif [ -f "/opt/wpc/scripts/php_fpm_service.sh" ]; then
-                bash "/opt/wpc/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" "$HOSTING_USER" 2>/dev/null || true
+            if [ -f "$WPC_DIR/scripts/php_fpm_service.sh" ]; then
+                bash "$WPC_DIR/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" "$HOSTING_USER" 2>/dev/null || true
             fi
             NEW_SOCK="/run/php/php${PHP_VER}-fpm-${USERNAME}.sock"
             if [ ! -e "$NEW_SOCK" ]; then

@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Optional, Dict, Any
 
-logger = logging.getLogger("presspanel.executor")
+logger = logging.getLogger("wpc.executor")
 
 async def run_gatekeeper(module: str, *args, stdin_data: Optional[str] = None) -> Dict[str, Any]:
     """
@@ -12,8 +12,6 @@ async def run_gatekeeper(module: str, *args, stdin_data: Optional[str] = None) -
     Truyền tham số và đọc dữ liệu JSON chuẩn từ stdout/stderr.
     """
     binary_path = f"/opt/wpc/bin/{module}"
-    if not os.path.exists(binary_path) and os.path.exists(f"/opt/presspanel/bin/{module}"):
-        binary_path = f"/opt/presspanel/bin/{module}"
     cmd = [binary_path] + [str(a) for a in args]
 
     try:
@@ -42,7 +40,7 @@ async def run_gatekeeper(module: str, *args, stdin_data: Optional[str] = None) -
             }
 
     except FileNotFoundError:
-        # Trong môi trường dev chưa cài SUID binary vào /opt/presspanel/bin
+        # Trong môi trường dev chưa cài SUID binary vào /opt/wpc/bin
         logger.warning(f"Binary gatekeeper {binary_path} khong ton tai (dev mode).")
         return {
             "status": "dev_mock",

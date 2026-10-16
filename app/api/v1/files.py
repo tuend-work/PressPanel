@@ -73,7 +73,7 @@ async def list_files(
                 except Exception:
                     continue
     except PermissionError:
-        # Khi thư mục thuộc sở hữu của web user linux khác mà user presspanel không có quyền r-x, dùng subprocess ls
+        # Khi thư mục thuộc sở hữu của web user linux khác mà user wpc không có quyền r-x, dùng subprocess ls
         try:
             import subprocess
             proc = subprocess.run(
@@ -138,7 +138,7 @@ async def get_file_content(
             return {"path": path, "content": f.read(), "absolute_path": file_path}
     except PermissionError:
         # Fallback đọc qua gatekeeper SUID
-        gatekeeper_app = "/opt/wpc/bin/app" if os.path.exists("/opt/wpc/bin/app") else "/opt/presspanel/bin/app"
+        gatekeeper_app = "/opt/wpc/bin/app"
         if os.path.isfile(gatekeeper_app):
             import subprocess
             proc = subprocess.run([gatekeeper_app, "config-read", file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -170,8 +170,8 @@ async def save_file_content(
         return {"status": "ok", "message": "Đã lưu nội dung tệp tin thành công!"}
     except PermissionError:
         # 2. Nếu gặp lỗi Permission Denied do thuộc sở hữu web user Linux, dùng SUID Gatekeeper
-        gatekeeper_app = "/opt/wpc/bin/app" if os.path.exists("/opt/wpc/bin/app") else "/opt/presspanel/bin/app"
-        tmp_save_path = f"/tmp/presspanel_edit_{os.getpid()}_{os.path.basename(file_path)}.tmp"
+        gatekeeper_app = "/opt/wpc/bin/app"
+        tmp_save_path = f"/tmp/wpc_edit_{os.getpid()}_{os.path.basename(file_path)}.tmp"
         try:
             with open(tmp_save_path, "w", encoding="utf-8") as ftmp:
                 ftmp.write(req.content)
@@ -213,7 +213,7 @@ async def create_file_or_dir(
             return {"status": "ok", "message": f"Tạo tệp tin {os.path.basename(target_path)} thành công!"}
     except PermissionError:
         # Fallback quyền root qua Gatekeeper SUID (tránh sudo password prompt)
-        gatekeeper_app = "/opt/wpc/bin/app" if os.path.exists("/opt/wpc/bin/app") else "/opt/presspanel/bin/app"
+        gatekeeper_app = "/opt/wpc/bin/app"
         try:
             import subprocess
             if os.path.isfile(gatekeeper_app):
@@ -249,7 +249,7 @@ async def delete_file_or_dir(
             os.remove(target_path)
         return {"status": "ok", "message": f"Đã xóa {os.path.basename(target_path)} thành công!"}
     except PermissionError:
-        gatekeeper_app = "/opt/wpc/bin/app" if os.path.exists("/opt/wpc/bin/app") else "/opt/presspanel/bin/app"
+        gatekeeper_app = "/opt/wpc/bin/app"
         try:
             import subprocess
             if os.path.isfile(gatekeeper_app):
@@ -321,7 +321,7 @@ async def compress_files(
             return {"status": "ok", "message": f"Nén thành công tệp {archive_name}!", "archive_name": archive_name}
     except PermissionError:
         # 2. Nếu thiếu quyền ghi hoặc đọc, gọi qua Gatekeeper SUID
-        gatekeeper_app = "/opt/wpc/bin/app" if os.path.exists("/opt/wpc/bin/app") else "/opt/presspanel/bin/app"
+        gatekeeper_app = "/opt/wpc/bin/app"
         clean_items = " ".join([f"'{item}'" for item in req.items if not re.search(r"[';`$&|]", item)])
         try:
             import subprocess

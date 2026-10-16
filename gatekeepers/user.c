@@ -1,6 +1,6 @@
 /*
- * PressPanel: user.c - Quản lý tài khoản Linux & Disk Quota
- * SUID Binary (chmod 4750 root:PressPanel)
+ * WPCloud: user.c - Quản lý tài khoản Linux & Disk Quota
+ * SUID Binary (chmod 4750 root:wpc)
  */
 
 #include "common.h"

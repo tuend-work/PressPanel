@@ -43,9 +43,6 @@ install: gatekeepers
 	@if [ ! -f "$(PREFIX)/conf/wpc.conf" ] && [ -f "conf/wpc.conf" ]; then \
 		cp conf/wpc.conf $(PREFIX)/conf/; \
 		chmod 640 $(PREFIX)/conf/wpc.conf; \
-	elif [ ! -f "$(PREFIX)/conf/presspanel.conf" ] && [ -f "conf/presspanel.conf" ]; then \
-		cp conf/presspanel.conf $(PREFIX)/conf/; \
-		chmod 640 $(PREFIX)/conf/presspanel.conf; \
 	fi
 	@if [ -d "web/dist" ]; then cp -r web/dist/* $(PREFIX)/static/ 2>/dev/null || true; fi
 	@echo "==> Hoàn tất cài đặt WPCloud!"

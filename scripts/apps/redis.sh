@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PressPanel: redis.sh - Cài đặt Redis Object Cache
+# WPCloud: redis.sh - Cài đặt Redis Object Cache
 set -euo pipefail
 
 ACTION="${1:-install}"

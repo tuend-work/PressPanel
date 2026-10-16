@@ -1,6 +1,6 @@
 /*
- * PressPanel: template.c - Bộ Sinh Cấu Hình Kế Thừa 3 Cấp
- * SUID Binary (chmod 4750 root:PressPanel)
+ * WPCloud: template.c - Bộ Sinh Cấu Hình Kế Thừa 3 Cấp
+ * SUID Binary (chmod 4750 root:wpc)
  */
 
 #include "common.h"

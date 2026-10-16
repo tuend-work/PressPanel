@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PressPanel: wp-cli.sh - Cài đặt WP-CLI chính thức
+# WPCloud: wp-cli.sh - Cài đặt WP-CLI chính thức
 set -euo pipefail
 
 echo "[+] Đang tải WP-CLI binary..."

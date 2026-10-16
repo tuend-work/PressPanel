@@ -1927,7 +1927,7 @@
                 const showTerminalModal = ref(false);
                 const terminalConnected = ref(false);
                 const terminalTargetUser = ref('');
-                const terminalHost = ref(window.location.hostname || 'presspanel');
+                const terminalHost = ref(window.location.hostname || 'wpc');
                 const terminalContainerRef = ref(null);
                 let xtermInstance = null;
                 let fitAddonInstance = null;
@@ -2106,7 +2106,7 @@
                 };
 
                 const restartPanel = async () => {
-                    if (!confirm('Bạn có chắc chắn muốn khởi động lại dịch vụ PressPanel?')) return;
+                    if (!confirm('Bạn có chắc chắn muốn khởi động lại dịch vụ WPCloud?')) return;
                     try {
                         const res = await fetch('/api/v1/system/restart', {
                             method: 'POST',

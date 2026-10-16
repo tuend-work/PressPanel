@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PressPanel: php.sh - Cài đặt và Quản lý PHP-FPM / LS-PHP cùng các Extensions tối ưu cho WordPress
+# WPCloud: php.sh - Cài đặt và Quản lý PHP-FPM / LS-PHP cùng các Extensions tối ưu cho WordPress
 set -euo pipefail
 
 ACTION="${1:-install}"

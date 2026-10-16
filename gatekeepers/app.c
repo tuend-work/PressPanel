@@ -1,6 +1,6 @@
 /*
- * PressPanel: app.c - Quản lý Cài đặt Ứng dụng & Dịch vụ (App Store)
- * SUID Binary (chmod 4750 root:PressPanel)
+ * WPCloud: app.c - Quản lý Cài đặt Ứng dụng & Dịch vụ (App Store)
+ * SUID Binary (chmod 4750 root:wpc)
  */
 
 #include "common.h"

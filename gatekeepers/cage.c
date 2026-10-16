@@ -1,6 +1,6 @@
 /*
- * PressPanel: cage.c - Lồng Cách Ly Namespace & PID 1 Reaper
- * SUID Binary (chmod 4750 root:PressPanel)
+ * WPCloud: cage.c - Lồng Cách Ly Namespace & PID 1 Reaper
+ * SUID Binary (chmod 4750 root:wpc)
  */
 
 #define _GNU_SOURCE

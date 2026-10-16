@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PressPanel: nginx.sh - Cài đặt Nginx Web Server
+# WPCloud: nginx.sh - Cài đặt Nginx Web Server
 set -euo pipefail
 
 ACTION="${1:-install}"

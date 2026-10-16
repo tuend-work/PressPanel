@@ -334,8 +334,8 @@ async def system_status(current_user: dict = Depends(get_current_user)):
 @router.get("/version")
 async def get_version(current_user: dict = Depends(get_current_user)):
     """Lấy thông tin phiên bản hiện tại"""
-    ver = "0.4.54"
-    v_file = "/opt/wpc/VERSION" if os.path.exists("/opt/wpc/VERSION") else "/opt/presspanel/VERSION"
+    ver = "0.5.12"
+    v_file = "/opt/wpc/VERSION"
     if os.path.exists(v_file):
         try:
             with open(v_file, "r") as f:
@@ -355,15 +355,15 @@ async def trigger_update(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
-    """Kích hoạt tiến trình cập nhật PressPanel từ GitHub"""
+    """Kích hoạt tiến trình cập nhật WPCloud từ GitHub"""
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên cấp cao mới có quyền cập nhật panel.")
     
-    update_sh = "/opt/wpc/scripts/update.sh" if os.path.exists("/opt/wpc/scripts/update.sh") else "/opt/presspanel/scripts/update.sh"
+    update_sh = "/opt/wpc/scripts/update.sh"
     cmd = f"sudo {update_sh}" if os.path.exists(update_sh) else "echo Mock update"
     task_id = await add_system_task(
         user_id=current_user["id"],
-        action_name="Update PressPanel Core",
+        action_name="Update WPCloud Core",
         cmd=cmd,
         background_tasks=background_tasks
     )
@@ -376,7 +376,7 @@ async def trigger_update(
 async def run_restart_process():
     await asyncio.sleep(1)
     proc = await asyncio.create_subprocess_shell(
-        "sudo systemctl restart presspanel",
+        "sudo systemctl restart wpc",
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL
     )
@@ -387,12 +387,12 @@ async def trigger_restart(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
-    """Khởi động lại dịch vụ PressPanel"""
+    """Khởi động lại dịch vụ WPCloud (wpc.service)"""
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền khởi động lại.")
     
     background_tasks.add_task(run_restart_process)
     return {
         "status": "ok",
-        "message": "Đang gửi lệnh khởi động lại dịch vụ PressPanel..."
+        "message": "Đang gửi lệnh khởi động lại dịch vụ WPCloud (wpc.service)..."
     }

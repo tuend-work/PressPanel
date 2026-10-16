@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# PressPanel: update.sh - Cập nhật Panel lên phiên bản mới nhất từ GitHub
+# WPCloud: update.sh - Cập nhật Panel lên phiên bản mới nhất từ GitHub
 # Bảo toàn 100% dữ liệu database, website người dùng và file cấu hình
 # Cách chạy: sudo bash /opt/wpc/scripts/update.sh
 # ==============================================================================
@@ -9,10 +9,10 @@ set -euo pipefail
 
 INSTALL_DIR="/opt/wpc"
 REPO_URL="https://github.com/tuend-work/PressPanel.git"
-TMP_DIR="/tmp/presspanel-update-$$"
+TMP_DIR="/tmp/wpc-update-$$"
 
 echo "=========================================================="
-echo "         CẬP NHẬT PRESSPANEL TỪ GITHUB                   "
+echo "         CẬP NHẬT WPCLOUD CONTROL PANEL TỪ GITHUB         "
 echo "=========================================================="
 
 if [ "$EUID" -ne 0 ]; then
@@ -20,19 +20,18 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Tự động di chuyển / migration nếu máy chủ hiện tại đang chạy tại /opt/presspanel
+# Tự động di chuyển / migration nếu máy chủ hiện tại đang chạy tại /opt/presspanel cũ
 if [ -d "/opt/presspanel" ] && [ ! -L "/opt/presspanel" ] && [ ! -d "/opt/wpc" ]; then
     echo "[+] Di chuyển thư mục từ /opt/presspanel sang /opt/wpc..."
     mv /opt/presspanel /opt/wpc
-    ln -sfn /opt/wpc /opt/presspanel
 elif [ ! -d "$INSTALL_DIR" ] && [ -d "/opt/presspanel" ]; then
-    echo "[+] Phát hiện dữ liệu tại /opt/presspanel, tạo liên kết sang /opt/wpc..."
-    ln -sfn /opt/presspanel /opt/wpc
+    echo "[+] Phát hiện dữ liệu tại /opt/presspanel, di chuyển sang /opt/wpc..."
+    mv /opt/presspanel /opt/wpc
 fi
 
-# Đảm bảo có symlink ngược lại /opt/presspanel -> /opt/wpc để tương thích
-if [ -d "/opt/wpc" ] && [ ! -e "/opt/presspanel" ]; then
-    ln -sfn /opt/wpc /opt/presspanel
+# Dọn dẹp symlink cũ /opt/presspanel nếu có
+if [ -L "/opt/presspanel" ]; then
+    rm -f /opt/presspanel 2>/dev/null || true
 fi
 
 if [ ! -d "$INSTALL_DIR" ]; then
@@ -55,7 +54,6 @@ make install PREFIX="$INSTALL_DIR"
 # 3. Cập nhật mã nguồn Python backend
 echo "[+] Cập nhật mã nguồn ứng dụng..."
 mkdir -p "$INSTALL_DIR/app"
-# Đảm bảo xử lý triệt để nếu trước đó bị copy lồng app/app
 if [ -d "$INSTALL_DIR/app/app" ]; then
     cp -r "$INSTALL_DIR/app/app"/* "$INSTALL_DIR/app/" 2>/dev/null || true
     rm -rf "$INSTALL_DIR/app/app"
@@ -65,54 +63,46 @@ cp -r "$TMP_DIR/templates"/* "$INSTALL_DIR/templates/" 2>/dev/null || true
 mkdir -p "$INSTALL_DIR/static"
 cp -r "$TMP_DIR/static"/* "$INSTALL_DIR/static/" 2>/dev/null || true
 cp "$TMP_DIR/VERSION" "$INSTALL_DIR/" 2>/dev/null || true
+
 # 3.1 Đồng bộ và chuẩn hoá cấu hình & cơ sở dữ liệu sang /opt/wpc
 mkdir -p "$INSTALL_DIR/data" "$INSTALL_DIR/conf" "$INSTALL_DIR/logs"
 
-# Nếu database đang nằm ở /opt/presspanel/data/panel.db mà /opt/wpc/data/panel.db chưa có hoặc rỗng
-if [ -f "/opt/presspanel/data/panel.db" ] && [ ! -L "/opt/presspanel" ] && [ ! -f "$INSTALL_DIR/data/panel.db" ]; then
+# Nếu database cũ còn nằm đâu đó
+if [ -f "/opt/presspanel/data/panel.db" ] && [ ! -f "$INSTALL_DIR/data/panel.db" ]; then
     echo "[+] Sao chép cơ sở dữ liệu panel.db sang $INSTALL_DIR/data/panel.db..."
     cp -a /opt/presspanel/data/panel.db* "$INSTALL_DIR/data/" 2>/dev/null || true
 fi
 
 # Chuẩn hoá file cấu hình wpc.conf
-if [ -f "$TMP_DIR/conf/wpc.conf" ]; then
-    if [ ! -f "$INSTALL_DIR/conf/wpc.conf" ]; then
-        if [ -f "$INSTALL_DIR/conf/presspanel.conf" ]; then
-            cp "$INSTALL_DIR/conf/presspanel.conf" "$INSTALL_DIR/conf/wpc.conf"
-        else
-            cp "$TMP_DIR/conf/wpc.conf" "$INSTALL_DIR/conf/wpc.conf"
-        fi
+if [ ! -f "$INSTALL_DIR/conf/wpc.conf" ]; then
+    if [ -f "$INSTALL_DIR/conf/presspanel.conf" ]; then
+        mv "$INSTALL_DIR/conf/presspanel.conf" "$INSTALL_DIR/conf/wpc.conf"
+    elif [ -f "$TMP_DIR/conf/wpc.conf" ]; then
+        cp "$TMP_DIR/conf/wpc.conf" "$INSTALL_DIR/conf/wpc.conf"
     fi
 fi
+rm -f "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null || true
 
-# Tự động thay thế /opt/presspanel thành /opt/wpc trong tất cả các file .conf hiện có trên máy
-for cf in "$INSTALL_DIR/conf/wpc.conf" "$INSTALL_DIR/conf/presspanel.conf"; do
-    if [ -f "$cf" ]; then
-        sed -i 's|/opt/presspanel|/opt/wpc|g' "$cf" 2>/dev/null || true
-        chmod 640 "$cf" 2>/dev/null || true
-    fi
-done
+# Tự động thay thế /opt/presspanel thành /opt/wpc trong file cấu hình
+if [ -f "$INSTALL_DIR/conf/wpc.conf" ]; then
+    sed -i 's|/opt/presspanel|/opt/wpc|g' "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null || true
+    chmod 640 "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null || true
+fi
 
 # 3.2 Cập nhật tài khoản hệ thống sang wpc
 if ! id -u "wpc" >/dev/null 2>&1; then
     echo "[+] Khởi tạo user hệ thống mới: wpc..."
     useradd -r -s /usr/sbin/nologin -d "$INSTALL_DIR" wpc 2>/dev/null || true
-    usermod -aG presspanel wpc 2>/dev/null || true
 fi
 
-chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc "$INSTALL_DIR"/scripts/presspanel 2>/dev/null || true
+chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
 
-# Cập nhật CLI tool /usr/local/bin/wpc và /usr/local/bin/presspanel
+# Cập nhật CLI tool /usr/local/bin/wpc
 if [ -f "$TMP_DIR/scripts/wpc" ]; then
     cp "$TMP_DIR/scripts/wpc" /usr/local/bin/wpc
     chmod +x /usr/local/bin/wpc
 fi
-if [ -f "$TMP_DIR/scripts/presspanel" ]; then
-    cp "$TMP_DIR/scripts/presspanel" /usr/local/bin/presspanel
-    chmod +x /usr/local/bin/presspanel
-else
-    ln -sf /usr/local/bin/wpc /usr/local/bin/presspanel 2>/dev/null || true
-fi
+rm -f /usr/local/bin/presspanel 2>/dev/null || true
 
 # 4. Nâng cấp các thư viện Python nếu có bổ sung
 echo "[+] Kiểm tra và cập nhật dependencies Python..."
@@ -124,25 +114,17 @@ echo "[+] Kiểm tra và cập nhật cấu trúc cơ sở dữ liệu SQLite...
 cd "$INSTALL_DIR"
 "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/app/db/init_db.py"
 
-# 6. Đảm bảo phân quyền chính xác cho wpc và presspanel
+# 6. Đảm bảo phân quyền chính xác cho wpc
 PANEL_USER="wpc"
-if ! id -u "$PANEL_USER" >/dev/null 2>&1; then
-    PANEL_USER="presspanel"
-fi
-
 chown -R "$PANEL_USER":"$PANEL_USER" "$INSTALL_DIR/app" "$INSTALL_DIR/data" "$INSTALL_DIR/logs" "$INSTALL_DIR/static" "$INSTALL_DIR/conf" 2>/dev/null || true
 echo "$PANEL_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wpc 2>/dev/null || true
 chmod 440 /etc/sudoers.d/wpc 2>/dev/null || true
-if [ -f /etc/sudoers.d/presspanel ]; then
-    cp /etc/sudoers.d/wpc /etc/sudoers.d/presspanel 2>/dev/null || true
-    chmod 440 /etc/sudoers.d/presspanel 2>/dev/null || true
-fi
+rm -f /etc/sudoers.d/presspanel 2>/dev/null || true
 
-# 7. Đăng ký & Khởi động lại dịch vụ
-echo "[+] Đăng ký dịch vụ wpc.service và dọn dẹp presspanel.service cũ..."
-# Dừng và vô hiệu hóa triệt để presspanel.service cũ để tránh xung đột cổng
+# 7. Đăng ký & Khởi động lại dịch vụ wpc.service
+echo "[+] Đăng ký dịch vụ wpc.service..."
+# Dọn dẹp presspanel cũ nếu có để tránh xung đột cổng
 if systemctl is-active --quiet presspanel 2>/dev/null; then
-    echo "[+] Dừng dịch vụ presspanel.service cũ..."
     systemctl stop presspanel 2>/dev/null || true
 fi
 systemctl disable presspanel 2>/dev/null || true
@@ -150,8 +132,6 @@ rm -f /etc/systemd/system/presspanel.service 2>/dev/null || true
 
 if [ -f "$TMP_DIR/systemd/wpc.service" ]; then
     cp "$TMP_DIR/systemd/wpc.service" /etc/systemd/system/wpc.service
-elif [ -f "$TMP_DIR/systemd/presspanel.service" ]; then
-    cp "$TMP_DIR/systemd/presspanel.service" /etc/systemd/system/wpc.service
 fi
 systemctl daemon-reload 2>/dev/null || true
 systemctl enable wpc 2>/dev/null || true
@@ -180,22 +160,6 @@ EOF
     fi
 done
 systemctl daemon-reload 2>/dev/null || true
-
-# Tự động di chuyển các pool hiện có (như presspanellocal) sang Standalone Service
-for pdir in /etc/php/*/fpm/pool.d; do
-    [ -d "$pdir" ] || continue
-    PVER=$(echo "$pdir" | cut -d'/' -f4)
-    for conf in "$pdir"/*.conf; do
-        [ -f "$conf" ] || continue
-        UNAME=$(basename "$conf" .conf)
-        [ "$UNAME" != "www" ] || continue
-        echo "[+] Di chuyển pool user $UNAME (PHP $PVER) sang Systemd Template Service..."
-        # Xóa file cấu hình cũ trong pool.d và giải phóng socket cũ
-        rm -f "$conf" "/run/php/php${PVER}-fpm-${UNAME}.sock" 2>/dev/null || true
-        systemctl reload "php${PVER}-fpm" 2>/dev/null || true
-        bash "$INSTALL_DIR/scripts/php_fpm_service.sh" create "$UNAME" "$PVER" "$UNAME" 2>/dev/null || true
-    done
-done
 
 # Cập nhật cấu hình slice cho các user đã có standalone service
 for uconf in /etc/php/*/fpm/users/*.conf; do
@@ -231,14 +195,14 @@ fi
 
 # 8. Cập nhật scripts điều khiển hệ thống và dọn dẹp
 cp -r "$TMP_DIR/scripts"/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
-chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc "$INSTALL_DIR"/scripts/presspanel 2>/dev/null || true
+chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
 rm -rf "$TMP_DIR"
 
 NEW_VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "latest")
-PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || grep -E "^port=" "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
+PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
 
 echo "=========================================================="
 echo "   CẬP NHẬT THÀNH CÔNG LÊN PHIÊN BẢN: $NEW_VER           "
-echo "   Trạng thái dịch vụ: $(systemctl is-active wpc 2>/dev/null || systemctl is-active presspanel) "
+echo "   Trạng thái dịch vụ: $(systemctl is-active wpc 2>/dev/null) "
 echo "   Giao diện quản trị: http://<IP_MAY_CHU>:$PANEL_PORT   "
 echo "=========================================================="

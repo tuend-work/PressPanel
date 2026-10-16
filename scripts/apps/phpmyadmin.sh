@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# PressPanel: phpmyadmin.sh - Cài đặt, Cấu hình & Gỡ bỏ phpMyAdmin
+# WPCloud: phpmyadmin.sh - Cài đặt, Cấu hình & Gỡ bỏ phpMyAdmin
 # ==============================================================================
 set -uo pipefail
 
 ACTION="${1:-install}"
 VERSION="${2:-latest}"
 TARGET_DIR="/opt/wpc/apps/phpmyadmin"
-[ -d "/opt/presspanel/apps/phpmyadmin" ] && [ ! -d "/opt/wpc/apps/phpmyadmin" ] && TARGET_DIR="/opt/presspanel/apps/phpmyadmin"
 PMA_PORT="888"
 
 detect_php_version() {
@@ -69,7 +68,7 @@ case "$ACTION" in
 
         # 2. Sinh blowfish secret ngẫu nhiên và tạo config.inc.php
         BLOWFISH=$(head -c 32 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32)
-        [ -z "$BLOWFISH" ] && BLOWFISH="PressPanelPMASecretKey20261016Secure"
+        [ -z "$BLOWFISH" ] && BLOWFISH="WPCloudPMASecretKey20261016Secure"
 
         cat <<EOF > "$TARGET_DIR/config.inc.php"
 <?php
@@ -99,8 +98,8 @@ EOF
         # Cấp quyền đọc và thực thi toàn cục cho thư mục phpMyAdmin để mọi webserver (www-data, nobody, wpc) đều đọc được
         chmod -R a+rX "$TARGET_DIR" 2>/dev/null || true
         chown -R www-data:www-data "$TARGET_DIR" 2>/dev/null || chown -R nobody:nogroup "$TARGET_DIR" 2>/dev/null || chown -R wpc:wpc "$TARGET_DIR" 2>/dev/null || true
-        # Đảm bảo các thư mục cha /opt, /opt/wpc, /opt/presspanel có quyền +x cho other
-        chmod a+x /opt /opt/wpc /opt/wpc/apps /opt/presspanel /opt/presspanel/apps 2>/dev/null || true
+        # Đảm bảo các thư mục cha /opt, /opt/wpc có quyền +x cho other
+        chmod a+x /opt /opt/wpc /opt/wpc/apps 2>/dev/null || true
 
         # 3. Cấu hình VirtualHost / Alias cho Webserver (Nginx & OpenLiteSpeed)
         ACTIVE_PHP=$(detect_php_version)

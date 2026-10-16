@@ -78,7 +78,7 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
         raise HTTPException(status_code=400, detail="Tên miền không hợp lệ")
 
     # MỖI WEBSITE LÀ MỘT LINUX USER ĐỘC LẬP
-    # Tên user Linux là domain viết liền không dấu chấm (vd: presspanel.org -> presspanelorg)
+    # Tên user Linux là domain viết liền không dấu chấm (vd: example.com -> examplecom)
     isolated_user = domain_to_linux_user(clean_domain)
     doc_root = f"/home/{isolated_user}/domains/{clean_domain}/public_html"
 
