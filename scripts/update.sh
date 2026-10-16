@@ -66,7 +66,6 @@ if [ -d "$INSTALL_DIR/app/app" ]; then
     rm -rf "$INSTALL_DIR/app/app"
 fi
 cp -r "$TMP_DIR/app"/* "$INSTALL_DIR/app/"
-cp -r "$TMP_DIR/scripts"/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
 cp -r "$TMP_DIR/templates"/* "$INSTALL_DIR/templates/" 2>/dev/null || true
 mkdir -p "$INSTALL_DIR/static"
 cp -r "$TMP_DIR/static"/* "$INSTALL_DIR/static/" 2>/dev/null || true
@@ -207,7 +206,9 @@ if [ -n "$PROCVIEW_GID" ]; then
     fi
 fi
 
-# 8. Dọn dẹp thư mục tạm
+# 8. Cập nhật scripts điều khiển hệ thống và dọn dẹp
+cp -r "$TMP_DIR/scripts"/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
+chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc "$INSTALL_DIR"/scripts/presspanel 2>/dev/null || true
 rm -rf "$TMP_DIR"
 
 NEW_VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "latest")
