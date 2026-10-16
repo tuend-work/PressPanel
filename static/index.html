@@ -1467,6 +1467,29 @@
                                                 <span class="font-mono text-slate-700 block mt-0.5">/run/php/php{{ d.php_version }}-fpm-{{ d.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) }}.sock</span>
                                             </div>
                                         </div>
+
+                                        <!-- Cấu hình quyền truy cập SSH cho Website -->
+                                        <div class="pt-3 border-t border-slate-200 flex items-center justify-between">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                                                    &gt;_
+                                                </div>
+                                                <div>
+                                                    <div class="font-bold text-slate-800 flex items-center gap-1.5">
+                                                        <span>Truy Cập Web Terminal SSH</span>
+                                                        <span :class="d.allow_ssh ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'"
+                                                            class="text-[10px] px-2 py-0.2 rounded-full font-mono border">
+                                                            {{ d.allow_ssh ? 'Đang Bật' : 'Đang Tắt' }}
+                                                        </span>
+                                                    </div>
+                                                    <p class="text-[11px] text-slate-500">Cho phép thao tác dòng lệnh trực tiếp dưới tài khoản isolated của website này</p>
+                                                </div>
+                                            </div>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" :checked="!!d.allow_ssh" @change="handleToggleDomainSsh(d, $event.target.checked)" class="sr-only peer">
+                                                <div class="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1864,6 +1887,17 @@
                                         <div class="flex justify-between pt-2 text-slate-600">
                                             <span class="text-slate-500">🗄️ Số database tối đa:</span>
                                             <span class="font-bold text-slate-700 font-mono">{{ plan.max_databases }}</span>
+                                        </div>
+                                        <div class="flex justify-between items-center pt-2 text-slate-600">
+                                            <span class="text-slate-500 flex items-center gap-1">
+                                                <i data-lucide="terminal" class="w-3.5 h-3.5 text-emerald-500"></i>
+                                                <span>Quyền SSH Terminal:</span>
+                                            </span>
+                                            <button @click="handleTogglePlanSsh(plan)"
+                                                :class="plan.allow_ssh ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'"
+                                                class="px-2 py-0.5 rounded text-[11px] font-semibold border transition hover:opacity-80">
+                                                {{ plan.allow_ssh ? '✓ Cho Phép' : '✗ Đã Chặn' }}
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -2654,6 +2688,21 @@
                                 <input type="number" v-model.number="newPlan.max_databases" min="1" max="1000" required
                                     class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
                             </div>
+                        </div>
+
+                        <!-- Quyền Terminal SSH -->
+                        <div class="p-3 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-between">
+                            <div>
+                                <div class="font-semibold text-slate-200 text-xs flex items-center gap-1.5">
+                                    <i data-lucide="terminal" class="w-3.5 h-3.5 text-emerald-400"></i>
+                                    <span>Quyền Terminal SSH</span>
+                                </div>
+                                <p class="text-[10px] text-slate-400 mt-0.5">Cho phép người dùng sử dụng Web Terminal để thao tác dòng lệnh</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" v-model="newPlan.allow_ssh" class="sr-only peer">
+                                <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                            </label>
                         </div>
 
                         <div class="flex justify-end space-x-2 pt-2 border-t border-slate-800">
@@ -3460,7 +3509,8 @@
                     mem_mb: 1024,
                     cpu_pct: 100,
                     max_domains: 10,
-                    max_databases: 10
+                    max_databases: 10,
+                    allow_ssh: true
                 });
 
                 // Đổi Service Plan cho Hosting User
@@ -4204,7 +4254,8 @@
                                 mem_mb: 1024,
                                 cpu_pct: 100,
                                 max_domains: 10,
-                                max_databases: 10
+                                max_databases: 10,
+                                allow_ssh: true
                             };
                             fetchServicePlans();
                         } else {
@@ -4214,6 +4265,50 @@
                         alert('Lỗi kết nối: ' + e.message);
                     } finally {
                         creatingPlan.value = false;
+                    }
+                };
+
+                const handleTogglePlanSsh = async (plan) => {
+                    const newStatus = !plan.allow_ssh;
+                    try {
+                        const res = await fetch(`/api/v1/users/plans/${plan.id}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ allow_ssh: newStatus })
+                        });
+                        if (res.ok) {
+                            plan.allow_ssh = newStatus ? 1 : 0;
+                        } else {
+                            alert('Không thể thay đổi quyền SSH của gói');
+                        }
+                    } catch (e) {
+                        alert('Lỗi: ' + e.message);
+                    }
+                };
+
+                const handleToggleDomainSsh = async (domain, allow) => {
+                    try {
+                        const res = await fetch(`/api/v1/domains/${domain.id}/toggle-ssh`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ allow_ssh: allow })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            domain.allow_ssh = allow ? 1 : 0;
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể đổi quyền SSH cho website'));
+                            domain.allow_ssh = !allow ? 1 : 0;
+                        }
+                    } catch (e) {
+                        alert('Lỗi: ' + e.message);
+                        domain.allow_ssh = !allow ? 1 : 0;
                     }
                 };
 
@@ -5105,7 +5200,8 @@
                     openEditFileModal, saveFileContent, openCreateItemModal, confirmCreateItem,
                     handleDeleteItem, formatBytes, formatTimestamp,
                     showTerminalModal, terminalConnected, terminalTargetUser, terminalHost,
-                    terminalContainerRef, openWebTerminal, closeTerminal, reconnectTerminal
+                    terminalContainerRef, openWebTerminal, closeTerminal, reconnectTerminal,
+                    handleTogglePlanSsh, handleToggleDomainSsh
                 };
             }
         }).mount('#app');

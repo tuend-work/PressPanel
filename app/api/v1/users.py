@@ -371,6 +371,16 @@ class PlanCreate(BaseModel):
     cpu_pct: int = Field(100, ge=10, le=400)
     max_domains: int = Field(10, ge=1, le=1000)
     max_databases: int = Field(10, ge=1, le=1000)
+    allow_ssh: bool = True
+
+class PlanUpdate(BaseModel):
+    name: Optional[str] = None
+    disk_mb: Optional[int] = None
+    mem_mb: Optional[int] = None
+    cpu_pct: Optional[int] = None
+    max_domains: Optional[int] = None
+    max_databases: Optional[int] = None
+    allow_ssh: Optional[bool] = None
 
 @router.get("/plans")
 async def list_service_plans(current_user: dict = Depends(get_current_user)):
@@ -391,9 +401,9 @@ async def create_service_plan(req: PlanCreate, current_user: dict = Depends(requ
     db = await get_db_connection()
     try:
         await db.execute("""
-            INSERT INTO packages (owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases)
-            VALUES (?, ?, ?, ?, ?, ?, 100, 100, ?, ?)
-        """, (current_user["id"], req.name, req.package_type, req.cpu_pct, req.mem_mb, req.disk_mb, req.max_domains, req.max_databases))
+            INSERT INTO packages (owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases, allow_ssh)
+            VALUES (?, ?, ?, ?, ?, ?, 100, 100, ?, ?, ?)
+        """, (current_user["id"], req.name, req.package_type, req.cpu_pct, req.mem_mb, req.disk_mb, req.max_domains, req.max_databases, 1 if req.allow_ssh else 0))
         await db.commit()
     except Exception as e:
         await db.close()
@@ -401,4 +411,46 @@ async def create_service_plan(req: PlanCreate, current_user: dict = Depends(requ
     
     await db.close()
     return {"status": "ok", "message": f"Tạo gói dịch vụ '{req.name}' thành công!"}
+
+@router.put("/plans/{plan_id}")
+async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict = Depends(require_role("admin", "reseller"))):
+    """Cập nhật gói dịch vụ (bật/tắt SSH, chỉnh quota)"""
+    db = await get_db_connection()
+    cursor = await db.execute("SELECT * FROM packages WHERE id = ?", (plan_id,))
+    plan = await cursor.fetchone()
+    if not plan:
+        await db.close()
+        raise HTTPException(status_code=404, detail="Không tìm thấy gói dịch vụ")
+
+    updates = []
+    params = []
+    if req.name is not None:
+        updates.append("name = ?")
+        params.append(req.name)
+    if req.disk_mb is not None:
+        updates.append("disk_mb = ?")
+        params.append(req.disk_mb)
+    if req.mem_mb is not None:
+        updates.append("mem_mb = ?")
+        params.append(req.mem_mb)
+    if req.cpu_pct is not None:
+        updates.append("cpu_pct = ?")
+        params.append(req.cpu_pct)
+    if req.max_domains is not None:
+        updates.append("max_domains = ?")
+        params.append(req.max_domains)
+    if req.max_databases is not None:
+        updates.append("max_databases = ?")
+        params.append(req.max_databases)
+    if req.allow_ssh is not None:
+        updates.append("allow_ssh = ?")
+        params.append(1 if req.allow_ssh else 0)
+
+    if updates:
+        params.append(plan_id)
+        await db.execute(f"UPDATE packages SET {', '.join(updates)} WHERE id = ?", params)
+        await db.commit()
+
+    await db.close()
+    return {"status": "ok", "message": "Đã cập nhật gói dịch vụ thành công!"}
 

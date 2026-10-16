@@ -333,4 +333,44 @@ async def change_domain_php(
         "php_version": new_php
     }
 
+class DomainToggleSshRequest(BaseModel):
+    allow_ssh: bool
+
+@router.post("/{domain_id}/toggle-ssh")
+async def toggle_domain_ssh(
+    domain_id: int,
+    req: DomainToggleSshRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Bật / Tắt quyền SSH cho từng website"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.user_id, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+
+    if not domain:
+        await db.close()
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            await db.close()
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    val = 1 if req.allow_ssh else 0
+    await db.execute("UPDATE domains SET allow_ssh = ? WHERE id = ?", (val, domain_id))
+    await db.commit()
+    await db.close()
+
+    status_str = "Bật" if req.allow_ssh else "Tắt"
+    return {
+        "status": "success",
+        "message": f"Đã {status_str} quyền truy cập Terminal SSH cho website '{domain['domain_name']}'!",
+        "allow_ssh": req.allow_ssh
+    }
+
 

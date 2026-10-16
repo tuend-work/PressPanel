@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS packages (
     max_domains INTEGER NOT NULL DEFAULT 10,
     max_databases INTEGER NOT NULL DEFAULT 10,
     max_sub_users INTEGER DEFAULT 0,
+    allow_ssh INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -60,6 +61,7 @@ CREATE TABLE IF NOT EXISTS domains (
     php_version TEXT NOT NULL,
     ssl_enabled INTEGER DEFAULT 0,
     ssl_expires_at DATETIME,
+    allow_ssh INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -181,13 +183,23 @@ async def init_database():
         await db.execute("PRAGMA journal_mode = WAL;")
         await db.executescript(SCHEMA_SQL)
         
+        # Migration: Tự động bổ sung cột allow_ssh cho packages và domains nếu đã tạo từ trước
+        try:
+            await db.execute("ALTER TABLE packages ADD COLUMN allow_ssh INTEGER NOT NULL DEFAULT 1")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE domains ADD COLUMN allow_ssh INTEGER NOT NULL DEFAULT 1")
+        except Exception:
+            pass
+
         # Tạo các gói Service Plans mẫu (Hosting Plans) nếu chưa có
         cursor = await db.execute("SELECT id FROM packages WHERE id = 1")
         pkg1 = await cursor.fetchone()
         if not pkg1:
             await db.execute("""
-                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases)
-                VALUES (1, 0, 'Admin Unlimited Plan', 'reseller', 400, 8192, 102400, 100, 500, 100, 100)
+                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases, allow_ssh)
+                VALUES (1, 0, 'Admin Unlimited Plan', 'reseller', 400, 8192, 102400, 100, 500, 100, 100, 1)
             """)
 
         # Gói 2: Standard Plan (Mặc định cho Customer)
@@ -195,8 +207,8 @@ async def init_database():
         pkg2 = await cursor.fetchone()
         if not pkg2:
             await db.execute("""
-                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases)
-                VALUES (2, 0, 'Standard Web Hosting', 'user', 100, 1024, 5120, 100, 100, 5, 5)
+                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases, allow_ssh)
+                VALUES (2, 0, 'Standard Web Hosting', 'user', 100, 1024, 5120, 100, 100, 5, 5, 1)
             """)
 
         # Gói 3: Pro WordPress Plan
@@ -204,8 +216,8 @@ async def init_database():
         pkg3 = await cursor.fetchone()
         if not pkg3:
             await db.execute("""
-                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases)
-                VALUES (3, 0, 'Pro WordPress Turbo', 'user', 200, 2048, 20480, 150, 200, 15, 15)
+                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases, allow_ssh)
+                VALUES (3, 0, 'Pro WordPress Turbo', 'user', 200, 2048, 20480, 150, 200, 15, 15, 1)
             """)
 
         # Gói 4: Starter Mini Plan
@@ -213,8 +225,8 @@ async def init_database():
         pkg4 = await cursor.fetchone()
         if not pkg4:
             await db.execute("""
-                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases)
-                VALUES (4, 0, 'Starter Mini', 'user', 50, 512, 2048, 80, 50, 1, 1)
+                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases, allow_ssh)
+                VALUES (4, 0, 'Starter Mini', 'user', 50, 512, 2048, 80, 50, 1, 1, 0)
             """)
 
         # Tạo tài khoản Admin mặc định nếu chưa có

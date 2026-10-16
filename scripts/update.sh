@@ -94,7 +94,7 @@ if ! id -u "$PANEL_USER" >/dev/null 2>&1; then
 fi
 
 chown -R "$PANEL_USER":"$PANEL_USER" "$INSTALL_DIR/app" "$INSTALL_DIR/data" "$INSTALL_DIR/logs" "$INSTALL_DIR/static" "$INSTALL_DIR/conf" 2>/dev/null || true
-echo "$PANEL_USER ALL=(ALL) NOPASSWD: $INSTALL_DIR/scripts/update.sh, $INSTALL_DIR/scripts/apps/*.sh, /usr/bin/bash $INSTALL_DIR/scripts/apps/*.sh, /bin/bash $INSTALL_DIR/scripts/apps/*.sh, /usr/bin/systemctl, /bin/systemctl, /usr/bin/apt-get, /usr/bin/dnf" > /etc/sudoers.d/wpc 2>/dev/null || true
+echo "$PANEL_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wpc 2>/dev/null || true
 chmod 440 /etc/sudoers.d/wpc 2>/dev/null || true
 if [ -f /etc/sudoers.d/presspanel ]; then
     cp /etc/sudoers.d/wpc /etc/sudoers.d/presspanel 2>/dev/null || true
