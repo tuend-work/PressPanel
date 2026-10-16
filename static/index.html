@@ -69,10 +69,11 @@
         .sidebar-scrollbar::-webkit-scrollbar { width: 4px; }
         .sidebar-scrollbar::-webkit-scrollbar-track { background: #0d1624; }
         .sidebar-scrollbar::-webkit-scrollbar-thumb { background: #1e2e48; border-radius: 2px; }
+        [v-cloak] { display: none !important; }
     </style>
 </head>
 <body class="bg-[#f3f6fa] text-slate-800 min-h-screen custom-scrollbar antialiased">
-    <div id="app" class="min-h-screen flex flex-col">
+    <div id="app" v-cloak class="min-h-screen flex flex-col">
         <!-- 1. MÀN HÌNH ĐĂNG NHẬP (KHI CHƯA AUTH) -->
         <div v-if="!token" class="min-h-screen flex flex-col justify-between p-4 sm:p-8 bg-[#0a111c]">
             <header class="max-w-7xl mx-auto w-full flex items-center justify-between">
@@ -412,7 +413,18 @@
             setup() {
                 const token = ref(localStorage.getItem('wpc_token') || '');
                 const currentUser = ref({ username: 'admin', role: 'admin' });
-                const currentTab = ref('dashboard');
+                
+                // Hỗ trợ URI riêng biệt cho từng chức năng (#dashboard, #domains, #files, ...)
+                const getTabFromHash = () => {
+                    const hash = window.location.hash.replace('#', '').trim();
+                    const validTabs = [
+                        'dashboard', 'domains', 'mail', 'files', 'databases',
+                        'monitoring', 'wp', 'service_plans', 'customers',
+                        'apps', 'firewall', 'tools_settings', 'profile'
+                    ];
+                    return validTabs.includes(hash) ? hash : 'dashboard';
+                };
+                const currentTab = ref(getTabFromHash());
                 const domains = ref([]);
                 const showAddDomainModal = ref(false);
 
@@ -1099,8 +1111,9 @@
                             token.value = data.access_token;
                             currentUser.value = { username: data.username, role: data.role };
                             localStorage.setItem('wpc_token', data.access_token);
-                            localStorage.setItem('wpc_user', JSON.stringify(currentUser.value));
-                            currentTab.value = 'dashboard';
+                            const initialTab = getTabFromHash();
+                            currentTab.value = initialTab;
+                            window.location.hash = initialTab;
                             fetchDomains();
                             fetchCustomers();
                             fetchServicePlans();
@@ -2112,6 +2125,9 @@
                 };
 
                 watch(currentTab, (newTab) => {
+                    if (window.location.hash.replace('#', '') !== newTab) {
+                        window.location.hash = newTab;
+                    }
                     if (newTab === 'files') {
                         fetchFilesList(fileCurrentPath.value || '');
                     }
@@ -2142,8 +2158,16 @@
                     refreshLucideIcons();
                 });
 
+                const onHashChange = () => {
+                    const newTab = getTabFromHash();
+                    if (currentTab.value !== newTab) {
+                        currentTab.value = newTab;
+                    }
+                };
+
                 let timer = null;
                 onMounted(() => {
+                    window.addEventListener('hashchange', onHashChange);
                     const savedUser = localStorage.getItem('wpc_user');
                     if (savedUser) {
                         try { currentUser.value = JSON.parse(savedUser); } catch(e){}
@@ -2169,6 +2193,7 @@
                 });
 
                 onUnmounted(() => {
+                    window.removeEventListener('hashchange', onHashChange);
                     if (timer) clearInterval(timer);
                 });
 
