@@ -42,13 +42,8 @@ fi
 
 # 1. Tải phiên bản mới nhất từ GitHub
 echo "[+] Đang tải mã nguồn mới nhất từ $REPO_URL..."
+rm -rf "$TMP_DIR"
 git clone --depth 1 "$REPO_URL" "$TMP_DIR"
-
-# Nếu update.sh đang chạy là file cũ, tự động chuyển tiếp thực thi sang bản mới tải về
-if [ "${WPC_UPDATE_EXEC:-0}" != "1" ] && [ -f "$TMP_DIR/scripts/update.sh" ]; then
-    export WPC_UPDATE_EXEC=1
-    exec bash "$TMP_DIR/scripts/update.sh" "$@"
-fi
 
 # 2. Biên dịch lại các module C Gatekeeper
 echo "[+] Biên dịch lại các binary C Gatekeeper..."
