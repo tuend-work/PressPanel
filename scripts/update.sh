@@ -180,6 +180,22 @@ for php_ver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
 done
 /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true
 
+# 7.2 Cấu hình bảo mật procfs (hidepid=2) cách ly tiến trình giữa các user
+echo "[+] Kiểm tra và cấu hình cách ly tiến trình /proc (hidepid=2)..."
+groupadd -r procview 2>/dev/null || true
+usermod -aG procview "$PANEL_USER" 2>/dev/null || true
+usermod -aG procview root 2>/dev/null || true
+PROCVIEW_GID=$(getent group procview 2>/dev/null | cut -d: -f3 || echo "")
+if [ -n "$PROCVIEW_GID" ]; then
+    mount -o remount,rw,hidepid=2,gid="$PROCVIEW_GID" /proc 2>/dev/null || true
+    if ! grep -q "hidepid=" /etc/fstab; then
+        echo "proc /proc proc defaults,hidepid=2,gid=$PROCVIEW_GID 0 0" >> /etc/fstab
+    else
+        sed -i -E "s/hidepid=[0-9]+/hidepid=2/g" /etc/fstab
+        sed -i -E "s/gid=[0-9]+/gid=$PROCVIEW_GID/g" /etc/fstab
+    fi
+fi
+
 # 8. Dọn dẹp thư mục tạm
 rm -rf "$TMP_DIR"
 

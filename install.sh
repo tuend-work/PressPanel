@@ -72,12 +72,12 @@ mkdir -p "$INSTALL_DIR"/{bin,app,conf,static,data,logs/tasks,scripts/apps,server
 chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"
 chmod 750 "$INSTALL_DIR"
 
-# 6. Sao chép và cấu hình cổng tự động (Tránh xung đột với b?ng di?u khi?n kh�c...)
+# 6. Sao chép và cấu hình cổng tự động (Tránh xung đột với b?ng di?u khi?n kh�c...)
 PANEL_PORT=8888
 if [ -f "$INSTALL_DIR/conf/presspanel.conf" ]; then
     PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/presspanel.conf" | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
 else
-    # Kiểm tra cổng 8888 có bị chiếm dụng không (ví dụ bởi b?ng di?u khi?n kh�c)
+    # Kiểm tra cổng 8888 có bị chiếm dụng không (ví dụ bởi b?ng di?u khi?n kh�c)
     CHECK_PORT=8888
     while true; do
         IS_BUSY=0
@@ -110,6 +110,22 @@ make clean
 make all
 make install PREFIX="$INSTALL_DIR"
 cd "$SRC_DIR"
+
+# 7.1 Cấu hình bảo mật procfs (hidepid=2) cách ly tiến trình giữa các user
+echo "[+] Thiết lập cách ly tiến trình /proc (hidepid=2) cho user thường..."
+groupadd -r procview 2>/dev/null || true
+usermod -aG procview "$PANEL_USER" 2>/dev/null || true
+usermod -aG procview root 2>/dev/null || true
+PROCVIEW_GID=$(getent group procview 2>/dev/null | cut -d: -f3 || echo "")
+if [ -n "$PROCVIEW_GID" ]; then
+    mount -o remount,rw,hidepid=2,gid="$PROCVIEW_GID" /proc 2>/dev/null || true
+    if ! grep -q "hidepid=" /etc/fstab; then
+        echo "proc /proc proc defaults,hidepid=2,gid=$PROCVIEW_GID 0 0" >> /etc/fstab
+    else
+        sed -i -E "s/hidepid=[0-9]+/hidepid=2/g" /etc/fstab
+        sed -i -E "s/gid=[0-9]+/gid=$PROCVIEW_GID/g" /etc/fstab
+    fi
+fi
 
 # 8. Thiết lập môi trường Python venv
 echo "[+] Thiết lập Python Virtualenv..."
