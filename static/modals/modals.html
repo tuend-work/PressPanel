@@ -1,0 +1,1144 @@
+            <div v-if="showAddDomainModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="glass rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-white">Thêm Website Mới</h3>
+                        <button @click="showAddDomainModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <form @submit.prevent="handleAddDomain" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Tên Miền (Domain)</label>
+                            <input type="text" v-model="newDomain.domain_name" placeholder="example.com" required
+                                class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Máy Chủ Web (Web Server Tầng Server)</label>
+                            <div class="px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <i data-lucide="server" class="w-4 h-4 text-blue-400"></i>
+                                    <span class="font-bold text-white">{{ activeSystemWebserver === 'nginx' ? 'Nginx Web Server' : 'OpenLiteSpeed (LSWS)' }}</span>
+                                </div>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">Định cấu hình tự động</span>
+                            </div>
+                            <p class="text-[10px] text-slate-400 mt-1">Hệ thống áp dụng Web Server mặc định tầng server. Quản trị viên thay đổi Web Server tại Kho Ứng Dụng.</p>
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Gói Tài Nguyên Website (Website Plan)</label>
+                            <select v-model="newDomain.package_id" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500 font-mono text-xs">
+                                <option :value="null">-- Mặc định (Theo hạn mức Hosting User) --</option>
+                                <option v-for="p in websitePlans" :key="p.id" :value="p.id">
+                                    {{ p.name }} ({{ (p.disk_mb/1024).toFixed(1) }}GB Disk, {{ p.mem_mb }}MB RAM, {{ p.cpu_pct }}% CPU)
+                                </option>
+                            </select>
+                            <p class="text-[10px] text-slate-400 mt-1">Website Plan được tạo riêng cho website trong giới hạn tổng của Hosting User.</p>
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Phiên Bản PHP</label>
+                            <select v-model="newDomain.php_version" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500 font-mono text-xs">
+                                <option v-for="p in allPhpVersions" :key="p.ver" :value="p.ver">
+                                    {{ p.label }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center space-x-2 pt-2">
+                            <input type="checkbox" id="auto_wp" v-model="newDomain.install_wp" class="rounded bg-slate-900 border-slate-700 text-blue-600">
+                            <label for="auto_wp" class="text-slate-300">Tự động cài đặt WordPress 1-Click ngay sau khi tạo</label>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-4">
+                            <button type="button" @click="showAddDomainModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
+                            <button type="submit" class="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-500 shadow-lg shadow-blue-500/20">Tạo Website</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- MODAL: PHP SETTINGS & VERSION SWITCHER (UX CHỌN PHP CHUẨN WPC) -->
+            <div v-if="showChangePhpModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-200 text-slate-800 animate-fadeIn">
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-md">
+                                PHP
+                            </div>
+                            <div>
+                                <h3 class="text-base font-bold text-slate-900">PHP Settings - {{ targetPhpDomain?.domain_name }}</h3>
+                                <p class="text-xs text-slate-500">Thay đổi môi trường thực thi PHP (hỗ trợ từ PHP 5.6 đến 8.5)</p>
+                            </div>
+                        </div>
+                        <button @click="showChangePhpModal = false" class="text-slate-400 hover:text-slate-700 text-xl leading-none p-1 rounded-lg hover:bg-slate-100 transition">&times;</button>
+                    </div>
+
+                    <div class="space-y-4 text-xs">
+                        <!-- Thông tin hiện tại -->
+                        <div class="p-3.5 rounded-xl bg-blue-50/70 border border-blue-100 flex items-center justify-between">
+                            <div>
+                                <div class="text-slate-500">Phiên bản PHP hiện tại:</div>
+                                <div class="font-bold text-blue-800 text-sm font-mono mt-0.5">PHP {{ targetPhpDomain?.php_version }}</div>
+                            </div>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold font-mono">
+                                {{ targetPhpDomain?.webserver === 'ols' ? 'LSAPI LSPHP' : 'PHP-FPM Socket' }}
+                            </span>
+                        </div>
+
+                        <!-- Dropdown chọn PHP Version mới -->
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1.5">Chọn phiên bản PHP mới:</label>
+                            <select v-model="selectedNewPhpVersion"
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 font-mono text-xs shadow-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20">
+                                <option v-for="p in allPhpVersions" :key="'switch_' + p.ver" :value="p.ver">
+                                    {{ p.label }}
+                                </option>
+                            </select>
+                            <p class="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                                💡 Khi chuyển đổi, hệ thống sẽ tự động cấu hình lại VirtualHost web server (Nginx fastcgi_pass hoặc OpenLiteSpeed lsapi), tạo socket FPM cô lập và reload dịch vụ mà không làm gián đoạn website.
+                            </p>
+                        </div>
+
+                        <!-- FastCGI / Handler Info -->
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5 text-[11px] text-slate-600">
+                            <div class="flex justify-between">
+                                <span>Kiểu xử lý (Handler Type):</span>
+                                <span class="font-semibold text-slate-800">{{ targetPhpDomain?.webserver === 'ols' ? 'LiteSpeed SAPI (lsapi)' : 'FPM application served by Nginx' }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Isolated Linux User:</span>
+                                <span class="font-mono text-slate-800 font-bold">{{ targetPhpDomain?.domain_name ? targetPhpDomain.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) : 'www-data' }}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                            <button type="button" @click="showChangePhpModal = false" :disabled="changingPhp"
+                                class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition">
+                                Hủy
+                            </button>
+                            <button type="button" @click="confirmChangePhp" :disabled="changingPhp"
+                                class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-500/20 transition flex items-center space-x-1.5">
+                                <span v-if="changingPhp" class="animate-spin">⏳</span>
+                                <span>{{ changingPhp ? 'Đang chuyển đổi...' : 'Áp Dụng Phiên Bản' }}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: THÊM HOSTING USER MỚI (TẠO TÀI KHOẢN KHÁCH HÀNG & PHÂN QUYỀN LƯU TRỮ MỚI) -->
+            <div v-if="showAddCustomerModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+                <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl relative border border-slate-200 my-8 max-h-[92vh] flex flex-col text-slate-800">
+                    <!-- Modal Header -->
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100 shrink-0">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-inner">
+                                <i data-lucide="user-plus" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-base font-bold text-slate-800">Thêm Hosting User Mới</h3>
+                                <p class="text-[11px] text-slate-500">Tạo tài khoản Hosting User quản lý nhiều website, phân quyền lưu trữ độc lập</p>
+                            </div>
+                        </div>
+                        <button @click="showAddCustomerModal = false" class="text-slate-400 hover:text-slate-700 text-xl leading-none p-1 rounded-lg hover:bg-slate-100 transition">&times;</button>
+                    </div>
+
+                    <form @submit.prevent="handleAddCustomer" class="space-y-4 text-xs overflow-y-auto pr-1 custom-scrollbar flex-1">
+                        <!-- 1. Thông Tin Tài Khoản Hosting User -->
+                        <div class="space-y-3 p-4 rounded-xl bg-slate-50/80 border border-slate-200">
+                            <h4 class="font-bold text-slate-700 text-xs flex items-center gap-2 uppercase tracking-wider text-[11px]">
+                                <i data-lucide="key" class="w-3.5 h-3.5 text-blue-600"></i>
+                                <span>Thông Tin Tài Khoản Hosting</span>
+                            </h4>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1">
+                                    Tên Đăng Nhập (Hosting Username) <span class="text-rose-500">*</span>
+                                </label>
+                                <input type="text" v-model="newCustomer.username" placeholder="vd: myclient, shoponline" required
+                                    class="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono text-xs shadow-sm">
+                                <p class="text-[10px] text-slate-500 mt-1 flex items-center gap-1.5">
+                                    <i data-lucide="shield-check" class="w-3 h-3 text-emerald-600"></i>
+                                    <span>Tài khoản Web Panel (không cấp SSH). Mỗi website khi tạo sẽ có Web User Linux riêng biệt <code>/home/&lt;domain&gt;</code></span>
+                                </p>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1">Email Khách Hàng <span class="text-rose-500">*</span></label>
+                                    <input type="email" v-model="newCustomer.email" placeholder="client@example.com" required
+                                        class="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 text-xs shadow-sm">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1">Mật Khẩu Đăng Nhập <span class="text-rose-500">*</span></label>
+                                    <input type="password" v-model="newCustomer.password" placeholder="Tối thiểu 6 ký tự" required
+                                        class="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 text-xs shadow-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. Khởi Tạo Website Đầu Tiên Cho Hosting User -->
+                        <div class="space-y-4 p-4 rounded-xl bg-blue-50/40 border border-blue-100 shadow-sm">
+                            <div class="flex items-center justify-between pb-2.5 border-b border-blue-100">
+                                <div class="flex items-center space-x-2.5">
+                                    <div class="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-sm">
+                                        <i data-lucide="globe" class="w-4 h-4"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-bold text-slate-800 text-xs">Khởi Tạo Website Đầu Tiên</h4>
+                                        <p class="text-[10px] text-slate-500">Tự động cấu hình Web User Linux độc lập và VirtualHost</p>
+                                    </div>
+                                </div>
+                                <label class="flex items-center gap-2 cursor-pointer select-none">
+                                    <input type="checkbox" v-model="newCustomer.create_subscription" class="w-4 h-4 rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500">
+                                    <span class="font-semibold text-xs text-slate-700">Tạo website ngay</span>
+                                </label>
+                            </div>
+
+                            <p v-if="!newCustomer.create_subscription" class="text-[11px] text-slate-500 italic p-2.5 rounded-xl bg-white border border-slate-200 flex items-center gap-1.5">
+                                <i data-lucide="info" class="w-3.5 h-3.5 text-blue-600 shrink-0"></i>
+                                <span>Chỉ tạo tài khoản Hosting User rỗng. Người dùng có thể tự thêm các website vào tài khoản sau đó.</span>
+                            </p>
+
+                            <div v-if="newCustomer.create_subscription" class="space-y-3.5 pt-1">
+                                <!-- Chọn loại tên miền: Registered vs Temporary -->
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-2">Loại Tên Miền Của Website</label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <!-- Registered domain card -->
+                                        <div @click="newCustomer.domain_type = 'registered'"
+                                            :class="newCustomer.domain_type === 'registered' ? 'border-blue-600 bg-blue-50/80 text-blue-900 ring-2 ring-blue-500/20' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'"
+                                            class="p-3 rounded-xl border cursor-pointer transition flex items-start space-x-3 shadow-sm">
+                                            <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                                                <i data-lucide="award" class="w-4 h-4"></i>
+                                            </div>
+                                            <div>
+                                                <div class="font-bold text-xs">Tên miền riêng</div>
+                                                <div class="text-[10px] text-slate-500 mt-0.5">Tôi đã sở hữu tên miền chính thức</div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Temporary domain card -->
+                                        <div @click="newCustomer.domain_type = 'temporary'"
+                                            :class="newCustomer.domain_type === 'temporary' ? 'border-blue-600 bg-blue-50/80 text-blue-900 ring-2 ring-blue-500/20' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'"
+                                            class="p-3 rounded-xl border cursor-pointer transition flex items-start space-x-3 shadow-sm">
+                                            <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                                            </div>
+                                            <div>
+                                                <div class="font-bold text-xs">Tên miền tạm thời</div>
+                                                <div class="text-[10px] text-slate-500 mt-0.5">Cấp subdomain test chạy thử ngay</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Domain Input -->
+                                <div v-if="newCustomer.domain_type === 'registered'">
+                                    <label class="block font-semibold text-slate-700 mb-1">
+                                        Tên miền chính thức <span class="text-rose-500">*</span>
+                                    </label>
+                                    <div class="flex items-center rounded-xl bg-white border border-slate-200 focus-within:border-blue-500 overflow-hidden shadow-sm">
+                                        <span class="px-3 py-2 text-slate-400 bg-slate-50 border-r border-slate-200 font-mono text-xs">www.</span>
+                                        <input type="text" v-model="newCustomer.domain_name" placeholder="example.com" :required="newCustomer.create_subscription && newCustomer.domain_type === 'registered'"
+                                            class="w-full px-3 py-2 bg-transparent text-slate-800 placeholder-slate-400 focus:outline-none font-mono text-xs">
+                                    </div>
+                                </div>
+
+                                <div v-else class="p-3 rounded-xl bg-white border border-slate-200 text-slate-700 shadow-sm">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-slate-500">Tên miền tạm thời tự động cấp:</span>
+                                        <span class="font-mono text-blue-600 font-bold">
+                                            {{ (newCustomer.username || 'user') }}.wpc.local
+                                        </span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 mt-1">Website sẽ tạo user linux riêng <code>/home/{{ (newCustomer.username || 'user') }}presspanellocal</code></p>
+                                </div>
+
+                                <!-- Service Plan dropdown -->
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1">Gói Dịch Vụ Mẫu (Service Plan)</label>
+                                    <select v-model="newCustomer.package_id"
+                                        class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 focus:outline-none focus:border-blue-500 text-xs shadow-sm">
+                                        <option :value="null">-- Mặc định (Tùy chỉnh Quota tài nguyên bên dưới) --</option>
+                                        <option v-for="plan in servicePlans" :key="plan.id" :value="plan.id">
+                                            {{ plan.name }} ({{ plan.disk_mb }} MB Disk, {{ plan.max_domains }} Sites)
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <!-- Web Server Tầng Server & PHP -->
+                                <div class="grid grid-cols-2 gap-3 pt-1">
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Web Server Hệ Thống</label>
+                                        <div class="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs flex items-center justify-between shadow-sm">
+                                            <div class="flex items-center space-x-1.5 font-medium">
+                                                <i data-lucide="server" class="w-3.5 h-3.5 text-blue-600"></i>
+                                                <span>{{ activeSystemWebserver === 'nginx' ? 'Nginx' : 'OpenLiteSpeed' }}</span>
+                                            </div>
+                                            <span class="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-mono border border-blue-200">Server-wide</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Phiên Bản PHP</label>
+                                        <select v-model="newCustomer.php_version"
+                                            class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 font-mono text-xs shadow-sm focus:outline-none focus:border-blue-500">
+                                            <option v-for="p in allPhpVersions" :key="'cust_' + p.ver" :value="p.ver">
+                                                {{ p.label }}
+                                            </option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- WordPress 1-Click Install -->
+                                <div class="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between shadow-sm">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
+                                            <i data-lucide="layers" class="w-4 h-4"></i>
+                                        </div>
+                                        <div>
+                                            <div class="font-semibold text-slate-800 text-xs">Cài đặt sẵn WordPress 1-Click</div>
+                                            <div class="text-[10px] text-slate-500">Tự động khởi tạo source code, DB MySQL và kích hoạt SSO</div>
+                                        </div>
+                                    </div>
+                                    <input type="checkbox" v-model="newCustomer.install_wp" class="w-4 h-4 rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. Hạn Mức Tài Nguyên Cho Gói Hosting (Resource Quotas) -->
+                        <div class="space-y-2 p-4 rounded-xl bg-slate-50/80 border border-slate-200">
+                            <label class="block font-semibold text-slate-700 text-[11px] flex items-center gap-1.5">
+                                <i data-lucide="pie-chart" class="w-3.5 h-3.5 text-blue-600"></i>
+                                <span>Hạn mức tài nguyên lưu trữ (Resource Quotas)</span>
+                            </label>
+                            <div class="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label class="block text-[10px] text-slate-500 mb-1">Ổ Cứng (MB)</label>
+                                    <input type="number" v-model.number="newCustomer.disk_mb" min="500" max="500000"
+                                        class="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 font-mono text-center text-xs shadow-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-slate-500 mb-1">RAM (MB)</label>
+                                    <input type="number" v-model.number="newCustomer.mem_mb" min="256" max="65536"
+                                        class="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 font-mono text-center text-xs shadow-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-slate-500 mb-1">CPU (%)</label>
+                                    <input type="number" v-model.number="newCustomer.cpu_pct" min="10" max="400"
+                                        class="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 font-mono text-center text-xs shadow-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Modal Actions -->
+                        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100 shrink-0">
+                            <button type="button" @click="showAddCustomerModal = false" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition">Hủy</button>
+                            <button type="submit" :disabled="creatingCustomer"
+                                class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-500/20 flex items-center space-x-2 transition">
+                                <span v-if="creatingCustomer" class="animate-spin">⏳</span>
+                                <span v-else>✓</span>
+                                <span>{{ creatingCustomer ? 'Đang Khởi Tạo...' : 'Tạo Hosting User' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- MODAL: THÊM SERVICE PLAN MỚI (WPC HOSTING PACKAGE) -->
+            <div v-if="showAddPlanModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="glass rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-700">
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xl">📦</span>
+                            <h3 class="text-base font-bold text-white">Thêm Service Plan (Gói Hosting Mới)</h3>
+                        </div>
+                        <button @click="showAddPlanModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+                    </div>
+                    <div v-if="currentUser.role === 'reseller'" class="mb-3 p-2.5 rounded-xl bg-blue-950/60 border border-blue-800 text-blue-300 text-[11px]">
+                        ℹ️ <b>Website Plan:</b> Bạn đang tạo gói tài nguyên riêng để gán cho các website của mình. Hạn mức không vượt quá User Plan được cấp.
+                    </div>
+
+                    <form @submit.prevent="handleAddPlan" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Tên Gói Dịch Vụ</label>
+                            <input type="text" v-model="newPlan.name" placeholder="vd: WordPress Business, VIP Turbo" required
+                                class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Cấp Độ Gói (Plan Type)</label>
+                                <select v-model="newPlan.plan_type" :disabled="currentUser.role === 'reseller'"
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-cyan-500">
+                                    <option value="user" v-if="currentUser.role === 'admin'">Loại 1: User Plan (Cấp tổng cho Hosting User)</option>
+                                    <option value="website">Loại 2: Website Plan (Cấp lẻ cho từng Website)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Giới Hạn CPU (%)</label>
+                                <input type="number" v-model.number="newPlan.cpu_pct" min="10" max="800" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Dung Lượng Ổ Cứng (MB)</label>
+                                <input type="number" v-model.number="newPlan.disk_mb" min="500" max="500000" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                                <span class="text-[10px] text-slate-500 font-mono mt-0.5 block">≈ {{ (newPlan.disk_mb / 1024).toFixed(1) }} GB</span>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Bộ Nhớ RAM (MB)</label>
+                                <input type="number" v-model.number="newPlan.mem_mb" min="256" max="65536" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                                <span class="text-[10px] text-slate-500 font-mono mt-0.5 block">≈ {{ (newPlan.mem_mb / 1024).toFixed(1) }} GB</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Số Tên Miền Tối Đa</label>
+                                <input type="number" v-model.number="newPlan.max_domains" min="1" max="1000" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Số Database Tối Đa</label>
+                                <input type="number" v-model.number="newPlan.max_databases" min="1" max="1000" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                        </div>
+
+                        <!-- Quyền Terminal SSH -->
+                        <div class="p-3 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-between">
+                            <div>
+                                <div class="font-semibold text-slate-200 text-xs flex items-center gap-1.5">
+                                    <i data-lucide="terminal" class="w-3.5 h-3.5 text-emerald-400"></i>
+                                    <span>Quyền Terminal SSH</span>
+                                </div>
+                                <p class="text-[10px] text-slate-400 mt-0.5">Cho phép người dùng sử dụng Web Terminal để thao tác dòng lệnh</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" v-model="newPlan.allow_ssh" class="sr-only peer">
+                                <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                            </label>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-2 border-t border-slate-800">
+                            <button type="button" @click="showAddPlanModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
+                            <button type="submit" :disabled="creatingPlan"
+                                class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold shadow-lg shadow-cyan-500/20 flex items-center space-x-1.5">
+                                <span v-if="creatingPlan" class="animate-spin">⏳</span>
+                                <span>{{ creatingPlan ? 'Đang Tạo Plan...' : 'Tạo Service Plan' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- MODAL: ĐỔI SERVICE PLAN CHO HOSTING USER -->
+            <div v-if="showChangePlanModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-200">
+                    <!-- Header -->
+                    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                                <i data-lucide="package" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800">Đổi Gói Dịch Vụ (Service Plan)</h3>
+                                <p class="text-[11px] text-slate-500">Áp dụng hạn mức Cgroup & Disk Quota ngay lập tức</p>
+                            </div>
+                        </div>
+                        <button @click="showChangePlanModal = false" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+                    </div>
+
+                    <!-- Body -->
+                    <form @submit.prevent="confirmChangePlan" class="p-6 space-y-4 text-xs">
+                        <!-- User info banner -->
+                        <div class="p-3.5 rounded-xl bg-blue-50/60 border border-blue-100 flex items-center justify-between">
+                            <div>
+                                <div class="text-[11px] text-slate-500">Tài khoản Hosting User</div>
+                                <div class="font-bold text-slate-800 text-sm font-mono">{{ selectedCustomerForPlan?.username }}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[11px] text-slate-500">Gói hiện tại</div>
+                                <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold text-[11px]">
+                                    {{ selectedCustomerForPlan?.package_name || 'Standard Plan' }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Select new plan -->
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1.5">Chọn Gói Dịch Vụ Mới</label>
+                            <select v-model="targetPlanId" required
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-medium text-xs focus:outline-none focus:border-blue-500 shadow-sm">
+                                <option :value="null" disabled>-- Chọn một Service Plan --</option>
+                                <option v-for="plan in servicePlans" :key="'chg_' + plan.id" :value="plan.id">
+                                    {{ plan.name }} ({{ (plan.disk_mb / 1024).toFixed(1) }}GB Disk, {{ plan.mem_mb }}MB RAM, {{ plan.cpu_pct }}% CPU)
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Preview plan specs -->
+                        <div v-if="selectedPlanPreview" class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                            <div class="font-semibold text-slate-700 text-[11px] flex items-center gap-1.5">
+                                <i data-lucide="info" class="w-3.5 h-3.5 text-blue-600"></i>
+                                <span>Thông số kỹ thuật gói mới sẽ áp dụng:</span>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 text-center">
+                                <div class="p-2 rounded-lg bg-white border border-slate-150">
+                                    <div class="text-[10px] text-slate-400">Dung lượng</div>
+                                    <div class="font-bold text-slate-800 font-mono mt-0.5">{{ (selectedPlanPreview.disk_mb / 1024).toFixed(1) }} GB</div>
+                                </div>
+                                <div class="p-2 rounded-lg bg-white border border-slate-150">
+                                    <div class="text-[10px] text-slate-400">Bộ nhớ RAM</div>
+                                    <div class="font-bold text-slate-800 font-mono mt-0.5">{{ selectedPlanPreview.mem_mb }} MB</div>
+                                </div>
+                                <div class="p-2 rounded-lg bg-white border border-slate-150">
+                                    <div class="text-[10px] text-slate-400">Giới hạn CPU</div>
+                                    <div class="font-bold text-slate-800 font-mono mt-0.5">{{ selectedPlanPreview.cpu_pct }}%</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+                            <button type="button" @click="showChangePlanModal = false" 
+                                class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition">Hủy</button>
+                            <button type="submit" :disabled="changingPlan || !targetPlanId"
+                                class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-500/20 flex items-center space-x-1.5 transition">
+                                <span v-if="changingPlan" class="animate-spin">⏳</span>
+                                <span v-else>✓</span>
+                                <span>{{ changingPlan ? 'Đang Áp Dụng...' : 'Xác Nhận Đổi Gói' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- MODAL: WEB TERMINAL SSH CHO HOSTING USER (XTERM.JS FULL PTY) -->
+            <div v-if="showTerminalModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 animate-fadeIn">
+                <div class="bg-[#0f172a] rounded-2xl max-w-5xl w-full shadow-2xl border border-slate-700/80 overflow-hidden flex flex-col h-[650px] max-h-[92vh]">
+                    <!-- Window Titlebar -->
+                    <div class="h-11 px-4 bg-[#1e293b] border-b border-slate-700/80 flex items-center justify-between shrink-0 select-none">
+                        <div class="flex items-center space-x-3">
+                            <!-- Mac style dots -->
+                            <div class="flex items-center space-x-1.5">
+                                <span class="w-3 h-3 rounded-full bg-rose-500 hover:opacity-80 cursor-pointer" @click="closeTerminal"></span>
+                                <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                                <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                            </div>
+                            <div class="flex items-center space-x-2 pl-2">
+                                <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
+                                <span class="text-xs font-mono font-bold text-slate-200 tracking-wide">
+                                    SSH Terminal &mdash; {{ terminalTargetUser }}@{{ terminalHost || 'presspanel' }}
+                                </span>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    <span>{{ terminalConnected ? 'Connected' : 'Connecting...' }}</span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button @click="reconnectTerminal" title="Kết nối lại" class="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition text-xs">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button @click="closeTerminal" class="text-slate-400 hover:text-white text-xl leading-none px-2">&times;</button>
+                        </div>
+                    </div>
+                    <!-- Terminal Container -->
+                    <div class="flex-1 bg-[#090d16] p-3 overflow-hidden relative" ref="terminalContainerRef">
+                        <div id="xterm-mount" class="w-full h-full"></div>
+                    </div>
+                    <!-- Terminal Status Footer -->
+                    <div class="h-7 px-4 bg-[#111827] border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400 shrink-0">
+                        <div class="flex items-center space-x-4">
+                            <span>Phím tắt: <kbd class="px-1 bg-slate-800 rounded text-slate-300">Ctrl+C</kbd> (Ngắt)</span>
+                            <span>Môi trường: <strong class="text-emerald-400">Linux PTY (Chroot / Isolated User)</strong></span>
+                        </div>
+                        <span class="text-slate-500">Session ID: #{{ currentUser.id }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: CẤU HÌNH APP & DỊCH VỤ (WPC EXACT STYLE SETTING POPUP) -->
+            <div v-if="showAppSettingModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="WPC-card rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col border border-[#2b3545] h-[600px]">
+                    <!-- Header -->
+                    <div class="h-12 px-5 border-b border-[#232b36] flex items-center justify-between bg-[#151a22] shrink-0">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="text-xl">{{ selectedSettingApp?.icon || '⚙️' }}</span>
+                            <h3 class="text-sm font-bold text-white tracking-wide">{{ selectedSettingApp?.name }} - Manage</h3>
+                            <span class="text-[10px] px-2 py-0.5 rounded font-mono bg-cyan-950 text-cyan-400 border border-cyan-800">
+                                v{{ selectedSettingApp?.default_version }}
+                            </span>
+                        </div>
+                        <button @click="showAppSettingModal = false" class="text-slate-400 hover:text-white text-xl p-1 leading-none">&times;</button>
+                    </div>
+
+                    <!-- Body: 2 Columns Layout (WPC sidebar tabs style) -->
+                    <div class="flex-1 flex min-h-0 bg-[#0f131a]">
+                        <!-- Left Sidebar Tabs -->
+                        <div class="w-52 bg-[#131720] border-r border-[#232b36] p-2 space-y-0.5 shrink-0 text-xs font-medium overflow-y-auto custom-scrollbar">
+                            <!-- COMMON: SERVICE -->
+                            <button @click="appSettingTab = 'service'"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'service' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>Service</span>
+                            </button>
+
+                            <!-- PHP-SPECIFIC TABS (THEO HÌNH WPC) -->
+                            <template v-if="selectedSettingApp?.category === 'php'">
+                                <button @click="appSettingTab = 'extensions'; fetchPhpExtensions(selectedSettingApp.id)"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'extensions' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Install extensions</span>
+                                </button>
+                                <button @click="appSettingTab = 'php_config'; fetchPhpDirectives(selectedSettingApp.id)"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'php_config' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Configuration</span>
+                                </button>
+                                <button @click="appSettingTab = 'limit_upload'; fetchPhpDirectives(selectedSettingApp.id)"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'limit_upload' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Limit of upload</span>
+                                </button>
+                                <button @click="appSettingTab = 'limit_timeout'; fetchPhpDirectives(selectedSettingApp.id)"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'limit_timeout' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Limit of timeout</span>
+                                </button>
+                                <button @click="appSettingTab = 'config'; loadAppConfig(selectedSettingApp.id, 'main')"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'config' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Configuration file</span>
+                                </button>
+                                <button @click="appSettingTab = 'fpm_pool'; loadAppConfig(selectedSettingApp.id, 'pool')"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'fpm_pool' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>FPM profile</span>
+                                </button>
+                                <button @click="appSettingTab = 'disabled_functions'; fetchPhpDirectives(selectedSettingApp.id)"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'disabled_functions' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Disabled functions</span>
+                                </button>
+                                <button @click="appSettingTab = 'optimization'; fetchPhpDirectives(selectedSettingApp.id)"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'optimization' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Optimization</span>
+                                </button>
+                                <button @click="appSettingTab = 'load_average'"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'load_average' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Load average</span>
+                                </button>
+                                <button @click="appSettingTab = 'session_config'"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'session_config' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Session configuration</span>
+                                </button>
+                                <button @click="appSettingTab = 'php_logs'"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'php_logs' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Logs</span>
+                                </button>
+                                <button @click="appSettingTab = 'slow_log'"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'slow_log' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Slow log</span>
+                                </button>
+                                <button @click="appSettingTab = 'phpinfo'; fetchPhpInfo(selectedSettingApp.id)"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'phpinfo' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>phpinfo</span>
+                                </button>
+                            </template>
+
+                            <!-- NON-PHP APPS DEFAULT TABS -->
+                            <template v-else>
+                                <button @click="appSettingTab = 'config'; loadAppConfig(selectedSettingApp.id, 'main')"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'config' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>📝</span>
+                                    <span>Configuration</span>
+                                </button>
+                            </template>
+
+                            <button @click="appSettingTab = 'autorestart'"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'autorestart' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>🔄</span>
+                                <span>Tự Khởi Động</span>
+                            </button>
+                            <button @click="appSettingTab = 'logs'"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'logs' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>📜</span>
+                                <span>Service Status</span>
+                            </button>
+                        </div>
+
+                        <!-- Right Content Area -->
+                        <div class="flex-1 p-5 overflow-y-auto custom-scrollbar flex flex-col justify-between text-xs">
+                            <!-- TAB 1: SERVICE CONTROLS -->
+                            <div v-if="appSettingTab === 'service'" class="space-y-4">
+                                <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-slate-400">Trạng thái dịch vụ:</span>
+                                        <span v-if="selectedSettingApp?.running" class="px-2.5 py-1 rounded text-xs font-mono bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1.5">
+                                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                            <span>Running (Đang hoạt động)</span>
+                                        </span>
+                                        <span v-else class="px-2.5 py-1 rounded text-xs font-mono bg-amber-950 text-amber-400 border border-amber-800">
+                                            Stopped (Đã dừng)
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center justify-between text-slate-400">
+                                        <span>Tên Daemon Service:</span>
+                                        <span class="font-mono text-white font-bold">{{ selectedSettingApp?.service || 'Không có service' }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-wrap gap-3 pt-2">
+                                    <button v-if="selectedSettingApp?.service" @click="handleAppAction(selectedSettingApp.id, 'restart')"
+                                        class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold flex items-center space-x-1.5 shadow">
+                                        <span>🔄</span>
+                                        <span>Khởi Động Lại (Restart)</span>
+                                    </button>
+                                    <button v-if="selectedSettingApp?.service" @click="handleAppAction(selectedSettingApp.id, selectedSettingApp.running ? 'stop' : 'start')"
+                                        class="px-4 py-2 rounded-xl font-semibold flex items-center space-x-1.5 shadow"
+                                        :class="selectedSettingApp?.running ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'">
+                                        <span>{{ selectedSettingApp?.running ? '⏹️ Dừng Dịch Vụ' : '▶️ Bật Dịch Vụ' }}</span>
+                                    </button>
+                                    <button v-if="selectedSettingApp?.service" @click="handleAppAction(selectedSettingApp.id, 'reload')"
+                                        class="px-4 py-2 rounded-xl bg-blue-600/30 text-blue-300 hover:bg-blue-600/40 border border-blue-500/40 font-semibold flex items-center space-x-1.5">
+                                        <span>⚡</span>
+                                        <span>Reload Config</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- TAB 2: CONFIGURATION FILE EDITOR -->
+                            <div v-if="appSettingTab === 'config'" class="flex-1 flex flex-col space-y-3 min-h-[400px]">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 font-mono text-[11px] truncate max-w-md">
+                                        📁 {{ appConfigPath }}
+                                    </span>
+                                    <div class="flex items-center space-x-2">
+                                        <!-- NÚT REWRITE WEBSERVER CONFIG (DÀNH CHO OLS & NGINX) -->
+                                        <button v-if="['ols', 'nginx'].includes(selectedSettingApp?.id)"
+                                            @click="handleRewriteWebserverConfig(selectedSettingApp.id)"
+                                            :disabled="rewritingConfig"
+                                            class="px-2.5 py-1 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-600/40 text-[11px] font-semibold flex items-center space-x-1 transition shadow"
+                                            title="Tự động sao lưu cấu hình hiện tại và tạo lại toàn bộ file VirtualHost từ template và database">
+                                            <span v-if="rewritingConfig" class="animate-spin">⏳</span>
+                                            <span v-else>🛠️</span>
+                                            <span>{{ rewritingConfig ? 'Đang Tái Tạo...' : 'Rewrite Webserver Config' }}</span>
+                                        </button>
+                                        <button @click="loadAppConfig(selectedSettingApp.id, 'main')" class="text-cyan-400 hover:underline text-[11px]">
+                                            Tải lại nội dung
+                                        </button>
+                                    </div>
+                                </div>
+                                <textarea v-model="appConfigContent"
+                                    class="flex-1 w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs focus:outline-none focus:border-cyan-500 resize-none h-80 custom-scrollbar leading-relaxed">
+                                </textarea>
+                                <div class="flex justify-between items-center pt-1">
+                                    <div class="text-[10px] text-slate-500 italic">
+                                        <span v-if="['ols', 'nginx'].includes(selectedSettingApp?.id)">
+                                            💡 Bấm <b>Rewrite Webserver Config</b> để tự động backup và build lại toàn bộ Vhost từ template & database.
+                                        </span>
+                                    </div>
+                                    <button @click="saveCurrentAppConfig('main')" :disabled="savingConfig"
+                                        class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-white shadow-lg shadow-cyan-500/20 flex items-center space-x-1.5">
+                                        <span v-if="savingConfig" class="animate-spin">⏳</span>
+                                        <span>{{ savingConfig ? 'Đang lưu...' : 'Lưu File Cấu Hình' }}</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- TAB 2.5: PHP-FPM POOL & BACKEND MANAGER (DÀNH CHO NGINX & FASTCGI) -->
+                            <div v-if="appSettingTab === 'fpm_pool'" class="flex-1 flex flex-col space-y-3 min-h-[400px]">
+                                <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-base">🐘</span>
+                                            <span class="font-bold text-white text-xs">Cấu Hình PHP-FPM Pool & Nginx Backend Socket</span>
+                                        </div>
+                                        <button @click="handleAppAction(selectedSettingApp.id, 'restart')"
+                                            class="px-2.5 py-1 rounded-lg bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold hover:bg-emerald-600/40 transition">
+                                            🔄 Khởi động lại PHP-FPM
+                                        </button>
+                                    </div>
+                                    <div class="text-[11px] text-slate-400 leading-relaxed">
+                                        Nginx giao tiếp với PHP thông qua UNIX domain socket (<code class="text-cyan-300 font-mono">/run/php/php{{ selectedSettingApp?.default_version }}-fpm.sock</code>).
+                                        File cấu hình pool <code class="text-amber-300 font-mono">www.conf</code> bên dưới quản lý tiến trình con (<code class="text-slate-300 font-mono">pm.max_children</code>), người dùng thực thi (<code class="text-slate-300 font-mono">listen.owner = www-data</code>) và hạn mức tài nguyên FastCGI.
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 font-mono text-[11px] truncate max-w-md">
+                                        📁 {{ appConfigPath }}
+                                    </span>
+                                    <button @click="loadAppConfig(selectedSettingApp.id, 'pool')" class="text-cyan-400 hover:underline text-[11px]">
+                                        Tải lại nội dung
+                                    </button>
+                                </div>
+                                <textarea v-model="appConfigContent"
+                                    class="flex-1 w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs focus:outline-none focus:border-cyan-500 resize-none h-72 custom-scrollbar leading-relaxed">
+                                </textarea>
+                                <div class="flex justify-between items-center pt-1">
+                                    <div class="text-[10px] text-slate-500 italic">
+                                        💡 Sau khi lưu pool config, hãy bấm nút "Khởi động lại PHP-FPM" để các thay đổi socket & worker có hiệu lực ngay lập tức.
+                                    </div>
+                                    <button @click="saveCurrentAppConfig('pool')" :disabled="savingConfig"
+                                        class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-white shadow-lg shadow-cyan-500/20 flex items-center space-x-1.5">
+                                        <span v-if="savingConfig" class="animate-spin">⏳</span>
+                                        <span>{{ savingConfig ? 'Đang lưu...' : 'Lưu Cấu Hình Pool' }}</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- TAB: INSTALL EXTENSIONS (CHUẨN HÌNH WPC) -->
+                            <div v-if="appSettingTab === 'extensions'" class="flex-1 flex flex-col space-y-3 min-h-[400px]">
+                                <div class="flex-1 overflow-y-auto custom-scrollbar border border-slate-800/80 rounded-xl bg-slate-950/60">
+                                    <table class="w-full text-left border-collapse text-xs">
+                                        <thead>
+                                            <tr class="border-b border-slate-800 bg-[#131720] text-slate-400 font-semibold">
+                                                <th class="py-2.5 px-4 w-32">Name</th>
+                                                <th class="py-2.5 px-4 w-40">Type</th>
+                                                <th class="py-2.5 px-4">Description</th>
+                                                <th class="py-2.5 px-4 w-20 text-center">Status</th>
+                                                <th class="py-2.5 px-4 w-24 text-right">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-800/60 font-normal text-slate-300">
+                                            <tr v-for="ext in phpExtensions" :key="ext.name" class="hover:bg-slate-900/40 transition">
+                                                <td class="py-2.5 px-4 font-bold text-white">{{ ext.name }}</td>
+                                                <td class="py-2.5 px-4 text-slate-400">{{ ext.type }}</td>
+                                                <td class="py-2.5 px-4 text-slate-400">{{ ext.desc }}</td>
+                                                <td class="py-2.5 px-4 text-center">
+                                                    <span v-if="ext.installed" class="text-emerald-400 font-bold text-sm">✔</span>
+                                                    <span v-else class="text-slate-500 font-bold text-sm">✖</span>
+                                                </td>
+                                                <td class="py-2.5 px-4 text-right">
+                                                    <button v-if="ext.installed" @click="togglePhpExtensionAction(selectedSettingApp.id, ext.pkg, 'remove')"
+                                                        class="text-rose-400 hover:text-rose-300 font-semibold hover:underline">
+                                                        Uninstall
+                                                    </button>
+                                                    <button v-else @click="togglePhpExtensionAction(selectedSettingApp.id, ext.pkg, 'install')"
+                                                        class="text-emerald-400 hover:text-emerald-300 font-semibold hover:underline">
+                                                        Install
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="text-[11px] text-slate-500 leading-relaxed pt-1">
+                                    • Pls install the extension according to the actual demand, do NOT install unnecessary PHP extension, this will affect the efficiency of PHP execution, and may even cause an exception.
+                                </div>
+                            </div>
+
+                            <!-- TAB: CONFIGURATION (DIRECTIVES FORM) -->
+                            <div v-if="appSettingTab === 'php_config' || appSettingTab === 'limit_upload' || appSettingTab === 'limit_timeout' || appSettingTab === 'optimization'" class="flex-1 flex flex-col justify-between space-y-4">
+                                <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-slate-300 font-bold mb-1">upload_max_filesize (Dung lượng tải lên tối đa)</label>
+                                            <input type="text" v-model="phpDirectives.upload_max_filesize" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-500">Mặc định: 50M hoặc 128M</span>
+                                        </div>
+                                        <div>
+                                            <label class="block text-slate-300 font-bold mb-1">post_max_size (Dung lượng dữ liệu POST)</label>
+                                            <input type="text" v-model="phpDirectives.post_max_size" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-500">Nên bằng hoặc lớn hơn upload_max_filesize</span>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-slate-300 font-bold mb-1">max_execution_time (Thời gian thực thi tối đa - giây)</label>
+                                            <input type="text" v-model="phpDirectives.max_execution_time" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-500">Khuyên dùng cho WordPress: 60 - 300</span>
+                                        </div>
+                                        <div>
+                                            <label class="block text-slate-300 font-bold mb-1">memory_limit (Giới hạn bộ nhớ RAM)</label>
+                                            <input type="text" v-model="phpDirectives.memory_limit" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-500">Khuyên dùng: 256M hoặc 512M</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex justify-end">
+                                    <button @click="savePhpDirectives(selectedSettingApp.id)" :disabled="savingDirectives"
+                                        class="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-white shadow-lg shadow-cyan-500/20">
+                                        {{ savingDirectives ? 'Đang lưu...' : 'Lưu Thay Đổi (Save)' }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- TAB: DISABLED FUNCTIONS -->
+                            <div v-if="appSettingTab === 'disabled_functions'" class="flex-1 flex flex-col justify-between space-y-4">
+                                <div class="space-y-2">
+                                    <label class="block text-slate-300 font-bold">Danh sách các hàm bị vô hiệu hóa (disable_functions):</label>
+                                    <textarea v-model="phpDirectives.disable_functions" rows="8"
+                                        class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs focus:border-cyan-500 custom-scrollbar leading-relaxed">
+                                    </textarea>
+                                    <p class="text-[10px] text-slate-500 leading-relaxed">
+                                        Các hàm phân cách bằng dấu phẩy. Vô hiệu hóa các hàm nhạy cảm (như passthru, exec, system, shell_exec, proc_open) giúp ngăn chặn hacker chiếm quyền server khi website bị khai thác lỗ hổng.
+                                    </p>
+                                </div>
+                                <div class="flex justify-end">
+                                    <button @click="savePhpDirectives(selectedSettingApp.id)" :disabled="savingDirectives"
+                                        class="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-white shadow-lg shadow-cyan-500/20">
+                                        {{ savingDirectives ? 'Đang lưu...' : 'Lưu Thay Đổi' }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- TAB: SESSION CONFIGURATION & LOAD AVERAGE -->
+                            <div v-if="appSettingTab === 'session_config' || appSettingTab === 'load_average'" class="space-y-4">
+                                <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                                    <div class="text-sm font-bold text-white">Cấu hình Session & Runtime Storage</div>
+                                    <div class="text-slate-400 text-xs">
+                                        • Session save handler: <span class="text-cyan-400 font-mono">files</span> (hoặc redis)<br>
+                                        • Session save path: <span class="text-cyan-400 font-mono">/var/lib/php/sessions</span><br>
+                                        • Session GC maxlifetime: <span class="text-cyan-400 font-mono">1440 giây (24 phút)</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- TAB: LOGS & SLOW LOG -->
+                            <div v-if="appSettingTab === 'php_logs' || appSettingTab === 'slow_log'" class="space-y-3">
+                                <div class="text-slate-400 font-mono text-[11px]">📁 /var/log/php{{ selectedSettingApp?.default_version }}-fpm.log</div>
+                                <div class="p-3 rounded-xl bg-slate-950 font-mono text-[11px] text-slate-300 border border-slate-800 h-80 overflow-y-auto custom-scrollbar">
+                                    <div>[notice] fpm is running, pid 1120</div>
+                                    <div>[notice] ready to handle connections</div>
+                                    <div>[notice] systemd monitor operational</div>
+                                </div>
+                            </div>
+
+                            <!-- TAB: PHPINFO -->
+                            <div v-if="appSettingTab === 'phpinfo'" class="flex-1 flex flex-col space-y-3 min-h-[400px]">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 font-mono text-[11px]">PHP Info Dump (CLI / FPM Runtime)</span>
+                                    <button @click="fetchPhpInfo(selectedSettingApp.id)" class="text-cyan-400 hover:underline text-[11px]">
+                                        Tải lại
+                                    </button>
+                                </div>
+                                <textarea :value="phpInfoContent" readonly
+                                    class="flex-1 w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[11px] h-80 resize-none custom-scrollbar leading-relaxed">
+                                </textarea>
+                            </div>
+
+                            <!-- TAB 3: TỰ KHỞI ĐỘNG LẠI (AUTORESTART) -->
+                            <div v-if="appSettingTab === 'autorestart'" class="space-y-4">
+                                <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                    <h4 class="font-bold text-white text-sm">Chế độ tự động phục hồi dịch vụ (Systemd Auto-Restart)</h4>
+                                    <p class="text-slate-400 text-xs leading-relaxed">
+                                        Khi được kích hoạt, máy chủ Linux sẽ tự động khởi động lại dịch vụ này khi hệ thống reboot hoặc khi ứng dụng bị crash / tắt đột ngột (systemctl enable).
+                                    </p>
+                                    <div class="pt-2 flex items-center space-x-3">
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" :checked="selectedSettingApp?.autorestart" @change="toggleAppAutorestart(selectedSettingApp, $event.target.checked)" class="sr-only peer">
+                                            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                                        </label>
+                                        <span class="text-white font-medium">
+                                            {{ selectedSettingApp?.autorestart ? 'Đang BẬT tự khởi động cùng hệ thống' : 'Đang TẮT tự khởi động' }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- TAB 4: SERVICE LOGS / STATUS -->
+                            <div v-if="appSettingTab === 'logs'" class="space-y-3">
+                                <div class="text-slate-400">Trạng thái chi tiết dịch vụ:</div>
+                                <div class="p-3 rounded-xl bg-slate-950 font-mono text-[11px] text-slate-300 border border-slate-800 space-y-1">
+                                    <div>● Service: {{ selectedSettingApp?.service }}</div>
+                                    <div>● Status: {{ selectedSettingApp?.running ? 'active (running)' : 'inactive (dead)' }}</div>
+                                    <div>● Version: {{ selectedSettingApp?.default_version }}</div>
+                                    <div>● Binary checks: {{ selectedSettingApp?.binary_checks?.join(', ') }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: CẬP NHẬT PHIÊN BẢN WPCLOUD CONTROL PANEL -->
+            <div v-if="showUpdateModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative border border-slate-200">
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-lg font-bold">
+                                🔄
+                            </div>
+                            <h3 class="text-base font-bold text-slate-800">Cập Nhật WPCloud Panel</h3>
+                        </div>
+                        <button v-if="!isUpdating" @click="showUpdateModal = false" class="text-slate-400 hover:text-slate-700 text-xl font-bold">&times;</button>
+                    </div>
+
+                    <div class="space-y-4 text-xs">
+                        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 space-y-2.5">
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-500 font-medium">Phiên bản hiện tại:</span>
+                                <span class="font-mono text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">v0.4.13</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-500 font-medium">Kênh cập nhật:</span>
+                                <span class="text-emerald-600 font-mono font-semibold">GitHub Official (main)</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-500 font-medium">Bảo toàn dữ liệu:</span>
+                                <span class="text-emerald-600 font-semibold">100% (DB & Websites an toàn)</span>
+                            </div>
+                        </div>
+
+                        <div v-if="isUpdating" class="p-5 rounded-xl bg-blue-50/80 border border-blue-200 text-center space-y-2">
+                            <div class="text-2xl animate-spin text-blue-600">⚡</div>
+                            <div class="font-bold text-slate-800 text-sm">Đang Tiến Hành Cập Nhật...</div>
+                            <p class="text-slate-600 text-[11px] leading-relaxed">Hệ thống đang kéo mã nguồn mới nhất, biên dịch C Gatekeepers và khởi động lại dịch vụ.</p>
+                            <div class="text-blue-600 font-mono text-xs pt-1 font-semibold">Tự động tải lại trang sau {{ updateCountdown }} giây...</div>
+                        </div>
+
+                        <div v-else class="text-slate-500 text-[11px] leading-relaxed">
+                            Nhấn nút bên dưới để cập nhật mã nguồn mới nhất, bổ sung tính năng và bản vá bảo mật từ GitHub. Hệ thống sẽ tự động khởi động lại dịch vụ sau khi hoàn tất.
+                        </div>
+
+                        <div v-if="!isUpdating" class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+                            <button type="button" @click="showUpdateModal = false" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium transition">Đóng</button>
+                            <button type="button" @click="handlePanelUpdate" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-md shadow-blue-500/20 transition flex items-center space-x-1.5">
+                                <span>⚡</span> <span>Bắt Đầu Cập Nhật</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: MESSAGES BOX & TASK LIST (WPCLOUD LIGHT STYLE) -->
+            <div v-if="showMessagesBox" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col border border-slate-200 h-[550px]">
+                    <!-- Header -->
+                    <div class="h-14 px-6 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="text-xl">📋</span>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800 tracking-wide">Messages Box & Tiến Trình</h3>
+                                <p class="text-[11px] text-slate-500">Xem các tác vụ đang chạy ngầm, lịch sử tiến trình và execution log</p>
+                            </div>
+                        </div>
+                        <button @click="showMessagesBox = false" class="text-slate-400 hover:text-slate-700 text-2xl font-bold p-1 leading-none">&times;</button>
+                    </div>
+
+                    <!-- Body: 2 Columns Layout -->
+                    <div class="flex-1 flex min-h-0 bg-white">
+                        <!-- Left Sidebar Tabs -->
+                        <div class="w-52 bg-slate-50 border-r border-slate-200 p-3 space-y-1.5 shrink-0 text-xs font-medium">
+                            <button @click="msgBoxTab = 'tasks'"
+                                class="w-full text-left px-3.5 py-2.5 rounded-xl transition flex items-center justify-between font-semibold"
+                                :class="msgBoxTab === 'tasks' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'">
+                                <span>Task list ({{ runningTasks.length }})</span>
+                                <span v-if="runningTasks.length > 0" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            </button>
+                            <button @click="msgBoxTab = 'messages'"
+                                class="w-full text-left px-3.5 py-2.5 rounded-xl transition font-semibold"
+                                :class="msgBoxTab === 'messages' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'">
+                                <span>Message list ({{ completedTasks.length }})</span>
+                            </button>
+                            <button @click="msgBoxTab = 'log'"
+                                class="w-full text-left px-3.5 py-2.5 rounded-xl transition font-semibold"
+                                :class="msgBoxTab === 'log' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'">
+                                <span>Execution log</span>
+                            </button>
+                        </div>
+
+                        <!-- Right Content Panel -->
+                        <div class="flex-1 bg-white p-6 overflow-y-auto custom-scrollbar flex flex-col justify-between">
+                            
+                            <!-- TAB 1: TASK LIST (TIẾN TRÌNH ĐANG CHẠY NGẦM) -->
+                            <div v-if="msgBoxTab === 'tasks'" class="h-full flex flex-col">
+                                <!-- Empty State -->
+                                <div v-if="runningTasks.length === 0" class="my-auto text-center py-12 flex flex-col items-center justify-center space-y-3">
+                                    <div class="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-3xl">
+                                        📦
+                                    </div>
+                                    <div class="text-sm font-bold text-slate-700">Currently no tasks!</div>
+                                    <p class="text-xs text-slate-500 max-w-xs">Không có tác vụ nào đang chạy ngầm trong hệ thống.</p>
+                                </div>
+
+                                <!-- Tasks List (Khi có tiến trình) -->
+                                <div v-else class="space-y-3">
+                                    <div v-for="t in runningTasks" :key="t.id"
+                                        class="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between shadow-sm">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="text-xl animate-spin text-blue-600">⚡</div>
+                                            <div>
+                                                <div class="text-xs font-bold text-slate-800">{{ t.action }}</div>
+                                                <div class="text-[11px] text-slate-500 font-mono mt-0.5">Khởi tạo: {{ t.created_at }}</div>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <button @click="viewTaskLog(t.id)" class="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-bold transition">
+                                                Xem Log
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- TAB 2: MESSAGE LIST (LỊCH SỬ TÁC VỤ HOÀN THÀNH) -->
+                            <div v-if="msgBoxTab === 'messages'" class="h-full flex flex-col">
+                                <div v-if="completedTasks.length === 0" class="my-auto text-center py-12 text-slate-400 text-xs">
+                                    Chưa có lịch sử tác vụ nào được lưu lại.
+                                </div>
+                                <div v-else class="overflow-x-auto">
+                                    <table class="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr class="border-b border-slate-200 text-slate-500 font-bold bg-slate-50">
+                                                <th class="py-2.5 px-3">Name</th>
+                                                <th class="py-2.5 px-3">Creation time</th>
+                                                <th class="py-2.5 px-3">Time Consumption</th>
+                                                <th class="py-2.5 px-3 text-right">Operate</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100 font-mono">
+                                            <tr v-for="t in completedTasks" :key="t.id" class="hover:bg-slate-50 transition">
+                                                <td class="py-2.5 px-3 flex items-center space-x-2">
+                                                    <span :class="t.status === 'completed' ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'">
+                                                        {{ t.status === 'completed' ? '✓' : '✗' }}
+                                                    </span>
+                                                    <span class="text-slate-800 font-sans font-medium">{{ t.action }}</span>
+                                                </td>
+                                                <td class="py-2.5 px-3 text-slate-500">{{ t.created_at }}</td>
+                                                <td class="py-2.5 px-3 text-slate-600">{{ t.time_consumption || '12s' }}</td>
+                                                <td class="py-2.5 px-3 text-right">
+                                                    <button @click="viewTaskLog(t.id)" class="text-blue-600 hover:text-blue-700 font-bold">
+                                                        Detail
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- TAB 3: EXECUTION LOG (TERMINAL LOG TRỰC TIẾP) -->
+                            <div v-if="msgBoxTab === 'log'" class="h-full flex flex-col space-y-2">
+                                <div class="flex justify-between items-center text-xs text-slate-500 pb-1">
+                                    <span class="font-mono">Task ID: <b class="text-slate-800">{{ selectedTaskId || 'N/A' }}</b></span>
+                                    <button @click="refreshSelectedLog" class="text-blue-600 hover:underline flex items-center gap-1 font-mono font-medium">
+                                        <span>🔄 Làm mới log</span>
+                                    </button>
+                                </div>
+                                <div class="flex-1 bg-slate-900 rounded-xl p-4 font-mono text-xs text-slate-200 overflow-y-auto custom-scrollbar border border-slate-800 whitespace-pre-wrap select-text leading-relaxed">
+{{ selectedTaskLog || 'Loading...' }}
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>

@@ -1,0 +1,154 @@
+                    <div v-if="currentTab === 'customers'" class="space-y-6 max-w-7xl mx-auto">
+                        <!-- Action Bar -->
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+                                    <span>👤</span> <span>Quản Lý Hosting Users (Khách Hàng)</span>
+                                </h2>
+                                <p class="text-xs text-slate-500 mt-1">Hosting User chỉ đăng nhập Web Control Panel (không SSH). Quản lý nhiều gói website, database và database user.</p>
+                            </div>
+                            <button @click="showAddCustomerModal = true; fetchServicePlans();" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-md shadow-blue-500/20 transition flex items-center space-x-2">
+                                <span>➕ Thêm Hosting User</span>
+                            </button>
+                        </div>
+
+                        <!-- WPC Style Toolbar for Customers -->
+                        <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button @click="showAddCustomerModal = true; fetchServicePlans();"
+                                    class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white shadow-sm transition flex items-center space-x-1.5">
+                                    <span>➕ Add Hosting User</span>
+                                </button>
+                                <button @click="currentTab = 'service_plans'"
+                                    class="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 font-medium text-xs text-slate-700 border border-slate-200 transition flex items-center space-x-1.5">
+                                    <span>📋 Service Plans</span>
+                                </button>
+                                
+                                <!-- Set Status Dropdown -->
+                                <div class="relative">
+                                    <button @click="showCustomerStatusMenu = !showCustomerStatusMenu"
+                                        :disabled="selectedCustomerIds.length === 0"
+                                        :class="selectedCustomerIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-50 text-slate-400 border border-slate-200' : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'"
+                                        class="px-3.5 py-2 rounded-xl text-xs font-medium transition flex items-center space-x-1">
+                                        <span>⚙️ Set Status</span>
+                                        <span class="text-[10px]">▼</span>
+                                    </button>
+                                    <div v-if="showCustomerStatusMenu" class="absolute left-0 mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-xl py-1 z-30">
+                                        <button @click="handleSetCustomerStatus('active')" class="w-full text-left px-3 py-2 text-xs text-emerald-600 hover:bg-slate-50 flex items-center space-x-1.5 font-medium">
+                                            <span>●</span> <span>Active</span>
+                                        </button>
+                                        <button @click="handleSetCustomerStatus('suspended')" class="w-full text-left px-3 py-2 text-xs text-rose-600 hover:bg-slate-50 flex items-center space-x-1.5 font-medium">
+                                            <span>●</span> <span>Suspended</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button @click="handleBatchDeleteCustomers"
+                                    :disabled="selectedCustomerIds.length === 0"
+                                    :class="selectedCustomerIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-50 text-slate-400 border border-slate-200' : 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200'"
+                                    class="px-3.5 py-2 rounded-xl text-xs font-medium transition flex items-center space-x-1">
+                                    <span>🗑️ Remove</span>
+                                    <span v-if="selectedCustomerIds.length > 0" class="text-[10px] font-mono font-bold">({{ selectedCustomerIds.length }})</span>
+                                </button>
+                            </div>
+                            <div class="text-[11px] text-slate-500 font-mono">
+                                {{ customers.length }} items total
+                            </div>
+                        </div>
+
+                        <!-- Bảng danh sách Customer -->
+                        <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200/90">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs text-slate-600">
+                                    <thead class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                        <tr>
+                                            <th class="py-3.5 px-3 w-10 text-center">
+                                                <input type="checkbox" :checked="isAllCustomersSelected" @change="toggleSelectAllCustomers"
+                                                    class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500">
+                                            </th>
+                                            <th class="py-3.5 px-4">Tài Khoản</th>
+                                            <th class="py-3.5 px-4">Gói Dịch Vụ</th>
+                                            <th class="py-3.5 px-4">Email Liên Hệ</th>
+                                            <th class="py-3.5 px-4">Số Websites</th>
+                                            <th class="py-3.5 px-4">Hạn Mức Tài Nguyên</th>
+                                            <th class="py-3.5 px-4">Trạng Thái</th>
+                                            <th class="py-3.5 px-4 text-right">Thao Tác</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100">
+                                        <tr v-if="customers.length === 0">
+                                            <td colspan="8" class="py-12 text-center text-slate-400">
+                                                <div class="text-3xl mb-2">👥</div>
+                                                <div class="font-semibold text-slate-700">Chưa có tài khoản Hosting User nào</div>
+                                                <div class="text-[11px] text-slate-400 mt-1">Bấm nút "➕ Add Hosting User" ở trên để tạo người dùng đầu tiên.</div>
+                                            </td>
+                                        </tr>
+                                        <tr v-for="c in customers" :key="c.id" :class="selectedCustomerIds.includes(c.id) ? 'bg-blue-50/40' : 'hover:bg-slate-50/80'" class="transition">
+                                            <td class="py-4 px-3 text-center">
+                                                <input type="checkbox" :value="c.id" v-model="selectedCustomerIds"
+                                                    class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500">
+                                            </td>
+                                            <td class="py-4 px-4 font-medium text-slate-800 flex items-center space-x-2.5">
+                                                <div class="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center font-bold text-xs shadow-inner">
+                                                    {{ c.username.slice(0, 2).toUpperCase() }}
+                                                </div>
+                                                <div>
+                                                    <div class="font-bold text-slate-800">{{ c.username }}</div>
+                                                    <div class="text-[10px] text-slate-400 font-mono">Web Panel User (No SSH)</div>
+                                                </div>
+                                            </td>
+                                            <td class="py-4 px-4 font-semibold text-blue-600">
+                                                <div class="flex items-center space-x-2">
+                                                    <span>{{ c.package_name || 'Standard Plan' }}</span>
+                                                    <button @click="openChangePlanModal(c)" 
+                                                        title="Đổi gói Hosting Plan"
+                                                        class="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition">
+                                                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                            <td class="py-4 px-4 text-slate-500">{{ c.email }}</td>
+                                            <td class="py-4 px-4">
+                                                <span class="px-2.5 py-1 rounded-full font-mono text-[11px] font-semibold"
+                                                    :class="c.domain_count > 0 ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-500'">
+                                                    {{ c.domain_count }} sites
+                                                </span>
+                                            </td>
+                                            <td class="py-4 px-4 font-mono text-[11px] text-slate-600">
+                                                <div class="flex items-center space-x-2">
+                                                    <span title="Dung lượng ổ cứng">💾 {{ (c.disk_mb / 1024).toFixed(1) }}GB</span>
+                                                    <span class="text-slate-300">|</span>
+                                                    <span title="RAM">⚡ {{ c.mem_mb }}MB</span>
+                                                    <span class="text-slate-300">|</span>
+                                                    <span title="CPU">🖥️ {{ c.cpu_pct }}%</span>
+                                                </div>
+                                            </td>
+                                            <td class="py-4 px-4">
+                                                <span class="px-2.5 py-1 rounded-full text-[10px] font-semibold"
+                                                    :class="c.status === 'active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'">
+                                                    ● {{ c.status === 'active' ? 'Hoạt động' : 'Đã khóa' }}
+                                                </span>
+                                            </td>
+                                            <td class="py-4 px-4 text-right">
+                                                <div class="flex items-center justify-end space-x-2">
+                                                    <!-- Nút Đổi Plan -->
+                                                    <button @click="openChangePlanModal(c)"
+                                                        class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs border border-slate-200 transition flex items-center space-x-1"
+                                                        title="Đổi gói Service Plan">
+                                                        <i data-lucide="package" class="w-3.5 h-3.5 text-blue-600"></i>
+                                                        <span>Đổi Plan</span>
+                                                    </button>
+                                                    <!-- Nút Chức Năng Cốt Lõi: LOGIN AS USER -->
+                                                    <button @click="impersonateUser(c)"
+                                                        class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition flex items-center space-x-1.5">
+                                                        <span>🔑</span>
+                                                        <span>Login as user</span>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>

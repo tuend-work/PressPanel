@@ -1,0 +1,88 @@
+                    <div v-if="currentTab === 'databases'" class="space-y-6 max-w-7xl mx-auto">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+                                    <span>🗃️</span> <span>Quản Lý Cơ Sở Dữ Liệu (Databases & DB Users)</span>
+                                </h2>
+                                <p class="text-xs text-slate-500 mt-1">Hosting User có toàn quyền tạo CSDL MariaDB/MySQL, cấp quyền DB User tương ứng cho các website trong gói.</p>
+                            </div>
+                            <button @click="alert('Mở hộp thoại tạo Database mới chuẩn MariaDB/MySQL')" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-md shadow-blue-500/20 transition flex items-center space-x-2">
+                                <span>➕ Thêm Database Mới</span>
+                            </button>
+                        </div>
+
+                        <!-- Databases Toolbar -->
+                        <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
+                            <div class="flex items-center gap-2">
+                                <button class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white shadow-sm transition flex items-center space-x-1.5">
+                                    <span>➕ Add Database</span>
+                                </button>
+                                <div class="flex items-center gap-1.5">
+                                    <button v-if="getApp('phpmyadmin').installed" @click="openPhpMyAdmin" class="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 font-semibold text-xs text-amber-700 border border-amber-200 transition flex items-center space-x-1.5 shadow-sm" title="Mở giao diện quản trị phpMyAdmin">
+                                        <span>🐬 Mở phpMyAdmin</span>
+                                    </button>
+                                    <button v-else @click="handleAppAction('phpmyadmin', 'install')" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-sm transition flex items-center space-x-1.5" title="Cài đặt phpMyAdmin 1-Click">
+                                        <span>⚡ Cài đặt phpMyAdmin</span>
+                                    </button>
+                                    <button v-if="getApp('phpmyadmin').installed" @click="handleAppAction('phpmyadmin', 'install')" class="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 font-medium text-xs text-slate-600 border border-slate-200 transition flex items-center justify-center" title="Cài lại / Nâng cấp phpMyAdmin">
+                                        <span>🔄 Cài lại</span>
+                                    </button>
+                                    <button v-if="getApp('phpmyadmin').installed" @click="handleAppAction('phpmyadmin', 'uninstall')" class="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 font-medium text-xs text-rose-600 border border-rose-200 transition flex items-center justify-center" title="Gỡ cài đặt phpMyAdmin">
+                                        <span>🗑️ Gỡ</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="text-xs text-slate-500 font-mono flex items-center gap-2">
+                                <span>MariaDB 10.11 (Port 3306)</span>
+                                <span v-if="getApp('phpmyadmin').installed" class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px]">PMA: Port 888</span>
+                            </div>
+                        </div>
+
+                        <!-- Databases Table -->
+                        <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200/90">
+                            <table class="w-full text-left text-xs text-slate-600">
+                                <thead class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <tr>
+                                        <th class="py-3.5 px-4">Database Name</th>
+                                        <th class="py-3.5 px-4">Database User</th>
+                                        <th class="py-3.5 px-4">Gán Cho Website</th>
+                                        <th class="py-3.5 px-4">Charset / Collation</th>
+                                        <th class="py-3.5 px-4">Dung Lượng</th>
+                                        <th class="py-3.5 px-4 text-right">Thao Tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    <tr v-if="domains.length === 0">
+                                        <td colspan="6" class="py-12 text-center text-slate-400">
+                                            <div class="text-3xl mb-2">🗄️</div>
+                                            <div class="font-semibold text-slate-700">Chưa có Database nào được khởi tạo</div>
+                                            <div class="text-[11px] text-slate-400 mt-1">Bấm nút "➕ Thêm Database Mới" để tạo CSDL MariaDB cho website.</div>
+                                        </td>
+                                    </tr>
+                                    <tr v-for="d in domains" :key="'db_' + d.id" class="hover:bg-slate-50/80 transition">
+                                        <td class="py-4 px-4 font-mono font-bold text-slate-800 flex items-center space-x-2">
+                                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                                            <span>wp_{{ d.domain_name.replace(/[^a-z0-9]/g, '').slice(0, 10) }}</span>
+                                        </td>
+                                        <td class="py-4 px-4 font-mono text-slate-600">
+                                            usr_{{ d.domain_name.replace(/[^a-z0-9]/g, '').slice(0, 10) }}
+                                        </td>
+                                        <td class="py-4 px-4 font-semibold text-blue-600">
+                                            {{ d.domain_name }}
+                                        </td>
+                                        <td class="py-4 px-4 font-mono text-[11px] text-slate-500">
+                                            utf8mb4_unicode_ci
+                                        </td>
+                                        <td class="py-4 px-4 font-mono text-[11px] text-slate-600">
+                                            2.4 MB
+                                        </td>
+                                        <td class="py-4 px-4 text-right space-x-2">
+                                            <button @click="alert('Sao lưu Database')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium">Backup</button>
+                                            <button @click="alert('Cấu hình quyền DB User')" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium">Quyền User</button>
+                                            <button @click="alert('Kiểm tra hoặc tối ưu database')" class="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-medium">Tối Ưu</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
