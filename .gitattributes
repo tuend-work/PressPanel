@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+*.sh text eol=lf
+scripts/wpc text eol=lf
+scripts/presspanel text eol=lf
+
