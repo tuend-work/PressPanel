@@ -123,6 +123,18 @@ async def terminal_websocket(
         "LANG": "en_US.UTF-8"
     }
 
+    def _setup_child_terminal(fd):
+        def _preexec():
+            # Tạo process group / session mới và gắn slave PTY làm controlling tty
+            os.setsid()
+            try:
+                import fcntl
+                import termios
+                fcntl.ioctl(fd, termios.TIOCSCTTY, 0)
+            except Exception:
+                pass
+        return _preexec
+
     try:
         proc = await asyncio.create_subprocess_exec(
             *shell_cmd,
@@ -131,6 +143,7 @@ async def terminal_websocket(
             stderr=slave_fd,
             cwd=home_dir if os.path.exists(home_dir) else "/",
             env=env,
+            preexec_fn=_setup_child_terminal(slave_fd),
             close_fds=True
         )
     except Exception as e:
@@ -144,6 +157,7 @@ async def terminal_websocket(
                 stderr=slave_fd,
                 cwd=home_dir if os.path.exists(home_dir) else "/",
                 env=env,
+                preexec_fn=_setup_child_terminal(slave_fd),
                 close_fds=True
             )
         except Exception as fe:

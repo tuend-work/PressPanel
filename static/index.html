@@ -5010,6 +5010,29 @@
                         }
                     });
 
+                    // Xử lý phím tắt Terminal (đặc biệt là Ctrl + C để ngắt tiến trình)
+                    xtermInstance.attachCustomKeyEventHandler((event) => {
+                        // Nếu bấm Ctrl + C
+                        if (event.ctrlKey && (event.key === 'c' || event.key === 'C' || event.code === 'KeyC') && event.type === 'keydown') {
+                            // Nếu người dùng đang bôi đen text -> Cho phép trình duyệt copy (không gửi ngắt)
+                            if (xtermInstance.hasSelection()) {
+                                return true;
+                            }
+                            // Không bôi đen text -> Gửi ký tự ngắt ETX (Ctrl+C: \x03) tới PTY và ngăn chặn mặc định của trình duyệt
+                            if (terminalSocket && terminalSocket.readyState === WebSocket.OPEN) {
+                                terminalSocket.send('\x03');
+                            }
+                            return false;
+                        }
+
+                        // Nếu bấm Ctrl + V khi không có clipboard handler đặc thù -> cho phép mặc định
+                        if (event.ctrlKey && (event.key === 'v' || event.key === 'V' || event.code === 'KeyV')) {
+                            return true;
+                        }
+
+                        return true;
+                    });
+
                     // Resize listener
                     window.addEventListener('resize', handleTerminalResize);
                 };
