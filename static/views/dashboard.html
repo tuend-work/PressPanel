@@ -210,6 +210,84 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- 3. QUẢN LÝ WEBSITE PLANS CỦA HOSTING USER (Dành cho việc tạo gói website lẻ) -->
+                            <div class="wp-card p-5 space-y-4">
+                                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100">
+                                    <div>
+                                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                            <span>🌐</span>
+                                            <span>Gói Website Của Bạn (Website Plans)</span>
+                                        </h3>
+                                        <p class="text-xs text-slate-500 mt-0.5">Tạo và phân bổ hạn mức riêng cho từng Website trong tổng tài nguyên được cấp của tài khoản.</p>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <button @click="showAddPlanModal = true" class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition flex items-center gap-1.5">
+                                            <span>➕ Tạo Website Plan</span>
+                                        </button>
+                                        <button @click="currentTab = 'service_plans'" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium border border-slate-200 transition">
+                                            Xem tất cả &rarr;
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Danh sách các Website Plan hiện có -->
+                                <div v-if="websitePlans.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
+                                    <div v-for="plan in websitePlans" :key="plan.id" class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-blue-400 hover:shadow-sm transition flex flex-col justify-between space-y-3">
+                                        <div>
+                                            <div class="flex justify-between items-start">
+                                                <div class="flex items-center space-x-2">
+                                                    <span class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm font-bold">
+                                                        🌐
+                                                    </span>
+                                                    <div>
+                                                        <h4 class="font-bold text-slate-800 text-xs">{{ plan.name }}</h4>
+                                                        <span class="text-[10px] text-slate-400 font-mono">ID: #{{ plan.id }}</span>
+                                                    </div>
+                                                </div>
+                                                <span class="text-[9px] font-mono px-2 py-0.5 rounded-full font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    Website Plan
+                                                </span>
+                                            </div>
+
+                                            <div class="mt-3 grid grid-cols-3 gap-2 text-center">
+                                                <div class="bg-white p-2 rounded-lg border border-slate-100">
+                                                    <div class="text-[10px] text-slate-400">Ổ Cứng</div>
+                                                    <div class="text-xs font-bold text-blue-600 font-mono mt-0.5">{{ (plan.disk_mb / 1024).toFixed(1) }}GB</div>
+                                                </div>
+                                                <div class="bg-white p-2 rounded-lg border border-slate-100">
+                                                    <div class="text-[10px] text-slate-400">RAM</div>
+                                                    <div class="text-xs font-bold text-slate-700 font-mono mt-0.5">{{ plan.mem_mb }}MB</div>
+                                                </div>
+                                                <div class="bg-white p-2 rounded-lg border border-slate-100">
+                                                    <div class="text-[10px] text-slate-400">CPU</div>
+                                                    <div class="text-xs font-bold text-slate-700 font-mono mt-0.5">{{ plan.cpu_pct }}%</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                                            <span class="flex items-center gap-1">
+                                                <i data-lucide="terminal" class="w-3 h-3 text-slate-400"></i>
+                                                <span>SSH:</span>
+                                                <b :class="plan.allow_ssh ? 'text-emerald-600' : 'text-slate-400'">{{ plan.allow_ssh ? 'Bật' : 'Tắt' }}</b>
+                                            </span>
+                                            <span class="font-mono text-slate-600">
+                                                {{ plan.subscriber_count || 0 }} website dùng
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div v-else class="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                    <div class="text-2xl mb-1">📦</div>
+                                    <div class="text-xs font-bold text-slate-700">Chưa có Website Plan nào</div>
+                                    <p class="text-[11px] text-slate-400 mt-0.5 max-w-sm mx-auto">Tạo Website Plan để phân bổ thông số CPU, RAM, Dung lượng riêng cho từng website khi tạo mới.</p>
+                                    <button @click="showAddPlanModal = true" class="mt-3 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium shadow-sm transition">
+                                        ➕ Tạo Website Plan đầu tiên
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- ========================================== -->
