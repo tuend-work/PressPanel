@@ -102,10 +102,16 @@ if [ -f /etc/sudoers.d/presspanel ]; then
 fi
 
 # 7. Đăng ký & Khởi động lại dịch vụ
-echo "[+] Đăng ký và khởi động lại dịch vụ WPCloud Control Panel..."
-if [ -f "$TMP_DIR/systemd/presspanel.service" ]; then
+echo "[+] Đăng ký và cập nhật dịch vụ systemd wpc (và alias presspanel)..."
+if [ -f "$TMP_DIR/systemd/wpc.service" ]; then
+    cp "$TMP_DIR/systemd/wpc.service" /etc/systemd/system/wpc.service
+    cp "$TMP_DIR/systemd/wpc.service" /etc/systemd/system/presspanel.service
+elif [ -f "$TMP_DIR/systemd/presspanel.service" ]; then
     cp "$TMP_DIR/systemd/presspanel.service" /etc/systemd/system/presspanel.service
+    cp "$TMP_DIR/systemd/presspanel.service" /etc/systemd/system/wpc.service
 fi
+systemctl daemon-reload 2>/dev/null || true
+systemctl enable wpc presspanel 2>/dev/null || systemctl enable wpc 2>/dev/null || true
 
 # Cấu hình drop-in override tự động gán Cgroup cho tất cả các phiên bản PHP-FPM đang có
 for php_svc in /lib/systemd/system/php*-fpm.service /etc/systemd/system/php*-fpm.service; do
@@ -204,6 +210,6 @@ PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null | 
 
 echo "=========================================================="
 echo "   CẬP NHẬT THÀNH CÔNG LÊN PHIÊN BẢN: $NEW_VER           "
-echo "   Trạng thái dịch vụ: $(systemctl is-active presspanel) "
+echo "   Trạng thái dịch vụ: $(systemctl is-active wpc 2>/dev/null || systemctl is-active presspanel) "
 echo "   Giao diện quản trị: http://<IP_MAY_CHU>:$PANEL_PORT   "
 echo "=========================================================="

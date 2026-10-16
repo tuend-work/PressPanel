@@ -12,6 +12,7 @@ class DomainCreate(BaseModel):
     webserver: str = "ols"
     php_version: str = "8.2"
     install_wp: bool = False
+    package_id: Optional[int] = None
 
 import re
 from typing import Optional
@@ -111,16 +112,27 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
     # Áp dụng giới hạn Cgroups v2 cho Linux User của website này
     u_cpu = current_user.get("cpu_pct", 100) or 100
     u_mem = current_user.get("mem_mb", 1024) or 1024
+    pkg_id = req.package_id
+    pkg_allow_ssh = 1
+
+    if req.package_id:
+        p_cur = await db.execute("SELECT cpu_pct, mem_mb, disk_mb, allow_ssh FROM packages WHERE id = ?", (req.package_id,))
+        wpkg = await p_cur.fetchone()
+        if wpkg:
+            u_cpu = min(u_cpu, wpkg["cpu_pct"])
+            u_mem = min(u_mem, wpkg["mem_mb"])
+            pkg_allow_ssh = wpkg["allow_ssh"]
+
     reseller_id = str(current_user.get("parent_id", 1) or 1)
     await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
     # Đảm bảo slice của Hosting user cha cũng được cập nhật hạn mức
-    await run_gatekeeper("cgroup", "set-user", reseller_id, hosting_username, str(u_cpu), str(u_mem), "100", "100")
+    await run_gatekeeper("cgroup", "set-user", reseller_id, hosting_username, str(current_user.get("cpu_pct", 100) or 100), str(current_user.get("mem_mb", 1024) or 1024), "100", "100")
 
     try:
         await db.execute("""
-            INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version)
-            VALUES (?, ?, ?, ?, ?)
-        """, (current_user["id"], clean_domain, doc_root, active_ws, req.php_version))
+            INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version, package_id, allow_ssh)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (current_user["id"], clean_domain, doc_root, active_ws, req.php_version, pkg_id, pkg_allow_ssh))
         await db.commit()
     except Exception as e:
         await db.close()

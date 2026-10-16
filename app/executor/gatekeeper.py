@@ -1,4 +1,5 @@
 import asyncio
+import os
 import json
 import logging
 from typing import Optional, Dict, Any
@@ -10,7 +11,9 @@ async def run_gatekeeper(module: str, *args, stdin_data: Optional[str] = None) -
     Thực thi an toàn một trong 8 C gatekeeper tại /opt/presspanel/bin/<module>
     Truyền tham số và đọc dữ liệu JSON chuẩn từ stdout/stderr.
     """
-    binary_path = f"/opt/presspanel/bin/{module}"
+    binary_path = f"/opt/wpc/bin/{module}"
+    if not os.path.exists(binary_path) and os.path.exists(f"/opt/presspanel/bin/{module}"):
+        binary_path = f"/opt/presspanel/bin/{module}"
     cmd = [binary_path] + [str(a) for a in args]
 
     try:

@@ -6,7 +6,8 @@ set -uo pipefail
 
 ACTION="${1:-install}"
 VERSION="${2:-latest}"
-TARGET_DIR="/opt/presspanel/apps/phpmyadmin"
+TARGET_DIR="/opt/wpc/apps/phpmyadmin"
+[ -d "/opt/presspanel/apps/phpmyadmin" ] && [ ! -d "/opt/wpc/apps/phpmyadmin" ] && TARGET_DIR="/opt/presspanel/apps/phpmyadmin"
 PMA_PORT="888"
 
 detect_php_version() {
@@ -98,8 +99,8 @@ EOF
         # Cấp quyền đọc và thực thi toàn cục cho thư mục phpMyAdmin để mọi webserver (www-data, nobody, wpc) đều đọc được
         chmod -R a+rX "$TARGET_DIR" 2>/dev/null || true
         chown -R www-data:www-data "$TARGET_DIR" 2>/dev/null || chown -R nobody:nogroup "$TARGET_DIR" 2>/dev/null || chown -R wpc:wpc "$TARGET_DIR" 2>/dev/null || true
-        # Đảm bảo các thư mục cha /opt, /opt/presspanel, /opt/presspanel/apps có quyền +x cho other
-        chmod a+x /opt /opt/presspanel /opt/presspanel/apps 2>/dev/null || true
+        # Đảm bảo các thư mục cha /opt, /opt/wpc, /opt/presspanel có quyền +x cho other
+        chmod a+x /opt /opt/wpc /opt/wpc/apps /opt/presspanel /opt/presspanel/apps 2>/dev/null || true
 
         # 3. Cấu hình VirtualHost / Alias cho Webserver (Nginx & OpenLiteSpeed)
         ACTIVE_PHP=$(detect_php_version)

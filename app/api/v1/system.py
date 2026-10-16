@@ -334,8 +334,8 @@ async def system_status(current_user: dict = Depends(get_current_user)):
 @router.get("/version")
 async def get_version(current_user: dict = Depends(get_current_user)):
     """Lấy thông tin phiên bản hiện tại"""
-    ver = "0.3.5"
-    v_file = "/opt/presspanel/VERSION"
+    ver = "0.4.54"
+    v_file = "/opt/wpc/VERSION" if os.path.exists("/opt/wpc/VERSION") else "/opt/presspanel/VERSION"
     if os.path.exists(v_file):
         try:
             with open(v_file, "r") as f:
@@ -359,7 +359,8 @@ async def trigger_update(
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên cấp cao mới có quyền cập nhật panel.")
     
-    cmd = "sudo /opt/presspanel/scripts/update.sh" if os.path.exists("/opt/presspanel/scripts/update.sh") else "echo Mock update"
+    update_sh = "/opt/wpc/scripts/update.sh" if os.path.exists("/opt/wpc/scripts/update.sh") else "/opt/presspanel/scripts/update.sh"
+    cmd = f"sudo {update_sh}" if os.path.exists(update_sh) else "echo Mock update"
     task_id = await add_system_task(
         user_id=current_user["id"],
         action_name="Update PressPanel Core",

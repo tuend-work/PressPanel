@@ -13,7 +13,8 @@ WEBSERVER="${4:-ols}"
 PHP_VER="${5:-8.2}"
 HOSTING_USER="${6:-$USERNAME}"
 
-PRESSPANEL_DIR="/opt/presspanel"
+PRESSPANEL_DIR="/opt/wpc"
+[ -d "/opt/presspanel" ] && [ ! -d "/opt/wpc" ] && PRESSPANEL_DIR="/opt/presspanel"
 
 # 1. Đảm bảo Linux user tồn tại trên hệ thống
 ensure_linux_user() {

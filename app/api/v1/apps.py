@@ -9,6 +9,8 @@ from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/apps", tags=["App Store & Software Manager"])
 
+WPC_BASE = "/opt/wpc" if os.path.exists("/opt/wpc") or not os.path.exists("/opt/presspanel") else "/opt/presspanel"
+
 class AppActionRequest(BaseModel):
     app_id: str
     action: str  # install | restart | stop | start | uninstall
@@ -201,7 +203,7 @@ SUPPORTED_APPS = [
         "icon": "🧭",
         "desc": "Giao diện Web trực quan quản lý CSDL MariaDB/MySQL nhanh chóng và an toàn.",
         "service": "",
-        "binary_checks": ["/usr/share/phpmyadmin/index.php", "/opt/presspanel/apps/phpmyadmin/index.php"],
+        "binary_checks": ["/opt/wpc/apps/phpmyadmin/index.php", "/opt/presspanel/apps/phpmyadmin/index.php", "/usr/share/phpmyadmin/index.php"],
         "default_version": "5.2.x"
     },
     {
@@ -295,7 +297,9 @@ async def get_apps_list(current_user: dict = Depends(get_current_user)):
 
 async def run_install_task(app_id: str):
     """Tiến trình cài đặt app chạy ngầm"""
-    script_path = f"/opt/presspanel/scripts/apps/{app_id}.sh"
+    script_path = f"{WPC_BASE}/scripts/apps/{app_id}.sh"
+    if not os.path.exists(script_path) and os.path.exists(f"/opt/presspanel/scripts/apps/{app_id}.sh"):
+        script_path = f"/opt/presspanel/scripts/apps/{app_id}.sh"
     if os.path.exists(script_path):
         proc = await asyncio.create_subprocess_exec(
             "bash", script_path, "install",
@@ -345,11 +349,15 @@ async def app_action(
     if not app:
         raise HTTPException(status_code=404, detail="Ứng dụng không tồn tại trong danh mục")
 
-    gatekeeper_bin = "/opt/presspanel/bin/app"
+    gatekeeper_bin = f"{WPC_BASE}/bin/app"
+    if not os.path.isfile(gatekeeper_bin) and os.path.isfile("/opt/presspanel/bin/app"):
+        gatekeeper_bin = "/opt/presspanel/bin/app"
 
     # 1. HÀNH ĐỘNG CÀI ĐẶT (INSTALL)
     if req.action == "install":
-        script_path = f"/opt/presspanel/scripts/apps/{req.app_id}.sh"
+        script_path = f"{WPC_BASE}/scripts/apps/{req.app_id}.sh"
+        if not os.path.exists(script_path) and os.path.exists(f"/opt/presspanel/scripts/apps/{req.app_id}.sh"):
+            script_path = f"/opt/presspanel/scripts/apps/{req.app_id}.sh"
         version_param = req.version if req.version and req.version != "default" else app.get("default_version", "latest")
         
         if os.path.isfile(gatekeeper_bin):
@@ -384,7 +392,9 @@ async def app_action(
 
     # 2. HÀNH ĐỘNG GỠ CÀI ĐẶT (UNINSTALL / REMOVE)
     if req.action in ["uninstall", "remove"]:
-        script_path = f"/opt/presspanel/scripts/apps/{req.app_id}.sh"
+        script_path = f"{WPC_BASE}/scripts/apps/{req.app_id}.sh"
+        if not os.path.exists(script_path) and os.path.exists(f"/opt/presspanel/scripts/apps/{req.app_id}.sh"):
+            script_path = f"/opt/presspanel/scripts/apps/{req.app_id}.sh"
         if os.path.isfile(gatekeeper_bin):
             cmd = f"{gatekeeper_bin} remove {req.app_id}"
         elif os.path.exists(script_path):
@@ -532,7 +542,7 @@ async def get_app_config(app_id: str, file_type: str = "main", current_user: dic
         found_path = conf_path
 
     content = ""
-    gatekeeper_bin = "/opt/presspanel/bin/app"
+    gatekeeper_bin = f"{WPC_BASE}/bin/app" if os.path.isfile(f"{WPC_BASE}/bin/app") else "/opt/presspanel/bin/app"
 
     # Đọc nội dung: Ưu tiên dùng gatekeeper app config-read nếu chạy trên linux
     if found_path:
@@ -605,7 +615,7 @@ async def save_app_config(req: ConfigUpdateRequest, current_user: dict = Depends
 
     # Ghi nội dung an toàn qua file tạm và move
     tmp_path = f"/tmp/presspanel_{lookup_id}_conf.tmp"
-    gatekeeper_bin = "/opt/presspanel/bin/app"
+    gatekeeper_bin = f"{WPC_BASE}/bin/app" if os.path.isfile(f"{WPC_BASE}/bin/app") else "/opt/presspanel/bin/app"
 
     try:
         with open(tmp_path, "w", encoding="utf-8") as f:
@@ -644,7 +654,7 @@ async def toggle_autorestart(req: AutorestartRequest, current_user: dict = Depen
 
     srv = app["service"]
     op = "enable" if req.enabled else "disable"
-    gatekeeper_bin = "/opt/presspanel/bin/app"
+    gatekeeper_bin = f"{WPC_BASE}/bin/app" if os.path.isfile(f"{WPC_BASE}/bin/app") else "/opt/presspanel/bin/app"
 
     if os.path.isfile(gatekeeper_bin):
         proc = subprocess.run([gatekeeper_bin, "service", op, srv], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -734,8 +744,12 @@ async def toggle_php_extension(
         ver_clean = f"{ver_clean[0]}.{ver_clean[1]}"
 
     action_type = "install-ext" if req.action == "install" else "remove-ext"
-    gatekeeper_bin = "/opt/presspanel/bin/app"
-    script_path = "/opt/presspanel/scripts/apps/php.sh"
+    gatekeeper_bin = f"{WPC_BASE}/bin/app"
+    if not os.path.isfile(gatekeeper_bin) and os.path.isfile("/opt/presspanel/bin/app"):
+        gatekeeper_bin = f"{WPC_BASE}/bin/app" if os.path.isfile(f"{WPC_BASE}/bin/app") else "/opt/presspanel/bin/app"
+    script_path = f"{WPC_BASE}/scripts/apps/php.sh"
+    if not os.path.exists(script_path) and os.path.exists("/opt/presspanel/scripts/apps/php.sh"):
+        script_path = "/opt/presspanel/scripts/apps/php.sh"
 
     if os.path.isfile(gatekeeper_bin):
         cmd = f"{gatekeeper_bin} php-ext {'install' if req.action == 'install' else 'remove'} {ver_clean} {req.extension}"
@@ -821,7 +835,7 @@ async def save_php_directives(req: DirectivesUpdateRequest, current_user: dict =
         with open(tmp_path, "w", encoding="utf-8") as f:
             f.write(content)
 
-        gatekeeper_bin = "/opt/presspanel/bin/app"
+        gatekeeper_bin = f"{WPC_BASE}/bin/app" if os.path.isfile(f"{WPC_BASE}/bin/app") else "/opt/presspanel/bin/app"
         if os.path.isfile(gatekeeper_bin):
             subprocess.run([gatekeeper_bin, "config-write", tmp_path, ini_path], check=False)
             subprocess.run([gatekeeper_bin, "service", "reload", f"php{ver_clean}-fpm"], check=False)
@@ -921,8 +935,12 @@ async def rewrite_webserver_config(
         finally:
             await db.close()
 
-        gatekeeper_vhost = "/opt/presspanel/bin/vhost"
-        script_vhost = "/opt/presspanel/scripts/vhost_manager.sh"
+        gatekeeper_vhost = f"{WPC_BASE}/bin/vhost"
+        if not os.path.isfile(gatekeeper_vhost) and os.path.isfile("/opt/presspanel/bin/vhost"):
+            gatekeeper_vhost = "/opt/presspanel/bin/vhost"
+        script_vhost = f"{WPC_BASE}/scripts/vhost_manager.sh"
+        if not os.path.isfile(script_vhost) and os.path.isfile("/opt/presspanel/scripts/vhost_manager.sh"):
+            script_vhost = "/opt/presspanel/scripts/vhost_manager.sh"
         success_count = 0
         fail_count = 0
 
@@ -960,7 +978,9 @@ async def rewrite_webserver_config(
 
         # 4. Reload Web Server tương ứng
         srv_name = "lshttpd" if ws == "ols" else "nginx"
-        gatekeeper_app = "/opt/presspanel/bin/app"
+        gatekeeper_app = f"{WPC_BASE}/bin/app"
+        if not os.path.isfile(gatekeeper_app) and os.path.isfile("/opt/presspanel/bin/app"):
+            gatekeeper_app = "/opt/presspanel/bin/app"
         try:
             if os.path.isfile(gatekeeper_app):
                 subprocess.run([gatekeeper_app, "service", "reload", srv_name], check=False)

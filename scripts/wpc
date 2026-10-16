@@ -7,8 +7,9 @@
 
 set -euo pipefail
 
-INSTALL_DIR="/opt/presspanel"
+INSTALL_DIR="/opt/wpc"
 CONF_FILE="$INSTALL_DIR/conf/presspanel.conf"
+[ -f "$INSTALL_DIR/conf/wpc.conf" ] && CONF_FILE="$INSTALL_DIR/conf/wpc.conf"
 
 function show_help() {
     echo "=========================================================="
@@ -41,25 +42,25 @@ case "$ACTION" in
         sudo bash "$INSTALL_DIR/scripts/reinstall.sh"
         ;;
     status)
-        sudo systemctl status presspanel
+        sudo systemctl status wpc 2>/dev/null || sudo systemctl status presspanel
         ;;
     restart)
         echo "[+] Đang khởi động lại dịch vụ WPCloud Control Panel..."
-        sudo systemctl restart presspanel
-        echo "[+] Hoàn tất! Trạng thái: $(systemctl is-active presspanel)"
+        sudo systemctl restart wpc 2>/dev/null || sudo systemctl restart presspanel
+        echo "[+] Hoàn tất! Trạng thái: $(systemctl is-active wpc 2>/dev/null || systemctl is-active presspanel)"
         ;;
     start)
         echo "[+] Đang bật dịch vụ WPCloud Control Panel..."
-        sudo systemctl start presspanel
-        echo "[+] Hoàn tất! Trạng thái: $(systemctl is-active presspanel)"
+        sudo systemctl start wpc 2>/dev/null || sudo systemctl start presspanel
+        echo "[+] Hoàn tất! Trạng thái: $(systemctl is-active wpc 2>/dev/null || systemctl is-active presspanel)"
         ;;
     stop)
         echo "[+] Đang dừng dịch vụ WPCloud Control Panel..."
-        sudo systemctl stop presspanel
+        sudo systemctl stop wpc 2>/dev/null || sudo systemctl stop presspanel
         echo "[+] Hoàn tất!"
         ;;
     logs)
-        sudo journalctl -u presspanel -f
+        sudo journalctl -u wpc -u presspanel -f
         ;;
     version)
         if [ -f "$INSTALL_DIR/VERSION" ]; then
@@ -108,7 +109,7 @@ case "$ACTION" in
         fi
 
         echo "[+] Khởi động lại dịch vụ WPCloud Panel..."
-        systemctl restart presspanel
+        systemctl restart wpc 2>/dev/null || systemctl restart presspanel
         echo "=========================================================="
         echo "   ĐÃ ĐỔI CỔNG THÀNH CÔNG SANG: $NEW_PORT                 "
         echo "   Đường dẫn truy cập mới: http://<IP_MAY_CHU>:$NEW_PORT "

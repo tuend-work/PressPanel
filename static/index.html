@@ -214,8 +214,8 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- Terminal SSH (All Roles) -->
-                            <button @click="openWebTerminal()" :class="navClass('terminal')">
+                            <!-- Terminal SSH (Chỉ Admin và Web User; Hosting User / Reseller chỉ thao tác SSH khi login vào Web User) -->
+                            <button v-if="currentUser.role !== 'reseller'" @click="openWebTerminal()" :class="navClass('terminal')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
                                     <span>Terminal SSH</span>
@@ -223,8 +223,8 @@
                                 <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono border border-emerald-800">SSH</span>
                             </button>
 
-                            <!-- 8. Service Plans (Chỉ Admin) -->
-                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'service_plans'" :class="navClass('service_plans')">
+                            <!-- 8. Service Plans (Admin & Hosting User / Reseller) -->
+                            <button v-if="['admin', 'reseller'].includes(currentUser.role)" @click="currentTab = 'service_plans'" :class="navClass('service_plans')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="cpu" class="w-4 h-4 text-slate-400"></i>
                                     <span>Gói Dịch Vụ (Plans)</span>
@@ -1351,14 +1351,14 @@
                                                 </div>
 
                                                 <!-- Terminal / SSH -->
-                                                <div @click="openWebTerminal(d)"
+                                                <div @click="currentUser.role === 'reseller' ? impersonateWebsiteUser(d) : openWebTerminal(d)"
                                                     class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
                                                     <div class="w-10 h-10 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center shrink-0 font-mono text-sm font-bold shadow-sm">
                                                         &gt;_
                                                     </div>
                                                     <div class="min-w-0">
                                                         <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Web Terminal</div>
-                                                        <div class="text-[10px] text-slate-400 truncate">SSH Shell ({{ d.domain_name }})</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">{{ currentUser.role === 'reseller' ? 'Đăng nhập Web User' : 'SSH Shell (' + d.domain_name + ')' }}</div>
                                                     </div>
                                                 </div>
 
@@ -1516,24 +1516,6 @@
                         </div>
                         <div class="glass-card rounded-2xl p-6 text-sm text-slate-300">
                             <p>Tính năng WordPress Manager tích hợp sâu với WP-CLI chạy biệt lập trong lồng Namespace Cage. Đang theo dõi và bảo vệ toàn bộ các website WordPress trên hệ thống.</p>
-                        </div>
-                    </div>
-
-                    <!-- VIEW 3: FILE MANAGER -->
-                    <div v-if="currentTab === 'files'" class="space-y-4 max-w-7xl mx-auto">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <h2 class="text-xl font-bold text-white">Quản Lý Tệp Tin (File Manager)</h2>
-                                <p class="text-xs text-slate-400">Cách ly tuyệt đối trong thư mục an toàn /home/{{ currentUser.username }}</p>
-                            </div>
-                        </div>
-                        <div class="glass-card rounded-2xl overflow-hidden">
-                            <div class="p-3 bg-slate-900 border-b border-slate-800 flex items-center space-x-2 text-xs font-mono text-slate-300">
-                                <span>📁 /home/{{ currentUser.username }}/domains (hoặc public_html)</span>
-                            </div>
-                            <div class="p-8 text-center text-slate-400 text-xs">
-                                Kết nối trực tiếp với REST API /api/v1/files/list để duyệt file và tích hợp Monaco Editor.
-                            </div>
                         </div>
                     </div>
 
@@ -1841,26 +1823,50 @@
                                 <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
                                     <span>📖</span> <span>Gói Dịch Vụ Lưu Trữ (Service Plans)</span>
                                 </h2>
-                                <p class="text-xs text-slate-500 mt-1">Định nghĩa các gói hosting mẫu (Disk Quota, RAM, CPU, số lượng tên miền & database) cho khách hàng.</p>
+                                <p class="text-xs text-slate-500 mt-1">Quản lý 2 hệ thống gói độc lập: <b>User Plan</b> (Cấp tổng cho Hosting User) &amp; <b>Website Plan</b> (Cấp lẻ cho từng Website).</p>
                             </div>
                             <button @click="showAddPlanModal = true" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-md shadow-blue-500/20 transition flex items-center space-x-2">
                                 <span>➕ Thêm Service Plan Mới</span>
                             </button>
                         </div>
 
+                        <!-- Tabs lọc loại gói: Tất cả / User Plan / Website Plan -->
+                        <div class="flex space-x-2 border-b border-slate-200 pb-3 text-xs">
+                            <button @click="selectedPlanTab = 'all'"
+                                :class="selectedPlanTab === 'all' ? 'bg-blue-600 text-white font-bold' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'"
+                                class="px-4 py-1.5 rounded-xl transition shadow-sm">
+                                Tất Cả Gói ({{ servicePlans.length }})
+                            </button>
+                            <button v-if="currentUser.role === 'admin'" @click="selectedPlanTab = 'user'"
+                                :class="selectedPlanTab === 'user' ? 'bg-blue-600 text-white font-bold' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'"
+                                class="px-4 py-1.5 rounded-xl transition shadow-sm flex items-center gap-1.5">
+                                <span>👤 User Plans (Admin cấp User)</span>
+                            </button>
+                            <button @click="selectedPlanTab = 'website'"
+                                :class="selectedPlanTab === 'website' ? 'bg-blue-600 text-white font-bold' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'"
+                                class="px-4 py-1.5 rounded-xl transition shadow-sm flex items-center gap-1.5">
+                                <span>🌐 Website Plans (Gói từng Website)</span>
+                            </button>
+                        </div>
+
                         <!-- Grid các gói Hosting Mẫu chuẩn WPC -->
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                            <div v-for="plan in servicePlans" :key="plan.id"
+                            <div v-for="plan in filteredServicePlans" :key="plan.id"
                                 class="bg-white rounded-2xl p-5 flex flex-col justify-between border border-slate-200/90 hover:border-blue-500 transition shadow-sm hover:shadow-md space-y-4">
                                 <div>
                                     <div class="flex justify-between items-start mb-3">
                                         <div class="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center font-bold text-base shadow-inner">
                                             📦
                                         </div>
-                                        <span class="text-[10px] font-mono px-2.5 py-1 rounded-full uppercase font-bold"
-                                            :class="plan.package_type === 'reseller' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200'">
-                                            {{ plan.package_type }}
-                                        </span>
+                                        <div class="flex flex-col items-end gap-1">
+                                            <span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full font-bold uppercase"
+                                                :class="plan.plan_type === 'website' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'">
+                                                {{ plan.plan_type === 'website' ? 'Website Plan' : 'User Plan' }}
+                                            </span>
+                                            <span v-if="plan.package_type === 'reseller'" class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-50 text-amber-600 border border-amber-200">
+                                                Reseller
+                                            </span>
+                                        </div>
                                     </div>
 
                                     <h3 class="font-bold text-slate-800 text-base">{{ plan.name }}</h3>
@@ -2070,23 +2076,26 @@
                                 <table class="w-full text-left text-xs text-slate-600">
                                     <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase text-[11px] tracking-wider">
                                         <tr>
-                                            <th class="py-3 px-4 w-10">
+                                            <th class="py-3 px-4 w-12 text-center">
                                                 <input type="checkbox" :checked="isAllFilesSelected" @change="toggleSelectAllFiles"
                                                     class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500 w-4 h-4 cursor-pointer">
                                             </th>
-                                            <th class="py-3 px-4">Tên Tệp / Thư Mục</th>
-                                            <th class="py-3 px-4">Dung Lượng</th>
-                                            <th class="py-3 px-4">Phân Quyền</th>
-                                            <th class="py-3 px-4">Ngày Sửa Đổi</th>
-                                            <th class="py-3 px-4 text-right">Thao Tác</th>
+                                            <th class="py-3 px-4 min-w-[240px]">Tên Tệp / Thư Mục</th>
+                                            <th class="py-3 px-4 w-28">Dung Lượng</th>
+                                            <th class="py-3 px-4 w-24">Phân Quyền</th>
+                                            <th class="py-3 px-4 w-40">Ngày Sửa Đổi</th>
+                                            <th class="py-3 px-4 w-32 text-right">Thao Tác</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-100">
                                         <!-- Back to parent directory row -->
                                         <tr v-if="fileCurrentPath" @click="goUpDirectory" class="hover:bg-slate-50 cursor-pointer font-bold text-slate-700 transition">
-                                            <td colspan="6" class="py-3 px-4 flex items-center space-x-2">
-                                                <i data-lucide="corner-left-up" class="w-4 h-4 text-blue-600"></i>
-                                                <span>.. (Lên thư mục cấp cha)</span>
+                                            <td class="py-3 px-4"></td>
+                                            <td colspan="5" class="py-3 px-4">
+                                                <div class="flex items-center space-x-2 text-blue-600">
+                                                    <i data-lucide="corner-left-up" class="w-4 h-4 shrink-0"></i>
+                                                    <span>.. (Lên thư mục cấp cha)</span>
+                                                </div>
                                             </td>
                                         </tr>
 
@@ -2111,11 +2120,11 @@
                                         <tr v-for="item in filesList" :key="item.name"
                                             :class="selectedFileNames.includes(item.name) ? 'bg-blue-50/50' : ''"
                                             class="hover:bg-slate-50/80 transition group">
-                                            <td class="py-3.5 px-4">
+                                            <td class="py-3.5 px-4 text-center">
                                                 <input type="checkbox" :value="item.name" v-model="selectedFileNames"
                                                     class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500 w-4 h-4 cursor-pointer">
                                             </td>
-                                            <td class="py-3.5 px-4 font-medium text-slate-800 flex items-center space-x-2.5">
+                                            <td class="py-3.5 px-4 font-medium text-slate-800">
                                                 <div @click="item.is_dir ? enterDirectory(item.name) : openEditFileModal(item.name)" class="flex items-center space-x-2.5 cursor-pointer">
                                                     <span class="text-lg shrink-0 select-none">
                                                         <template v-if="item.is_dir">📁</template>
@@ -2317,6 +2326,17 @@
                                 <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">Định cấu hình tự động</span>
                             </div>
                             <p class="text-[10px] text-slate-400 mt-1">Hệ thống áp dụng Web Server mặc định tầng server. Quản trị viên thay đổi Web Server tại Kho Ứng Dụng.</p>
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Gói Tài Nguyên Website (Website Plan)</label>
+                            <select v-model="newDomain.package_id" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500 font-mono text-xs">
+                                <option :value="null">-- Mặc định (Theo hạn mức Hosting User) --</option>
+                                <option v-for="p in websitePlans" :key="p.id" :value="p.id">
+                                    {{ p.name }} ({{ (p.disk_mb/1024).toFixed(1) }}GB Disk, {{ p.mem_mb }}MB RAM, {{ p.cpu_pct }}% CPU)
+                                </option>
+                            </select>
+                            <p class="text-[10px] text-slate-400 mt-1">Website Plan được tạo riêng cho website trong giới hạn tổng của Hosting User.</p>
                         </div>
 
                         <div>
@@ -2638,6 +2658,9 @@
                         </div>
                         <button @click="showAddPlanModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
                     </div>
+                    <div v-if="currentUser.role === 'reseller'" class="mb-3 p-2.5 rounded-xl bg-blue-950/60 border border-blue-800 text-blue-300 text-[11px]">
+                        ℹ️ <b>Website Plan:</b> Bạn đang tạo gói tài nguyên riêng để gán cho các website của mình. Hạn mức không vượt quá User Plan được cấp.
+                    </div>
 
                     <form @submit.prevent="handleAddPlan" class="space-y-4 text-xs">
                         <div>
@@ -2648,11 +2671,11 @@
 
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block font-semibold text-slate-300 mb-1">Loại Gói</label>
-                                <select v-model="newPlan.package_type"
+                                <label class="block font-semibold text-slate-300 mb-1">Cấp Độ Gói (Plan Type)</label>
+                                <select v-model="newPlan.plan_type" :disabled="currentUser.role === 'reseller'"
                                     class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-cyan-500">
-                                    <option value="user">User Hosting (Khách hàng con)</option>
-                                    <option value="reseller">Reseller Plan (Đại lý)</option>
+                                    <option value="user" v-if="currentUser.role === 'admin'">Loại 1: User Plan (Cấp tổng cho Hosting User)</option>
+                                    <option value="website">Loại 2: Website Plan (Cấp lẻ cho từng Website)</option>
                                 </select>
                             </div>
                             <div>
@@ -3498,13 +3521,15 @@
                     }
                 };
 
-                // Gói Dịch Vụ Lưu Trữ (Service Plans / Hosting Packages)
+                // Gói Dịch Vụ Lưu Trữ (Service Plans: Loại 1 User Plan, Loại 2 Website Plan)
                 const servicePlans = ref([]);
                 const showAddPlanModal = ref(false);
                 const creatingPlan = ref(false);
+                const selectedPlanTab = ref('all'); // 'all', 'user', 'website'
                 const newPlan = ref({
                     name: '',
                     package_type: 'user',
+                    plan_type: 'user', // 'user' hoặc 'website'
                     disk_mb: 5120,
                     mem_mb: 1024,
                     cpu_pct: 100,
@@ -3527,7 +3552,7 @@
                 const loginError = ref('');
                 const loggingIn = ref(false);
 
-                const newDomain = ref({ domain_name: '', webserver: 'ols', php_version: '8.2', install_wp: true });
+                const newDomain = ref({ domain_name: '', webserver: 'ols', php_version: '8.2', install_wp: true, package_id: null });
 
                 // WPC 360 UI: Tabs chi tiết cho Website & Modal đổi PHP
                 const activeDomainSubTab = ref({});
@@ -4232,6 +4257,15 @@
                     }
                 };
 
+                const filteredServicePlans = computed(() => {
+                    if (selectedPlanTab.value === 'all') return servicePlans.value;
+                    return servicePlans.value.filter(p => (p.plan_type || 'user') === selectedPlanTab.value);
+                });
+
+                const websitePlans = computed(() => {
+                    return servicePlans.value.filter(p => p.plan_type === 'website');
+                });
+
                 const handleAddPlan = async () => {
                     creatingPlan.value = true;
                     try {
@@ -4250,6 +4284,7 @@
                             newPlan.value = {
                                 name: '',
                                 package_type: 'user',
+                                plan_type: currentUser.value?.role === 'reseller' ? 'website' : 'user',
                                 disk_mb: 5120,
                                 mem_mb: 1024,
                                 cpu_pct: 100,
@@ -5189,6 +5224,7 @@
                     isAllSubsSelected, toggleSelectAllSubs, handleSetCustomerStatus, handleBatchDeleteCustomers, handleBatchDeleteDomains,
                     fetchCustomers, handleAddCustomer, impersonateUser, impersonateWebsiteUser, exitImpersonation,
                     servicePlans, showAddPlanModal, creatingPlan, newPlan, fetchServicePlans, handleAddPlan,
+                    selectedPlanTab, filteredServicePlans, websitePlans,
                     showChangePlanModal, selectedCustomerForPlan, targetPlanId, changingPlan, selectedPlanPreview,
                     openChangePlanModal, confirmChangePlan,
                     showUpdateModal, isUpdating, updateCountdown, handlePanelUpdate,

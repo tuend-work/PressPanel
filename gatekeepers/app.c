@@ -39,10 +39,10 @@ int main(int argc, char *argv[]) {
 
     if (strcmp(action, "install") == 0) {
         const char *version = (argc > 3) ? argv[3] : "latest";
-        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/apps/%s.sh install %s", app_name, version);
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/apps/%s.sh install %s", app_name, version);
     }
     else if (strcmp(action, "remove") == 0) {
-        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/apps/%s.sh remove", app_name);
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/apps/%s.sh remove", app_name);
     }
     else if (strcmp(action, "status") == 0) {
         snprintf(cmd, sizeof(cmd), "systemctl is-active --quiet %s", app_name);
@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
         const char *op = argv[2];
         const char *php_ver = argv[3];
         const char *ext = argv[4];
-        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/apps/php.sh %s-ext %s %s", op, php_ver, ext);
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/apps/php.sh %s-ext %s %s", op, php_ver, ext);
     }
     else if (strcmp(action, "config-read") == 0) {
         // Doc file cau hinh an toan bang dac quyen root

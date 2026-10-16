@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
         }
         password[strcspn(password, "\r\n")] = 0;
 
-        snprintf(cmd, sizeof(cmd), "echo '%s' | /opt/presspanel/scripts/wp_manager.sh install '%s' '%s' '%s' '%s'",
+        snprintf(cmd, sizeof(cmd), "echo '%s' | /opt/wpc/scripts/wp_manager.sh install '%s' '%s' '%s' '%s'",
                  password, username, domain, title, admin_user);
     }
     else if (strcmp(action, "clone") == 0) {
@@ -45,22 +45,22 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         const char *dest_domain = argv[4];
-        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/wp_manager.sh clone '%s' '%s' '%s'",
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh clone '%s' '%s' '%s'",
                  username, domain, dest_domain);
     }
     else if (strcmp(action, "secure") == 0) {
-        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/wp_manager.sh secure '%s' '%s'",
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh secure '%s' '%s'",
                  username, domain);
     }
     else if (strcmp(action, "sso") == 0) {
         const char *admin_user = (argc > 4) ? argv[4] : "admin";
-        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/wp_manager.sh sso '%s' '%s' '%s'",
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh sso '%s' '%s' '%s'",
                  username, domain, admin_user);
     }
     else if (strcmp(action, "plugin") == 0 || strcmp(action, "theme") == 0) {
         const char *sub_action = (argc > 4) ? argv[4] : "list";
         const char *slug = (argc > 5) ? argv[5] : "";
-        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/wp_manager.sh %s '%s' '%s' '%s' '%s'",
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh %s '%s' '%s' '%s' '%s'",
                  action, sub_action, username, domain, slug);
     }
     else {

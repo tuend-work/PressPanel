@@ -183,13 +183,21 @@ async def init_database():
         await db.execute("PRAGMA journal_mode = WAL;")
         await db.executescript(SCHEMA_SQL)
         
-        # Migration: Tự động bổ sung cột allow_ssh cho packages và domains nếu đã tạo từ trước
+        # Migration: Tự động bổ sung cột allow_ssh, plan_type cho packages và domains nếu đã tạo từ trước
         try:
             await db.execute("ALTER TABLE packages ADD COLUMN allow_ssh INTEGER NOT NULL DEFAULT 1")
         except Exception:
             pass
         try:
+            await db.execute("ALTER TABLE packages ADD COLUMN plan_type TEXT NOT NULL DEFAULT 'user'")
+        except Exception:
+            pass
+        try:
             await db.execute("ALTER TABLE domains ADD COLUMN allow_ssh INTEGER NOT NULL DEFAULT 1")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE domains ADD COLUMN package_id INTEGER DEFAULT NULL")
         except Exception:
             pass
 

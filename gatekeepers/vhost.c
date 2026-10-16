@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
     if (strcmp(action, "rewrite-all") == 0) {
         const char *webserver = (argc > 2) ? argv[2] : "ols";
         char cmd[512];
-        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/vhost_manager.sh rewrite-all all all %s", webserver);
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh rewrite-all all all %s", webserver);
         int ret = system(cmd);
         if (ret == 0) {
             send_json_ok("\"action\":\"rewrite-all\"");
@@ -51,12 +51,12 @@ int main(int argc, char *argv[]) {
             send_json_error("vhost", "Hosting user khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/vhost_manager.sh add %s %s %s %s %s",
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh add %s %s %s %s %s",
                  username, domain, webserver, php_ver, hosting_user);
     }
     else if (strcmp(action, "remove") == 0) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
-        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/vhost_manager.sh remove %s %s %s",
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh remove %s %s %s",
                  username, domain, webserver);
     }
     else if (strcmp(action, "set-php") == 0) {
@@ -67,11 +67,11 @@ int main(int argc, char *argv[]) {
             send_json_error("vhost", "Hosting user khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/vhost_manager.sh set-php %s %s %s %s %s",
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh set-php %s %s %s %s %s",
                  username, domain, webserver, php_ver, hosting_user);
     }
     else if (strcmp(action, "ssl") == 0) {
-        snprintf(cmd, sizeof(cmd), "/opt/presspanel/scripts/vhost_manager.sh ssl %s %s",
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh ssl %s %s",
                  username, domain);
     }
     else {

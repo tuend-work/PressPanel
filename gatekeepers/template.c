@@ -5,7 +5,7 @@
 
 #include "common.h"
 
-#define TEMPLATE_ROOT "/opt/presspanel/templates"
+#define TEMPLATE_ROOT "/opt/wpc/templates"
 
 int main(int argc, char *argv[]) {
     init_security_env();

@@ -366,8 +366,9 @@ async def change_customer_plan(user_id: int, req: CustomerChangePlan, current_us
 class PlanCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=64)
     package_type: str = Field("user", pattern="^(user|reseller)$")
-    disk_mb: int = Field(5120, ge=500, le=500000)
-    mem_mb: int = Field(1024, ge=256, le=65536)
+    plan_type: str = Field("user", pattern="^(user|website)$")
+    disk_mb: int = Field(5120, ge=100, le=500000)
+    mem_mb: int = Field(1024, ge=128, le=65536)
     cpu_pct: int = Field(100, ge=10, le=400)
     max_domains: int = Field(10, ge=1, le=1000)
     max_databases: int = Field(10, ge=1, le=1000)
@@ -375,6 +376,7 @@ class PlanCreate(BaseModel):
 
 class PlanUpdate(BaseModel):
     name: Optional[str] = None
+    plan_type: Optional[str] = None
     disk_mb: Optional[int] = None
     mem_mb: Optional[int] = None
     cpu_pct: Optional[int] = None
@@ -383,28 +385,66 @@ class PlanUpdate(BaseModel):
     allow_ssh: Optional[bool] = None
 
 @router.get("/plans")
-async def list_service_plans(current_user: dict = Depends(get_current_user)):
-    """Lấy danh sách các gói dịch vụ (Service Plans / Hosting Packages)"""
+async def list_service_plans(
+    plan_type: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Lấy danh sách các gói dịch vụ (Service Plans)
+    - Loại 1: User Plan (plan_type='user') - Quản trị viên cấp tổng tài nguyên cho Hosting User
+    - Loại 2: Website Plan (plan_type='website') - Khách hàng tạo gói cho từng website con
+    """
     db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT p.*, (SELECT COUNT(*) FROM users u WHERE u.package_id = p.id) as subscriber_count
+    query = """
+        SELECT p.*, 
+               (CASE WHEN p.plan_type = 'website' 
+                     THEN (SELECT COUNT(*) FROM domains d WHERE d.package_id = p.id)
+                     ELSE (SELECT COUNT(*) FROM users u WHERE u.package_id = p.id)
+                END) as subscriber_count
         FROM packages p
-        ORDER BY p.id ASC
-    """)
+    """
+    params = []
+    if plan_type:
+        query += " WHERE p.plan_type = ?"
+        params.append(plan_type)
+    elif current_user["role"] == "reseller":
+        # Hosting user thấy tất cả website plans + các gói user được phân phối
+        query += " WHERE p.plan_type = 'website' OR p.owner_id = ? OR p.owner_id = 0"
+        params.append(current_user["id"])
+        
+    query += " ORDER BY p.id ASC"
+    cursor = await db.execute(query, params)
     rows = await cursor.fetchall()
     await db.close()
     return [dict(r) for r in rows]
 
 @router.post("/plans")
 async def create_service_plan(req: PlanCreate, current_user: dict = Depends(require_role("admin", "reseller"))):
-    """Tạo gói dịch vụ (Service Plan) mới"""
+    """
+    Tạo gói dịch vụ (Service Plan) mới
+    - Admin: Tạo User Plan hoặc Website Plan
+    - Reseller (Hosting User): Tạo Website Plan trong giới hạn tài nguyên của mình
+    """
     db = await get_db_connection()
     try:
+        # Nếu là Reseller, chỉ được phép tạo Website Plan
+        actual_plan_type = "website" if current_user["role"] == "reseller" else req.plan_type
+        
+        # Nếu là Reseller, kiểm tra hạn mức không vượt quá gói User Plan của mình
+        if current_user["role"] == "reseller":
+            if req.disk_mb > current_user.get("disk_mb", 5120):
+                raise HTTPException(status_code=400, detail=f"Dung lượng website plan ({req.disk_mb}MB) vượt quá hạn mức User Plan của bạn ({current_user.get('disk_mb')}MB)")
+            if req.mem_mb > current_user.get("mem_mb", 1024):
+                raise HTTPException(status_code=400, detail=f"RAM website plan ({req.mem_mb}MB) vượt quá hạn mức User Plan của bạn ({current_user.get('mem_mb')}MB)")
+
         await db.execute("""
-            INSERT INTO packages (owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases, allow_ssh)
-            VALUES (?, ?, ?, ?, ?, ?, 100, 100, ?, ?, ?)
-        """, (current_user["id"], req.name, req.package_type, req.cpu_pct, req.mem_mb, req.disk_mb, req.max_domains, req.max_databases, 1 if req.allow_ssh else 0))
+            INSERT INTO packages (owner_id, name, package_type, plan_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases, allow_ssh)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 100, 100, ?, ?, ?)
+        """, (current_user["id"], req.name, req.package_type, actual_plan_type, req.cpu_pct, req.mem_mb, req.disk_mb, req.max_domains, req.max_databases, 1 if req.allow_ssh else 0))
         await db.commit()
+    except HTTPException:
+        await db.close()
+        raise
     except Exception as e:
         await db.close()
         raise HTTPException(status_code=400, detail=f"Không thể tạo gói: {str(e)}")
@@ -422,11 +462,18 @@ async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict 
         await db.close()
         raise HTTPException(status_code=404, detail="Không tìm thấy gói dịch vụ")
 
+    if current_user["role"] == "reseller" and plan["owner_id"] != current_user["id"]:
+        await db.close()
+        raise HTTPException(status_code=403, detail="Bạn chỉ có thể chỉnh sửa gói do bạn tạo ra")
+
     updates = []
     params = []
     if req.name is not None:
         updates.append("name = ?")
         params.append(req.name)
+    if req.plan_type is not None and current_user["role"] == "admin":
+        updates.append("plan_type = ?")
+        params.append(req.plan_type)
     if req.disk_mb is not None:
         updates.append("disk_mb = ?")
         params.append(req.disk_mb)

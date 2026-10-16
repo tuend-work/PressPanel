@@ -167,11 +167,17 @@ cd "$INSTALL_DIR"
 "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/app/db/init_db.py"
 
 # 11. Cài đặt Systemd Service
-echo "[+] Đăng ký dịch vụ systemd presspanel..."
-cp systemd/presspanel.service /etc/systemd/system/presspanel.service
+echo "[+] Đăng ký dịch vụ systemd wpc (và alias presspanel)..."
+if [ -f systemd/wpc.service ]; then
+    cp systemd/wpc.service /etc/systemd/system/wpc.service
+    cp systemd/wpc.service /etc/systemd/system/presspanel.service
+else
+    cp systemd/presspanel.service /etc/systemd/system/presspanel.service
+    cp systemd/presspanel.service /etc/systemd/system/wpc.service
+fi
 systemctl daemon-reload
-systemctl enable presspanel
-systemctl restart presspanel
+systemctl enable wpc presspanel 2>/dev/null || systemctl enable wpc
+systemctl restart wpc 2>/dev/null || systemctl restart presspanel
 
 # Dọn dẹp thư mục tạm nếu có
 if [ -d "$TMP_DIR" ]; then

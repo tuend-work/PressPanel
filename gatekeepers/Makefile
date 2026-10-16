@@ -3,7 +3,7 @@ CFLAGS ?= -O2 -Wall -Wextra -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE
 LDFLAGS ?= -Wl,-z,relro,-z,now -pie
 
 MODULES = user cgroup cage vhost db app wp template
-PREFIX ?= /opt/presspanel
+PREFIX ?= /opt/wpc
 BIN_DIR = $(PREFIX)/bin
 
 .PHONY: all clean install

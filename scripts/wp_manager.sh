@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # PressPanel: wp_manager.sh - Bộ điều khiển WP-CLI chuyên nghiệp
-# Được thực thi an toàn bởi C Gatekeeper SUID: /opt/presspanel/bin/wp
+# Được thực thi an toàn bởi C Gatekeeper SUID: /opt/wpc/bin/wp
 # ==============================================================================
 
 set -uo pipefail

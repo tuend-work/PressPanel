@@ -10,7 +10,7 @@ from app.db.session import get_db_connection
 
 router = APIRouter(prefix="/tasks", tags=["Task Queue & Messages Box"])
 
-TASKS_LOG_DIR = "/opt/presspanel/logs/tasks"
+TASKS_LOG_DIR = "/opt/wpc/logs/tasks" if os.path.exists("/opt/wpc") or not os.path.exists("/opt/presspanel") else "/opt/presspanel/logs/tasks"
 os.makedirs(TASKS_LOG_DIR, exist_ok=True)
 
 class TaskResponse(BaseModel):

@@ -8,7 +8,8 @@
 
 set -euo pipefail
 
-INSTALL_DIR="/opt/presspanel"
+INSTALL_DIR="/opt/wpc"
+[ -d "/opt/presspanel" ] && [ ! -d "/opt/wpc" ] && INSTALL_DIR="/opt/presspanel"
 REPO_URL="https://github.com/tuend-work/PressPanel.git"
 TMP_DIR="/tmp/presspanel-reinstall-$$"
 BACKUP_DIR="/tmp/presspanel-backup-$(date +%s)"
@@ -59,13 +60,13 @@ if [ -f "$BACKUP_DIR/presspanel.conf" ]; then
 fi
 
 # 5. Khởi động lại dịch vụ
-systemctl restart presspanel
+systemctl restart wpc 2>/dev/null || systemctl restart presspanel
 
 # 6. Dọn dẹp thư mục tạm
 rm -rf "$TMP_DIR" "$BACKUP_DIR"
 
 echo "=========================================================="
 echo "   REINSTALL THÀNH CÔNG!                                 "
-echo "   Trạng thái dịch vụ: $(systemctl is-active presspanel) "
+echo "   Trạng thái dịch vụ: $(systemctl is-active wpc 2>/dev/null || systemctl is-active presspanel) "
 echo "   Giao diện quản trị: http://<IP_MAY_CHU>:8888          "
 echo "=========================================================="
