@@ -180,13 +180,15 @@
                                     </div>
 
                                     <!-- File Manager / Home Directory -->
-                                    <div @click="currentTab = 'files'" class="cursor-pointer group flex items-start justify-between p-4 rounded-xl bg-slate-50/70 border border-slate-100 hover:bg-amber-50/50 hover:border-amber-200 transition">
+                                    <div @click="currentUser.role === 'reseller' ? (currentTab = 'domains') : (currentTab = 'files')" class="cursor-pointer group flex items-start justify-between p-4 rounded-xl bg-slate-50/70 border border-slate-100 hover:bg-amber-50/50 hover:border-amber-200 transition">
                                         <div>
                                             <div class="text-xs text-slate-500 mb-1 group-hover:text-amber-600 font-semibold transition">Thư Mục Gốc</div>
                                             <div class="text-xs font-mono font-bold text-slate-700 mt-1 truncate max-w-[150px]">
                                                 /home/{{ currentUser.username }}
                                             </div>
-                                            <div class="text-[11px] text-slate-400 mt-1">Quản lý tệp tin mã nguồn</div>
+                                            <div class="text-[11px] text-slate-400 mt-1">
+                                                {{ currentUser.role === 'reseller' ? 'Quản lý qua từng Web User' : 'Quản lý tệp tin mã nguồn' }}
+                                            </div>
                                         </div>
                                         <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl">
                                             📁

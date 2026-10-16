@@ -178,8 +178,8 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 4. Files / File Manager (Tất cả vai trò) -->
-                            <button @click="currentTab = 'files'" :class="navClass('files')">
+                            <!-- 4. Files / File Manager (Chỉ Admin và Web User; Hosting User / Reseller login vào Web User) -->
+                            <button v-if="currentUser.role !== 'reseller'" @click="currentTab = 'files'" :class="navClass('files')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="folder" class="w-4 h-4 text-slate-400"></i>
                                     <span>Files</span>
@@ -412,7 +412,12 @@
             createApp({
             setup() {
                 const token = ref(localStorage.getItem('wpc_token') || '');
-                const currentUser = ref({ username: 'admin', role: 'admin' });
+                let initialUser = { username: 'admin', role: 'admin' };
+                try {
+                    const saved = localStorage.getItem('wpc_user');
+                    if (saved) initialUser = JSON.parse(saved);
+                } catch(e) {}
+                const currentUser = ref(initialUser);
                 
                 // Hỗ trợ URI riêng biệt cho từng chức năng (#dashboard, #domains, #files, ...)
                 const getTabFromHash = () => {
@@ -1111,6 +1116,7 @@
                             token.value = data.access_token;
                             currentUser.value = { username: data.username, role: data.role };
                             localStorage.setItem('wpc_token', data.access_token);
+                            localStorage.setItem('wpc_user', JSON.stringify(currentUser.value));
                             const initialTab = getTabFromHash();
                             currentTab.value = initialTab;
                             window.location.hash = initialTab;

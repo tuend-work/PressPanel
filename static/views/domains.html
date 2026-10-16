@@ -214,14 +214,14 @@
                                                 </div>
 
                                                 <!-- Files (File Manager) -->
-                                                <div @click="openFileManager(d.document_root)"
+                                                <div @click="currentUser.role === 'reseller' ? impersonateWebsiteUser(d) : openFileManager(d.document_root)"
                                                     class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
                                                     <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0 border border-sky-200 text-lg">
                                                         📁
                                                     </div>
                                                     <div class="min-w-0">
                                                         <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Files</div>
-                                                        <div class="text-[10px] text-slate-400 truncate">{{ d.document_root }}</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">{{ currentUser.role === 'reseller' ? 'Đăng nhập Web User để quản lý' : d.document_root }}</div>
                                                     </div>
                                                 </div>
 
