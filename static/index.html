@@ -34,6 +34,10 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Google Font Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Xterm.js & Addon Fit cho Web Terminal SSH -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
     <style>
         body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #f3f6fa; color: #1e293b; }
         code, pre { font-family: 'JetBrains Mono', monospace; }
@@ -208,6 +212,15 @@
                                     <span>WordPress</span>
                                 </div>
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                            </button>
+
+                            <!-- Terminal SSH (All Roles) -->
+                            <button @click="openWebTerminal()" :class="navClass('terminal')">
+                                <div class="flex items-center space-x-3">
+                                    <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
+                                    <span>Terminal SSH</span>
+                                </div>
+                                <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono border border-emerald-800">SSH</span>
                             </button>
 
                             <!-- 8. Service Plans (Chỉ Admin) -->
@@ -1338,13 +1351,14 @@
                                                 </div>
 
                                                 <!-- Terminal / SSH -->
-                                                <div class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
-                                                    <div class="w-10 h-10 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center shrink-0 font-mono text-sm font-bold">
+                                                <div @click="openWebTerminal(d)"
+                                                    class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
+                                                    <div class="w-10 h-10 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center shrink-0 font-mono text-sm font-bold shadow-sm">
                                                         &gt;_
                                                     </div>
                                                     <div class="min-w-0">
                                                         <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Web Terminal</div>
-                                                        <div class="text-[10px] text-slate-400 truncate">Chroot Cage Shell</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">SSH Shell ({{ d.domain_name }})</div>
                                                     </div>
                                                 </div>
 
@@ -2733,6 +2747,51 @@
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- MODAL: WEB TERMINAL SSH CHO HOSTING USER (XTERM.JS FULL PTY) -->
+            <div v-if="showTerminalModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 animate-fadeIn">
+                <div class="bg-[#0f172a] rounded-2xl max-w-5xl w-full shadow-2xl border border-slate-700/80 overflow-hidden flex flex-col h-[650px] max-h-[92vh]">
+                    <!-- Window Titlebar -->
+                    <div class="h-11 px-4 bg-[#1e293b] border-b border-slate-700/80 flex items-center justify-between shrink-0 select-none">
+                        <div class="flex items-center space-x-3">
+                            <!-- Mac style dots -->
+                            <div class="flex items-center space-x-1.5">
+                                <span class="w-3 h-3 rounded-full bg-rose-500 hover:opacity-80 cursor-pointer" @click="closeTerminal"></span>
+                                <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                                <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                            </div>
+                            <div class="flex items-center space-x-2 pl-2">
+                                <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
+                                <span class="text-xs font-mono font-bold text-slate-200 tracking-wide">
+                                    SSH Terminal &mdash; {{ terminalTargetUser }}@{{ terminalHost || 'presspanel' }}
+                                </span>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    <span>{{ terminalConnected ? 'Connected' : 'Connecting...' }}</span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button @click="reconnectTerminal" title="Kết nối lại" class="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition text-xs">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button @click="closeTerminal" class="text-slate-400 hover:text-white text-xl leading-none px-2">&times;</button>
+                        </div>
+                    </div>
+                    <!-- Terminal Container -->
+                    <div class="flex-1 bg-[#090d16] p-3 overflow-hidden relative" ref="terminalContainerRef">
+                        <div id="xterm-mount" class="w-full h-full"></div>
+                    </div>
+                    <!-- Terminal Status Footer -->
+                    <div class="h-7 px-4 bg-[#111827] border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400 shrink-0">
+                        <div class="flex items-center space-x-4">
+                            <span>Phím tắt: <kbd class="px-1 bg-slate-800 rounded text-slate-300">Ctrl+C</kbd> (Ngắt)</span>
+                            <span>Môi trường: <strong class="text-emerald-400">Linux PTY (Chroot / Isolated User)</strong></span>
+                        </div>
+                        <span class="text-slate-500">Session ID: #{{ currentUser.id }}</span>
+                    </div>
                 </div>
             </div>
 
@@ -4756,6 +4815,137 @@
                     fileTargetUser.value = '';
                     fetchFilesList('');
                 };
+
+                // ==========================================
+                // WEB TERMINAL SSH LOGIC (XTERM.JS + PTY)
+                // ==========================================
+                const showTerminalModal = ref(false);
+                const terminalConnected = ref(false);
+                const terminalTargetUser = ref('');
+                const terminalHost = ref(window.location.hostname || 'presspanel');
+                const terminalContainerRef = ref(null);
+                let xtermInstance = null;
+                let fitAddonInstance = null;
+                let terminalSocket = null;
+
+                const openWebTerminal = (domain = null) => {
+                    if (domain && domain.domain_name) {
+                        terminalTargetUser.value = domain.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16);
+                    } else {
+                        terminalTargetUser.value = currentUser.value?.username || 'user';
+                    }
+                    showTerminalModal.value = true;
+                    nextTick(() => {
+                        initTerminalSession();
+                    });
+                };
+
+                const initTerminalSession = () => {
+                    if (terminalSocket) {
+                        terminalSocket.close();
+                        terminalSocket = null;
+                    }
+
+                    const mountEl = document.getElementById('xterm-mount');
+                    if (!mountEl) return;
+                    mountEl.innerHTML = '';
+
+                    // Khởi tạo Xterm.js instance
+                    xtermInstance = new window.Terminal({
+                        cursorBlink: true,
+                        fontFamily: '"JetBrains Mono", Consolas, monospace',
+                        fontSize: 13,
+                        lineHeight: 1.2,
+                        theme: {
+                            background: '#090d16',
+                            foreground: '#e2e8f0',
+                            cursor: '#10b981',
+                            selectionBackground: '#1e3a8a',
+                            black: '#1e293b',
+                            red: '#ef4444',
+                            green: '#10b981',
+                            yellow: '#f59e0b',
+                            blue: '#3b82f6',
+                            magenta: '#ec4899',
+                            cyan: '#06b6d4',
+                            white: '#f8fafc'
+                        }
+                    });
+
+                    fitAddonInstance = new window.FitAddon.FitAddon();
+                    xtermInstance.loadAddon(fitAddonInstance);
+                    xtermInstance.open(mountEl);
+                    fitAddonInstance.fit();
+
+                    // Kết nối WebSocket Terminal
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsUrl = `${protocol}//${window.location.host}/api/v1/terminal/ws?token=${token.value}`;
+                    
+                    xtermInstance.writeln('\x1b[36m⚡ Đang kết nối phiên SSH Terminal an toàn cho tài khoản ' + terminalTargetUser.value + '...\x1b[0m\r\n');
+
+                    terminalSocket = new WebSocket(wsUrl);
+
+                    terminalSocket.onopen = () => {
+                        terminalConnected.value = true;
+                        xtermInstance.focus();
+                        // Gửi kích thước cửa sổ hiện tại
+                        const dims = fitAddonInstance.proposeDimensions();
+                        if (dims) {
+                            terminalSocket.send(JSON.stringify({ resize: [dims.cols, dims.rows] }));
+                        }
+                    };
+
+                    terminalSocket.onmessage = (event) => {
+                        xtermInstance.write(event.data);
+                    };
+
+                    terminalSocket.onclose = () => {
+                        terminalConnected.value = false;
+                        xtermInstance.writeln('\r\n\x1b[33m\r\n[Phiên làm việc Terminal đã kết thúc]\x1b[0m\r\n');
+                    };
+
+                    terminalSocket.onerror = (err) => {
+                        terminalConnected.value = false;
+                        xtermInstance.writeln('\r\n\x1b[31m[Lỗi kết nối WebSocket Terminal]\x1b[0m\r\n');
+                    };
+
+                    xtermInstance.onData((data) => {
+                        if (terminalSocket && terminalSocket.readyState === WebSocket.OPEN) {
+                            terminalSocket.send(data);
+                        }
+                    });
+
+                    // Resize listener
+                    window.addEventListener('resize', handleTerminalResize);
+                };
+
+                const handleTerminalResize = () => {
+                    if (fitAddonInstance && terminalSocket && terminalSocket.readyState === WebSocket.OPEN) {
+                        fitAddonInstance.fit();
+                        const dims = fitAddonInstance.proposeDimensions();
+                        if (dims) {
+                            terminalSocket.send(JSON.stringify({ resize: [dims.cols, dims.rows] }));
+                        }
+                    }
+                };
+
+                const closeTerminal = () => {
+                    showTerminalModal.value = false;
+                    terminalConnected.value = false;
+                    window.removeEventListener('resize', handleTerminalResize);
+                    if (terminalSocket) {
+                        terminalSocket.close();
+                        terminalSocket = null;
+                    }
+                    if (xtermInstance) {
+                        xtermInstance.dispose();
+                        xtermInstance = null;
+                    }
+                };
+
+                const reconnectTerminal = () => {
+                    initTerminalSession();
+                };
                 const showUpdateModal = ref(false);
                 const isUpdating = ref(false);
                 const updateCountdown = ref(12);
@@ -4839,6 +5029,10 @@
                     refreshLucideIcons();
                 });
 
+                watch(showTerminalModal, () => {
+                    refreshLucideIcons();
+                });
+
                 let timer = null;
                 onMounted(() => {
                     const savedUser = localStorage.getItem('wpc_user');
@@ -4909,7 +5103,9 @@
                     showCreateItemModal, newItemType, newItemName,
                     fetchFilesList, enterDirectory, goUpDirectory, navigateBreadcrumb,
                     openEditFileModal, saveFileContent, openCreateItemModal, confirmCreateItem,
-                    handleDeleteItem, formatBytes, formatTimestamp
+                    handleDeleteItem, formatBytes, formatTimestamp,
+                    showTerminalModal, terminalConnected, terminalTargetUser, terminalHost,
+                    terminalContainerRef, openWebTerminal, closeTerminal, reconnectTerminal
                 };
             }
         }).mount('#app');
