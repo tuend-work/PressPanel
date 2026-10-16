@@ -200,6 +200,11 @@ async def init_database():
             await db.execute("ALTER TABLE domains ADD COLUMN package_id INTEGER DEFAULT NULL")
         except Exception:
             pass
+        try:
+            # Website Plan: Mỗi gói là 1 web duy nhất
+            await db.execute("UPDATE packages SET max_domains = 1 WHERE plan_type = 'website'")
+        except Exception:
+            pass
 
         # Tạo các gói Service Plans mẫu (Hosting Plans) nếu chưa có
         cursor = await db.execute("SELECT id FROM packages WHERE id = 1")

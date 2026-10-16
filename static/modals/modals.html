@@ -261,7 +261,7 @@
                                         class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 focus:outline-none focus:border-blue-500 text-xs shadow-sm">
                                         <option :value="null">-- Mặc định (Tùy chỉnh Quota tài nguyên bên dưới) --</option>
                                         <option v-for="plan in servicePlans" :key="plan.id" :value="plan.id">
-                                            {{ plan.name }} ({{ plan.disk_mb }} MB Disk, {{ plan.max_domains }} Sites)
+                                            {{ plan.name }} ({{ (plan.disk_mb / 1024).toFixed(1) }} GB Disk{{ plan.plan_type === 'website' ? '' : ', ' + plan.max_domains + ' Sites' }})
                                         </option>
                                     </select>
                                 </div>
@@ -397,10 +397,16 @@
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
-                            <div>
+                            <div v-if="newPlan.plan_type !== 'website'">
                                 <label class="block font-semibold text-slate-300 mb-1">Số Tên Miền Tối Đa</label>
                                 <input type="number" v-model.number="newPlan.max_domains" min="1" max="1000" required
                                     class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                            <div v-else class="flex flex-col justify-center">
+                                <label class="block font-semibold text-slate-400 mb-1">Quy Mô Website</label>
+                                <div class="px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700/60 text-emerald-400 font-medium text-[11px] flex items-center gap-1.5">
+                                    <span>🌐</span> <span><b>1 Website duy nhất</b> (1 web / gói)</span>
+                                </div>
                             </div>
                             <div>
                                 <label class="block font-semibold text-slate-300 mb-1">Số Database Tối Đa</label>

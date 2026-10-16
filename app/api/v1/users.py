@@ -430,6 +430,9 @@ async def create_service_plan(req: PlanCreate, current_user: dict = Depends(requ
         # Nếu là Reseller, chỉ được phép tạo Website Plan
         actual_plan_type = "website" if current_user["role"] == "reseller" else req.plan_type
         
+        # Với gói Website Plan: Không có số lượng web, mỗi gói là 1 web duy nhất
+        actual_max_domains = 1 if actual_plan_type == "website" else req.max_domains
+
         # Nếu là Reseller, kiểm tra hạn mức không vượt quá gói User Plan của mình
         if current_user["role"] == "reseller":
             if req.disk_mb > current_user.get("disk_mb", 5120):
@@ -440,7 +443,7 @@ async def create_service_plan(req: PlanCreate, current_user: dict = Depends(requ
         await db.execute("""
             INSERT INTO packages (owner_id, name, package_type, plan_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases, allow_ssh)
             VALUES (?, ?, ?, ?, ?, ?, ?, 100, 100, ?, ?, ?)
-        """, (current_user["id"], req.name, req.package_type, actual_plan_type, req.cpu_pct, req.mem_mb, req.disk_mb, req.max_domains, req.max_databases, 1 if req.allow_ssh else 0))
+        """, (current_user["id"], req.name, req.package_type, actual_plan_type, req.cpu_pct, req.mem_mb, req.disk_mb, actual_max_domains, req.max_databases, 1 if req.allow_ssh else 0))
         await db.commit()
     except HTTPException:
         await db.close()
@@ -474,6 +477,8 @@ async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict 
     if req.plan_type is not None and current_user["role"] == "admin":
         updates.append("plan_type = ?")
         params.append(req.plan_type)
+        if req.plan_type == "website":
+            updates.append("max_domains = 1")
     if req.disk_mb is not None:
         updates.append("disk_mb = ?")
         params.append(req.disk_mb)
@@ -484,8 +489,10 @@ async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict 
         updates.append("cpu_pct = ?")
         params.append(req.cpu_pct)
     if req.max_domains is not None:
-        updates.append("max_domains = ?")
-        params.append(req.max_domains)
+        # Nếu là website plan thì cố định max_domains = 1
+        if plan["plan_type"] != "website":
+            updates.append("max_domains = ?")
+            params.append(req.max_domains)
     if req.max_databases is not None:
         updates.append("max_databases = ?")
         params.append(req.max_databases)

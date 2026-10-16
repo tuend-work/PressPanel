@@ -511,6 +511,14 @@
                     allow_ssh: true
                 });
 
+                watch(() => newPlan.value.plan_type, (val) => {
+                    if (val === 'website') {
+                        newPlan.value.max_domains = 1;
+                    } else if (newPlan.value.max_domains === 1) {
+                        newPlan.value.max_domains = 10;
+                    }
+                });
+
                 // Đổi Service Plan cho Hosting User
                 const showChangePlanModal = ref(false);
                 const selectedCustomerForPlan = ref(null);
@@ -1244,6 +1252,9 @@
                 const handleAddPlan = async () => {
                     creatingPlan.value = true;
                     try {
+                        if (newPlan.value.plan_type === 'website') {
+                            newPlan.value.max_domains = 1;
+                        }
                         const res = await fetch('/api/v1/users/plans', {
                             method: 'POST',
                             headers: {
@@ -1263,7 +1274,7 @@
                                 disk_mb: 5120,
                                 mem_mb: 1024,
                                 cpu_pct: 100,
-                                max_domains: 10,
+                                max_domains: currentUser.value?.role === 'reseller' ? 1 : 10,
                                 max_databases: 10,
                                 allow_ssh: true
                             };

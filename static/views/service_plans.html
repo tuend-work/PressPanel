@@ -68,9 +68,13 @@
                                             <span class="text-slate-500">🖥️ Hạn mức CPU:</span>
                                             <span class="font-bold text-slate-700 font-mono">{{ plan.cpu_pct }}% Core</span>
                                         </div>
-                                        <div class="flex justify-between pt-2 text-slate-600">
+                                        <div v-if="plan.plan_type !== 'website'" class="flex justify-between pt-2 text-slate-600">
                                             <span class="text-slate-500">🌐 Số tên miền tối đa:</span>
                                             <span class="font-bold text-slate-700 font-mono">{{ plan.max_domains }}</span>
+                                        </div>
+                                        <div v-else class="flex justify-between pt-2 text-slate-600">
+                                            <span class="text-slate-500">🌐 Quy mô áp dụng:</span>
+                                            <span class="font-bold text-emerald-600 font-mono">1 Website</span>
                                         </div>
                                         <div class="flex justify-between pt-2 text-slate-600">
                                             <span class="text-slate-500">🗄️ Số database tối đa:</span>
