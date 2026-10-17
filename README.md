@@ -1,42 +1,48 @@
 <div align="center">
 
-# ⚡ WPC (WPCloud Control Panel)
+# ⚡ WPCloud (WPC Control Panel)
 
-### Thế Hệ Control Panel Độc Lập, Hiệu Năng Cao & Siêu Nhẹ Tối Ưu Cho WordPress
+### Bảng Điều Khiển Máy Chủ Độc Lập, Hiệu Năng Cao, Siêu Nhẹ & Tối Ưu Cho WordPress
 
-[![Version](https://img.shields.io/badge/version-0.4.38-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.5.17-blue.svg)](VERSION)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-green.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
-[![OS](https://img.shields.io/badge/OS-Ubuntu%20%7C%20Debian%20%7C%20AlmaLinux%20%7C%20Rocky-orange.svg)](#yêu-cầu-hệ-thống)
+[![OS](https://img.shields.io/badge/OS-Ubuntu%20%7C%20Debian%20%7C%20AlmaLinux%20%7C%20Rocky-orange.svg)](#-yêu-cầu-hệ-thống)
 [![License](https://img.shields.io/badge/license-MIT-purple.svg)](LICENSE)
 
-*Bảng điều khiển máy chủ độc lập với quản trị Website 360°, cấu trúc đa phiên bản PHP 5.6 - 8.5 kèm Pool FPM độc lập, kho ứng dụng 1-Click, lồng cách ly bảo mật Cage & Cgroups v2, và cỗ máy tối ưu WordPress Toolkit.*
+*Bảng điều khiển máy chủ thế hệ mới tích hợp quản trị Website 360°, cấu trúc đa phiên bản PHP 5.6 - 8.5 với Pool FPM độc lập, kho ứng dụng 1-Click, lồng cách ly bảo mật Linux Namespace Cage & Cgroups v2 phân cấp, và cỗ máy tối ưu toàn diện WordPress Toolkit.*
 
 ---
 
 </div>
 
-## 🌟 Tính Năng Nổi Bật
+## 🌟 Điểm Nhấn Kiến Trúc & Tính Năng Nổi Bật
 
-* **🚀 Siêu Nhẹ & Hiệu Năng Vượt Trội:**
+* **🚀 Siêu Nhẹ & Tốc Độ Vượt Trội:**
   * Backend **Python (FastAPI + Asyncio)** chạy trên **Uvicorn**: Tiêu tốn cực ít RAM (~35MB).
-  * Tích hợp máy chủ web tốc độ cao **OpenLiteSpeed (LSCache)** và **Nginx FastCGI Cache**.
+  * Hỗ trợ máy chủ web tốc độ cao **OpenLiteSpeed (LSCache)** và **Nginx FastCGI Cache**.
 * **🛡️ Bảo Mật Tuyệt Đối với 8 C Gatekeepers (SUID):**
   * Tầng Web API chạy an toàn dưới user hệ thống không có quyền quản trị (`wpc:wpc`).
   * Mọi can thiệp hệ thống, kernel và file được thực thi bởi **8 binary C nhỏ gọn (chmod 4750 root:wpc)**, loại trừ hoàn toàn nguy cơ leo thang đặc quyền.
-* **🌐 Quản Trị Website Chuẩn Mới & Đa Phiên Bản PHP:**
+* **👥 Mô Hình Phân Quyền 3 Cấp Chuẩn Mực:**
+  * **Administrator (Root Admin):** Quản lý hạ tầng máy chủ vật lý, cấu hình hệ thống, tạo và phân bổ **User Packages (User Plans)**, quản lý danh sách **Users (Khách hàng)**, giám sát Cgroups, Apps Store, PHP Manager, phpMyAdmin, Firewalls.
+  * **User (Hosting User):** Khách hàng sử dụng hosting, sở hữu tài nguyên tổng từ User Package được cấp (CPU, RAM, Disk Quota Cgroups v2), có Dashboard riêng biệt với 4 đồng hồ đo tài nguyên, tự tạo và phân bổ các **Website Plans** (mỗi gói cấp 1 website duy nhất), quản lý Websites, Domains, Databases, Mail, Cronjobs, Backups.
+  * **Web User (Isolated User):** Người dùng cô lập cho từng VirtualHost, chạy PHP-FPM Pool độc lập, sở hữu document root riêng, File Manager và Cage SSH terminal riêng biệt.
+* **📦 Hệ Thống Gói Dịch Vụ 2 Tầng Độc Lập (Dual-Tier Service Plans):**
+  * **User Package (User Plan):** Do Admin tạo để cấp phát tài nguyên tổng cho User (CPU, RAM, Disk Quota, giới hạn số domain/db).
+  * **Website Plan:** Do User tự tạo để phân bổ hạn mức riêng cho từng website lẻ (quy định chuẩn: **1 website duy nhất/gói**). Chỉ Admin mới thấy User Plan; Hosting User chỉ nhìn thấy Website Plan.
+* **🌐 Quản Trị Website 360° & Đa Phiên Bản PHP:**
   * Hỗ trợ đầy đủ các phiên bản PHP từ **PHP 5.6 đến PHP 8.5**.
-  * Cấu trúc website dạng hiện đại:
+  * Cấu trúc website hiện đại:
     `/home/{username}/domains/{domain.com}/{public_html | logs | ssl | .tmp}`
     kèm symlink tự động `/home/{username}/public_html`.
   * Mỗi người dùng website có **PHP-FPM Pool độc lập**, chạy dưới danh tính người dùng Linux tương ứng, tự động cô lập session và upload temp directory.
-  * Quản lý chuyên sâu PHP: Quản lý Extension 1-click, chỉnh sửa chỉ thị directives (`memory_limit`, `max_execution_time`...), phpinfo trực tiếp.
 * **📦 Lồng Cách Ly Namespace (Cage Engine & PID 1 Reaper):**
   * Mỗi tài khoản được cô lập trong Linux Namespace riêng biệt (`CLONE_NEWNS|NEWPID|NEWIPC|NEWUTS`).
   * Che giấu thư mục `/home` của người dùng khác, `/tmp` cấp phát riêng trên RAM 256MB.
   * Tích hợp Subreaper thu gom tiến trình mồ côi (chống tràn PID / zombie processes).
 * **⚖️ Cgroups v2 Phân Cấp & Khóa Trần 2 Lớp:**
-  * Quản trị hạn mức tài nguyên theo mô hình phân cấp **Reseller $\rightarrow$ User con**.
+  * Quản trị hạn mức tài nguyên theo mô hình phân cấp **User Package $\rightarrow$ Website Plan**.
   * Chặn triệt để vượt trần CPU, RAM, IOPS và PIDs từ cấp Kernel Linux.
   * Tích hợp **Linux Filesystem Quota (ext4/xfs)** chống đầy ổ đĩa.
 * **🛠️ WordPress Toolkit Toàn Diện:**
@@ -64,7 +70,7 @@
 
 ## ⚡ Hướng Dẫn Cài Đặt
 
-### Cài Đặt Nhanh 1 Dòng (Khuyên dùng)
+### Cài Đặt Tự Động 1 Dòng (Khuyên dùng)
 
 Chạy lệnh cài đặt tự động với quyền `root`:
 
@@ -76,20 +82,22 @@ Quá trình cài đặt hoàn toàn tự động trong khoảng 1–2 phút:
 1. Cài đặt các gói phụ thuộc nền tảng (`gcc`, `make`, `python3-venv`, `sqlite3`...).
 2. Tạo tài khoản dịch vụ hệ thống `wpc:wpc`.
 3. Biên dịch 8 C SUID Gatekeepers với các cờ bảo mật cao cấp (`-fstack-protector-strong`, `RELRO`, `PIE`).
-4. Khởi tạo môi trường ảo Python và Database SQLite WAL.
-5. Đăng ký và kích hoạt dịch vụ `systemd` tự khởi động cùng OS.
+4. Khởi tạo môi trường ảo Python và Database SQLite WAL (`/opt/wpc/data/panel.db`).
+5. Đăng ký và kích hoạt dịch vụ `systemd` (`wpc.service`) tự khởi động cùng hệ điều hành.
 
 ---
 
-## 📂 Cấu Trúc Triển Khai Hệ Thống (`/opt/presspanel`)
+## 📂 Quy Hoạch Thư Mục Hệ Thống (`/opt/wpc`)
+
+Toàn bộ hệ thống WPC được đóng gói độc lập trong thư mục `/opt/wpc`:
 
 ```text
-/opt/presspanel/
+/opt/wpc/
 ├── bin/                  # 8 C SUID Gatekeepers (chmod 4750 root:wpc)
-├── app/                  # Mã nguồn FastAPI Backend (Asyncio Web Server)
-├── conf/                 # File cấu hình trung tâm (presspanel.conf)
-├── venv/                 # Môi trường ảo Python độc lập (FastAPI + Uvicorn)
-├── static/               # Thư mục Web UI tĩnh (Vue 3 Single Page Application)
+├── app/                  # FastAPI Backend Server (Asyncio Web API)
+├── conf/                 # File cấu hình trung tâm (wpc.conf)
+├── venv/                 # Python Virtualenv độc lập (FastAPI, Uvicorn, aiosqlite...)
+├── static/               # Giao diện Web SPA (Vue 3 Single Page Application)
 ├── data/                 # SQLite Database (panel.db chế độ WAL)
 ├── logs/                 # Access log, Error log và Streaming Task log
 ├── scripts/              # Bộ script Bash quản trị (vhost_manager.sh, wp_manager.sh, wpc...)
@@ -98,31 +106,23 @@ Quá trình cài đặt hoàn toàn tự động trong khoảng 1–2 phút:
 ```
 
 > [!NOTE]
-> **File cấu hình trung tâm (`/opt/presspanel/conf/presspanel.conf`):** Toàn bộ thông số cốt lõi (cổng port, SSL panel, session, default webserver, quota, đường dẫn) đều được cấu hình theo định dạng `key=value` trực quan, dễ chỉnh sửa và tự động nạp khi khởi động panel.
+> **File cấu hình trung tâm (`/opt/wpc/conf/wpc.conf`):** Toàn bộ thông số cốt lõi (cổng port, SSL panel, session, default webserver, quota, đường dẫn) đều được cấu hình theo định dạng `key=value` trực quan, dễ chỉnh sửa và tự động nạp khi khởi động panel.
 
 ---
 
-## 🤝 Khả Năng Vận Hành Độc Lập & Song Song (Zero Conflict Footprint)
+## 🤝 Vận Hành Độc Lập & Song Song (Zero Conflict Footprint)
 
-WPC được thiết kế với triết lý **Cách Ly Tuyệt Đối (Zero Conflict Footprint)**, cho phép **cài đặt và vận hành song song trên cùng một máy chủ** đã có sẵn các dịch vụ khác mà không làm gián đoạn hệ thống:
+WPC được thiết kế với triết lý **Cách Ly Tuyệt Đối (Zero Conflict Footprint)**, cho phép cài đặt và vận hành song song trên cùng một máy chủ đã có sẵn các dịch vụ khác mà không làm gián đoạn hệ thống:
 
-### 1. Kiến Trúc Không Xung Đột (Isolated Architecture)
-* **Thư mục độc lập 100%:** Toàn bộ file thực thi, mã nguồn, log và data nằm gọn trong `/opt/presspanel`.
-* **Môi trường Python Virtualenv riêng biệt:** Chạy trong `/opt/presspanel/venv/`, không đụng chạm đến Python hệ thống.
-* **Cơ sở dữ liệu độc lập:** Sử dụng SQLite nhúng WAL (`/opt/presspanel/data/panel.db`), không phụ thuộc vào MySQL hệ thống để vận hành panel.
-* **Kernel Namespace & Cgroups v2 riêng:** Quản lý tài nguyên tại nhánh riêng `/sys/fs/cgroup/presspanel`.
-
-### 2. Tự Động Xử Lý Trùng Cổng (Smart Port Auto-Detection)
-* Khi cài đặt, nếu phát hiện cổng mặc định **`8888`** đang bị chiếm dụng:
-  * Bộ cài `install.sh` sẽ **tự động chuyển sang cổng khả dụng tiếp theo (ví dụ: `8889`)** và ghi nhận vào `presspanel.conf`.
-* Bạn có thể đổi sang bất kỳ cổng nào tùy ý bất cứ lúc nào chỉ với 1 câu lệnh:
-  ```bash
-  sudo wpc port 8899
-  ```
+1. **Thư mục độc lập 100%:** Toàn bộ file thực thi, mã nguồn, log và data nằm gọn trong `/opt/wpc`.
+2. **Môi trường Python Virtualenv riêng biệt:** Chạy trong `/opt/wpc/venv/`, không đụng chạm đến Python hệ thống.
+3. **Cơ sở dữ liệu độc lập:** Sử dụng SQLite nhúng WAL (`/opt/wpc/data/panel.db`), không phụ thuộc vào MySQL hệ thống để vận hành panel.
+4. **Kernel Namespace & Cgroups v2 riêng:** Quản lý tài nguyên tại nhánh riêng `/sys/fs/cgroup/wpc`.
+5. **Tự động xử lý trùng cổng:** Khi cài đặt, nếu phát hiện cổng mặc định **`8888`** đang bị chiếm dụng, bộ cài sẽ tự động chuyển sang cổng tiếp theo (ví dụ: `8889`) và ghi nhận vào `wpc.conf`.
 
 ---
 
-## 🔄 Cập Nhật & Cài Đặt Lại Panel (Update & Reinstall)
+## 🔄 Cập Nhật & Cài Đặt Lại (Update & Reinstall)
 
 ### 1. Cập Nhật Lên Bản Mới Nhất Từ GitHub (Update)
 Lệnh update sẽ tự động kéo mã nguồn mới nhất, biên dịch lại C Gatekeeper, cập nhật dependencies và chạy migration DB mà **bảo toàn 100% dữ liệu database, website và file cấu hình**:
@@ -140,7 +140,7 @@ Lệnh update sẽ tự động kéo mã nguồn mới nhất, biên dịch lạ
 
 ### 2. Cài Đặt Lại Toàn Bộ Panel (Reinstall)
 Khi hệ thống gặp sự cố hoặc bạn muốn làm sạch toàn bộ môi trường và cài đặt lại từ đầu:
-Script sẽ **tự động sao lưu `panel.db` và `presspanel.conf`** trước khi reset để bạn không bị mất dữ liệu:
+Script sẽ **tự động sao lưu `panel.db` và `wpc.conf`** trước khi reset để bạn không bị mất dữ liệu:
 
 * **Sử dụng lệnh CLI:**
   ```bash
@@ -175,27 +175,27 @@ Bạn cũng có thể điều khiển trực tiếp qua `systemctl`:
 
 ```bash
 # Xem trạng thái hoạt động của panel
-sudo systemctl status presspanel
+sudo systemctl status wpc
 
 # Khởi động lại panel
-sudo systemctl restart presspanel
+sudo systemctl restart wpc
 
 # Tắt panel
-sudo systemctl stop presspanel
+sudo systemctl stop wpc
 
 # Bật panel
-sudo systemctl start presspanel
+sudo systemctl start wpc
 
 # Xem log hoạt động theo thời gian thực
-sudo journalctl -u presspanel -f
+sudo journalctl -u wpc -f
 ```
 
 ---
 
-## 📄 Tài Liệu Kỹ Thuật
+## 📄 Tài Liệu Kỹ Thuật Chi Tiết Cho AI & Lập Trình Viên
 
-Để tìm hiểu chi tiết về lược đồ cơ sở dữ liệu SQLite, kiến trúc Cgroups v2 phân cấp và đặc tả toàn bộ REST API, vui lòng xem tài liệu:
-👉 **[presspanel_master_spec.md](presspanel_master_spec.md)**
+Để tìm hiểu chi tiết về lược đồ cơ sở dữ liệu SQLite, đặc tả 8 C Gatekeepers, kiến trúc Cgroups v2 phân cấp và toàn bộ hệ thống REST API, vui lòng xem tài liệu:
+👉 **[wpc-panel-spec.md](wpc-panel-spec.md)** *(hoặc [presspanel_master_spec.md](presspanel_master_spec.md))*
 
 ---
 
