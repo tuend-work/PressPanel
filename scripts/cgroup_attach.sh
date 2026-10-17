@@ -20,7 +20,10 @@ for user_cg in /sys/fs/cgroup/wpc/reseller_*/user_* /sys/fs/cgroup/wpc/user_*; d
     id -u "$USERNAME" &>/dev/null || continue
 
     # Gán tất cả PID đang chạy của user này vào cgroup.procs
-    pgrep -u "$USERNAME" 2>/dev/null | while read -r pid; do
+    {
+        pgrep -u "$USERNAME" 2>/dev/null || true
+        pgrep -f "pool ${USERNAME}" 2>/dev/null || true
+    } | sort -u | while read -r pid; do
         [ -n "$pid" ] && echo "$pid" > "$user_cg/cgroup.procs" 2>/dev/null || true
     done
 done

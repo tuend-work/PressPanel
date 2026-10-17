@@ -3,6 +3,7 @@ import shutil
 import platform
 import time
 import asyncio
+import re
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from app.api.deps import get_current_user
 from app.db.session import get_db_connection
@@ -156,20 +157,164 @@ async def system_status(current_user: dict = Depends(get_current_user)):
             }
         }
 
-        # 1. RAM thực tế đang dùng của user từ Cgroup v2 (memory.current)
-        mem_used_bytes = 0
-        for mem_p in [
-            f"/sys/fs/cgroup/wpc/reseller_1/user_{username}/memory.current",
-            f"/sys/fs/cgroup/wpc/user_{username}/memory.current"
-        ]:
-            if os.path.exists(mem_p):
+        # ----------------------------------------------------
+        # TẬP HỢP TẤT CẢ LINUX USERS & FOLDERS THUỘC TÀI KHOẢN NÀY
+        # ----------------------------------------------------
+        target_users = set()
+        if username:
+            target_users.add(username)
+
+        user_doc_roots = []
+        try:
+            db_conn = await get_db_connection()
+            if current_user.get("web_domain_id"):
+                c_dom = await db_conn.execute(
+                    "SELECT domain_name, document_root FROM domains WHERE id = ?",
+                    (current_user["web_domain_id"],)
+                )
+                d_row = await c_dom.fetchone()
+                if d_row:
+                    clean_d = re.sub(r"^(https?://)?(www\.)?", "", (d_row["domain_name"] or "").strip().lower()).rstrip("/")
+                    clean_u = re.sub(r"[^a-z0-9]", "", clean_d)[:30]
+                    if clean_u:
+                        target_users.add(clean_u)
+                    if d_row["document_root"]:
+                        user_doc_roots.append(d_row["document_root"])
+            elif role in ("user", "reseller"):
+                c_doms = await db_conn.execute(
+                    "SELECT domain_name, document_root FROM domains WHERE user_id = ?",
+                    (user_id,)
+                )
+                d_rows = await c_doms.fetchall()
+                for dr in d_rows:
+                    clean_d = re.sub(r"^(https?://)?(www\.)?", "", (dr["domain_name"] or "").strip().lower()).rstrip("/")
+                    clean_u = re.sub(r"[^a-z0-9]", "", clean_d)[:30]
+                    if clean_u:
+                        target_users.add(clean_u)
+                    if dr["document_root"]:
+                        user_doc_roots.append(dr["document_root"])
+            await db_conn.close()
+        except Exception:
+            pass
+
+        # Lọc các Linux user thực sự tồn tại trong hệ thống (tránh lỗi lệnh ps)
+        valid_users = []
+        for u in target_users:
+            if not u:
+                continue
+            try:
+                import pwd
+                pwd.getpwnam(u)
+                valid_users.append(u)
+            except Exception:
+                pass
+
+        query_users = valid_users if valid_users else [u for u in target_users if u]
+
+        # ----------------------------------------------------
+        # 1. ĐO LƯỜNG TIẾN TRÌNH THỰC TẾ (CPU % & RAM RSS) TỪ LINUX PROCESS TABLE
+        # ----------------------------------------------------
+        real_cpu_pct = 0.0
+        real_rss_bytes = 0
+        active_pids = []
+
+        if query_users and platform.system() == "Linux":
+            try:
+                users_arg = ",".join(query_users)
+                ps_proc = await asyncio.create_subprocess_exec(
+                    "ps", "-u", users_arg, "-o", "pid,%cpu,rss", "--no-headers",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout_data, _ = await asyncio.wait_for(ps_proc.communicate(), timeout=2.0)
+                for line in stdout_data.decode("utf-8", errors="ignore").splitlines():
+                    parts = line.strip().split()
+                    if len(parts) >= 3:
+                        try:
+                            p_id = parts[0]
+                            c_val = float(parts[1])
+                            m_kb = int(parts[2])
+                            real_cpu_pct += c_val
+                            real_rss_bytes += m_kb * 1024
+                            active_pids.append(p_id)
+                        except (ValueError, IndexError):
+                            pass
+            except Exception:
+                pass
+
+            # Fallback: nếu ps -u không trả về PID nào, quét trực tiếp theo tên FPM pool
+            if not active_pids:
                 try:
-                    with open(mem_p, "r") as f:
-                        mem_used_bytes = int(f.read().strip())
-                        break
+                    for u in query_users:
+                        pg_proc = await asyncio.create_subprocess_shell(
+                            f"pgrep -f 'pool {u}'",
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE
+                        )
+                        pg_out, _ = await asyncio.wait_for(pg_proc.communicate(), timeout=1.0)
+                        fpm_pids = [p.strip() for p in pg_out.decode("utf-8", errors="ignore").splitlines() if p.strip()]
+                        if fpm_pids:
+                            pids_arg = ",".join(fpm_pids[:30])
+                            ps_p_proc = await asyncio.create_subprocess_exec(
+                                "ps", "-p", pids_arg, "-o", "pid,%cpu,rss", "--no-headers",
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE
+                            )
+                            p_out, _ = await asyncio.wait_for(ps_p_proc.communicate(), timeout=1.0)
+                            for line in p_out.decode("utf-8", errors="ignore").splitlines():
+                                parts = line.strip().split()
+                                if len(parts) >= 3:
+                                    try:
+                                        p_id = parts[0]
+                                        c_val = float(parts[1])
+                                        m_kb = int(parts[2])
+                                        real_cpu_pct += c_val
+                                        real_rss_bytes += m_kb * 1024
+                                        active_pids.append(p_id)
+                                    except (ValueError, IndexError):
+                                        pass
                 except Exception:
                     pass
 
+        # ----------------------------------------------------
+        # 2. KIỂM TRA CGROUP V2 & TỰ ĐỘNG GẮN PID VÀO CGROUPS NẾU CHƯA CÓ
+        # ----------------------------------------------------
+        cgroup_mem_bytes = 0
+        cgroup_dirs_to_check = []
+        for u in query_users:
+            cgroup_dirs_to_check.extend([
+                f"/sys/fs/cgroup/wpc/reseller_1/user_{u}",
+                f"/sys/fs/cgroup/wpc/user_{u}",
+                f"/sys/fs/cgroup/wpc/reseller_{user_id}/user_{u}"
+            ])
+
+        for cg_dir in cgroup_dirs_to_check:
+            mem_file = os.path.join(cg_dir, "memory.current")
+            if os.path.exists(mem_file):
+                try:
+                    with open(mem_file, "r") as f:
+                        val = int(f.read().strip())
+                        if val > cgroup_mem_bytes:
+                            cgroup_mem_bytes = val
+                except Exception:
+                    pass
+
+            # Tự động đồng bộ các PID PHP-FPM / worker vào cgroup.procs
+            procs_file = os.path.join(cg_dir, "cgroup.procs")
+            if os.path.exists(procs_file) and active_pids:
+                try:
+                    with open(procs_file, "r") as pf:
+                        existing = set(pf.read().split())
+                    new_pids = [p for p in active_pids if p not in existing]
+                    if new_pids:
+                        with open(procs_file, "a") as pf:
+                            for p in new_pids:
+                                pf.write(f"{p}\n")
+                except Exception:
+                    pass
+
+        # RAM thực tế = MAX giữa Cgroup (gồm Page Cache) và tổng RSS từ bảng tiến trình
+        mem_used_bytes = max(cgroup_mem_bytes, real_rss_bytes)
         user_mem_allocated_mb = current_user.get("mem_mb", 1024)
         user_mem_used_mb = round(mem_used_bytes / (1024 * 1024), 1)
         user_mem_pct = round(min(100.0, (user_mem_used_mb / user_mem_allocated_mb) * 100), 1) if user_mem_allocated_mb > 0 else 0
@@ -182,26 +327,14 @@ async def system_status(current_user: dict = Depends(get_current_user)):
             "percent": user_mem_pct
         }
 
-        # 2. CPU thực tế của User
+        # ----------------------------------------------------
+        # 3. CPU THỰC TẾ CỦA USER (ĐO CHÍNH XÁC KHỚP VỚI HTOP / PROCESS TABLE)
+        # ----------------------------------------------------
         user_cpu_limit_pct = current_user.get("cpu_pct", 100)
-        # Ước tính phần trăm CPU đang dùng từ các tiến trình của user
-        user_cpu_cur = 0.0
-        try:
-            # Đếm số thread / pids đang chạy của user
-            pid_count = 0
-            for procs_p in [
-                f"/sys/fs/cgroup/wpc/reseller_1/user_{username}/cgroup.procs",
-                f"/sys/fs/cgroup/wpc/user_{username}/cgroup.procs"
-            ]:
-                if os.path.exists(procs_p):
-                    with open(procs_p, "r") as pf:
-                        pids = [l.strip() for l in pf.readlines() if l.strip()]
-                        pid_count = len(pids)
-                        break
-            user_cpu_cur = min(user_cpu_limit_pct, round(pid_count * 2.5 + (stats["cpu"]["percent"] * 0.15), 1))
-        except Exception:
-            user_cpu_cur = 5.0
+        # Giá trị CPU đang dùng thực tế (tổng %cpu của các tiến trình user)
+        user_cpu_cur = round(real_cpu_pct, 1)
 
+        # Tỷ lệ % so với mức trần được cấp (cho Gauge hiển thị)
         user_cpu_pct_ratio = round(min(100.0, (user_cpu_cur / user_cpu_limit_pct) * 100), 1) if user_cpu_limit_pct > 0 else 0
         stats["user_cpu"] = {
             "current_pct": user_cpu_cur,
@@ -209,22 +342,34 @@ async def system_status(current_user: dict = Depends(get_current_user)):
             "percent": user_cpu_pct_ratio
         }
 
-        # 3. Disk thực tế của User (từ thư mục /home/<username> hoặc quota)
+        # ----------------------------------------------------
+        # 4. DISK QUOTA THỰC TẾ
+        # ----------------------------------------------------
         user_disk_allocated_mb = current_user.get("disk_mb", 5120)
-        user_disk_used_mb = 120.0
-        home_dir = f"/home/{username}"
-        if os.path.exists(home_dir):
+        total_disk_bytes = 0
+        scanned_dirs = set()
+        for u in query_users:
+            h_dir = f"/home/{u}"
+            if os.path.isdir(h_dir):
+                scanned_dirs.add(h_dir)
+        for dr in user_doc_roots:
+            if os.path.isdir(dr):
+                scanned_dirs.add(dr)
+
+        for s_dir in scanned_dirs:
             try:
-                # Quét kích thước nhanh hoặc disk usage
-                total_size = 0
-                for root, dirs, files in os.walk(home_dir):
+                for root, dirs, files in os.walk(s_dir):
                     for f in files:
                         fp = os.path.join(root, f)
                         if not os.path.islink(fp) and os.path.exists(fp):
-                            total_size += os.path.getsize(fp)
-                user_disk_used_mb = round(total_size / (1024 * 1024), 1)
+                            total_disk_bytes += os.path.getsize(fp)
             except Exception:
-                user_disk_used_mb = 150.0
+                pass
+
+        if total_disk_bytes > 0:
+            user_disk_used_mb = round(total_disk_bytes / (1024 * 1024), 1)
+        else:
+            user_disk_used_mb = 120.0
 
         user_disk_pct = round(min(100.0, (user_disk_used_mb / user_disk_allocated_mb) * 100), 1) if user_disk_allocated_mb > 0 else 0
         stats["user_disk"] = {
