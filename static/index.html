@@ -178,14 +178,13 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 4. Files / File Manager (Chỉ Admin và Web User; Hosting User login vào Web User) -->
-                            <button v-if="currentUser.role === 'admin' || isWebUser" @click="currentTab = 'files'" :class="navClass('files')">
+                            <!-- 4. Files / File Manager (Tất cả vai trò: Admin, Hosting User & Web User) -->
+                            <button @click="openFileManager()" :class="navClass('files')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="folder" class="w-4 h-4 text-slate-400"></i>
                                     <span>Files</span>
                                 </div>
-                                <span v-if="isWebUser" class="text-[9px] px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 font-mono">SSH</span>
-                                <span v-else class="text-slate-500 text-xs">›</span>
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
                             <!-- 5. Databases & Users (Admin, Hosting User & Web User) -->

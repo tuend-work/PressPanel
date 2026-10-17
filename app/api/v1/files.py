@@ -8,14 +8,41 @@ from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/files", tags=["File Manager"])
 
+import sqlite3
+
+def is_domain_owner(user_id: int, target_user: str) -> bool:
+    try:
+        db_path = "/opt/wpc/data/panel.db"
+        if not os.path.exists(db_path):
+            base_p = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+            db_path = os.path.join(base_p, "data", "panel.db")
+        if not os.path.exists(db_path):
+            return False
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM domains WHERE user_id = ? AND (document_root LIKE ? OR domain_name LIKE ?)",
+                    (user_id, f"%/home/{target_user}/%", f"%{target_user}%"))
+        row = cur.fetchone()
+        conn.close()
+        return bool(row)
+    except Exception:
+        return False
+
 def resolve_target_path(user: dict, target_user: Optional[str], subpath: str) -> str:
+    clean_u = "".join(c for c in target_user if c.isalnum() or c in ("_", "-")) if target_user else None
+
     # 1. Nếu là admin, có thể xem thư mục của bất kỳ user nào trong /home hoặc thư mục web
     if user["role"] == "admin":
-        if target_user:
-            clean_u = "".join(c for c in target_user if c.isalnum() or c in ("_", "-"))
+        if clean_u:
             base_dir = f"/home/{clean_u}"
         else:
             base_dir = "/home"
+    elif clean_u and clean_u != user["username"]:
+        # Cho phép Hosting User xem và quản lý file của website thuộc quyền sở hữu của mình
+        if is_domain_owner(user["id"], clean_u):
+            base_dir = f"/home/{clean_u}"
+        else:
+            base_dir = f"/home/{user['username']}"
     else:
         # User thường chỉ được xem trong phạm vi /home/<username>
         base_dir = f"/home/{user['username']}"
