@@ -228,17 +228,17 @@
                             <button v-if="currentUser.role === 'admin' || isHostingUser" @click="currentTab = 'service_plans'" :class="navClass('service_plans')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="cpu" class="w-4 h-4 text-slate-400"></i>
-                                    <span v-if="currentUser.role === 'admin'">Gói Dịch Vụ (Plans)</span>
-                                    <span v-else>Website Plans (Gói Web)</span>
+                                    <span v-if="currentUser.role === 'admin'">User Package</span>
+                                    <span v-else>Website Plan</span>
                                 </div>
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 9. Quản Lý Hosting Users / Khách Hàng (Chỉ Admin) -->
+                            <!-- 9. Quản Lý Users / Khách Hàng (Chỉ Admin) -->
                             <button v-if="currentUser.role === 'admin'" @click="currentTab = 'customers'" :class="navClass('customers')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Hosting Users</span>
+                                    <span>Users</span>
                                 </div>
                                 <span class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">{{ customers.length }}</span>
                             </button>
@@ -317,7 +317,7 @@
                 <div v-if="isImpersonating" class="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-5 py-2.5 flex items-center justify-between text-xs shadow-sm font-medium shrink-0 animate-fadeIn">
                     <div class="flex items-center space-x-2.5">
                         <span class="text-base">⚠️</span>
-                        <span>Đang đăng nhập dưới quyền {{ currentUser.role === 'user' ? 'Web User' : 'Hosting User' }}: <b>{{ currentUser.username }}</b> (Chế độ Login as User)</span>
+                        <span>Đang đăng nhập dưới quyền {{ currentUser.role === 'user' ? 'Web User' : 'User' }}: <b>{{ currentUser.username }}</b> (Chế độ Login as User)</span>
                     </div>
                     <button @click="exitImpersonation" class="px-3 py-1 rounded-lg bg-slate-900 hover:bg-black text-white font-bold transition flex items-center space-x-1.5 shadow">
                         <i data-lucide="corner-up-left" class="w-3.5 h-3.5"></i>
@@ -366,7 +366,7 @@
                             </div>
                             <div class="hidden sm:flex flex-col text-left">
                                 <span class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition">{{ currentUser.username === 'admin' ? 'Nguyễn Đức Tuệ' : currentUser.username }}</span>
-                                <span class="text-[10px] text-slate-400 capitalize font-medium">{{ currentUser.role === 'admin' ? 'Administrator' : currentUser.role }}</span>
+                                <span class="text-[10px] text-slate-400 capitalize font-medium">{{ currentUser.role === 'admin' ? 'Administrator' : 'User' }}</span>
                             </div>
                         </div>
 

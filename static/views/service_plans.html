@@ -3,26 +3,33 @@
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <div>
                                 <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-                                    <span>📖</span> <span>Gói Dịch Vụ Lưu Trữ (Service Plans)</span>
+                                    <span v-if="currentUser.role === 'admin'">📦</span>
+                                    <span v-else>🌐</span>
+                                    <span v-if="currentUser.role === 'admin'">Quản Lý User Packages</span>
+                                    <span v-else>Quản Lý Website Plans</span>
                                 </h2>
-                                <p class="text-xs text-slate-500 mt-1">Quản lý 2 hệ thống gói độc lập: <b>User Plan</b> (Cấp tổng cho Hosting User) &amp; <b>Website Plan</b> (Cấp lẻ cho từng Website).</p>
+                                <p class="text-xs text-slate-500 mt-1">
+                                    <span v-if="currentUser.role === 'admin'">Quản lý các gói User Package cấp phát tài nguyên cho người dùng hosting.</span>
+                                    <span v-else>Tạo và quản lý các gói tài nguyên Website Plan để phân bổ cho từng website của bạn (mỗi gói áp dụng 1 website).</span>
+                                </p>
                             </div>
                             <button @click="showAddPlanModal = true" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-md shadow-blue-500/20 transition flex items-center space-x-2">
-                                <span>➕ Thêm Service Plan Mới</span>
+                                <span v-if="currentUser.role === 'admin'">➕ Thêm User Package</span>
+                                <span v-else>➕ Tạo Website Plan Mới</span>
                             </button>
                         </div>
 
-                        <!-- Tabs lọc loại gói: Tất cả / User Plan / Website Plan -->
-                        <div class="flex space-x-2 border-b border-slate-200 pb-3 text-xs">
+                        <!-- Tabs lọc loại gói: Chỉ hiển thị cho Admin -->
+                        <div v-if="currentUser.role === 'admin'" class="flex space-x-2 border-b border-slate-200 pb-3 text-xs">
                             <button @click="selectedPlanTab = 'all'"
                                 :class="selectedPlanTab === 'all' ? 'bg-blue-600 text-white font-bold' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'"
                                 class="px-4 py-1.5 rounded-xl transition shadow-sm">
                                 Tất Cả Gói ({{ servicePlans.length }})
                             </button>
-                            <button v-if="currentUser.role === 'admin'" @click="selectedPlanTab = 'user'"
+                            <button @click="selectedPlanTab = 'user'"
                                 :class="selectedPlanTab === 'user' ? 'bg-blue-600 text-white font-bold' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'"
                                 class="px-4 py-1.5 rounded-xl transition shadow-sm flex items-center gap-1.5">
-                                <span>👤 User Plans (Admin cấp User)</span>
+                                <span>👤 User Packages (Cấp cho User)</span>
                             </button>
                             <button @click="selectedPlanTab = 'website'"
                                 :class="selectedPlanTab === 'website' ? 'bg-blue-600 text-white font-bold' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'"
@@ -32,21 +39,18 @@
                         </div>
 
                         <!-- Grid các gói Hosting Mẫu chuẩn WPC -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                        <div v-if="filteredServicePlans.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                             <div v-for="plan in filteredServicePlans" :key="plan.id"
                                 class="bg-white rounded-2xl p-5 flex flex-col justify-between border border-slate-200/90 hover:border-blue-500 transition shadow-sm hover:shadow-md space-y-4">
                                 <div>
                                     <div class="flex justify-between items-start mb-3">
                                         <div class="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center font-bold text-base shadow-inner">
-                                            📦
+                                            {{ plan.plan_type === 'website' ? '🌐' : '📦' }}
                                         </div>
                                         <div class="flex flex-col items-end gap-1">
                                             <span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full font-bold uppercase"
                                                 :class="plan.plan_type === 'website' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'">
-                                                {{ plan.plan_type === 'website' ? 'Website Plan' : 'User Plan' }}
-                                            </span>
-                                            <span v-if="plan.package_type === 'reseller'" class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-50 text-amber-600 border border-amber-200">
-                                                Reseller
+                                                {{ plan.plan_type === 'website' ? 'Website Plan' : 'User Package' }}
                                             </span>
                                         </div>
                                     </div>
@@ -101,5 +105,17 @@
                                     </span>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Empty State khi chưa có gói nào (ví dụ Hosting User chưa tạo Website Plan) -->
+                        <div v-else class="bg-white rounded-2xl p-12 text-center border border-slate-200/90 shadow-sm space-y-3">
+                            <div class="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center text-3xl mx-auto shadow-inner">
+                                🌐
+                            </div>
+                            <h3 class="text-base font-bold text-slate-800">Chưa có Website Plan nào</h3>
+                            <p class="text-xs text-slate-500 max-w-md mx-auto">Bạn chưa tạo gói Website Plan nào để phân bổ tài nguyên cho từng website của mình. Mỗi gói áp dụng cho 1 website duy nhất.</p>
+                            <button @click="showAddPlanModal = true" class="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition inline-flex items-center space-x-1.5">
+                                <span>➕ Tạo Website Plan Mới</span>
+                            </button>
                         </div>
                     </div>

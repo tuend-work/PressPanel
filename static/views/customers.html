@@ -3,12 +3,12 @@
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <div>
                                 <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-                                    <span>👤</span> <span>Quản Lý Hosting Users (Khách Hàng)</span>
+                                    <span>👤</span> <span>Quản Lý Users (Khách Hàng)</span>
                                 </h2>
-                                <p class="text-xs text-slate-500 mt-1">Hosting User chỉ đăng nhập Web Control Panel (không SSH). Quản lý nhiều gói website, database và database user.</p>
+                                <p class="text-xs text-slate-500 mt-1">Quản lý các tài khoản User trên hệ thống, phân bổ User Package và kiểm soát trạng thái hoạt động.</p>
                             </div>
                             <button @click="showAddCustomerModal = true; fetchServicePlans();" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-md shadow-blue-500/20 transition flex items-center space-x-2">
-                                <span>➕ Thêm Hosting User</span>
+                                <span>➕ Thêm User Mới</span>
                             </button>
                         </div>
 
@@ -17,11 +17,11 @@
                             <div class="flex flex-wrap items-center gap-2">
                                 <button @click="showAddCustomerModal = true; fetchServicePlans();"
                                     class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white shadow-sm transition flex items-center space-x-1.5">
-                                    <span>➕ Add Hosting User</span>
+                                    <span>➕ Add User</span>
                                 </button>
                                 <button @click="currentTab = 'service_plans'"
                                     class="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 font-medium text-xs text-slate-700 border border-slate-200 transition flex items-center space-x-1.5">
-                                    <span>📋 Service Plans</span>
+                                    <span>📋 User Packages</span>
                                 </button>
                                 
                                 <!-- Set Status Dropdown -->
@@ -79,8 +79,8 @@
                                         <tr v-if="customers.length === 0">
                                             <td colspan="8" class="py-12 text-center text-slate-400">
                                                 <div class="text-3xl mb-2">👥</div>
-                                                <div class="font-semibold text-slate-700">Chưa có tài khoản Hosting User nào</div>
-                                                <div class="text-[11px] text-slate-400 mt-1">Bấm nút "➕ Add Hosting User" ở trên để tạo người dùng đầu tiên.</div>
+                                                <div class="font-semibold text-slate-700">Chưa có tài khoản User nào</div>
+                                                <div class="text-[11px] text-slate-400 mt-1">Bấm nút "➕ Add User" ở trên để tạo người dùng đầu tiên.</div>
                                             </td>
                                         </tr>
                                         <tr v-for="c in customers" :key="c.id" :class="selectedCustomerIds.includes(c.id) ? 'bg-blue-50/40' : 'hover:bg-slate-50/80'" class="transition">

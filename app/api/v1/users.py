@@ -404,13 +404,13 @@ async def list_service_plans(
         FROM packages p
     """
     params = []
-    if plan_type:
+    if current_user["role"] in ("reseller", "user") and current_user["username"] != "admin":
+        # Chỉ Admin mới thấy User Plan. Còn Hosting user CHỈ nhìn thấy Website Plan
+        query += " WHERE p.plan_type = 'website' AND (p.owner_id = ? OR p.owner_id = 0)"
+        params.append(current_user["id"])
+    elif plan_type:
         query += " WHERE p.plan_type = ?"
         params.append(plan_type)
-    elif current_user["role"] in ("reseller", "user") and current_user["username"] != "admin":
-        # Hosting user thấy tất cả website plans + các gói user được phân phối
-        query += " WHERE p.plan_type = 'website' OR p.owner_id = ? OR p.owner_id = 0"
-        params.append(current_user["id"])
         
     query += " ORDER BY p.id ASC"
     cursor = await db.execute(query, params)
