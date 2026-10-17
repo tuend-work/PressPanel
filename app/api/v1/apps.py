@@ -343,6 +343,9 @@ async def app_action(
     current_user: dict = Depends(get_current_user)
 ):
     """Thực thi Cài đặt / Restart / Stop / Start / Gỡ bỏ ứng dụng"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ quản trị viên cấp cao mới có quyền thao tác dịch vụ hệ thống.")
+
     app = next((a for a in SUPPORTED_APPS if a["id"] == req.app_id), None)
     if not app:
         raise HTTPException(status_code=404, detail="Ứng dụng không tồn tại trong danh mục")
@@ -591,6 +594,9 @@ async def get_app_config(app_id: str, file_type: str = "main", current_user: dic
 @router.post("/config")
 async def save_app_config(req: ConfigUpdateRequest, current_user: dict = Depends(get_current_user)):
     """Lưu chỉnh sửa file cấu hình từ Popup Settings"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền chỉnh sửa cấu hình hệ thống.")
+
     lookup_id = f"{req.app_id}_pool" if req.file_type == "pool" and req.app_id.startswith("php") else req.app_id
     conf_path = APP_CONFIG_PATHS.get(lookup_id)
     
@@ -640,6 +646,8 @@ async def save_app_config(req: ConfigUpdateRequest, current_user: dict = Depends
 @router.post("/autorestart")
 async def toggle_autorestart(req: AutorestartRequest, current_user: dict = Depends(get_current_user)):
     """Bật/Tắt chế độ tự khởi động lại (systemctl enable/disable) cho ứng dụng khi bị tắt"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền đổi thiết lập dịch vụ.")
     app = next((a for a in SUPPORTED_APPS if a["id"] == req.app_id), None)
     if not app or not app.get("service"):
         raise HTTPException(status_code=400, detail="Ứng dụng này không có dịch vụ daemon để cấu hình tự khởi động.")
@@ -731,6 +739,9 @@ async def toggle_php_extension(
     current_user: dict = Depends(get_current_user)
 ):
     """Cài đặt hoặc Gỡ bỏ Extension cho phiên bản PHP"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền cài đặt hoặc gỡ bỏ extension PHP.")
+
     ver_clean = req.version.replace("php", "")
     if len(ver_clean) == 2:
         ver_clean = f"{ver_clean[0]}.{ver_clean[1]}"
@@ -799,6 +810,9 @@ class DirectivesUpdateRequest(BaseModel):
 @router.post("/php/directives")
 async def save_php_directives(req: DirectivesUpdateRequest, current_user: dict = Depends(get_current_user)):
     """Cập nhật các thông số trong php.ini và reload service"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền cập nhật cấu hình PHP hệ thống.")
+
     ver_clean = req.version.replace("php", "")
     if len(ver_clean) == 2:
         ver_clean = f"{ver_clean[0]}.{ver_clean[1]}"
@@ -873,6 +887,8 @@ async def rewrite_webserver_config(
     Backup cấu hình vhost hiện tại và tái tạo lại toàn bộ file VirtualHost
     từ template và dữ liệu websites trong SQLite database.
     """
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền tái tạo cấu hình Web Server.")
     import time
     from app.db.session import get_db_connection
 

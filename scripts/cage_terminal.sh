@@ -6,8 +6,8 @@
 set -euo pipefail
 
 TARGET_USER="${1:-}"
-if [ -z "$TARGET_USER" ]; then
-    echo "[-] Thieu tham so username cho cage terminal"
+if [ -z "$TARGET_USER" ] || [[ ! "$TARGET_USER" =~ ^[a-z0-9_-]{1,32}$ ]]; then
+    echo "[-] Thieu tham so hoac username khong hop le cho cage terminal"
     exit 1
 fi
 

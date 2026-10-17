@@ -146,8 +146,8 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         const char *filepath = argv[2];
-        if (strstr(filepath, "..")) {
-            send_json_error("app", "Duong dan khong hop le");
+        if (!is_safe_home_path(filepath)) {
+            send_json_error("app", "Duong dan khong thuoc /home hoac chua ky tu nguy hiem");
             return 1;
         }
         FILE *fp = fopen(filepath, "a");
@@ -159,6 +159,7 @@ int main(int argc, char *argv[]) {
         // Gan owner theo thu muc cha neu thu muc cha thuoc user khac root
         char parent[512];
         strncpy(parent, filepath, sizeof(parent) - 1);
+        parent[sizeof(parent) - 1] = '\0';
         char *slash = strrchr(parent, '/');
         if (slash) {
             *slash = '\0';
@@ -177,8 +178,8 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         const char *dirpath = argv[2];
-        if (strstr(dirpath, "..")) {
-            send_json_error("app", "Duong dan khong hop le");
+        if (!is_safe_home_path(dirpath)) {
+            send_json_error("app", "Duong dan khong thuoc /home hoac chua ky tu nguy hiem");
             return 1;
         }
         char mkdir_cmd[1024];
@@ -186,6 +187,7 @@ int main(int argc, char *argv[]) {
         if (system(mkdir_cmd) == 0) {
             char parent[512];
             strncpy(parent, dirpath, sizeof(parent) - 1);
+            parent[sizeof(parent) - 1] = '\0';
             char *slash = strrchr(parent, '/');
             if (slash) {
                 *slash = '\0';
@@ -207,10 +209,18 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         const char *target = argv[2];
-        if (strstr(target, "..") || strcmp(target, "/") == 0 || strcmp(target, "/home") == 0) {
-            send_json_error("app", "Duong dan nguy hiem hoac khong hop le");
+        if (!is_safe_home_path(target)) {
+            send_json_error("app", "Duong dan khong thuoc /home hoac chua ky tu nguy hiem");
             return 1;
         }
+        // Cấm tuyệt đối xóa thư mục /home/<user> trực tiếp (phải có ít nhất 1 cấp con bên trong)
+        const char *rest = target + 6; // Bỏ qua '/home/'
+        const char *next_slash = strchr(rest, '/');
+        if (!next_slash || *(next_slash + 1) == '\0') {
+            send_json_error("app", "Khong duoc phep xoa truc tiep thu muc goc cua user");
+            return 1;
+        }
+
         char rm_cmd[1024];
         snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf '%s'", target);
         if (system(rm_cmd) == 0) {
@@ -231,9 +241,23 @@ int main(int argc, char *argv[]) {
         const char *format = argv[4];
         const char *items = argv[5];
 
-        if (strstr(work_dir, "..") || strstr(archive_name, "..") || strstr(items, "..")) {
-            send_json_error("app", "Duong dan khong hop le");
+        if (!is_safe_home_path(work_dir) || !is_safe_token(archive_name)) {
+            send_json_error("app", "Thu muc lam viec hoac ten file nen khong hop le");
             return 1;
+        }
+
+        // Kiểm tra an toàn cho danh sách items
+        if (strstr(items, "..")) {
+            send_json_error("app", "Danh sach muc nen chua ky tu traversal nguy hiem");
+            return 1;
+        }
+        for (size_t i = 0; items[i]; i++) {
+            char c = items[i];
+            if (c == '\'' || c == '"' || c == '`' || c == '$' || c == ';' ||
+                c == '&' || c == '|' || c == '\n' || c == '\r' || c == '\\') {
+                send_json_error("app", "Danh sach muc nen chua ky tu command injection");
+                return 1;
+            }
         }
 
         char archive_cmd[4096];

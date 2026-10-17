@@ -27,7 +27,13 @@ int main(int argc, char *argv[]) {
     if (strcmp(action, "install") == 0) {
         const char *title = (argc > 4) ? argv[4] : "My WordPress Site";
         const char *admin_user = (argc > 5) ? argv[5] : "admin";
-        
+
+        // Kiểm tra không chứa ký tự phá vỡ lệnh shell
+        if (strchr(title, '\'') || strchr(admin_user, '\'')) {
+            send_json_error("wp", "Tieu de hoac admin user chua ky tu khong hop le");
+            return 1;
+        }
+
         // Nhận mật khẩu qua stdin
         char password[256] = {0};
         if (!fgets(password, sizeof(password), stdin)) {
@@ -36,8 +42,22 @@ int main(int argc, char *argv[]) {
         }
         password[strcspn(password, "\r\n")] = 0;
 
-        snprintf(cmd, sizeof(cmd), "echo '%s' | /opt/wpc/scripts/wp_manager.sh install '%s' '%s' '%s' '%s'",
-                 password, username, domain, title, admin_user);
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh install '%s' '%s' '%s' '%s'",
+                 username, domain, title, admin_user);
+
+        FILE *pipe_wp = popen(cmd, "w");
+        if (!pipe_wp) {
+            send_json_error("wp", "Khong the khoi dong wp_manager");
+            return 1;
+        }
+        fprintf(pipe_wp, "%s\n", password);
+        int ret = pclose(pipe_wp);
+        if (ret == 0) {
+            send_json_ok("\"message\":\"Cai dat WordPress thanh cong\"");
+            return 0;
+        }
+        send_json_error("wp", "Cai dat WordPress that bai");
+        return 1;
     }
     else if (strcmp(action, "clone") == 0) {
         if (argc < 5) {

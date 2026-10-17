@@ -85,6 +85,9 @@ int main(int argc, char *argv[]) {
     }
 
     // Child Process: thiet lap moi truong bao ve
+    // Cách ly toàn bộ mount event không lan truyền ra namespace cha
+    mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL);
+
     // Mount /proc voi hidepid=2
     mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, "hidepid=2");
 

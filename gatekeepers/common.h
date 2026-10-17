@@ -50,6 +50,7 @@ static inline int is_safe_id(const char *str) {
 
 static inline int is_safe_token(const char *str) {
     if (!str || !*str) return 0;
+    if (strstr(str, "..")) return 0; // Chống Directory Traversal
     size_t len = strlen(str);
     if (len > 255) return 0;
     for (size_t i = 0; i < len; i++) {
@@ -59,6 +60,41 @@ static inline int is_safe_token(const char *str) {
         }
     }
     return 1;
+}
+
+static inline int is_safe_home_path(const char *path) {
+    if (!path || !*path) return 0;
+    if (strncmp(path, "/home/", 6) != 0) return 0; // Bắt buộc phải nằm trong /home/
+    if (strstr(path, "..")) return 0; // Chống traversal
+    size_t len = strlen(path);
+    if (len > 1024) return 0;
+    for (size_t i = 0; i < len; i++) {
+        char c = path[i];
+        // Cấm tuyệt đối các ký tự command injection hoặc escape quote
+        if (c == '\'' || c == '"' || c == '`' || c == '$' || c == ';' ||
+            c == '&' || c == '|' || c == '\n' || c == '\r' || c == '\\') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static inline int is_system_user(const char *username) {
+    if (!username || !*username) return 1;
+    const char *sys_users[] = {
+        "root", "wpc", "nobody", "www-data", "bin", "daemon", "sys", "sync",
+        "games", "man", "lp", "mail", "news", "uucp", "proxy", "backup",
+        "list", "irc", "gnats", "systemd", "mysql", "mariadb", "nginx",
+        "lsadm", "redis", "postfix", "dovecot", "bind", "named", "sshd", NULL
+    };
+    for (int i = 0; sys_users[i] != NULL; i++) {
+        if (strcmp(username, sys_users[i]) == 0) return 1;
+    }
+    struct passwd *pw = getpwnam(username);
+    if (pw && pw->pw_uid < 1000) {
+        return 1; // Mọi UID < 1000 đều là tài khoản hệ thống của Linux
+    }
+    return 0;
 }
 
 static inline void init_security_env(void) {

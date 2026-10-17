@@ -28,6 +28,18 @@ int main(int argc, char *argv[]) {
         const char *username = argv[4];
         const char *out_path = argv[5];
 
+        if (!is_safe_id(app) || !is_safe_id(pkg_id) || !is_safe_id(username)) {
+            send_json_error("template", "Tham so chua ky tu khong hop le");
+            return 1;
+        }
+
+        // Chặn ghi đè vào các file nhạy cảm của hệ điều hành
+        if (strstr(out_path, "..") || strstr(out_path, "/etc/shadow") ||
+            strstr(out_path, "/etc/sudoers") || strstr(out_path, "/etc/passwd")) {
+            send_json_error("template", "Duong dan out_path khong duoc phep ghi");
+            return 1;
+        }
+
         char tpl_path[512];
         struct stat st;
 

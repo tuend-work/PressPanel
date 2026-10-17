@@ -51,8 +51,11 @@ def resolve_target_path(user: dict, target_user: Optional[str], subpath: str) ->
     real_base = os.path.realpath(base_dir)
     real_target = os.path.realpath(os.path.join(real_base, clean_sub))
 
-    # Chống Path Traversal vượt khỏi base_dir
-    if not real_target.startswith(real_base) and real_target != real_base:
+    # Chống Path Traversal vượt khỏi base_dir (sử dụng relative_to ngăn chặn triệt để prefix bypass)
+    from pathlib import Path
+    try:
+        Path(real_target).relative_to(Path(real_base))
+    except ValueError:
         raise HTTPException(status_code=403, detail="Phát hiện hành vi Path Traversal không an toàn!")
     return real_target
 

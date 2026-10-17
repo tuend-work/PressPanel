@@ -75,8 +75,9 @@ def domain_to_linux_user(domain: str) -> str:
 @router.post("/")
 async def create_domain(req: DomainCreate, current_user: dict = Depends(get_current_user)):
     clean_domain = re.sub(r"^(https?://)?(www\.)?", "", req.domain_name.strip().lower()).rstrip("/")
-    if not clean_domain:
-        raise HTTPException(status_code=400, detail="Tên miền không hợp lệ")
+    # Kiểm tra cấu trúc FQDN hợp lệ: không chứa ký tự lạ, không có .. hay khoảng trắng
+    if not clean_domain or not re.match(r"^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$", clean_domain):
+        raise HTTPException(status_code=400, detail="Tên miền không hợp lệ (ví dụ hợp lệ: example.com, mysite.vn)")
 
     # MỖI WEBSITE LÀ MỘT LINUX USER ĐỘC LẬP
     # Tên user Linux là domain viết liền không dấu chấm (vd: example.com -> examplecom)
