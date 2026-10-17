@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
-from typing import List, Optional
+import os
 import re
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.api.deps import get_current_user
 from app.db.session import get_db_connection
@@ -82,72 +83,67 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
     isolated_user = domain_to_linux_user(clean_domain)
     doc_root = f"/home/{isolated_user}/domains/{clean_domain}/public_html"
 
-    # TỰ ĐỘNG CHỌN WEBSERVER TẦNG SERVER:
-    # QTV cấu hình/bật webserver nào (OLS hoặc Nginx) thì hệ thống sử dụng webserver đó cho tất cả web.
-    active_ws = req.webserver or "ols"
     db = await get_db_connection()
-    # Kiểm tra xem có cấu hình webserver hệ thống nào đang được dùng gần nhất không
-    ws_cur = await db.execute("SELECT webserver FROM domains ORDER BY id DESC LIMIT 1")
-    last_ws = await ws_cur.fetchone()
-    if last_ws and last_ws["webserver"]:
-        active_ws = last_ws["webserver"]
-    elif os.path.exists("/usr/sbin/nginx") and not os.path.exists("/usr/local/lsws/bin/lswsctrl"):
-        active_ws = "nginx"
-    else:
-        active_ws = "ols"
-
-    # Lấy thông tin Hosting User sở hữu website này
-    hosting_username = current_user.get("username", isolated_user)
-
-    # Gọi C gatekeeper: vhost add <user> <domain> <ols|nginx> <php_ver> [hosting_user]
-    # Script vhost_manager.sh sẽ tự động gọi ensure_linux_user tạo isolated_user & phân quyền an toàn,
-    # đồng thời gán service PHP-FPM con vào Slice của Hosting User cha (wpc-hosting_<hosting_user>.slice)!
-    res = await run_gatekeeper("vhost", "add", isolated_user, clean_domain, active_ws, req.php_version, hosting_username)
-    if res.get("status") == "error":
-        await db.close()
-        raise HTTPException(status_code=400, detail=res.get("message", "Không thể tạo VirtualHost"))
-
-    # Áp dụng giới hạn Cgroups v2 cho Linux User của website này
-    u_cpu = current_user.get("cpu_pct", 100) or 100
-    u_mem = current_user.get("mem_mb", 1024) or 1024
-    pkg_id = req.package_id
-    pkg_allow_ssh = 1
-
-    if req.package_id:
-        p_cur = await db.execute("SELECT cpu_pct, mem_mb, disk_mb, allow_ssh FROM packages WHERE id = ?", (req.package_id,))
-        wpkg = await p_cur.fetchone()
-        if wpkg:
-            u_cpu = min(u_cpu, wpkg["cpu_pct"])
-            u_mem = min(u_mem, wpkg["mem_mb"])
-            pkg_allow_ssh = wpkg["allow_ssh"]
-
-    reseller_id = str(current_user.get("parent_id", 1) or 1)
-    await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
-    # Đảm bảo slice của Hosting user cha cũng được cập nhật hạn mức
-    await run_gatekeeper("cgroup", "set-user", reseller_id, hosting_username, str(current_user.get("cpu_pct", 100) or 100), str(current_user.get("mem_mb", 1024) or 1024), "100", "100")
-
     try:
+        # TỰ ĐỘNG CHỌN WEBSERVER TẦNG SERVER:
+        active_ws = req.webserver or "ols"
+        ws_cur = await db.execute("SELECT webserver FROM domains ORDER BY id DESC LIMIT 1")
+        last_ws = await ws_cur.fetchone()
+        if last_ws and last_ws["webserver"]:
+            active_ws = last_ws["webserver"]
+        elif os.path.exists("/usr/sbin/nginx") and not os.path.exists("/usr/local/lsws/bin/lswsctrl"):
+            active_ws = "nginx"
+        else:
+            active_ws = "ols"
+
+        # Lấy thông tin Hosting User sở hữu website này
+        hosting_username = current_user.get("username", isolated_user)
+
+        # Gọi C gatekeeper: vhost add <user> <domain> <ols|nginx> <php_ver> [hosting_user]
+        res = await run_gatekeeper("vhost", "add", isolated_user, clean_domain, active_ws, req.php_version, hosting_username)
+        if res.get("status") == "error":
+            raise HTTPException(status_code=400, detail=res.get("message", "Không thể tạo VirtualHost"))
+
+        # Áp dụng giới hạn Cgroups v2 cho Linux User của website này
+        u_cpu = current_user.get("cpu_pct", 100) or 100
+        u_mem = current_user.get("mem_mb", 1024) or 1024
+        pkg_id = req.package_id
+        pkg_allow_ssh = 1
+
+        if req.package_id:
+            p_cur = await db.execute("SELECT cpu_pct, mem_mb, disk_mb, allow_ssh FROM packages WHERE id = ?", (req.package_id,))
+            wpkg = await p_cur.fetchone()
+            if wpkg:
+                u_cpu = min(u_cpu, wpkg["cpu_pct"])
+                u_mem = min(u_mem, wpkg["mem_mb"])
+                pkg_allow_ssh = wpkg["allow_ssh"]
+
+        reseller_id = str(current_user.get("parent_id", 1) or 1)
+        await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
+        await run_gatekeeper("cgroup", "set-user", reseller_id, hosting_username, str(current_user.get("cpu_pct", 100) or 100), str(current_user.get("mem_mb", 1024) or 1024), "100", "100")
+
         await db.execute("""
             INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version, package_id, allow_ssh)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (current_user["id"], clean_domain, doc_root, active_ws, req.php_version, pkg_id, pkg_allow_ssh))
         await db.commit()
+
+        # Tự động khởi tạo WordPress nếu được yêu cầu
+        if req.install_wp:
+            await run_gatekeeper("wp", "install", isolated_user, clean_domain)
+
+        return {
+            "status": "ok",
+            "message": f"Đã khởi tạo website {clean_domain} thành công với Linux user độc lập '{isolated_user}'!",
+            "isolated_user": isolated_user,
+            "domain": clean_domain
+        }
+    except HTTPException:
+        raise
     except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Lỗi khởi tạo website: {str(e)}")
+    finally:
         await db.close()
-        raise HTTPException(status_code=400, detail=f"Tên miền đã tồn tại: {str(e)}")
-    
-    await db.close()
-
-    # Tự động khởi tạo WordPress nếu được yêu cầu
-    if req.install_wp:
-        await run_gatekeeper("wp", "install", isolated_user, clean_domain)
-
-    return {
-        "status": "ok",
-        "message": f"Đã khởi tạo website {clean_domain} thành công với Linux user độc lập '{isolated_user}'!",
-        "isolated_user": isolated_user,
-        "domain": clean_domain
-    }
 
 @router.post("/batch-delete")
 async def batch_delete_domains(req: DomainBatchDeleteRequest, current_user: dict = Depends(get_current_user)):

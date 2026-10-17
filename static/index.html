@@ -1183,7 +1183,13 @@
                             },
                             body: JSON.stringify(newDomain.value)
                         });
-                        const data = await res.json();
+                        let data = {};
+                        const text = await res.text();
+                        try {
+                            data = JSON.parse(text);
+                        } catch (parseErr) {
+                            throw new Error(text || `Lỗi máy chủ (${res.status})`);
+                        }
                         if (res.ok) {
                             showAddDomainModal.value = false;
                             newDomain.value.domain_name = '';
@@ -1192,7 +1198,7 @@
                             fetchAppsList();
                             alert('Tạo website thành công!');
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể tạo website'));
+                            alert('Lỗi: ' + (data.detail || data.message || 'Không thể tạo website'));
                         }
                     } catch (e) {
                         alert('Lỗi: ' + e.message);
