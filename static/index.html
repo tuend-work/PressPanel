@@ -223,8 +223,8 @@
                                 <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono border border-emerald-800">SSH</span>
                             </button>
 
-                            <!-- 8. Service Plans / Website Plans (Admin & Hosting User) -->
-                            <button v-if="currentUser.role === 'admin' || isHostingUser" @click="currentTab = 'service_plans'" :class="navClass('service_plans')">
+                            <!-- 8. Service Plans / Website Plans (Chỉ Admin & Hosting User, Website User không cần) -->
+                            <button v-if="(currentUser.role === 'admin' || isHostingUser) && !isWebUser" @click="currentTab = 'service_plans'" :class="navClass('service_plans')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="cpu" class="w-4 h-4 text-slate-400"></i>
                                     <span v-if="currentUser.role === 'admin'">User Package</span>
@@ -417,19 +417,24 @@
                     const saved = localStorage.getItem('wpc_user');
                     if (saved) {
                         initialUser = JSON.parse(saved);
-                        if (initialUser && initialUser.username !== 'admin' && initialUser.role === 'user' && !initialUser.web_domain_id) {
-                            initialUser.role = 'reseller';
-                            localStorage.setItem('wpc_user', JSON.stringify(initialUser));
+                        if (initialUser && initialUser.username !== 'admin' && initialUser.role === 'user') {
+                            if (initialUser.web_domain_id || initialUser.domain_name) {
+                                // Website User chuẩn (quản lý 1 web)
+                            } else {
+                                // Hosting User tạo trước đó
+                                initialUser.role = 'reseller';
+                                localStorage.setItem('wpc_user', JSON.stringify(initialUser));
+                            }
                         }
                     }
                 } catch(e) {}
                 const currentUser = ref(initialUser);
 
-                const isHostingUser = computed(() => {
-                    return currentUser.value.role === 'reseller' || (currentUser.value.role === 'user' && !currentUser.value.web_domain_id && currentUser.value.username !== 'admin');
-                });
                 const isWebUser = computed(() => {
-                    return currentUser.value.role === 'user' && !!currentUser.value.web_domain_id;
+                    return currentUser.value.role === 'user' && (!!currentUser.value.web_domain_id || !!currentUser.value.domain_name);
+                });
+                const isHostingUser = computed(() => {
+                    return (currentUser.value.role === 'reseller' || (currentUser.value.role === 'user' && !isWebUser.value)) && currentUser.value.username !== 'admin';
                 });
                 
                 // Hỗ trợ URI riêng biệt cho từng chức năng (#dashboard, #domains, #files, ...)
@@ -440,7 +445,11 @@
                         'monitoring', 'wp', 'service_plans', 'customers',
                         'apps', 'firewall', 'tools_settings', 'profile'
                     ];
-                    return validTabs.includes(hash) ? hash : 'dashboard';
+                    let chosen = validTabs.includes(hash) ? hash : 'dashboard';
+                    if (chosen === 'service_plans' && isWebUser.value) {
+                        chosen = 'dashboard';
+                    }
+                    return chosen;
                 };
                 const currentTab = ref(getTabFromHash());
                 const domains = ref([]);
@@ -1584,7 +1593,8 @@
                                 username: data.web_user.username,
                                 role: 'user',
                                 domain_name: data.web_user.domain_name,
-                                document_root: data.web_user.document_root
+                                document_root: data.web_user.document_root,
+                                web_domain_id: data.web_user.web_domain_id || domain.id
                             };
                             localStorage.setItem('wpc_token', data.access_token);
                             localStorage.setItem('wpc_user', JSON.stringify(currentUser.value));
@@ -2168,6 +2178,11 @@
                 };
 
                 watch(currentTab, (newTab) => {
+                    if (newTab === 'service_plans' && isWebUser.value) {
+                        currentTab.value = 'dashboard';
+                        window.location.hash = 'dashboard';
+                        return;
+                    }
                     if (window.location.hash.replace('#', '') !== newTab) {
                         window.location.hash = newTab;
                     }

@@ -284,7 +284,8 @@ async def impersonate_website_user(
             "username": web_user_name,
             "domain_name": domain["domain_name"],
             "document_root": domain["document_root"],
-            "role": "user"
+            "role": "user",
+            "web_domain_id": domain["id"]
         }
     }
 
