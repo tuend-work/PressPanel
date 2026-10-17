@@ -36,7 +36,11 @@ ACTION="${1:-help}"
 
 case "$ACTION" in
     update)
-        sudo bash "$INSTALL_DIR/scripts/update.sh"
+        TMP_RUNNER="/tmp/wpc_update_$$.sh"
+        cp "$INSTALL_DIR/scripts/update.sh" "$TMP_RUNNER" 2>/dev/null || true
+        chmod +x "$TMP_RUNNER" 2>/dev/null || true
+        sudo bash "$TMP_RUNNER"
+        rm -f "$TMP_RUNNER" 2>/dev/null || true
         ;;
     reinstall)
         sudo bash "$INSTALL_DIR/scripts/reinstall.sh"

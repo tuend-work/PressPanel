@@ -7,6 +7,15 @@
 
 set -euo pipefail
 
+# Tự động nhân bản script sang /tmp để tránh lỗi bash buffer khi tự ghi đè file scripts
+CURRENT_SCRIPT="${BASH_SOURCE[0]:-$0}"
+if [ -f "$CURRENT_SCRIPT" ] && [[ "$CURRENT_SCRIPT" != /tmp/* ]]; then
+    TMP_SELF="/tmp/wpc_update_runner_$$.sh"
+    cp "$CURRENT_SCRIPT" "$TMP_SELF"
+    chmod +x "$TMP_SELF"
+    exec bash "$TMP_SELF" "$@"
+fi
+
 INSTALL_DIR="/opt/wpc"
 REPO_URL="https://github.com/tuend-work/PressPanel.git"
 TMP_DIR="/tmp/wpc-update-$$"
@@ -193,8 +202,8 @@ if [ -n "$PROCVIEW_GID" ]; then
     fi
 fi
 
-# 7.3 Khóa quyền bảo mật toàn bộ thư mục /home/* (chmod 750) để cô lập tuyệt đối dữ liệu giữa các User
-echo "[+] Khóa quyền bảo mật toàn bộ thư mục /home/* (chmod 750) để cô lập tuyệt đối giữa các User..."
+# 7.3 Khóa quyền bảo mật toàn bộ thư mục /home/* (0750) để cô lập tuyệt đối dữ liệu giữa các User
+echo "[+] Khóa quyền bảo mật 0750 toàn bộ thư mục /home/* để cô lập tuyệt đối dữ liệu giữa các User..."
 for user_home in /home/*; do
     [ -d "$user_home" ] || continue
     u_name=$(basename "$user_home")
