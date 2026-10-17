@@ -200,6 +200,27 @@ systemctl daemon-reload
 systemctl enable wpc
 systemctl restart wpc
 
+# 12. Cấu hình bảo mật hệ thống: hidepid=2 và khóa quyền cô lập /home
+echo "[+] Cấu hình bảo mật cách ly tiến trình (/proc hidepid=2)..."
+groupadd -r procview 2>/dev/null || true
+usermod -aG procview "$PANEL_USER" 2>/dev/null || true
+usermod -aG procview root 2>/dev/null || true
+PROCVIEW_GID=$(getent group procview 2>/dev/null | cut -d: -f3 || echo "")
+if [ -n "$PROCVIEW_GID" ]; then
+    mount -o remount,rw,hidepid=2,gid="$PROCVIEW_GID" /proc 2>/dev/null || true
+    if ! grep -q "hidepid=" /etc/fstab; then
+        echo "proc /proc proc defaults,hidepid=2,gid=$PROCVIEW_GID 0 0" >> /etc/fstab
+    else
+        sed -i -E "s/hidepid=[0-9]+/hidepid=2/g" /etc/fstab
+        sed -i -E "s/gid=[0-9]+/gid=$PROCVIEW_GID/g" /etc/fstab
+    fi
+fi
+
+echo "[+] Khóa quyền bảo mật 0711 cho /home và tước bỏ toàn bộ quyền truy cập chéo giữa các User..."
+chmod 711 /home 2>/dev/null || true
+chmod 750 /home/* 2>/dev/null || true
+chmod -R o-rwx /home/* 2>/dev/null || true
+
 # Dọn dẹp thư mục tạm nếu có
 if [ -d "$TMP_DIR" ]; then
     rm -rf "$TMP_DIR"

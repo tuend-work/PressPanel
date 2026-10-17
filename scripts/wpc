@@ -152,6 +152,10 @@ asyncio.run(reset_pass())
             exit 1
         fi
         echo "[+] Đang rà soát và khóa quyền bảo mật thư mục người dùng (/home/*)..."
+        chmod 711 /home 2>/dev/null || true
+        chmod 750 /home/* 2>/dev/null || true
+        chmod -R o-rwx /home/* 2>/dev/null || true
+
         for user_home in /home/*; do
             [ -d "$user_home" ] || continue
             u_name=$(basename "$user_home")
@@ -160,17 +164,17 @@ asyncio.run(reset_pass())
                 for svc_u in wpc nobody www-data; do
                     id "$svc_u" &>/dev/null && usermod -a -G "$u_name" "$svc_u" 2>/dev/null || true
                 done
-                chmod 750 "$user_home" 2>/dev/null || true
-                [ -d "$user_home/domains" ] && chmod 750 "$user_home/domains" 2>/dev/null || true
-                [ -d "$user_home/public_html" ] && chmod 750 "$user_home/public_html" 2>/dev/null || true
-                for priv_dir in "$user_home/logs" "$user_home/ssl" "$user_home/backups" "$user_home/.tmp" "$user_home/.sessions" "$user_home/.ssh"; do
-                    [ -d "$priv_dir" ] && chmod 700 "$priv_dir" 2>/dev/null || true
-                done
-                if [ -d "$user_home/domains" ]; then
-                    find "$user_home/domains" -maxdepth 2 -type d -exec chmod 750 {} + 2>/dev/null || true
-                fi
-                echo "    [-] Đã khóa bảo mật 0750 cho user: $u_name"
             fi
+            chmod 750 "$user_home" 2>/dev/null || true
+            [ -d "$user_home/domains" ] && chmod 750 "$user_home/domains" 2>/dev/null || true
+            [ -d "$user_home/public_html" ] && chmod 750 "$user_home/public_html" 2>/dev/null || true
+            for priv_dir in "$user_home/logs" "$user_home/ssl" "$user_home/backups" "$user_home/.tmp" "$user_home/.sessions" "$user_home/.ssh"; do
+                [ -d "$priv_dir" ] && chmod 700 "$priv_dir" 2>/dev/null || true
+            done
+            if [ -d "$user_home/domains" ]; then
+                find "$user_home/domains" -maxdepth 2 -type d -exec chmod 750 {} + 2>/dev/null || true
+            fi
+            echo "    [-] Đã khóa bảo mật 0750 và tước quyền others cho: $u_name"
         done
         echo "[+] Hoàn tất! Tất cả thư mục người dùng đã được cô lập an toàn tuyệt đối."
         ;;

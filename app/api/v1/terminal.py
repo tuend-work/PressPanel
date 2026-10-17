@@ -99,8 +99,20 @@ async def terminal_websocket(
     # Nếu process panel chạy dưới user non-root (wpc) và cùng target_username:
     # - Chạy trực tiếp /bin/bash của user
     # - Ngược lại: dùng sudo -u target_username /bin/bash hoặc su
+    cage_script = "/opt/wpc/scripts/cage_terminal.sh"
+    if not os.path.isfile(cage_script):
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        dev_cage = os.path.join(base_dir, "scripts", "cage_terminal.sh")
+        if os.path.isfile(dev_cage):
+            cage_script = dev_cage
+
     if is_admin and not payload.get("web_user_name"):
         shell_cmd = ["/bin/bash", "--login"]
+    elif os.path.isfile(cage_script):
+        if os.getuid() == 0:
+            shell_cmd = ["/bin/bash", cage_script, target_username]
+        else:
+            shell_cmd = ["sudo", "-n", cage_script, target_username]
     elif os.getuid() == 0:
         # Chạy trực tiếp dưới quyền root chuyển sang user
         if os.path.exists("/sbin/runuser"):
