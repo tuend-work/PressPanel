@@ -50,7 +50,7 @@ async def list_customers(current_user: dict = Depends(get_current_user)):
                    (SELECT COUNT(*) FROM domains d WHERE d.user_id = u.id) as domain_count
             FROM users u
             LEFT JOIN packages p ON u.package_id = p.id
-            WHERE u.role = 'user'
+            WHERE u.role IN ('user', 'reseller') AND u.username != 'admin'
             ORDER BY u.created_at DESC
         """)
     elif current_user["role"] == "reseller":
@@ -60,7 +60,7 @@ async def list_customers(current_user: dict = Depends(get_current_user)):
                    (SELECT COUNT(*) FROM domains d WHERE d.user_id = u.id) as domain_count
             FROM users u
             LEFT JOIN packages p ON u.package_id = p.id
-            WHERE u.role = 'user' AND u.parent_id = ?
+            WHERE u.role IN ('user', 'reseller') AND u.parent_id = ?
             ORDER BY u.created_at DESC
         """, (current_user["id"],))
     else:
@@ -81,9 +81,9 @@ async def set_customers_status(req: CustomerStatusRequest, current_user: dict = 
     db = await get_db_connection()
     placeholders = ",".join(["?"] * len(req.user_ids))
     if current_user["role"] == "admin":
-        await db.execute(f"UPDATE users SET status = ? WHERE id IN ({placeholders}) AND role = 'user'", [req.status] + req.user_ids)
+        await db.execute(f"UPDATE users SET status = ? WHERE id IN ({placeholders}) AND role IN ('user', 'reseller')", [req.status] + req.user_ids)
     else:
-        await db.execute(f"UPDATE users SET status = ? WHERE id IN ({placeholders}) AND parent_id = ? AND role = 'user'", [req.status] + req.user_ids + [current_user["id"]])
+        await db.execute(f"UPDATE users SET status = ? WHERE id IN ({placeholders}) AND parent_id = ? AND role IN ('user', 'reseller')", [req.status] + req.user_ids + [current_user["id"]])
     await db.commit()
     await db.close()
     return {"status": "ok", "message": f"Đã cập nhật trạng thái {req.status.upper()} cho {len(req.user_ids)} khách hàng."}
@@ -96,9 +96,9 @@ async def batch_delete_customers(req: CustomerDeleteRequest, current_user: dict 
     db = await get_db_connection()
     placeholders = ",".join(["?"] * len(req.user_ids))
     if current_user["role"] == "admin":
-        cur = await db.execute(f"SELECT id, username FROM users WHERE id IN ({placeholders}) AND role = 'user'", req.user_ids)
+        cur = await db.execute(f"SELECT id, username FROM users WHERE id IN ({placeholders}) AND role IN ('user', 'reseller')", req.user_ids)
     else:
-        cur = await db.execute(f"SELECT id, username FROM users WHERE id IN ({placeholders}) AND parent_id = ? AND role = 'user'", req.user_ids + [current_user["id"]])
+        cur = await db.execute(f"SELECT id, username FROM users WHERE id IN ({placeholders}) AND parent_id = ? AND role IN ('user', 'reseller')", req.user_ids + [current_user["id"]])
     users_to_del = await cur.fetchall()
 
     for u in users_to_del:
@@ -164,7 +164,7 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
 
         await db.execute("""
             INSERT INTO users (parent_id, username, password_hash, email, role, package_id, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, status)
-            VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?, 100, 100, 'active')
+            VALUES (?, ?, ?, ?, 'reseller', ?, ?, ?, ?, 100, 100, 'active')
         """, (current_user["id"], username, pwd_hash, req.email.strip(), package_id, req.cpu_pct, req.mem_mb, req.disk_mb))
         await db.commit()
 
@@ -407,7 +407,7 @@ async def list_service_plans(
     if plan_type:
         query += " WHERE p.plan_type = ?"
         params.append(plan_type)
-    elif current_user["role"] == "reseller":
+    elif current_user["role"] in ("reseller", "user") and current_user["username"] != "admin":
         # Hosting user thấy tất cả website plans + các gói user được phân phối
         query += " WHERE p.plan_type = 'website' OR p.owner_id = ? OR p.owner_id = 0"
         params.append(current_user["id"])
@@ -419,22 +419,23 @@ async def list_service_plans(
     return [dict(r) for r in rows]
 
 @router.post("/plans")
-async def create_service_plan(req: PlanCreate, current_user: dict = Depends(require_role("admin", "reseller"))):
+async def create_service_plan(req: PlanCreate, current_user: dict = Depends(require_role("admin", "reseller", "user"))):
     """
     Tạo gói dịch vụ (Service Plan) mới
     - Admin: Tạo User Plan hoặc Website Plan
-    - Reseller (Hosting User): Tạo Website Plan trong giới hạn tài nguyên của mình
+    - Reseller / Hosting User: Tạo Website Plan trong giới hạn tài nguyên của mình
     """
     db = await get_db_connection()
     try:
-        # Nếu là Reseller, chỉ được phép tạo Website Plan
-        actual_plan_type = "website" if current_user["role"] == "reseller" else req.plan_type
+        # Nếu là Hosting User (reseller hoặc user), chỉ được phép tạo Website Plan
+        is_hosting = current_user["role"] in ("reseller", "user") and current_user["username"] != "admin"
+        actual_plan_type = "website" if is_hosting else req.plan_type
         
         # Với gói Website Plan: Không có số lượng web, mỗi gói là 1 web duy nhất
         actual_max_domains = 1 if actual_plan_type == "website" else req.max_domains
 
-        # Nếu là Reseller, kiểm tra hạn mức không vượt quá gói User Plan của mình
-        if current_user["role"] == "reseller":
+        # Nếu là Hosting User, kiểm tra hạn mức không vượt quá gói User Plan của mình
+        if is_hosting:
             if req.disk_mb > current_user.get("disk_mb", 5120):
                 raise HTTPException(status_code=400, detail=f"Dung lượng website plan ({req.disk_mb}MB) vượt quá hạn mức User Plan của bạn ({current_user.get('disk_mb')}MB)")
             if req.mem_mb > current_user.get("mem_mb", 1024):
@@ -456,7 +457,7 @@ async def create_service_plan(req: PlanCreate, current_user: dict = Depends(requ
     return {"status": "ok", "message": f"Tạo gói dịch vụ '{req.name}' thành công!"}
 
 @router.put("/plans/{plan_id}")
-async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict = Depends(require_role("admin", "reseller"))):
+async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict = Depends(require_role("admin", "reseller", "user"))):
     """Cập nhật gói dịch vụ (bật/tắt SSH, chỉnh quota)"""
     db = await get_db_connection()
     cursor = await db.execute("SELECT * FROM packages WHERE id = ?", (plan_id,))
@@ -465,7 +466,7 @@ async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict 
         await db.close()
         raise HTTPException(status_code=404, detail="Không tìm thấy gói dịch vụ")
 
-    if current_user["role"] == "reseller" and plan["owner_id"] != current_user["id"]:
+    if current_user["role"] != "admin" and plan["owner_id"] != current_user["id"]:
         await db.close()
         raise HTTPException(status_code=403, detail="Bạn chỉ có thể chỉnh sửa gói do bạn tạo ra")
 

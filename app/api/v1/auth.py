@@ -27,14 +27,21 @@ async def login(req: LoginRequest):
     if not user or not verify_password(req.password, user["password_hash"]):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sai ten dang nhap hoac mat khau")
     
-    if user["status"] == "suspended":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tai khoan cua ban da bi khoa")
+    role = user["role"]
+    if user["username"] != "admin" and role == "user":
+        role = "reseller"
+        db_up = await get_db_connection()
+        try:
+            await db_up.execute("UPDATE users SET role = 'reseller' WHERE id = ?", (user["id"],))
+            await db_up.commit()
+        finally:
+            await db_up.close()
 
-    token = create_access_token(subject=user["id"], role=user["role"], parent_id=user["parent_id"])
+    token = create_access_token(subject=user["id"], role=role, parent_id=user["parent_id"])
     return {
         "access_token": token,
         "token_type": "bearer",
         "user_id": user["id"],
         "username": user["username"],
-        "role": user["role"]
+        "role": role
     }

@@ -205,6 +205,11 @@ async def init_database():
             await db.execute("UPDATE packages SET max_domains = 1 WHERE plan_type = 'website'")
         except Exception:
             pass
+        try:
+            # Chuẩn hoá các tài khoản Hosting User thành role 'reseller'
+            await db.execute("UPDATE users SET role = 'reseller' WHERE role = 'user' AND username != 'admin'")
+        except Exception:
+            pass
 
         # Tạo các gói Service Plans mẫu (Hosting Plans) nếu chưa có
         cursor = await db.execute("SELECT id FROM packages WHERE id = 1")

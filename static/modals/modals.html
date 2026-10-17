@@ -354,7 +354,7 @@
                         </div>
                         <button @click="showAddPlanModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
                     </div>
-                    <div v-if="currentUser.role === 'reseller'" class="mb-3 p-2.5 rounded-xl bg-blue-950/60 border border-blue-800 text-blue-300 text-[11px]">
+                    <div v-if="currentUser.role === 'reseller' || isHostingUser" class="mb-3 p-2.5 rounded-xl bg-blue-950/60 border border-blue-800 text-blue-300 text-[11px]">
                         ℹ️ <b>Website Plan:</b> Bạn đang tạo gói tài nguyên riêng để gán cho các website của mình. Hạn mức không vượt quá User Plan được cấp.
                     </div>
 
@@ -368,7 +368,7 @@
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block font-semibold text-slate-300 mb-1">Cấp Độ Gói (Plan Type)</label>
-                                <select v-model="newPlan.plan_type" :disabled="currentUser.role === 'reseller'"
+                                <select v-model="newPlan.plan_type" :disabled="currentUser.role === 'reseller' || isHostingUser"
                                     class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-cyan-500">
                                     <option value="user" v-if="currentUser.role === 'admin'">Loại 1: User Plan (Cấp tổng cho Hosting User)</option>
                                     <option value="website">Loại 2: Website Plan (Cấp lẻ cho từng Website)</option>

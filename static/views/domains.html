@@ -16,8 +16,8 @@
                                     <span>&rarr;</span>
                                 </button>
                             </div>
-                            <!-- Nếu là Hosting User / Reseller (hoặc impersonate Customer): Hiện nút thêm website. Web user không được tự tạo thêm website -->
-                            <button v-else-if="currentUser.role === 'reseller'" @click="showAddDomainModal = true" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-md shadow-blue-500/20 transition flex items-center space-x-2">
+                            <!-- Nếu là Hosting User (hoặc impersonate Customer): Hiện nút thêm website -->
+                            <button v-else-if="currentUser.role === 'reseller' || isHostingUser" @click="showAddDomainModal = true" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-md shadow-blue-500/20 transition flex items-center space-x-2">
                                 <span>➕ Thêm Website Mới</span>
                             </button>
                         </div>
@@ -25,9 +25,13 @@
                         <!-- WPC Style Toolbar for Domains -->
                         <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
                             <div class="flex flex-wrap items-center gap-2">
-                                <button v-if="currentUser.role === 'reseller'" @click="showAddDomainModal = true"
+                                <button v-if="currentUser.role === 'reseller' || isHostingUser" @click="showAddDomainModal = true"
                                     class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white shadow-sm transition flex items-center space-x-1.5">
                                     <span>➕ Add Domain</span>
+                                </button>
+                                <button v-if="currentUser.role === 'reseller' || isHostingUser" @click="currentTab = 'service_plans'"
+                                    class="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs transition flex items-center space-x-1.5">
+                                    <span>🌐 Quản Lý Website Plans</span>
                                 </button>
                                 <button v-if="currentUser.role === 'admin'" @click="showAddCustomerModal = true; fetchServicePlans();"
                                     class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white shadow-sm transition flex items-center space-x-1.5">
@@ -214,14 +218,14 @@
                                                 </div>
 
                                                 <!-- Files (File Manager) -->
-                                                <div @click="currentUser.role === 'reseller' ? impersonateWebsiteUser(d) : openFileManager(d.document_root)"
+                                                <div @click="(currentUser.role === 'reseller' || isHostingUser) ? impersonateWebsiteUser(d) : openFileManager(d.document_root)"
                                                     class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
                                                     <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0 border border-sky-200 text-lg">
                                                         📁
                                                     </div>
                                                     <div class="min-w-0">
                                                         <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Files</div>
-                                                        <div class="text-[10px] text-slate-400 truncate">{{ currentUser.role === 'reseller' ? 'Đăng nhập Web User để quản lý' : d.document_root }}</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">{{ (currentUser.role === 'reseller' || isHostingUser) ? 'Đăng nhập Web User để quản lý' : d.document_root }}</div>
                                                     </div>
                                                 </div>
 
@@ -308,14 +312,14 @@
                                                 </div>
 
                                                 <!-- Terminal / SSH -->
-                                                <div @click="currentUser.role === 'reseller' ? impersonateWebsiteUser(d) : openWebTerminal(d)"
+                                                <div @click="(currentUser.role === 'reseller' || isHostingUser) ? impersonateWebsiteUser(d) : openWebTerminal(d)"
                                                     class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
                                                     <div class="w-10 h-10 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center shrink-0 font-mono text-sm font-bold shadow-sm">
                                                         &gt;_
                                                     </div>
                                                     <div class="min-w-0">
                                                         <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Web Terminal</div>
-                                                        <div class="text-[10px] text-slate-400 truncate">{{ currentUser.role === 'reseller' ? 'Đăng nhập Web User' : 'SSH Shell (' + d.domain_name + ')' }}</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">{{ (currentUser.role === 'reseller' || isHostingUser) ? 'Đăng nhập Web User' : 'SSH Shell (' + d.domain_name + ')' }}</div>
                                                     </div>
                                                 </div>
 
