@@ -68,16 +68,26 @@ def get_index_html_path() -> str:
         return local_index
     return ""
 
-@app.get("/", include_in_schema=False)
-async def serve_root():
-    index_path = get_index_html_path()
-    if index_path:
-        return FileResponse(index_path, media_type="text/html")
-    return RedirectResponse(url="/docs")
-
 # Mount Static UI nếu thư mục static tồn tại
 if os.path.exists(settings.STATIC_DIR):
     app.mount("/static", StaticFiles(directory=settings.STATIC_DIR), name="static")
+
+@app.get("/", include_in_schema=False)
+async def serve_root():
+    index_path = get_index_html_path()
+    if index_path and os.path.isfile(index_path):
+        return FileResponse(index_path, media_type="text/html")
+    return RedirectResponse(url="/docs")
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa_fallback(full_path: str):
+    candidate = os.path.join(settings.STATIC_DIR, full_path)
+    if os.path.isfile(candidate):
+        return FileResponse(candidate)
+    index_path = get_index_html_path()
+    if index_path and os.path.isfile(index_path):
+        return FileResponse(index_path, media_type="text/html")
+    return RedirectResponse(url="/docs")
 
 if __name__ == "__main__":
     import uvicorn

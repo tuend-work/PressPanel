@@ -216,10 +216,9 @@ if [ -n "$PROCVIEW_GID" ]; then
     fi
 fi
 
-echo "[+] Khóa quyền bảo mật 0711 cho /home và tước bỏ toàn bộ quyền truy cập chéo giữa các User..."
+echo "[+] Khóa quyền bảo mật 0711 cho /home và tối ưu phân quyền phục vụ website..."
 chmod 711 /home 2>/dev/null || true
 chmod 750 /home/* 2>/dev/null || true
-chmod -R o-rwx /home/* 2>/dev/null || true
 
 # Dọn dẹp thư mục tạm nếu có
 if [ -d "$TMP_DIR" ]; then

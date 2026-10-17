@@ -153,30 +153,49 @@ asyncio.run(reset_pass())
         fi
         echo "[+] Đang rà soát và khóa quyền bảo mật thư mục người dùng (/home/*)..."
         chmod 711 /home 2>/dev/null || true
-        chmod 750 /home/* 2>/dev/null || true
-        chmod -R o-rwx /home/* 2>/dev/null || true
 
         for user_home in /home/*; do
             [ -d "$user_home" ] || continue
             u_name=$(basename "$user_home")
-            if id "$u_name" &>/dev/null; then
-                chown -R "$u_name:$u_name" "$user_home" 2>/dev/null || true
-                for svc_u in wpc nobody www-data; do
-                    id "$svc_u" &>/dev/null && usermod -a -G "$u_name" "$svc_u" 2>/dev/null || true
-                done
-            fi
+            
+            owner_u=$(stat -c '%U' "$user_home" 2>/dev/null || echo "$u_name")
+            owner_g=$(stat -c '%G' "$user_home" 2>/dev/null || echo "$u_name")
+
+            for grp in "$u_name" "$owner_g" "$owner_u"; do
+                if getent group "$grp" &>/dev/null; then
+                    for svc_u in wpc nobody www-data; do
+                        id "$svc_u" &>/dev/null && usermod -a -G "$grp" "$svc_u" 2>/dev/null || true
+                    done
+                fi
+            done
+
             chmod 750 "$user_home" 2>/dev/null || true
-            [ -d "$user_home/domains" ] && chmod 750 "$user_home/domains" 2>/dev/null || true
-            [ -d "$user_home/public_html" ] && chmod 750 "$user_home/public_html" 2>/dev/null || true
-            for priv_dir in "$user_home/logs" "$user_home/ssl" "$user_home/backups" "$user_home/.tmp" "$user_home/.sessions" "$user_home/.ssh"; do
+            for priv_dir in "$user_home/logs" "$user_home/ssl" "$user_home/backups" "$user_home/.tmp" "$user_home/.sessions" "$user_home/.ssh" "$user_home/tmp"; do
                 [ -d "$priv_dir" ] && chmod 700 "$priv_dir" 2>/dev/null || true
             done
+
             if [ -d "$user_home/domains" ]; then
-                find "$user_home/domains" -maxdepth 2 -type d -exec chmod 750 {} + 2>/dev/null || true
+                find "$user_home/domains" -type d -exec chmod 755 {} + 2>/dev/null || true
+                find "$user_home/domains" -type f -exec chmod 644 {} + 2>/dev/null || true
+                find "$user_home/domains" -type d \( -name "logs" -o -name "ssl" -o -name "backups" \) -exec chmod 700 {} + 2>/dev/null || true
             fi
-            echo "    [-] Đã khóa bảo mật 0750 và tước quyền others cho: $u_name"
+            if [ -d "$user_home/public_html" ]; then
+                chmod 755 "$user_home/public_html" 2>/dev/null || true
+                find "$user_home/public_html" -type d -exec chmod 755 {} + 2>/dev/null || true
+                find "$user_home/public_html" -type f -exec chmod 644 {} + 2>/dev/null || true
+            fi
+            echo "    [-] Đã chuẩn hoá phân quyền bảo mật cho: $u_name (owner: $owner_u:$owner_g)"
         done
-        echo "[+] Hoàn tất! Tất cả thư mục người dùng đã được cô lập an toàn tuyệt đối."
+
+        if systemctl is-active --quiet lsws 2>/dev/null; then
+            systemctl restart lsws 2>/dev/null || true
+        elif [ -x "/usr/local/lsws/bin/lswsctrl" ]; then
+            /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || true
+        fi
+        if systemctl is-active --quiet nginx 2>/dev/null; then
+            systemctl restart nginx 2>/dev/null || true
+        fi
+        echo "[+] Hoàn tất! Tất cả thư mục người dùng đã được cô lập an toàn và website hoạt động trơn tru."
         ;;
     help|--help|-h)
         show_help

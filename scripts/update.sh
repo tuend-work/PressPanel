@@ -202,29 +202,59 @@ if [ -n "$PROCVIEW_GID" ]; then
     fi
 fi
 
-# 7.3 Khóa quyền bảo mật toàn bộ thư mục /home (711) và tước toàn bộ quyền others (o-rwx)
-echo "[+] Khóa quyền bảo mật 0711 cho /home và tước bỏ toàn bộ quyền truy cập chéo giữa các User..."
+# 7.3 Khóa quyền bảo mật toàn bộ thư mục /home (711) và cô lập tuyệt đối giữa các User
+echo "[+] Khóa quyền bảo mật 0711 cho /home và tối ưu phân quyền phục vụ website..."
 chmod 711 /home 2>/dev/null || true
-# Tước bỏ 100% quyền đọc/ghi/chạy của others trên toàn bộ cây thư mục /home/*
-chmod 750 /home/* 2>/dev/null || true
-chmod -R o-rwx /home/* 2>/dev/null || true
 
 for user_home in /home/*; do
     [ -d "$user_home" ] || continue
     u_name=$(basename "$user_home")
-    if id "$u_name" &>/dev/null; then
-        chown -R "$u_name:$u_name" "$user_home" 2>/dev/null || true
-        for svc_u in wpc nobody www-data; do
-            id "$svc_u" &>/dev/null && usermod -a -G "$u_name" "$svc_u" 2>/dev/null || true
-        done
-    fi
+    
+    # Xác định user và group thực tế của thư mục
+    owner_u=$(stat -c '%U' "$user_home" 2>/dev/null || echo "$u_name")
+    owner_g=$(stat -c '%G' "$user_home" 2>/dev/null || echo "$u_name")
+    
+    # Gán bổ sung quyền group cho wpc, nobody (OLS), www-data (Nginx) để phục vụ website
+    for grp in "$u_name" "$owner_g" "$owner_u"; do
+        if getent group "$grp" &>/dev/null; then
+            for svc_u in wpc nobody www-data; do
+                id "$svc_u" &>/dev/null && usermod -a -G "$grp" "$svc_u" 2>/dev/null || true
+            done
+        fi
+    done
+
+    # 1. Khóa cửa thư mục home cấp 1: 0750 (cấm tiệt mọi user khác bước vào)
     chmod 750 "$user_home" 2>/dev/null || true
-    [ -d "$user_home/domains" ] && chmod 750 "$user_home/domains" 2>/dev/null || true
-    [ -d "$user_home/public_html" ] && chmod 750 "$user_home/public_html" 2>/dev/null || true
-    for priv_dir in "$user_home/logs" "$user_home/ssl" "$user_home/backups" "$user_home/.tmp" "$user_home/.sessions" "$user_home/.ssh"; do
+
+    # 2. Khóa tuyệt đối các thư mục nhạy cảm cá nhân: 0700
+    for priv_dir in "$user_home/logs" "$user_home/ssl" "$user_home/backups" "$user_home/.tmp" "$user_home/.sessions" "$user_home/.ssh" "$user_home/tmp"; do
         [ -d "$priv_dir" ] && chmod 700 "$priv_dir" 2>/dev/null || true
     done
+
+    # 3. Phân quyền cây thư mục web: Thư mục 755, File 644
+    # Do cửa /home/$u_name đã là 750 nên user khác không thể xâm phạm, Webserver đọc trơn tru 100%
+    if [ -d "$user_home/domains" ]; then
+        find "$user_home/domains" -type d -exec chmod 755 {} + 2>/dev/null || true
+        find "$user_home/domains" -type f -exec chmod 644 {} + 2>/dev/null || true
+        find "$user_home/domains" -type d \( -name "logs" -o -name "ssl" -o -name "backups" \) -exec chmod 700 {} + 2>/dev/null || true
+    fi
+    if [ -d "$user_home/public_html" ]; then
+        chmod 755 "$user_home/public_html" 2>/dev/null || true
+        find "$user_home/public_html" -type d -exec chmod 755 {} + 2>/dev/null || true
+        find "$user_home/public_html" -type f -exec chmod 644 {} + 2>/dev/null || true
+    fi
 done
+
+# Restart Webserver để nạp lại danh sách supplementary groups cho nobody & www-data
+if systemctl is-active --quiet lsws 2>/dev/null; then
+    systemctl restart lsws 2>/dev/null || true
+elif [ -x "/usr/local/lsws/bin/lswsctrl" ]; then
+    /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || true
+fi
+
+if systemctl is-active --quiet nginx 2>/dev/null; then
+    systemctl restart nginx 2>/dev/null || true
+fi
 
 # 8. Cập nhật scripts điều khiển hệ thống bằng atomic replacement và dọn dẹp
 for s_item in "$TMP_DIR/scripts"/*; do
