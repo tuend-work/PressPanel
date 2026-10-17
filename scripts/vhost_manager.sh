@@ -57,14 +57,18 @@ case "$ACTION" in
         # Phân quyền an toàn: Thư mục thuộc sở hữu của Linux Web User
         if id "$USERNAME" &>/dev/null; then
             chown -R "$USERNAME:$USERNAME" "/home/$USERNAME" 2>/dev/null || true
-            # Thêm user wpc vào group của Web User để panel có thể quản lý file
-            if id "wpc" &>/dev/null; then
-                usermod -a -G "$USERNAME" "wpc" 2>/dev/null || true
-            fi
+            # Thêm wpc (panel), nobody (OLS), www-data (Nginx) vào group của Web User để có thể phục vụ web
+            for svc_u in wpc nobody www-data; do
+                if id "$svc_u" &>/dev/null; then
+                    usermod -a -G "$USERNAME" "$svc_u" 2>/dev/null || true
+                fi
+            done
         else
             chown -R wpc:wpc "/home/$USERNAME" 2>/dev/null || true
         fi
-        chmod 755 "/home/$USERNAME" "/home/$USERNAME/domains" "$DOMAIN_DIR" "$DOC_ROOT" 2>/dev/null || true
+        # KHÓA CHẶT BẢO MẬT 0750: Tuyệt đối ngăn chặn user khác xem trộm file qua Terminal/SSH/PHP
+        chmod 750 "/home/$USERNAME" "/home/$USERNAME/domains" "$DOMAIN_DIR" "$DOC_ROOT" 2>/dev/null || true
+        chmod 700 "/home/$USERNAME/logs" "/home/$USERNAME/ssl" "/home/$USERNAME/backups" "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
 
         # Tạo file index.html mẫu nếu thư mục đang trống
         if [ ! -f "$DOC_ROOT/index.html" ] && [ ! -f "$DOC_ROOT/index.php" ]; then

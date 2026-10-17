@@ -27,6 +27,7 @@ function show_help() {
     echo "  version     - Xem phiên bản hiện tại của WPCloud Panel"
     echo "  password    - Đổi mật khẩu tài khoản quản trị admin"
     echo "  port <số>   - Đổi cổng truy cập panel (tránh trùng cổng khác)"
+    echo "  fix-perms   - Khóa chặt quyền 0750 toàn bộ /home/* chống user xem trộm file nhau"
     echo "  help        - Hiển thị menu hướng dẫn này"
     echo "=========================================================="
 }
@@ -140,6 +141,34 @@ async def reset_pass():
 
 asyncio.run(reset_pass())
 "
+        ;;
+    fix-perms)
+        if [ "$EUID" -ne 0 ]; then
+            echo "[-] Vui lòng chạy lệnh này với quyền root: sudo wpc fix-perms"
+            exit 1
+        fi
+        echo "[+] Đang rà soát và khóa quyền bảo mật thư mục người dùng (/home/*)..."
+        for user_home in /home/*; do
+            [ -d "$user_home" ] || continue
+            u_name=$(basename "$user_home")
+            if id "$u_name" &>/dev/null; then
+                chown -R "$u_name:$u_name" "$user_home" 2>/dev/null || true
+                for svc_u in wpc nobody www-data; do
+                    id "$svc_u" &>/dev/null && usermod -a -G "$u_name" "$svc_u" 2>/dev/null || true
+                done
+                chmod 750 "$user_home" 2>/dev/null || true
+                [ -d "$user_home/domains" ] && chmod 750 "$user_home/domains" 2>/dev/null || true
+                [ -d "$user_home/public_html" ] && chmod 750 "$user_home/public_html" 2>/dev/null || true
+                for priv_dir in "$user_home/logs" "$user_home/ssl" "$user_home/backups" "$user_home/.tmp" "$user_home/.sessions" "$user_home/.ssh"; do
+                    [ -d "$priv_dir" ] && chmod 700 "$priv_dir" 2>/dev/null || true
+                done
+                if [ -d "$user_home/domains" ]; then
+                    find "$user_home/domains" -maxdepth 2 -type d -exec chmod 750 {} + 2>/dev/null || true
+                fi
+                echo "    [-] Đã khóa bảo mật 0750 cho user: $u_name"
+            fi
+        done
+        echo "[+] Hoàn tất! Tất cả thư mục người dùng đã được cô lập an toàn tuyệt đối."
         ;;
     help|--help|-h)
         show_help

@@ -193,6 +193,28 @@ if [ -n "$PROCVIEW_GID" ]; then
     fi
 fi
 
+# 7.3 Khóa quyền bảo mật toàn bộ thư mục /home/* (chmod 750) để cô lập tuyệt đối dữ liệu giữa các User
+echo "[+] Khóa quyền bảo mật toàn bộ thư mục /home/* (chmod 750) để cô lập tuyệt đối giữa các User..."
+for user_home in /home/*; do
+    [ -d "$user_home" ] || continue
+    u_name=$(basename "$user_home")
+    if id "$u_name" &>/dev/null; then
+        chown -R "$u_name:$u_name" "$user_home" 2>/dev/null || true
+        for svc_u in wpc nobody www-data; do
+            id "$svc_u" &>/dev/null && usermod -a -G "$u_name" "$svc_u" 2>/dev/null || true
+        done
+        chmod 750 "$user_home" 2>/dev/null || true
+        [ -d "$user_home/domains" ] && chmod 750 "$user_home/domains" 2>/dev/null || true
+        [ -d "$user_home/public_html" ] && chmod 750 "$user_home/public_html" 2>/dev/null || true
+        for priv_dir in "$user_home/logs" "$user_home/ssl" "$user_home/backups" "$user_home/.tmp" "$user_home/.sessions" "$user_home/.ssh"; do
+            [ -d "$priv_dir" ] && chmod 700 "$priv_dir" 2>/dev/null || true
+        done
+        if [ -d "$user_home/domains" ]; then
+            find "$user_home/domains" -maxdepth 2 -type d -exec chmod 750 {} + 2>/dev/null || true
+        fi
+    fi
+done
+
 # 8. Cập nhật scripts điều khiển hệ thống và dọn dẹp
 cp -r "$TMP_DIR/scripts"/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
 chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
