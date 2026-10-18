@@ -1638,12 +1638,16 @@
                                 email: data.email || '',
                                 phone: data.phone || ''
                             };
-                            currentUser.value.full_name = data.full_name || '';
-                            currentUser.value.phone = data.phone || '';
-                            currentUser.value.email = data.email || '';
-                            try {
-                                localStorage.setItem('wpc_user', JSON.stringify(currentUser.value));
-                            } catch(e) {}
+                            if (!isWebUser.value) {
+                                currentUser.value.full_name = data.full_name || '';
+                                currentUser.value.phone = data.phone || '';
+                                currentUser.value.email = data.email || '';
+                                try {
+                                    localStorage.setItem('wpc_user', JSON.stringify(currentUser.value));
+                                } catch(e) {}
+                            } else {
+                                if (data.full_name) currentUser.value.full_name = data.full_name;
+                            }
                         }
                     } catch (e) {
                         console.error('Lỗi tải thông tin hồ sơ:', e);

@@ -16,17 +16,22 @@
                             'bg-blue-50 text-blue-700 border border-blue-200': profileData.role === 'reseller',
                             'bg-emerald-50 text-emerald-700 border border-emerald-200': profileData.role === 'user'
                         }">
-                        {{ profileData.role === 'admin' ? 'Super Admin' : (profileData.role === 'reseller' ? 'Hosting Reseller' : 'Website Owner') }}
+                        {{ profileData.role === 'admin' ? 'Super Admin' : (profileData.role === 'reseller' ? 'Hosting Reseller' : (profileData.is_web_user ? 'Website User (Isolated)' : 'Website Owner')) }}
                     </span>
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         Đang hoạt động
                     </span>
                 </div>
-                <p class="text-xs text-slate-500 mt-1 flex items-center gap-3">
+                <p class="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-3">
                     <span class="flex items-center gap-1 font-mono text-slate-600">
                         <i data-lucide="user" class="w-3.5 h-3.5 text-slate-400"></i>
                         @{{ profileData.username }}
+                    </span>
+                    <span v-if="profileData.domain_name">•</span>
+                    <span v-if="profileData.domain_name" class="flex items-center gap-1 font-semibold text-blue-600">
+                        <i data-lucide="globe" class="w-3.5 h-3.5 text-blue-500"></i>
+                        {{ profileData.domain_name }}
                     </span>
                     <span>•</span>
                     <span class="flex items-center gap-1">
@@ -37,6 +42,9 @@
                     <span v-if="profileData.phone" class="flex items-center gap-1 font-mono">
                         <i data-lucide="phone" class="w-3.5 h-3.5 text-slate-400"></i>
                         {{ profileData.phone }}
+                    </span>
+                    <span v-if="profileData.owner_username" class="text-slate-400 text-[11px]">
+                        (Thuộc Hosting User: <b>@{{ profileData.owner_username }}</b>)
                     </span>
                 </p>
             </div>
@@ -173,6 +181,10 @@
                         <span>Thư mục Home:</span>
                         <span class="text-white font-bold">/home/{{ profileData.username }}</span>
                     </div>
+                    <div v-if="profileData.domain_name" class="flex justify-between text-slate-400">
+                        <span>Website VirtualHost:</span>
+                        <span class="text-emerald-400 font-bold truncate max-w-[150px]">{{ profileData.domain_name }}</span>
+                    </div>
                     <div class="flex justify-between text-slate-400">
                         <span>Phân quyền thư mục:</span>
                         <span class="text-emerald-400 font-bold">0750 (Isolated)</span>
@@ -225,20 +237,38 @@
                         <!-- Vai trò (Readonly) -->
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">Vai trò tài khoản:</label>
-                            <input type="text" :value="profileData.role === 'admin' ? 'Quản trị viên cấp cao (Admin)' : (profileData.role === 'reseller' ? 'Hosting Reseller' : 'Khách hàng Website (Web User)')" disabled
+                            <input type="text" :value="profileData.role === 'admin' ? 'Quản trị viên cấp cao (Admin)' : (profileData.role === 'reseller' ? 'Hosting Reseller' : (profileData.is_web_user ? 'Khách hàng Website (Website User)' : 'Website Owner'))" disabled
                                 class="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-500 font-semibold cursor-not-allowed">
+                        </div>
+                    </div>
+
+                    <!-- Hiển thị cấu hình tên miền nếu là Website User -->
+                    <div v-if="profileData.is_web_user" class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 rounded-xl bg-blue-50/60 border border-blue-100 text-xs">
+                        <div>
+                            <span class="text-slate-500 font-semibold block mb-1">Tên miền quản trị:</span>
+                            <span class="font-bold text-blue-700 font-mono text-sm flex items-center gap-1.5">
+                                <i data-lucide="globe" class="w-4 h-4 text-blue-500"></i>
+                                <span>{{ profileData.domain_name }}</span>
+                            </span>
+                        </div>
+                        <div>
+                            <span class="text-slate-500 font-semibold block mb-1">Máy chủ web & PHP:</span>
+                            <span class="font-bold text-slate-800 font-mono text-xs flex items-center gap-1.5 mt-0.5">
+                                <i data-lucide="server" class="w-4 h-4 text-purple-500"></i>
+                                <span>{{ (profileData.webserver || 'ols').toUpperCase() }} • PHP {{ profileData.php_version || '8.2' }}</span>
+                            </span>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <!-- Họ và Tên -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Họ và Tên hiển thị:</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ profileData.is_web_user ? 'Tiêu đề Website / Tên hiển thị:' : 'Họ và Tên hiển thị:' }}</label>
                             <div class="relative">
                                 <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                                     <i data-lucide="badge-check" class="w-4 h-4"></i>
                                 </span>
-                                <input type="text" v-model="profileForm.full_name" placeholder="Ví dụ: Nguyễn Văn A"
+                                <input type="text" v-model="profileForm.full_name" :placeholder="profileData.is_web_user ? 'Ví dụ: Website Của Tôi' : 'Ví dụ: Nguyễn Văn A'"
                                     class="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
                             </div>
                         </div>
@@ -266,7 +296,7 @@
                             <input type="email" v-model="profileForm.email" required placeholder="name@domain.com"
                                 class="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
                         </div>
-                        <span class="text-[10px] text-slate-400 mt-1 block">Email được sử dụng để nhận thông báo khẩn cấp về máy chủ, chứng chỉ SSL và khôi phục tài khoản</span>
+                        <span class="text-[10px] text-slate-400 mt-1 block">Email được sử dụng để nhận thông báo khẩn cấp về máy chủ, chứng chỉ SSL và thông báo quản trị</span>
                     </div>
 
                     <!-- Submit Button -->
@@ -285,87 +315,128 @@
             <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-5">
                 <div class="border-b border-slate-100 pb-4">
                     <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                        <i data-lucide="key-round" class="w-5 h-5 text-emerald-600"></i>
-                        <span>Đổi Mật Khẩu Đăng Nhập</span>
+                        <i data-lucide="shield-check" class="w-5 h-5 text-emerald-600"></i>
+                        <span>Bảo Mật & Mật Khẩu Đăng Nhập</span>
                     </h3>
                     <p class="text-xs text-slate-500 mt-1">
-                        Thay đổi mật khẩu đăng nhập vào bảng điều khiển WPCloud. Mật khẩu được mã hóa an toàn bằng thuật toán Bcrypt.
+                        {{ profileData.is_web_user ? 'Cơ chế xác thực tài khoản Website User cô lập.' : 'Thay đổi mật khẩu đăng nhập vào bảng điều khiển WPCloud. Mật khẩu được mã hóa an toàn bằng thuật toán Bcrypt.' }}
                     </p>
                 </div>
 
-                <!-- Alert Messages -->
-                <div v-if="passwordSuccessMsg" class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-fadeIn font-medium">
-                    <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600 shrink-0"></i>
-                    <span>{{ passwordSuccessMsg }}</span>
-                </div>
-                <div v-if="passwordErrorMsg" class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2 animate-fadeIn font-medium">
-                    <i data-lucide="alert-circle" class="w-4 h-4 text-rose-600 shrink-0"></i>
-                    <span>{{ passwordErrorMsg }}</span>
-                </div>
-
-                <form @submit.prevent="handleChangePassword" class="space-y-4">
-                    <!-- Mật khẩu hiện tại -->
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1.5">Mật khẩu hiện tại:</label>
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                                <i data-lucide="shield" class="w-4 h-4"></i>
-                            </span>
-                            <input :type="showCurPass ? 'text' : 'password'" v-model="passwordForm.current_password" required placeholder="Nhập mật khẩu đang sử dụng..."
-                                class="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
-                            <button type="button" @click="showCurPass = !showCurPass" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
-                                <i :data-lucide="showCurPass ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
-                            </button>
+                <!-- Nếu là Website User (Isolated Session) -->
+                <div v-if="profileData.is_web_user" class="space-y-4">
+                    <div class="p-4 rounded-xl bg-blue-50/60 border border-blue-200/80 space-y-2">
+                        <div class="flex items-center gap-2 text-blue-900 font-bold text-xs">
+                            <i data-lucide="shield-alert" class="w-4 h-4 text-blue-600"></i>
+                            <span>Tài Khoản Web User Độc Lập</span>
                         </div>
+                        <p class="text-xs text-blue-800 leading-relaxed">
+                            Tài khoản <b>@{{ profileData.username }}</b> là môi trường Linux cô lập phục vụ riêng cho website <b>{{ profileData.domain_name }}</b>.
+                            Tài khoản này được bảo vệ bởi Hosting User <b>@{{ profileData.owner_username }}</b> và không sử dụng mật khẩu đăng nhập trực tiếp từ bên ngoài mà thông qua cơ chế phân quyền bảo mật <b>SSO Nonce</b>.
+                        </p>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <!-- Mật khẩu mới -->
+                    <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Mật khẩu mới:</label>
+                            <h4 class="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                                <i data-lucide="layers" class="w-4 h-4 text-blue-600"></i>
+                                <span>Đăng nhập Quản Trị WordPress 1-Click</span>
+                            </h4>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Truy cập thẳng vào trang quản trị WP-Admin của {{ profileData.domain_name }} không cần nhập mật khẩu</p>
+                        </div>
+                        <button @click="currentTab = 'wp'" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition flex items-center gap-1.5 shrink-0">
+                            <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                            <span>WordPress Toolkit</span>
+                        </button>
+                    </div>
+
+                    <div v-if="isImpersonating" class="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span>⚠️</span>
+                            <span>Đang ở chế độ xem dưới quyền Website User.</span>
+                        </div>
+                        <button @click="exitImpersonation" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-black text-white font-bold text-xs transition">
+                            Thoát Chế Độ Login As
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Nếu là Hosting User hoặc Super Admin bình thường -->
+                <div v-else class="space-y-4">
+                    <!-- Alert Messages -->
+                    <div v-if="passwordSuccessMsg" class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-fadeIn font-medium">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600 shrink-0"></i>
+                        <span>{{ passwordSuccessMsg }}</span>
+                    </div>
+                    <div v-if="passwordErrorMsg" class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2 animate-fadeIn font-medium">
+                        <i data-lucide="alert-circle" class="w-4 h-4 text-rose-600 shrink-0"></i>
+                        <span>{{ passwordErrorMsg }}</span>
+                    </div>
+
+                    <form @submit.prevent="handleChangePassword" class="space-y-4">
+                        <!-- Mật khẩu hiện tại -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Mật khẩu hiện tại:</label>
                             <div class="relative">
                                 <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                                    <i data-lucide="lock" class="w-4 h-4"></i>
+                                    <i data-lucide="shield" class="w-4 h-4"></i>
                                 </span>
-                                <input :type="showNewPass ? 'text' : 'password'" v-model="passwordForm.new_password" required placeholder="Tối thiểu 6 ký tự..."
+                                <input :type="showCurPass ? 'text' : 'password'" v-model="passwordForm.current_password" required placeholder="Nhập mật khẩu đang sử dụng..."
                                     class="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
-                                <button type="button" @click="showNewPass = !showNewPass" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
-                                    <i :data-lucide="showNewPass ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                                <button type="button" @click="showCurPass = !showCurPass" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
+                                    <i :data-lucide="showCurPass ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
                                 </button>
                             </div>
                         </div>
 
-                        <!-- Xác nhận mật khẩu mới -->
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Xác nhận mật khẩu mới:</label>
-                            <div class="relative">
-                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                                    <i data-lucide="check" class="w-4 h-4"></i>
-                                </span>
-                                <input :type="showNewPass ? 'text' : 'password'" v-model="passwordForm.confirm_password" required placeholder="Nhập lại mật khẩu mới..."
-                                    class="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- Mật khẩu mới -->
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Mật khẩu mới:</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                        <i data-lucide="lock" class="w-4 h-4"></i>
+                                    </span>
+                                    <input :type="showNewPass ? 'text' : 'password'" v-model="passwordForm.new_password" required placeholder="Tối thiểu 6 ký tự..."
+                                        class="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
+                                    <button type="button" @click="showNewPass = !showNewPass" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
+                                        <i :data-lucide="showNewPass ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Xác nhận mật khẩu mới -->
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Xác nhận mật khẩu mới:</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                        <i data-lucide="check" class="w-4 h-4"></i>
+                                    </span>
+                                    <input :type="showNewPass ? 'text' : 'password'" v-model="passwordForm.confirm_password" required placeholder="Nhập lại mật khẩu mới..."
+                                        class="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Mẹo bảo mật -->
-                    <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-600 flex items-start gap-2.5 leading-relaxed">
-                        <i data-lucide="info" class="w-4 h-4 text-blue-500 shrink-0 mt-0.5"></i>
-                        <span>
-                            <b>Khuyến nghị an toàn:</b> Mật khẩu mạnh nên chứa ít nhất 8 ký tự, bao gồm chữ cái viết hoa, viết thường, chữ số và ký tự đặc biệt (ví dụ: <code>@, #, $, %</code>). Tuyệt đối không chia sẻ mật khẩu cho người khác.
-                        </span>
-                    </div>
+                        <!-- Mẹo bảo mật -->
+                        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-600 flex items-start gap-2.5 leading-relaxed">
+                            <i data-lucide="info" class="w-4 h-4 text-blue-500 shrink-0 mt-0.5"></i>
+                            <span>
+                                <b>Khuyến nghị an toàn:</b> Mật khẩu mạnh nên chứa ít nhất 8 ký tự, bao gồm chữ cái viết hoa, viết thường, chữ số và ký tự đặc biệt (ví dụ: <code>@, #, $, %</code>). Tuyệt đối không chia sẻ mật khẩu cho người khác.
+                            </span>
+                        </div>
 
-                    <!-- Submit Button -->
-                    <div class="pt-2 flex justify-end">
-                        <button type="submit" :disabled="savingPassword"
-                            class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-500/20 transition flex items-center space-x-2 disabled:opacity-50">
-                            <i data-lucide="shield-check" v-if="!savingPassword" class="w-4 h-4"></i>
-                            <i data-lucide="rotate-cw" v-else class="w-4 h-4 animate-spin"></i>
-                            <span>{{ savingPassword ? 'Đang cập nhật...' : 'Cập Nhật Mật Khẩu Mới' }}</span>
-                        </button>
-                    </div>
-                </form>
+                        <!-- Submit Button -->
+                        <div class="pt-2 flex justify-end">
+                            <button type="submit" :disabled="savingPassword"
+                                class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-500/20 transition flex items-center space-x-2 disabled:opacity-50">
+                                <i data-lucide="shield-check" v-if="!savingPassword" class="w-4 h-4"></i>
+                                <i data-lucide="rotate-cw" v-else class="w-4 h-4 animate-spin"></i>
+                                <span>{{ savingPassword ? 'Đang cập nhật...' : 'Cập Nhật Mật Khẩu Mới' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

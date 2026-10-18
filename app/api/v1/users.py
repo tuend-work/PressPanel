@@ -534,9 +534,85 @@ class CustomerAdminEditRequest(BaseModel):
 @router.get("/profile")
 async def get_user_profile(current_user: dict = Depends(get_current_user)):
     """Lấy thông tin hồ sơ cá nhân và hạn mức tài nguyên của tài khoản hiện tại"""
-    user_id = current_user["id"]
     db = await get_db_connection()
     try:
+        # Trường hợp 1: Đang đăng nhập dưới quyền Website User (Isolated Linux User của domain)
+        if current_user.get("web_domain_id"):
+            domain_id = current_user["web_domain_id"]
+            d_cur = await db.execute("""
+                SELECT d.id, d.domain_name, d.document_root, d.webserver, d.php_version,
+                       d.ssl_enabled, d.allow_ssh, d.created_at,
+                       u.username as owner_username, u.email as owner_email, u.full_name as owner_full_name,
+                       p.name as package_name, p.cpu_pct, p.mem_mb, p.disk_mb
+                FROM domains d
+                JOIN users u ON d.user_id = u.id
+                LEFT JOIN packages p ON u.package_id = p.id
+                WHERE d.id = ?
+            """, (domain_id,))
+            d_row = await d_cur.fetchone()
+            if not d_row:
+                raise HTTPException(status_code=404, detail="Không tìm thấy thông tin website này")
+
+            wp_cur = await db.execute("SELECT site_title, admin_user, admin_email FROM wp_instances WHERE domain_id = ?", (domain_id,))
+            wp_row = await wp_cur.fetchone()
+
+            clean_d = re.sub(r"^(https?://)?(www\.)?", "", (d_row["domain_name"] or "").strip().lower())
+            clean_u = re.sub(r"[^a-z0-9]", "", clean_d)[:30] or "webuser"
+            web_username = current_user.get("username") or clean_u
+
+            # Tính dung lượng thực tế
+            disk_used_mb = 0
+            target_dir = f"/home/{web_username}"
+            if os.path.isdir(target_dir):
+                try:
+                    import subprocess
+                    p = subprocess.run(["du", "-sm", target_dir], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+                    if p.returncode == 0 and p.stdout:
+                        disk_used_mb = int(p.stdout.strip().split()[0])
+                except Exception:
+                    pass
+            elif d_row["document_root"] and os.path.isdir(d_row["document_root"]):
+                try:
+                    import subprocess
+                    p = subprocess.run(["du", "-sm", d_row["document_root"]], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+                    if p.returncode == 0 and p.stdout:
+                        disk_used_mb = int(p.stdout.strip().split()[0])
+                except Exception:
+                    pass
+
+            db_cur = await db.execute("SELECT COUNT(*) as cnt FROM wp_instances WHERE domain_id = ?", (domain_id,))
+            db_row = await db_cur.fetchone()
+
+            return {
+                "id": d_row["id"],
+                "username": web_username,
+                "domain_name": d_row["domain_name"],
+                "document_root": d_row["document_root"],
+                "webserver": d_row["webserver"],
+                "php_version": d_row["php_version"],
+                "full_name": (wp_row["site_title"] if wp_row and wp_row["site_title"] else d_row["domain_name"]),
+                "email": (wp_row["admin_email"] if wp_row and wp_row["admin_email"] else d_row["owner_email"]),
+                "phone": "",
+                "role": "user",
+                "is_web_user": True,
+                "owner_username": d_row["owner_username"],
+                "status": "active",
+                "package_id": None,
+                "package_name": f"Website Plan ({d_row['domain_name']})",
+                "disk_mb": d_row["disk_mb"] or 5120,
+                "disk_used_mb": disk_used_mb,
+                "cpu_pct": d_row["cpu_pct"] or 100,
+                "mem_mb": d_row["mem_mb"] or 1024,
+                "domains_count": 1,
+                "max_domains": 1,
+                "databases_count": db_row["cnt"] if db_row else 1,
+                "max_databases": 1,
+                "allow_ssh": bool(d_row["allow_ssh"]),
+                "created_at": d_row["created_at"]
+            }
+
+        # Trường hợp 2: Hosting User hoặc Super Admin
+        user_id = current_user["id"]
         cur = await db.execute("""
             SELECT u.id, u.username, u.email, COALESCE(u.full_name, '') as full_name, COALESCE(u.phone, '') as phone,
                    u.role, u.status, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb, u.created_at,
@@ -550,6 +626,7 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
             raise HTTPException(status_code=404, detail="Không tìm thấy thông tin tài khoản")
 
         profile = dict(user_row)
+        profile["is_web_user"] = False
 
         # Tính toán số lượng domain sở hữu
         d_cur = await db.execute("SELECT COUNT(*) as cnt FROM domains WHERE user_id = ?", (user_id,))
@@ -581,9 +658,29 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
 @router.put("/profile")
 async def update_user_profile(req: ProfileUpdateRequest, current_user: dict = Depends(get_current_user)):
     """Cập nhật thông tin cá nhân (Họ tên, Email, Số điện thoại)"""
-    user_id = current_user["id"]
     db = await get_db_connection()
     try:
+        if current_user.get("web_domain_id"):
+            domain_id = current_user["web_domain_id"]
+            if req.email or req.full_name:
+                updates = []
+                params = []
+                if req.full_name is not None:
+                    updates.append("site_title = ?")
+                    params.append(req.full_name.strip())
+                if req.email:
+                    clean_email = req.email.strip().lower()
+                    if not re.match(r"^[^@]+@[^@]+\.[^@]+$", clean_email):
+                        raise HTTPException(status_code=400, detail="Định dạng email không hợp lệ")
+                    updates.append("admin_email = ?")
+                    params.append(clean_email)
+                if updates:
+                    params.append(domain_id)
+                    await db.execute(f"UPDATE wp_instances SET {', '.join(updates)} WHERE domain_id = ?", params)
+                    await db.commit()
+            return {"status": "ok", "message": "Cập nhật hồ sơ Website User thành công!"}
+
+        user_id = current_user["id"]
         # Nếu đổi email, kiểm tra xem email đã tồn tại ở tài khoản khác chưa
         if req.email:
             clean_email = req.email.strip().lower()
@@ -617,6 +714,12 @@ async def update_user_profile(req: ProfileUpdateRequest, current_user: dict = De
 @router.put("/change-password")
 async def change_password(req: PasswordChangeRequest, current_user: dict = Depends(get_current_user)):
     """Đổi mật khẩu tài khoản hiện tại"""
+    if current_user.get("web_domain_id"):
+        raise HTTPException(
+            status_code=400,
+            detail="Tài khoản Website User hoạt động ở chế độ lồng cách ly bảo mật. Mật khẩu được quản trị thông qua Hosting Reseller hoặc Super Admin."
+        )
+
     if req.new_password != req.confirm_password:
         raise HTTPException(status_code=400, detail="Mật khẩu mới và xác nhận mật khẩu không khớp")
     if len(req.new_password) < 6:
