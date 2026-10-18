@@ -66,13 +66,55 @@ SUPPORTED_APPS = [
         "name": "Redis Object Cache",
         "category": "database",
         "icon": "🔴",
-        "desc": "Bộ nhớ đệm trong RAM tốc độ cao, hỗ trợ Redis Object Cache cho WordPress.",
+        "desc": "Bộ nhớ đệm trong RAM tốc độ cao, hỗ trợ Redis Object Cache cho WordPress (Port 6379).",
         "service": "redis-server",
         "binary_checks": ["/usr/bin/redis-server", "/usr/local/bin/redis-server"],
         "default_version": "7.0",
         "versions": [
-            {"value": "7.0", "label": "Redis 7.0"},
-            {"value": "6.2", "label": "Redis 6.2"}
+            {"value": "7.0", "label": "Redis 7.0 (Mới nhất)"},
+            {"value": "6.2", "label": "Redis 6.2 LTS"}
+        ]
+    },
+    {
+        "id": "pgsql",
+        "name": "PostgreSQL Database",
+        "category": "database",
+        "icon": "🐘",
+        "desc": "Hệ quản trị CSDL quan hệ đối tượng mạnh mẽ hàng đầu thế giới, chuẩn SQL cao cấp (Port 5432).",
+        "service": "postgresql",
+        "binary_checks": ["/usr/bin/postgres", "/usr/bin/psql", "/usr/lib/postgresql/16/bin/postgres"],
+        "default_version": "16",
+        "versions": [
+            {"value": "16", "label": "PostgreSQL 16 (Khuyên dùng)"},
+            {"value": "15", "label": "PostgreSQL 15 LTS"}
+        ]
+    },
+    {
+        "id": "mongodb",
+        "name": "MongoDB NoSQL Database",
+        "category": "database",
+        "icon": "🍃",
+        "desc": "Cơ sở dữ liệu NoSQL tài liệu JSON/BSON hiệu năng cao với WiredTiger Engine (Port 27017).",
+        "service": "mongod",
+        "binary_checks": ["/usr/bin/mongod", "/usr/bin/mongosh"],
+        "default_version": "7.0",
+        "versions": [
+            {"value": "7.0", "label": "MongoDB 7.0 Community"},
+            {"value": "6.0", "label": "MongoDB 6.0 LTS"}
+        ]
+    },
+    {
+        "id": "sqlserver",
+        "name": "Microsoft SQL Server",
+        "category": "database",
+        "icon": "🗄️",
+        "desc": "Hệ quản trị CSDL quan hệ doanh nghiệp Microsoft SQL Server 2022 on Linux (Port 1433).",
+        "service": "mssql-server",
+        "binary_checks": ["/opt/mssql/bin/sqlservr", "/usr/bin/sqlcmd"],
+        "default_version": "2022",
+        "versions": [
+            {"value": "2022", "label": "MS SQL Server 2022 on Linux"},
+            {"value": "2019", "label": "MS SQL Server 2019"}
         ]
     },
 
@@ -201,10 +243,40 @@ SUPPORTED_APPS = [
         "name": "phpMyAdmin GUI",
         "category": "tools",
         "icon": "🧭",
-        "desc": "Giao diện Web trực quan quản lý CSDL MariaDB/MySQL nhanh chóng và an toàn.",
+        "desc": "Giao diện Web trực quan quản lý CSDL MariaDB/MySQL nhanh chóng và an toàn (Port 888).",
         "service": "",
         "binary_checks": ["/opt/wpc/apps/phpmyadmin/index.php", "/usr/share/phpmyadmin/index.php"],
         "default_version": "5.2.x"
+    },
+    {
+        "id": "pgadmin",
+        "name": "pgAdmin 4 GUI",
+        "category": "tools",
+        "icon": "🐘",
+        "desc": "Giao diện Web trực quan quản trị CSDL PostgreSQL mạnh mẽ và toàn diện (Port 5050).",
+        "service": "",
+        "binary_checks": ["/usr/pgadmin4/bin/pgadmin4", "/usr/bin/pgadmin4"],
+        "default_version": "4.x"
+    },
+    {
+        "id": "mongo-express",
+        "name": "Mongo Express GUI",
+        "category": "tools",
+        "icon": "🍃",
+        "desc": "Giao diện Web quản trị MongoDB hiện đại, trực quan hóa Documents và Collections (Port 8081).",
+        "service": "mongo-express",
+        "binary_checks": ["/usr/local/bin/mongo-express", "/usr/bin/mongo-express"],
+        "default_version": "1.0.x"
+    },
+    {
+        "id": "redis-commander",
+        "name": "Redis Commander GUI",
+        "category": "tools",
+        "icon": "🔴",
+        "desc": "Giao diện Web trực quan xem, chỉnh sửa và quản lý Key-Value cache Redis (Port 8082).",
+        "service": "redis-commander",
+        "binary_checks": ["/usr/local/bin/redis-commander", "/usr/bin/redis-commander"],
+        "default_version": "0.8.x"
     },
     {
         "id": "wp-cli",
@@ -367,9 +439,13 @@ async def app_action(
                 "mysql": "mariadb-server mariadb-client",
                 "mariadb": "mariadb-server mariadb-client",
                 "redis": "redis-server",
+                "pgsql": "postgresql postgresql-contrib",
+                "mongodb": "mongodb",
+                "sqlserver": "mssql-server",
                 "certbot": "certbot python3-certbot-nginx",
                 "fail2ban": "fail2ban",
-                "pure-ftpd": "pure-ftpd"
+                "pure-ftpd": "pure-ftpd",
+                "pgadmin": "pgadmin4-web"
             }
             pkg = pkg_map.get(req.app_id, req.app_id)
             cmd = f"sudo DEBIAN_FRONTEND=noninteractive apt-get update && sudo apt-get install -y {pkg}"
@@ -400,8 +476,12 @@ async def app_action(
                 "mysql": "mariadb-server mariadb-client",
                 "mariadb": "mariadb-server mariadb-client",
                 "redis": "redis-server",
+                "pgsql": "postgresql postgresql-contrib",
+                "mongodb": "mongodb",
+                "sqlserver": "mssql-server",
                 "pure-ftpd": "pure-ftpd",
-                "fail2ban": "fail2ban"
+                "fail2ban": "fail2ban",
+                "pgadmin": "pgadmin4-web"
             }
             pkg = pkg_map.get(req.app_id, req.app_id)
             cmd = f"sudo apt-get remove -y {pkg}"

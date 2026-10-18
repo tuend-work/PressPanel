@@ -1009,6 +1009,55 @@
                     window.open(pmaUrl, '_blank');
                 };
 
+                const openPgAdmin = () => {
+                    const host = window.location.hostname || 'localhost';
+                    window.open(`http://${host}:5050`, '_blank');
+                };
+
+                const openMongoExpress = () => {
+                    const host = window.location.hostname || 'localhost';
+                    window.open(`http://${host}:8081`, '_blank');
+                };
+
+                const openRedisCommander = () => {
+                    const host = window.location.hostname || 'localhost';
+                    window.open(`http://${host}:8082`, '_blank');
+                };
+
+                const getCurrentDbApp = () => {
+                    const idMap = {
+                        mysql: 'mysql',
+                        sqlserver: 'sqlserver',
+                        mongodb: 'mongodb',
+                        redis: 'redis',
+                        pgsql: 'pgsql'
+                    };
+                    const appId = idMap[dbTypeTab.value] || 'mysql';
+                    return getApp(appId);
+                };
+
+                const getCurrentDbPortAndStatus = () => {
+                    const ports = {
+                        mysql: 'Port 3306',
+                        sqlserver: 'Port 1433',
+                        mongodb: 'Port 27017',
+                        redis: 'Port 6379',
+                        pgsql: 'Port 5432',
+                        appstore: 'Store'
+                    };
+                    const port = ports[dbTypeTab.value] || 'Port';
+                    if (dbTypeTab.value === 'appstore') return 'App Store Active';
+                    const app = getCurrentDbApp();
+                    if (app.running) return `${port} - Đang Chạy`;
+                    if (app.installed) return `${port} - Đã Dừng`;
+                    return `${port} - Chưa Cài Đặt`;
+                };
+
+                const dbStoreApps = computed(() => {
+                    const dbAppIds = ['mysql', 'sqlserver', 'mongodb', 'redis', 'pgsql', 'phpmyadmin', 'pgadmin', 'mongo-express', 'redis-commander'];
+                    return dbAppIds.map(id => getApp(id)).filter(Boolean);
+                });
+
 
                 // Dữ liệu giám sát System WPC Widget
                 const sysStats = ref({
@@ -2855,7 +2904,9 @@
                     showRootPasswordModal, updatingRootPassword, rootPasswordForm, handleUpdateRootPassword,
                     showRemoteDbModal, savingRemoteDb, remoteDbForm, handleSaveRemoteAccess,
                     showAdvDbModal, advDbForm, showGetDbModal, getDbForm, redisStats, handleFlushRedis,
-                    generateRandomPassword, copyToClipboard
+                    generateRandomPassword, copyToClipboard,
+                    dbStoreApps, getCurrentDbApp, getCurrentDbPortAndStatus,
+                    openPgAdmin, openMongoExpress, openRedisCommander
                 };
             }
         }).mount('#app');
