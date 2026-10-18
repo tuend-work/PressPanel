@@ -2420,7 +2420,8 @@
                 const showRootPasswordModal = ref(false);
                 const updatingRootPassword = ref(false);
                 const rootPasswordForm = ref({
-                    new_password: ''
+                    new_password: '',
+                    current_password: ''
                 });
 
                 const showRemoteDbModal = ref(false);
@@ -2633,7 +2634,8 @@
                             },
                             body: JSON.stringify({
                                 db_type: dbTypeTab.value || 'mysql',
-                                new_password: rootPasswordForm.value.new_password.trim()
+                                new_password: rootPasswordForm.value.new_password.trim(),
+                                current_password: (rootPasswordForm.value.current_password || '').trim()
                             })
                         });
                         const data = await res.json();
@@ -2641,6 +2643,7 @@
                             alert(data.message || 'Cập nhật mật khẩu root CSDL thành công!');
                             showRootPasswordModal.value = false;
                             rootPasswordForm.value.new_password = '';
+                            rootPasswordForm.value.current_password = '';
                         } else {
                             alert('Lỗi: ' + (data.detail || 'Không thể đổi mật khẩu root'));
                         }

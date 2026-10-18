@@ -242,16 +242,79 @@ async def get_all_db_status():
 
 @router.post("/root-password")
 async def update_root_password(req: DatabaseRootPasswordRequest, current_user: dict = Depends(get_current_user)):
-    """Cập nhật mật khẩu root / quản trị database"""
+    """Cập nhật mật khẩu root / quản trị database (hỗ trợ cả Terminal SSH và phpMyAdmin)"""
     if current_user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên cấp cao mới có quyền đổi mật khẩu Root DB")
     
-    # Thực thi đổi mật khẩu an toàn
-    cmd = f"mysql -u root -e \"ALTER USER 'root'@'localhost' IDENTIFIED BY '{req.new_password}'; FLUSH PRIVILEGES;\""
     if os.name != "nt":
-        subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        script_path = "/opt/wpc/scripts/db_root_password.sh"
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        local_script = os.path.join(base_dir, "scripts", "db_root_password.sh")
+        target_script = script_path if os.path.exists(script_path) else local_script
 
-    return {"status": "ok", "message": f"Đã cập nhật mật khẩu Root cho {req.db_type.upper()} thành công!"}
+        if os.path.exists(target_script):
+            proc = subprocess.run(
+                ["sudo", "bash", target_script, req.new_password, req.current_password or ""],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            if proc.returncode != 0:
+                err_msg = proc.stderr.strip() or proc.stdout.strip() or "Lỗi khi cập nhật mật khẩu root"
+                raise HTTPException(status_code=500, detail=err_msg)
+        else:
+            # Fallback SQL trực tiếp cấp quyền cho cả localhost và 127.0.0.1 (để phpMyAdmin đăng nhập được)
+            esc_pass = req.new_password.replace("'", "'\\''")
+            esc_cur = (req.current_password or "").replace("'", "'\\''")
+            sql_maria = (
+                f"ALTER USER 'root'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD('{esc_pass}');"
+                f"CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED VIA mysql_native_password USING PASSWORD('{esc_pass}');"
+                f"ALTER USER 'root'@'127.0.0.1' IDENTIFIED VIA mysql_native_password USING PASSWORD('{esc_pass}');"
+                f"CREATE USER IF NOT EXISTS 'root'@'::1' IDENTIFIED VIA mysql_native_password USING PASSWORD('{esc_pass}');"
+                f"ALTER USER 'root'@'::1' IDENTIFIED VIA mysql_native_password USING PASSWORD('{esc_pass}');"
+                f"GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;"
+                f"GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;"
+                f"GRANT ALL PRIVILEGES ON *.* TO 'root'@'::1' WITH GRANT OPTION;"
+                f"FLUSH PRIVILEGES;"
+            )
+            sql_std = (
+                f"CREATE USER IF NOT EXISTS 'root'@'localhost' IDENTIFIED BY '{esc_pass}';"
+                f"ALTER USER 'root'@'localhost' IDENTIFIED BY '{esc_pass}';"
+                f"CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY '{esc_pass}';"
+                f"ALTER USER 'root'@'127.0.0.1' IDENTIFIED BY '{esc_pass}';"
+                f"CREATE USER IF NOT EXISTS 'root'@'::1' IDENTIFIED BY '{esc_pass}';"
+                f"ALTER USER 'root'@'::1' IDENTIFIED BY '{esc_pass}';"
+                f"GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;"
+                f"GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;"
+                f"GRANT ALL PRIVILEGES ON *.* TO 'root'@'::1' WITH GRANT OPTION;"
+                f"FLUSH PRIVILEGES;"
+            )
+            success = False
+            last_err = ""
+            for sql_code in [sql_maria, sql_std]:
+                for cmd in [
+                    f"sudo mysql --defaults-file=/etc/mysql/debian.cnf -e \"{sql_code}\"",
+                    f"sudo mysql -u root -e \"{sql_code}\"",
+                    f"sudo mysql -u root -p'{esc_cur}' -e \"{sql_code}\"" if esc_cur else None,
+                    f"sudo mysql -u root -p'{esc_pass}' -e \"{sql_code}\"",
+                ]:
+                    if not cmd:
+                        continue
+                    proc = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    if proc.returncode == 0:
+                        success = True
+                        break
+                    else:
+                        last_err = proc.stderr
+                if success:
+                    break
+            if not success:
+                raise HTTPException(status_code=500, detail=last_err or "Không thể đổi mật khẩu root qua SQL")
+
+    return {
+        "status": "ok",
+        "message": f"Đã cập nhật mật khẩu Root cho {req.db_type.upper()} thành công! Bạn có thể đăng nhập cả Terminal SSH và phpMyAdmin."
+    }
 
 @router.post("/remote-access")
 async def toggle_remote_access(req: RemoteAccessRequest, current_user: dict = Depends(get_current_user)):
