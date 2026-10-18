@@ -269,7 +269,13 @@ cp -f "$TMP_DIR/scripts/update.sh" "$INSTALL_DIR/scripts/update.sh.tmp" 2>/dev/n
 mv -f "$INSTALL_DIR/scripts/update.sh.tmp" "$INSTALL_DIR/scripts/update.sh" 2>/dev/null || true
 chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
 
-# 8.1 Tự động chuẩn hóa và kích hoạt lại phpMyAdmin nếu đã được cài đặt
+# 8.1 Đảm bảo phân quyền truy cập hệ thống và kích hoạt lại phpMyAdmin nếu đã được cài đặt
+chmod 755 /opt /opt/wpc /opt/wpc/apps 2>/dev/null || true
+if id "wpc" &>/dev/null; then
+    id "nobody" &>/dev/null && usermod -a -G wpc nobody 2>/dev/null || true
+    id "www-data" &>/dev/null && usermod -a -G wpc www-data 2>/dev/null || true
+fi
+
 if [ -d "$INSTALL_DIR/apps/phpmyadmin" ] || [ -f "/etc/nginx/conf.d/00_phpmyadmin.conf" ] || grep -q "PMA_888" /usr/local/lsws/conf/httpd_config.conf 2>/dev/null; then
     echo "[+] Phát hiện phpMyAdmin, tự động chuẩn hóa cấu hình Vhost Port 888..."
     bash "$INSTALL_DIR/scripts/apps/phpmyadmin.sh" install 2>/dev/null || true

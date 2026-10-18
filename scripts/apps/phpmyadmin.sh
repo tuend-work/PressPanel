@@ -137,22 +137,52 @@ declare(strict_types=1);
 \$cfg['MaxRows'] = 50;
 EOF
 
-        # 3. Phân quyền toàn diện cho toàn bộ thư mục và tệp phpMyAdmin
+        # Nếu index.php vẫn chưa có, tạo trang chẩn đoán tạm thời để tránh 403 Directory Index Forbidden
+        if [ ! -f "$TARGET_DIR/index.php" ]; then
+            echo "[-] Tạo file index.php chẩn đoán tạm thời..."
+            cat << 'EOF' > "$TARGET_DIR/index.php"
+<?php
+echo "<div style='font-family:sans-serif;text-align:center;padding:50px;'>";
+echo "<h2>🐬 WPCloud phpMyAdmin</h2>";
+echo "<p>phpMyAdmin đang đồng bộ. Vui lòng bấm <b>🔄 Cài lại</b> trên giao diện hoặc kiểm tra kết nối mạng máy chủ.</p>";
+echo "</div>";
+EOF
+        fi
+
+        # 3. Phân quyền toàn diện và gỡ bỏ các file .htaccess chặn truy cập
+        rm -f "$TARGET_DIR/.htaccess" 2>/dev/null || true
         mkdir -p "$TARGET_DIR/tmp" "$TARGET_DIR/logs"
         chmod 777 "$TARGET_DIR/tmp" 2>/dev/null || true
         chmod 755 "$TARGET_DIR/logs" 2>/dev/null || true
-        chmod 644 "$TARGET_DIR/config.inc.php" 2>/dev/null || true
+        chmod 644 "$TARGET_DIR/config.inc.php" "$TARGET_DIR/index.php" 2>/dev/null || true
+
+        # Đảm bảo cây thư mục cha /opt/wpc có quyền thực thi (755) cho webserver
+        chmod 755 /opt /opt/wpc /opt/wpc/apps "$TARGET_DIR" 2>/dev/null || true
+
+        # Thêm nobody và www-data vào nhóm wpc nếu cần
+        if id "wpc" &>/dev/null; then
+            id "nobody" &>/dev/null && usermod -a -G wpc nobody 2>/dev/null || true
+            id "www-data" &>/dev/null && usermod -a -G wpc www-data 2>/dev/null || true
+        fi
 
         find "$TARGET_DIR" -type d -exec chmod 755 {} + 2>/dev/null || true
         find "$TARGET_DIR" -type f -exec chmod 644 {} + 2>/dev/null || true
         chmod 777 "$TARGET_DIR/tmp" 2>/dev/null || true
         chmod -R a+rX "$TARGET_DIR" 2>/dev/null || true
-        chmod a+x /opt /opt/wpc /opt/wpc/apps "$TARGET_DIR" 2>/dev/null || true
 
         if [ -d "/usr/local/lsws" ]; then
             chown -R nobody:nogroup "$TARGET_DIR" 2>/dev/null || true
         else
             chown -R www-data:www-data "$TARGET_DIR" 2>/dev/null || true
+        fi
+
+        # Tạo symlink phpmyadmin để hỗ trợ cả URI / và /phpmyadmin/
+        ln -snf "$TARGET_DIR" "$TARGET_DIR/phpmyadmin" 2>/dev/null || true
+        ln -snf "$TARGET_DIR" "$TARGET_DIR/phpMyAdmin" 2>/dev/null || true
+
+        # Cài đặt bổ sung các PHP module cần thiết cho phpMyAdmin
+        if command -v apt-get &>/dev/null; then
+            apt-get install -y lsphp82-mysql lsphp82-curl lsphp82-opcache lsphp82-mbstring lsphp82-xml php-mbstring php-xml php-mysql 2>/dev/null || true
         fi
 
         # 4. Mở cổng tường lửa nếu đang bật (UFW hoặc Firewalld)
@@ -217,12 +247,16 @@ EOF
             chmod 666 "/usr/local/lsws/logs/pma_error.log" "/usr/local/lsws/logs/pma_access.log" 2>/dev/null || true
 
             cat <<EOF > "/usr/local/lsws/conf/vhosts/phpmyadmin/vhconf.conf"
-docRoot                   \$VH_ROOT
+docRoot                   \$VH_ROOT/
 vhDomain                  localhost
 vhAliases                 127.0.0.1, *
 adminEmails               admin@localhost
 enableGzip                1
 indexFiles                index.php, index.html
+
+accessControl {
+  allow                   *
+}
 
 errorlog \$SERVER_ROOT/logs/pma_error.log {
   useServer               0
@@ -239,18 +273,6 @@ accesslog \$SERVER_ROOT/logs/pma_access.log {
 scripthandler {
   add                     lsapi:$OLS_LSPHP php
 }
-
-context / {
-  type                    NULL
-  location                \$VH_ROOT/
-  allowBrowse             1
-  indexFiles              index.php, index.html
-}
-
-rewrite  {
-  enable                  1
-  autoLoadHtaccess        1
-}
 EOF
             chown -R lsadm:lsadm "/usr/local/lsws/conf/vhosts/phpmyadmin" 2>/dev/null || true
             chmod 755 "/usr/local/lsws/conf/vhosts/phpmyadmin" 2>/dev/null || true
@@ -259,6 +281,32 @@ EOF
             # Làm sạch các khai báo virtualhost phpmyadmin và listener PMA_888 cũ nếu đã có
             sed -i '/virtualhost[[:space:]]\+phpmyadmin[[:space:]]*{/,/^[[:space:]]*}/d' "$OLS_MAIN_CONF" 2>/dev/null || true
             sed -i '/listener[[:space:]]\+PMA_888[[:space:]]*{/,/^[[:space:]]*}/d' "$OLS_MAIN_CONF" 2>/dev/null || true
+
+            # Đảm bảo extprocessor cho OLS_LSPHP tồn tại trong httpd_config.conf
+            if ! grep -q "extprocessor[[:space:]]\+$OLS_LSPHP" "$OLS_MAIN_CONF"; then
+                cat <<EOF >> "$OLS_MAIN_CONF"
+
+extprocessor $OLS_LSPHP {
+  type                    lsapi
+  address                 uds://tmp/lshttpd/$OLS_LSPHP.sock
+  maxConns                35
+  env                     PHP_LSAPI_CHILDREN=35
+  initTimeout             60
+  retryTimeout            0
+  persistConn             1
+  respBuffer              0
+  autoStart               1
+  path                    /usr/local/lsws/$OLS_LSPHP/bin/lsphp
+  backlog                 100
+  instances               1
+  priority                0
+  memSoftLimit            2047M
+  memHardLimit            2047M
+  procSoftLimit           400
+  procHardLimit           400
+}
+EOF
+            fi
 
             # Bổ sung virtualhost và listener chuẩn vào httpd_config.conf
             cat <<EOF >> "$OLS_MAIN_CONF"
@@ -269,7 +317,6 @@ virtualhost phpmyadmin {
   allowSymbolLink         1
   enableScript            1
   restrained              0
-  setUIDMode              0
 }
 
 listener PMA_888 {
@@ -282,6 +329,16 @@ EOF
 
             # Khởi động lại OpenLiteSpeed
             /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lshttpd 2>/dev/null || systemctl restart lsws 2>/dev/null || true
+        fi
+
+        # 7. Kiểm tra trạng thái HTTP cổng 888
+        sleep 1
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 http://127.0.0.1:888/ 2>/dev/null || echo "000")
+        echo "[+] Kiểm tra phản hồi HTTP cổng 888: Mã $HTTP_CODE"
+        if [ "$HTTP_CODE" = "403" ]; then
+            echo "[-] CẢNH BÁO: Vẫn nhận mã 403! Nhật ký lỗi Webserver:"
+            [ -f "/usr/local/lsws/logs/error.log" ] && tail -n 15 /usr/local/lsws/logs/error.log 2>/dev/null || true
+            [ -f "/var/log/nginx/error.log" ] && tail -n 15 /var/log/nginx/error.log 2>/dev/null || true
         fi
 
         echo "[+] Cài đặt và cấu hình phpMyAdmin thành công tại $TARGET_DIR (Port $PMA_PORT)!"
