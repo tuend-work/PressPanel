@@ -224,6 +224,26 @@ async def init_database():
             await db.execute("UPDATE users SET full_name = 'Nguyễn Đức Tuệ' WHERE username = 'admin' AND (full_name IS NULL OR full_name = '')")
         except Exception:
             pass
+        try:
+            await db.execute("ALTER TABLE databases ADD COLUMN db_type TEXT DEFAULT 'mysql'")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE databases ADD COLUMN domain_id INTEGER DEFAULT NULL")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE databases ADD COLUMN charset TEXT DEFAULT 'utf8mb4_unicode_ci'")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE databases ADD COLUMN description TEXT DEFAULT ''")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE databases ADD COLUMN backup_enabled INTEGER DEFAULT 0")
+        except Exception:
+            pass
 
         # Tạo các gói Service Plans mẫu (Hosting Plans) nếu chưa có
         cursor = await db.execute("SELECT id FROM packages WHERE id = 1")

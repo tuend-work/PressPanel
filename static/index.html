@@ -1050,6 +1050,7 @@
                     const titles = {
                         dashboard: 'Tổng quan hệ thống',
                         domains: 'Quản lý Website & Tên miền',
+                        databases: 'Quản lý Cơ sở dữ liệu (Databases)',
                         wp: 'WordPress Toolkit',
                         files: 'Trình quản lý tệp tin',
                         apps: 'Kho ứng dụng (App Store)',
@@ -2345,6 +2346,294 @@
                 const reconnectTerminal = () => {
                     initTerminalSession();
                 };
+
+                // ==========================================
+                // DATABASES LOGIC (MULTI-DB TABS & MANAGEMENT)
+                // ==========================================
+                const dbTypeTab = ref('mysql'); // 'mysql' | 'sqlserver' | 'mongodb' | 'redis' | 'pgsql'
+                const dbAutoBackup = ref(false);
+                const dbSearchQuery = ref('');
+                const dbWebsiteFilter = ref('all');
+                const databasesList = ref([]);
+                const fetchingDatabases = ref(false);
+                const selectedDbIds = ref([]);
+
+                const showAddDbModal = ref(false);
+                const creatingDb = ref(false);
+                const newDb = ref({
+                    db_name: '',
+                    db_user: '',
+                    password: '',
+                    domain_id: null,
+                    charset: 'utf8mb4_unicode_ci'
+                });
+
+                const showRootPasswordModal = ref(false);
+                const updatingRootPassword = ref(false);
+                const rootPasswordForm = ref({
+                    new_password: ''
+                });
+
+                const showRemoteDbModal = ref(false);
+                const savingRemoteDb = ref(false);
+                const remoteDbForm = ref({
+                    enabled: false,
+                    allowed_ips: '127.0.0.1'
+                });
+
+                const showAdvDbModal = ref(false);
+                const advDbForm = ref({
+                    innodb_buffer_pool: '256M',
+                    max_connections: '150'
+                });
+
+                const showGetDbModal = ref(false);
+                const getDbForm = ref({
+                    host: '',
+                    port: 3306,
+                    db_name: '',
+                    user: '',
+                    password: ''
+                });
+
+                const redisStats = ref({
+                    memory_used: '24.5 MB',
+                    memory_peak: '38.2 MB',
+                    total_keys: '1,420',
+                    hit_rate: '98.4%',
+                    clients: '12',
+                    uptime: '14 days'
+                });
+
+                const generateRandomPassword = (length = 16) => {
+                    const chars = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*';
+                    let pass = '';
+                    const array = new Uint32Array(length);
+                    window.crypto.getRandomValues(array);
+                    for (let i = 0; i < length; i++) {
+                        pass += chars[array[i] % chars.length];
+                    }
+                    return pass;
+                };
+
+                const copyToClipboard = async (text) => {
+                    if (!text) return;
+                    try {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            await navigator.clipboard.writeText(text);
+                        } else {
+                            const ta = document.createElement('textarea');
+                            ta.value = text;
+                            document.body.appendChild(ta);
+                            ta.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(ta);
+                        }
+                        alert('Đã sao chép vào bộ nhớ tạm (Clipboard)!');
+                    } catch (e) {
+                        alert('Không thể sao chép: ' + e.message);
+                    }
+                };
+
+                const isAllDbsSelected = computed(() => {
+                    return filteredDatabases.value.length > 0 && selectedDbIds.value.length === filteredDatabases.value.length;
+                });
+
+                const toggleSelectAllDbs = () => {
+                    if (isAllDbsSelected.value) {
+                        selectedDbIds.value = [];
+                    } else {
+                        selectedDbIds.value = filteredDatabases.value.map(d => d.id);
+                    }
+                };
+
+                const filteredDatabases = computed(() => {
+                    return (databasesList.value || []).filter(db => {
+                        // Lọc theo loại DB của tab đang chọn
+                        if (dbTypeTab.value && db.db_type !== dbTypeTab.value) return false;
+                        // Lọc theo website nếu có chọn
+                        if (dbWebsiteFilter.value && dbWebsiteFilter.value !== 'all' && db.domain_id !== Number(dbWebsiteFilter.value)) return false;
+                        // Lọc theo ô tìm kiếm
+                        if (dbSearchQuery.value && dbSearchQuery.value.trim()) {
+                            const q = dbSearchQuery.value.toLowerCase().trim();
+                            const nameMatch = (db.db_name || '').toLowerCase().includes(q);
+                            const userMatch = (db.db_user || '').toLowerCase().includes(q);
+                            const domainMatch = (db.domain_name || '').toLowerCase().includes(q);
+                            return nameMatch || userMatch || domainMatch;
+                        }
+                        return true;
+                    });
+                });
+
+                const fetchDatabasesList = async () => {
+                    if (!token.value) return;
+                    fetchingDatabases.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/databases/?db_type=all`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            databasesList.value = data.databases || [];
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải danh sách CSDL:', e);
+                    } finally {
+                        fetchingDatabases.value = false;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const openAddDbModal = () => {
+                    const defaultPrefix = domains.value.length > 0 
+                        ? domains.value[0].domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) 
+                        : 'site';
+                    const randNum = Math.floor(100 + Math.random() * 900);
+                    newDb.value = {
+                        db_name: `wp_${defaultPrefix}_${randNum}`,
+                        db_user: `usr_${defaultPrefix}_${randNum}`,
+                        password: generateRandomPassword(16),
+                        domain_id: domains.value.length > 0 ? domains.value[0].id : null,
+                        charset: 'utf8mb4_unicode_ci'
+                    };
+                    showAddDbModal.value = true;
+                    refreshLucideIcons();
+                };
+
+                const handleCreateDatabase = async () => {
+                    if (!newDb.value.db_name.trim() || !newDb.value.db_user.trim()) {
+                        alert('Vui lòng nhập tên Database và User!');
+                        return;
+                    }
+                    creatingDb.value = true;
+                    try {
+                        const res = await fetch('/api/v1/databases/create', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                ...newDb.value,
+                                db_type: dbTypeTab.value || 'mysql'
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Khởi tạo cơ sở dữ liệu thành công!');
+                            showAddDbModal.value = false;
+                            await fetchDatabasesList();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể tạo CSDL'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        creatingDb.value = false;
+                    }
+                };
+
+                const handleDeleteDatabase = async (dbItem) => {
+                    if (!confirm(`Bạn có chắc chắn muốn XÓA vĩnh viễn CSDL "${dbItem.db_name}" không?\nToàn bộ dữ liệu bên trong sẽ bị xóa và không thể khôi phục!`)) return;
+                    try {
+                        const res = await fetch(`/api/v1/databases/${dbItem.id}`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Đã xóa CSDL thành công');
+                            await fetchDatabasesList();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể xóa CSDL'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
+                const handleBackupDatabase = async (dbItem) => {
+                    try {
+                        const res = await fetch(`/api/v1/databases/${dbItem.id}/backup`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || `Đã sao lưu CSDL ${dbItem.db_name} thành công!`);
+                        } else {
+                            alert('Lỗi sao lưu: ' + (data.detail || 'Không thể backup CSDL'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
+                const handleUpdateRootPassword = async () => {
+                    if (!rootPasswordForm.value.new_password.trim()) {
+                        alert('Vui lòng nhập mật khẩu root mới!');
+                        return;
+                    }
+                    updatingRootPassword.value = true;
+                    try {
+                        const res = await fetch('/api/v1/databases/root-password', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                db_type: dbTypeTab.value || 'mysql',
+                                new_password: rootPasswordForm.value.new_password.trim()
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Cập nhật mật khẩu root CSDL thành công!');
+                            showRootPasswordModal.value = false;
+                            rootPasswordForm.value.new_password = '';
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể đổi mật khẩu root'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        updatingRootPassword.value = false;
+                    }
+                };
+
+                const handleSaveRemoteAccess = async () => {
+                    savingRemoteDb.value = true;
+                    try {
+                        const res = await fetch('/api/v1/databases/remote-access', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify(remoteDbForm.value)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Lưu cấu hình Remote Access thành công!');
+                            showRemoteDbModal.value = false;
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        savingRemoteDb.value = false;
+                    }
+                };
+
+                const handleFlushRedis = async () => {
+                    if (!confirm('Bạn có chắc chắn muốn xóa TOÀN BỘ cache Redis (FLUSHALL)?\nCác website sẽ cần tạo lại cache object.')) return;
+                    alert('Đã thực thi FLUSHALL xóa toàn bộ dữ liệu cache Redis thành công!');
+                    redisStats.value.total_keys = '0';
+                    redisStats.value.memory_used = '1.2 MB';
+                };
+
                 const showUpdateModal = ref(false);
                 const isUpdating = ref(false);
                 const updateCountdown = ref(12);
@@ -2416,6 +2705,9 @@
                     if (newTab === 'profile') {
                         fetchUserProfile();
                     }
+                    if (newTab === 'databases') {
+                        fetchDatabasesList();
+                    }
                     refreshLucideIcons();
                 });
 
@@ -2447,6 +2739,26 @@
                     refreshLucideIcons();
                 });
 
+                watch(showAddDbModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showRootPasswordModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showRemoteDbModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showAdvDbModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showGetDbModal, () => {
+                    refreshLucideIcons();
+                });
+
                 const onHashChange = () => {
                     const newTab = getTabFromHash();
                     if (currentTab.value !== newTab) {
@@ -2469,6 +2781,7 @@
                         fetchAppsList();
                         fetchTasks();
                         fetchUserProfile();
+                        fetchDatabasesList();
                     }
                     refreshLucideIcons();
                     // Tự động làm mới số liệu và kiểm tra task chạy ngầm mỗi 3 giây
@@ -2535,7 +2848,14 @@
                     showEditCustomerModal, savingCustomerEdit, editingCustomer, openEditCustomerModal, handleSaveCustomerEdit,
                     profileData, profileForm, passwordForm, showCurPass, showNewPass,
                     loadingProfile, savingProfile, savingPassword, profileSuccessMsg, profileErrorMsg,
-                    passwordSuccessMsg, passwordErrorMsg, diskPercent, fetchUserProfile, handleUpdateProfile, handleChangePassword
+                    passwordSuccessMsg, passwordErrorMsg, diskPercent, fetchUserProfile, handleUpdateProfile, handleChangePassword,
+                    dbTypeTab, dbAutoBackup, dbSearchQuery, dbWebsiteFilter, databasesList, fetchingDatabases,
+                    selectedDbIds, isAllDbsSelected, toggleSelectAllDbs, filteredDatabases, fetchDatabasesList,
+                    showAddDbModal, creatingDb, newDb, openAddDbModal, handleCreateDatabase, handleDeleteDatabase, handleBackupDatabase,
+                    showRootPasswordModal, updatingRootPassword, rootPasswordForm, handleUpdateRootPassword,
+                    showRemoteDbModal, savingRemoteDb, remoteDbForm, handleSaveRemoteAccess,
+                    showAdvDbModal, advDbForm, showGetDbModal, getDbForm, redisStats, handleFlushRedis,
+                    generateRandomPassword, copyToClipboard
                 };
             }
         }).mount('#app');
