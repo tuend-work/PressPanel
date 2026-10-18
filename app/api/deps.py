@@ -18,7 +18,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     user_id = int(payload["sub"])
     db = await get_db_connection()
     cursor = await db.execute("""
-        SELECT u.id, u.username, u.email, u.role, u.parent_id, u.status, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb,
+        SELECT u.id, u.username, u.email, COALESCE(u.full_name, '') as full_name, COALESCE(u.phone, '') as phone,
+               u.role, u.parent_id, u.status, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb,
                p.name as package_name, p.max_domains, p.max_databases, COALESCE(p.allow_ssh, 1) as allow_ssh
         FROM users u
         LEFT JOIN packages p ON u.package_id = p.id

@@ -286,6 +286,15 @@
                                     <span>Cài đặt hệ thống</span>
                                 </div>
                             </button>
+
+                            <!-- Hồ sơ cá nhân (All Roles) -->
+                            <button @click="currentTab = 'profile'" :class="navClass('profile')">
+                                <div class="flex items-center space-x-3">
+                                    <i data-lucide="user-cog" class="w-4 h-4 text-slate-400"></i>
+                                    <span>Hồ sơ cá nhân</span>
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                            </button>
                         </div>
                     </div>
 
@@ -361,10 +370,10 @@
                         <!-- User Profile Info -->
                         <div class="flex items-center space-x-3 cursor-pointer group" @click="currentTab = 'profile'">
                             <div class="w-9 h-9 rounded-full bg-slate-300 text-slate-600 flex items-center justify-center font-bold text-xs ring-2 ring-slate-100 shadow-sm overflow-hidden">
-                                <span v-if="!currentUser.avatar">{{ currentUser.username.slice(0, 2).toUpperCase() }}</span>
+                                <span v-if="!currentUser.avatar">{{ (currentUser.full_name || currentUser.username || 'U').slice(0, 2).toUpperCase() }}</span>
                             </div>
                             <div class="hidden sm:flex flex-col text-left">
-                                <span class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition">{{ currentUser.username === 'admin' ? 'Nguyễn Đức Tuệ' : currentUser.username }}</span>
+                                <span class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition">{{ currentUser.full_name || (currentUser.username === 'admin' ? 'Nguyễn Đức Tuệ' : currentUser.username) }}</span>
                                 <span class="text-[10px] text-slate-400 capitalize font-medium">{{ currentUser.role === 'admin' ? 'Administrator' : 'User' }}</span>
                             </div>
                         </div>
@@ -394,7 +403,7 @@
             const viewFiles = [
                 'dashboard.html', 'domains.html', 'wp.html', 'apps.html',
                 'customers.html', 'service_plans.html', 'databases.html',
-                'files.html', 'others.html'
+                'files.html', 'others.html', 'profile.html'
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
@@ -1045,7 +1054,8 @@
                         files: 'Trình quản lý tệp tin',
                         apps: 'Kho ứng dụng (App Store)',
                         crons: 'Lịch trình Cron',
-                        firewall: 'Bảo mật máy chủ'
+                        firewall: 'Bảo mật máy chủ',
+                        profile: 'Hồ sơ cá nhân & Bảo mật'
                     };
                     return titles[currentTab.value] || 'Tổng quan';
                 });
@@ -1504,6 +1514,216 @@
                         }
                     } catch (e) {
                         alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
+                // Quản lý Chỉnh Sửa Customer Dành Cho Quản Trị Viên (Admin / Reseller)
+                const showEditCustomerModal = ref(false);
+                const savingCustomerEdit = ref(false);
+                const editingCustomer = ref({
+                    id: null,
+                    username: '',
+                    full_name: '',
+                    email: '',
+                    phone: '',
+                    password: ''
+                });
+
+                const openEditCustomerModal = (customer) => {
+                    editingCustomer.value = {
+                        id: customer.id,
+                        username: customer.username,
+                        full_name: customer.full_name || '',
+                        email: customer.email || '',
+                        phone: customer.phone || '',
+                        password: ''
+                    };
+                    showEditCustomerModal.value = true;
+                };
+
+                const handleSaveCustomerEdit = async () => {
+                    if (!editingCustomer.value.id) return;
+                    savingCustomerEdit.value = true;
+                    try {
+                        const payload = {
+                            full_name: editingCustomer.value.full_name,
+                            email: editingCustomer.value.email,
+                            phone: editingCustomer.value.phone
+                        };
+                        if (editingCustomer.value.password) {
+                            payload.password = editingCustomer.value.password;
+                        }
+                        const res = await fetch(`/api/v1/users/customers/${editingCustomer.value.id}/edit`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify(payload)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Cập nhật thông tin user thành công!');
+                            showEditCustomerModal.value = false;
+                            fetchCustomers();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể cập nhật thông tin user'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        savingCustomerEdit.value = false;
+                    }
+                };
+
+                // Quản lý Hồ sơ cá nhân (User Profile) & Đổi mật khẩu
+                const profileData = ref({
+                    username: '',
+                    full_name: '',
+                    email: '',
+                    phone: '',
+                    role: 'user',
+                    package_name: 'Standard Plan',
+                    disk_mb: 5120,
+                    disk_used_mb: 0,
+                    mem_mb: 1024,
+                    cpu_pct: 100,
+                    domains_count: 0,
+                    max_domains: 0,
+                    databases_count: 0,
+                    max_databases: 0,
+                    allow_ssh: false,
+                    created_at: ''
+                });
+
+                const profileForm = ref({
+                    full_name: '',
+                    email: '',
+                    phone: ''
+                });
+
+                const passwordForm = ref({
+                    current_password: '',
+                    new_password: '',
+                    confirm_password: ''
+                });
+
+                const showCurPass = ref(false);
+                const showNewPass = ref(false);
+                const loadingProfile = ref(false);
+                const savingProfile = ref(false);
+                const savingPassword = ref(false);
+                const profileSuccessMsg = ref('');
+                const profileErrorMsg = ref('');
+                const passwordSuccessMsg = ref('');
+                const passwordErrorMsg = ref('');
+
+                const diskPercent = computed(() => {
+                    if (!profileData.value.disk_mb || profileData.value.disk_mb <= 0) return 0;
+                    return ((profileData.value.disk_used_mb || 0) / profileData.value.disk_mb) * 100;
+                });
+
+                const fetchUserProfile = async () => {
+                    if (!token.value) return;
+                    loadingProfile.value = true;
+                    try {
+                        const res = await fetch('/api/v1/users/profile', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            profileData.value = data;
+                            profileForm.value = {
+                                full_name: data.full_name || '',
+                                email: data.email || '',
+                                phone: data.phone || ''
+                            };
+                            currentUser.value.full_name = data.full_name || '';
+                            currentUser.value.phone = data.phone || '';
+                            currentUser.value.email = data.email || '';
+                            try {
+                                localStorage.setItem('wpc_user', JSON.stringify(currentUser.value));
+                            } catch(e) {}
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải thông tin hồ sơ:', e);
+                    } finally {
+                        loadingProfile.value = false;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const handleUpdateProfile = async () => {
+                    savingProfile.value = true;
+                    profileSuccessMsg.value = '';
+                    profileErrorMsg.value = '';
+                    try {
+                        const res = await fetch('/api/v1/users/profile', {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                full_name: profileForm.value.full_name,
+                                email: profileForm.value.email,
+                                phone: profileForm.value.phone
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            profileSuccessMsg.value = data.message || 'Cập nhật thông tin hồ sơ thành công!';
+                            await fetchUserProfile();
+                            setTimeout(() => { profileSuccessMsg.value = ''; }, 4000);
+                        } else {
+                            profileErrorMsg.value = data.detail || 'Không thể cập nhật hồ sơ cá nhân';
+                        }
+                    } catch (e) {
+                        profileErrorMsg.value = 'Lỗi kết nối máy chủ: ' + e.message;
+                    } finally {
+                        savingProfile.value = false;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const handleChangePassword = async () => {
+                    if (passwordForm.value.new_password !== passwordForm.value.confirm_password) {
+                        passwordErrorMsg.value = 'Mật khẩu mới và mật khẩu xác nhận không khớp!';
+                        return;
+                    }
+                    if (passwordForm.value.new_password.length < 6) {
+                        passwordErrorMsg.value = 'Mật khẩu mới phải có tối thiểu 6 ký tự!';
+                        return;
+                    }
+                    savingPassword.value = true;
+                    passwordSuccessMsg.value = '';
+                    passwordErrorMsg.value = '';
+                    try {
+                        const res = await fetch('/api/v1/users/change-password', {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                current_password: passwordForm.value.current_password,
+                                new_password: passwordForm.value.new_password,
+                                confirm_password: passwordForm.value.confirm_password
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            passwordSuccessMsg.value = data.message || 'Đổi mật khẩu thành công!';
+                            passwordForm.value = { current_password: '', new_password: '', confirm_password: '' };
+                            setTimeout(() => { passwordSuccessMsg.value = ''; }, 5000);
+                        } else {
+                            passwordErrorMsg.value = data.detail || 'Không thể thay đổi mật khẩu';
+                        }
+                    } catch (e) {
+                        passwordErrorMsg.value = 'Lỗi kết nối máy chủ: ' + e.message;
+                    } finally {
+                        savingPassword.value = false;
+                        refreshLucideIcons();
                     }
                 };
 
@@ -2189,6 +2409,9 @@
                     if (newTab === 'files') {
                         fetchFilesList(fileCurrentPath.value || '');
                     }
+                    if (newTab === 'profile') {
+                        fetchUserProfile();
+                    }
                     refreshLucideIcons();
                 });
 
@@ -2197,6 +2420,10 @@
                 });
 
                 watch(showAddCustomerModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showEditCustomerModal, () => {
                     refreshLucideIcons();
                 });
 
@@ -2237,6 +2464,7 @@
                         fetchSystemStatus();
                         fetchAppsList();
                         fetchTasks();
+                        fetchUserProfile();
                     }
                     refreshLucideIcons();
                     // Tự động làm mới số liệu và kiểm tra task chạy ngầm mỗi 3 giây
@@ -2299,7 +2527,11 @@
                     handleDeleteItem, formatBytes, formatTimestamp,
                     showTerminalModal, terminalConnected, terminalTargetUser, terminalHost,
                     terminalContainerRef, openWebTerminal, closeTerminal, reconnectTerminal,
-                    handleTogglePlanSsh, handleToggleDomainSsh
+                    handleTogglePlanSsh, handleToggleDomainSsh,
+                    showEditCustomerModal, savingCustomerEdit, editingCustomer, openEditCustomerModal, handleSaveCustomerEdit,
+                    profileData, profileForm, passwordForm, showCurPass, showNewPass,
+                    loadingProfile, savingProfile, savingPassword, profileSuccessMsg, profileErrorMsg,
+                    passwordSuccessMsg, passwordErrorMsg, diskPercent, fetchUserProfile, handleUpdateProfile, handleChangePassword
                 };
             }
         }).mount('#app');

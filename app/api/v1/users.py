@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from app.api.deps import get_current_user, require_role
 from app.db.session import get_db_connection
-from app.core.security import get_password_hash, create_access_token
+from app.core.security import get_password_hash, verify_password, create_access_token
 from app.executor.gatekeeper import run_gatekeeper
 
 router = APIRouter(prefix="/users", tags=["Customer Management"])
@@ -45,7 +45,8 @@ async def list_customers(current_user: dict = Depends(get_current_user)):
     db = await get_db_connection()
     if current_user["role"] == "admin":
         cursor = await db.execute("""
-            SELECT u.id, u.username, u.email, u.role, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb, u.status, u.created_at,
+            SELECT u.id, u.username, u.email, COALESCE(u.full_name, '') as full_name, COALESCE(u.phone, '') as phone,
+                   u.role, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb, u.status, u.created_at,
                    p.name as package_name,
                    (SELECT COUNT(*) FROM domains d WHERE d.user_id = u.id) as domain_count
             FROM users u
@@ -55,7 +56,8 @@ async def list_customers(current_user: dict = Depends(get_current_user)):
         """)
     elif current_user["role"] == "reseller":
         cursor = await db.execute("""
-            SELECT u.id, u.username, u.email, u.role, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb, u.status, u.created_at,
+            SELECT u.id, u.username, u.email, COALESCE(u.full_name, '') as full_name, COALESCE(u.phone, '') as phone,
+                   u.role, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb, u.status, u.created_at,
                    p.name as package_name,
                    (SELECT COUNT(*) FROM domains d WHERE d.user_id = u.id) as domain_count
             FROM users u
@@ -508,4 +510,180 @@ async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict 
 
     await db.close()
     return {"status": "ok", "message": "Đã cập nhật gói dịch vụ thành công!"}
+
+# ==========================================
+# USER PROFILE & SECURITY MANAGEMENT
+# ==========================================
+
+class ProfileUpdateRequest(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+    confirm_password: str
+
+class CustomerAdminEditRequest(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    password: Optional[str] = None
+
+@router.get("/profile")
+async def get_user_profile(current_user: dict = Depends(get_current_user)):
+    """Lấy thông tin hồ sơ cá nhân và hạn mức tài nguyên của tài khoản hiện tại"""
+    user_id = current_user["id"]
+    db = await get_db_connection()
+    try:
+        cur = await db.execute("""
+            SELECT u.id, u.username, u.email, COALESCE(u.full_name, '') as full_name, COALESCE(u.phone, '') as phone,
+                   u.role, u.status, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb, u.created_at,
+                   p.name as package_name, p.max_domains, p.max_databases, COALESCE(p.allow_ssh, 1) as allow_ssh
+            FROM users u
+            LEFT JOIN packages p ON u.package_id = p.id
+            WHERE u.id = ?
+        """, (user_id,))
+        user_row = await cur.fetchone()
+        if not user_row:
+            raise HTTPException(status_code=404, detail="Không tìm thấy thông tin tài khoản")
+
+        profile = dict(user_row)
+
+        # Tính toán số lượng domain sở hữu
+        d_cur = await db.execute("SELECT COUNT(*) as cnt FROM domains WHERE user_id = ?", (user_id,))
+        d_row = await d_cur.fetchone()
+        profile["domains_count"] = d_row["cnt"] if d_row else 0
+
+        # Tính toán số lượng database
+        db_cur = await db.execute("SELECT COUNT(*) as cnt FROM wp_instances WHERE domain_id IN (SELECT id FROM domains WHERE user_id = ?)", (user_id,))
+        db_row = await db_cur.fetchone()
+        profile["databases_count"] = db_row["cnt"] if db_row else 0
+
+        # Tính dung lượng ổ cứng thực tế đã sử dụng (/home/<username>)
+        disk_used_mb = 0
+        target_dir = f"/home/{profile['username']}"
+        if os.path.isdir(target_dir):
+            try:
+                import subprocess
+                p = subprocess.run(["du", "-sm", target_dir], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+                if p.returncode == 0 and p.stdout:
+                    disk_used_mb = int(p.stdout.strip().split()[0])
+            except Exception:
+                pass
+        profile["disk_used_mb"] = disk_used_mb
+
+        return profile
+    finally:
+        await db.close()
+
+@router.put("/profile")
+async def update_user_profile(req: ProfileUpdateRequest, current_user: dict = Depends(get_current_user)):
+    """Cập nhật thông tin cá nhân (Họ tên, Email, Số điện thoại)"""
+    user_id = current_user["id"]
+    db = await get_db_connection()
+    try:
+        # Nếu đổi email, kiểm tra xem email đã tồn tại ở tài khoản khác chưa
+        if req.email:
+            clean_email = req.email.strip().lower()
+            if not re.match(r"^[^@]+@[^@]+\.[^@]+$", clean_email):
+                raise HTTPException(status_code=400, detail="Định dạng email không hợp lệ")
+            c_cur = await db.execute("SELECT id FROM users WHERE email = ? AND id != ?", (clean_email, user_id))
+            if await c_cur.fetchone():
+                raise HTTPException(status_code=400, detail="Địa chỉ email này đã được sử dụng bởi một tài khoản khác")
+
+        updates = []
+        params = []
+        if req.full_name is not None:
+            updates.append("full_name = ?")
+            params.append(req.full_name.strip())
+        if req.email is not None:
+            updates.append("email = ?")
+            params.append(req.email.strip().lower())
+        if req.phone is not None:
+            updates.append("phone = ?")
+            params.append(req.phone.strip())
+
+        if updates:
+            params.append(user_id)
+            await db.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = ?", params)
+            await db.commit()
+
+        return {"status": "ok", "message": "Cập nhật hồ sơ cá nhân thành công!"}
+    finally:
+        await db.close()
+
+@router.put("/change-password")
+async def change_password(req: PasswordChangeRequest, current_user: dict = Depends(get_current_user)):
+    """Đổi mật khẩu tài khoản hiện tại"""
+    if req.new_password != req.confirm_password:
+        raise HTTPException(status_code=400, detail="Mật khẩu mới và xác nhận mật khẩu không khớp")
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Mật khẩu mới phải có độ dài ít nhất 6 ký tự")
+
+    user_id = current_user["id"]
+    db = await get_db_connection()
+    try:
+        cur = await db.execute("SELECT password_hash FROM users WHERE id = ?", (user_id,))
+        row = await cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản")
+
+        if not verify_password(req.current_password, row["password_hash"]):
+            raise HTTPException(status_code=400, detail="Mật khẩu hiện tại không chính xác")
+
+        new_hash = get_password_hash(req.new_password)
+        await db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, user_id))
+        await db.commit()
+
+        return {"status": "ok", "message": "Đã đổi mật khẩu thành công!"}
+    finally:
+        await db.close()
+
+@router.put("/customers/{target_id}/edit")
+async def admin_edit_customer(target_id: int, req: CustomerAdminEditRequest, current_user: dict = Depends(require_role("admin", "reseller"))):
+    """Admin hoặc Reseller chỉnh sửa thông tin hoặc reset mật khẩu của Customer"""
+    db = await get_db_connection()
+    try:
+        cur = await db.execute("SELECT id, username, parent_id, role FROM users WHERE id = ?", (target_id,))
+        target = await cur.fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="Không tìm thấy người dùng này")
+        if target["role"] == "admin" and current_user["id"] != target["id"]:
+            raise HTTPException(status_code=403, detail="Không thể chỉnh sửa tài khoản Admin khác")
+        if current_user["role"] == "reseller" and target["parent_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Bạn chỉ có thể chỉnh sửa khách hàng do bạn quản lý")
+
+        updates = []
+        params = []
+        if req.full_name is not None:
+            updates.append("full_name = ?")
+            params.append(req.full_name.strip())
+        if req.email:
+            clean_email = req.email.strip().lower()
+            if not re.match(r"^[^@]+@[^@]+\.[^@]+$", clean_email):
+                raise HTTPException(status_code=400, detail="Định dạng email không hợp lệ")
+            c_cur = await db.execute("SELECT id FROM users WHERE email = ? AND id != ?", (clean_email, target_id))
+            if await c_cur.fetchone():
+                raise HTTPException(status_code=400, detail="Email này đã được sử dụng bởi tài khoản khác")
+            updates.append("email = ?")
+            params.append(clean_email)
+        if req.phone is not None:
+            updates.append("phone = ?")
+            params.append(req.phone.strip())
+        if req.password:
+            if len(req.password) < 6:
+                raise HTTPException(status_code=400, detail="Mật khẩu phải có ít nhất 6 ký tự")
+            updates.append("password_hash = ?")
+            params.append(get_password_hash(req.password))
+
+        if updates:
+            params.append(target_id)
+            await db.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = ?", params)
+            await db.commit()
+
+        return {"status": "ok", "message": f"Đã cập nhật thông tin người dùng '{target['username']}' thành công!"}
+    finally:
+        await db.close()
 

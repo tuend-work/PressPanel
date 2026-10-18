@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS users (
     parent_id INTEGER DEFAULT NULL,
     username TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
+    full_name TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
     email TEXT UNIQUE NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('admin', 'reseller', 'user')),
     system_uid INTEGER UNIQUE,
@@ -208,6 +210,18 @@ async def init_database():
         try:
             # Chuẩn hoá các tài khoản Hosting User thành role 'reseller'
             await db.execute("UPDATE users SET role = 'reseller' WHERE role = 'user' AND username != 'admin'")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN full_name TEXT DEFAULT ''")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT ''")
+        except Exception:
+            pass
+        try:
+            await db.execute("UPDATE users SET full_name = 'Nguyễn Đức Tuệ' WHERE username = 'admin' AND (full_name IS NULL OR full_name = '')")
         except Exception:
             pass
 
