@@ -2,7 +2,7 @@
                         <!-- UNIFIED OBSIDIAN DATABASE CARD (Đồng bộ nguyên khối, chuẩn aaPanel dark theme theo ảnh mẫu) -->
                         <div class="bg-[#181d24] border border-[#262f3c] rounded-xl shadow-xl overflow-hidden transition-all duration-300">
                             
-                            <!-- 1. TOP HEADER TAB BAR: Chuẩn 5 Tabs + 0 coupons + PRO theo ảnh mẫu -->
+                            <!-- 1. TOP HEADER TAB BAR: Chuẩn 5 Tabs theo ảnh mẫu -->
                             <div class="border-b border-[#262f3c] bg-[#161a22] px-4 sm:px-6 pt-3 flex items-center justify-between flex-wrap gap-2">
                                 <div class="flex items-center space-x-2 sm:space-x-6 overflow-x-auto no-scrollbar">
                                     <!-- 1. Tab MySQL (Active) -->
@@ -43,18 +43,6 @@
                                         class="pb-2.5 text-sm transition relative tracking-wide">
                                         <span>PgSQL</span>
                                         <div v-if="dbTypeTab === 'pgsql'" class="w-6 h-[3px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
-                                    </button>
-                                </div>
-
-                                <!-- Right side items: Coupons & PRO pill buttons -->
-                                <div class="flex items-center space-x-2 pb-2">
-                                    <button @click="showAdvDbModal = true" class="px-2.5 py-1 rounded bg-[#242b35] hover:bg-[#2e3744] text-amber-400 text-xs font-semibold flex items-center space-x-1 border border-amber-500/20 transition">
-                                        <span>🪙</span>
-                                        <span>0 coupons</span>
-                                    </button>
-                                    <button @click="showAdvDbModal = true" class="px-3 py-1 rounded bg-[#2c3645] hover:bg-[#364254] text-white text-xs font-bold flex items-center space-x-1.5 border border-slate-600/60 shadow-sm transition">
-                                        <span>💎</span>
-                                        <span>PRO</span>
                                     </button>
                                 </div>
                             </div>
