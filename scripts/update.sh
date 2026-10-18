@@ -268,6 +268,13 @@ done
 cp -f "$TMP_DIR/scripts/update.sh" "$INSTALL_DIR/scripts/update.sh.tmp" 2>/dev/null || true
 mv -f "$INSTALL_DIR/scripts/update.sh.tmp" "$INSTALL_DIR/scripts/update.sh" 2>/dev/null || true
 chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
+
+# 8.1 Tự động chuẩn hóa và kích hoạt lại phpMyAdmin nếu đã được cài đặt
+if [ -d "$INSTALL_DIR/apps/phpmyadmin" ] || [ -f "/etc/nginx/conf.d/00_phpmyadmin.conf" ] || grep -q "PMA_888" /usr/local/lsws/conf/httpd_config.conf 2>/dev/null; then
+    echo "[+] Phát hiện phpMyAdmin, tự động chuẩn hóa cấu hình Vhost Port 888..."
+    bash "$INSTALL_DIR/scripts/apps/phpmyadmin.sh" install 2>/dev/null || true
+fi
+
 rm -rf "$TMP_DIR"
 
 NEW_VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "latest")

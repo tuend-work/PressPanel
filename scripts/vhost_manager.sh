@@ -146,9 +146,9 @@ EOF
 
                 # Thêm map vào listener Default hoặc HTTP_80 nếu chưa có
                 if ! grep -q "map[[:space:]]\+$DOMAIN" "$OLS_MAIN_CONF"; then
-                    # Dùng awk để chèn map an toàn ngay trước dấu ngoặc đóng } của listener
+                    # Dùng awk để chèn map an toàn ngay trước dấu ngoặc đóng } của listener HTTP_80 hoặc Default
                     awk -v d="$DOMAIN" '
-                        /listener [A-Za-z0-9_]+[[:space:]]*{/ { in_listener=1 }
+                        /listener[[:space:]]+(Default|HTTP_80|HTTP)[[:space:]]*{/ { in_listener=1 }
                         in_listener && /}/ {
                             print "    map                      " d " " d ", *." d
                             in_listener=0
@@ -218,6 +218,10 @@ EOF
             fi
         fi
         rm -rf "/usr/local/lsws/conf/vhosts/$DOMAIN" 2>/dev/null || true
+        if [ -f "/usr/local/lsws/conf/httpd_config.conf" ]; then
+            sed -i "/virtualhost[[:space:]]\+$DOMAIN[[:space:]]*{/,/^[[:space:]]*}/d" /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
+            sed -i "/map[[:space:]]\+$DOMAIN/d" /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
+        fi
         rm -f "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
         # Xoá pool & dừng các standalone PHP-FPM service riêng của user trên tất cả các phiên bản PHP
         for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
