@@ -153,11 +153,11 @@
                             <i data-lucide="terminal" class="w-3.5 h-3.5 text-emerald-500"></i>
                             <span>Quyền SSH Terminal:</span>
                         </span>
-                        <span v-if="profileData.allow_ssh" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            ✓ Cho phép
+                        <span v-if="profileData.role === 'admin'" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            ✓ Toàn quyền root
                         </span>
                         <span v-else class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
-                            ✗ Đã tắt
+                            ✗ Đã tắt (Chỉ dành cho Admin)
                         </span>
                     </div>
                 </div>

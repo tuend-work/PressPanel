@@ -539,11 +539,11 @@
                             <div class="flex items-center space-x-2 pl-2">
                                 <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
                                 <span class="text-xs font-mono font-bold text-slate-200 tracking-wide">
-                                    SSH Terminal &mdash; {{ terminalTargetUser }}@{{ terminalHost || 'wpc' }}
+                                    SSH Terminal &mdash; root@{{ terminalHost || 'wpc' }}
                                 </span>
                                 <span class="text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1">
                                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    <span>{{ terminalConnected ? 'Connected' : 'Connecting...' }}</span>
+                                    <span>{{ terminalConnected ? 'Connected (root)' : 'Connecting...' }}</span>
                                 </span>
                             </div>
                         </div>
@@ -562,7 +562,7 @@
                     <div class="h-7 px-4 bg-[#111827] border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400 shrink-0">
                         <div class="flex items-center space-x-4">
                             <span>Phím tắt: <kbd class="px-1 bg-slate-800 rounded text-slate-300">Ctrl+C</kbd> (Ngắt)</span>
-                            <span>Môi trường: <strong class="text-emerald-400">Linux PTY (Chroot / Isolated User)</strong></span>
+                            <span>Quyền hạn: <strong class="text-emerald-400 font-mono">root (Full System Privileges)</strong></span>
                         </div>
                         <span class="text-slate-500">Session ID: #{{ currentUser.id }}</span>
                     </div>

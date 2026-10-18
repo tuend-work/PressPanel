@@ -84,7 +84,7 @@
                                             <span class="text-slate-500">🗄️ Số database tối đa:</span>
                                             <span class="font-bold text-slate-700 font-mono">{{ plan.max_databases }}</span>
                                         </div>
-                                        <div class="flex justify-between items-center pt-2 text-slate-600">
+                                        <div v-if="currentUser.role === 'admin'" class="flex justify-between items-center pt-2 text-slate-600">
                                             <span class="text-slate-500 flex items-center gap-1">
                                                 <i data-lucide="terminal" class="w-3.5 h-3.5 text-emerald-500"></i>
                                                 <span>Quyền SSH Terminal:</span>

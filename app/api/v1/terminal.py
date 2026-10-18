@@ -37,48 +37,29 @@ async def terminal_websocket(
     user_id = int(payload["sub"])
     db = await get_db_connection()
     cursor = await db.execute("""
-        SELECT u.id, u.username, u.role, u.status, u.package_id, COALESCE(p.allow_ssh, 1) as allow_ssh
+        SELECT u.id, u.username, u.role, u.status
         FROM users u
-        LEFT JOIN packages p ON u.package_id = p.id
         WHERE u.id = ?
     """, (user_id,))
     user = await cursor.fetchone()
+    await db.close()
 
     if not user or user["status"] == "suspended":
-        await db.close()
         await websocket.send_text("\r\n\x1b[31m[Lỗi] Tài khoản không tồn tại hoặc đã bị tạm khóa!\x1b[0m\r\n")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    # Xác định Linux target user & working directory
-    target_username = user["username"]
-    is_admin = (user["role"] == "admin")
+    is_admin = (user["role"] == "admin" or user["username"] == "admin")
 
-    # Kiểm tra quyền SSH cấp gói (Plan) nếu không phải admin
-    if not is_admin and not bool(user["allow_ssh"]):
-        await db.close()
-        await websocket.send_text("\r\n\x1b[31m[Lỗi] Gói dịch vụ của bạn không có quyền truy cập Terminal SSH! Vui lòng nâng cấp gói.\x1b[0m\r\n")
+    # Quyền truy cập Terminal SSH chỉ dành riêng cho Admin. Hosting User bị tắt hoàn toàn.
+    if not is_admin:
+        await websocket.send_text("\r\n\x1b[31m[Lỗi] Quyền truy cập Terminal SSH chỉ dành riêng cho Quản trị viên (Admin)! Tài khoản Hosting User không được phép truy cập.\x1b[0m\r\n")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    # Nếu token đại diện cho Web User của 1 website cụ thể
-    if payload.get("web_domain_id"):
-        d_cursor = await db.execute("SELECT allow_ssh, domain_name FROM domains WHERE id = ?", (payload["web_domain_id"],))
-        dom = await d_cursor.fetchone()
-        if dom and not bool(dom["allow_ssh"]) and not is_admin:
-            await db.close()
-            await websocket.send_text(f"\r\n\x1b[31m[Lỗi] Quyền Terminal SSH của website '{dom['domain_name']}' đang bị tắt!\x1b[0m\r\n")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-
-    await db.close()
-
-    if payload.get("role") == "user" and payload.get("web_user_name"):
-        target_username = payload["web_user_name"]
-
-    home_dir = f"/home/{target_username}"
-    if is_admin and not payload.get("web_user_name"):
-        home_dir = "/root"
+    # Khi Admin vào Terminal SSH: Kết nối trực tiếp dưới quyền ROOT (không phải quyền admin)
+    target_username = "root"
+    home_dir = "/root" if os.path.exists("/root") else "/"
 
     # Mở PTY (Pseudo-Terminal)
     try:
@@ -93,45 +74,20 @@ async def terminal_websocket(
     fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
     # Khởi động Shell process:
-    # Nếu đang chạy dưới quyền root (chế độ server chuẩn):
-    # - Admin: chạy /bin/bash
-    # - User: chạy qua su/runuser chuyển sang user đó
-    # Nếu process panel chạy dưới user non-root (wpc) và cùng target_username:
-    # - Chạy trực tiếp /bin/bash của user
-    # - Ngược lại: dùng sudo -u target_username /bin/bash hoặc su
-    cage_script = "/opt/wpc/scripts/cage_terminal.sh"
-    if not os.path.isfile(cage_script):
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        dev_cage = os.path.join(base_dir, "scripts", "cage_terminal.sh")
-        if os.path.isfile(dev_cage):
-            cage_script = dev_cage
-
-    if is_admin and not payload.get("web_user_name"):
+    # Nếu đang chạy trực tiếp là root (UID 0): Chạy /bin/bash --login
+    # Nếu đang chạy là user unprivileged (wpc): Dùng sudo -n -u root /bin/bash --login để vào thẳng quyền root
+    if os.getuid() == 0:
         shell_cmd = ["/bin/bash", "--login"]
-    elif os.path.isfile(cage_script):
-        if os.getuid() == 0:
-            shell_cmd = ["/bin/bash", cage_script, target_username]
-        else:
-            shell_cmd = ["sudo", "-n", cage_script, target_username]
-    elif os.getuid() == 0:
-        # Chạy trực tiếp dưới quyền root chuyển sang user
-        if os.path.exists("/sbin/runuser"):
-            shell_cmd = ["/sbin/runuser", "-u", target_username, "--", "/bin/bash", "--login"]
-        else:
-            shell_cmd = ["/bin/su", "-", target_username]
     else:
-        # Nếu panel chạy dưới user unprivileged
-        current_sys_user = os.environ.get("USER", "")
-        if current_sys_user == target_username:
-            shell_cmd = ["/bin/bash", "--login"]
-        else:
-            shell_cmd = ["sudo", "-n", "-u", target_username, "/bin/bash", "--login"]
+        shell_cmd = ["sudo", "-n", "-u", "root", "/bin/bash", "--login"]
 
     env = {
         "TERM": "xterm-256color",
         "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         "HOME": home_dir,
-        "USER": target_username,
+        "USER": "root",
+        "LOGNAME": "root",
+        "SHELL": "/bin/bash",
         "LANG": "en_US.UTF-8"
     }
 

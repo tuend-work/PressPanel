@@ -15,12 +15,19 @@ HOSTING_USER="${6:-$USERNAME}"
 
 WPC_DIR="/opt/wpc"
 
-# 1. Đảm bảo Linux user tồn tại trên hệ thống
+# 1. Đảm bảo Linux user tồn tại trên hệ thống (Khóa SSH bằng nologin)
 ensure_linux_user() {
     local u="$1"
+    local nologin_shell="/usr/sbin/nologin"
+    [ -x "$nologin_shell" ] || nologin_shell="/sbin/nologin"
+    [ -x "$nologin_shell" ] || nologin_shell="/bin/false"
+
     if ! id "$u" &>/dev/null; then
-        echo "[+] Tao Linux user $u cho website..."
-        useradd -m -s /bin/bash "$u" 2>/dev/null || true
+        echo "[+] Tao Linux user $u cho website (khoa SSH: $nologin_shell)..."
+        useradd -m -s "$nologin_shell" "$u" 2>/dev/null || true
+    else
+        # Dam bao user ton tai cung bi khoa SSH login
+        usermod -s "$nologin_shell" "$u" 2>/dev/null || true
     fi
 }
 

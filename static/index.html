@@ -287,13 +287,13 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- Terminal SSH -->
-                            <button v-if="currentUser.role === 'admin' || isWebUser || (isHostingUser && currentUser.allow_ssh)" @click="openWebTerminal()" :class="navClass('terminal')">
+                            <!-- Terminal SSH: Chỉ hiển thị cho Admin -->
+                            <button v-if="currentUser.role === 'admin'" @click="openWebTerminal()" :class="navClass('terminal')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
                                     <span>Terminal SSH</span>
                                 </div>
-                                <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono border border-emerald-800">SSH</span>
+                                <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono border border-emerald-800">root</span>
                             </button>
 
                             <!-- 8. Service Plans / Website Plans (Chỉ Admin & Hosting User, Website User không cần) -->
@@ -513,8 +513,8 @@
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.35').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.35').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.36').then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=0.5.36').then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -2390,11 +2390,8 @@
                 let terminalSocket = null;
 
                 const openWebTerminal = (domain = null) => {
-                    if (domain && domain.domain_name) {
-                        terminalTargetUser.value = domain.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16);
-                    } else {
-                        terminalTargetUser.value = currentUser.value?.username || 'user';
-                    }
+                    // Admin khi vào chức năng Terminal SSH luôn kết nối bằng quyền root theo yêu cầu
+                    terminalTargetUser.value = 'root';
                     showTerminalModal.value = true;
                     nextTick(() => {
                         initTerminalSession();

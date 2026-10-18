@@ -243,7 +243,44 @@ for user_home in /home/*; do
         find "$user_home/public_html" -type d -exec chmod 755 {} + 2>/dev/null || true
         find "$user_home/public_html" -type f -exec chmod 644 {} + 2>/dev/null || true
     fi
+
+    # 4. Khóa quyền Linux SSH cho Hosting User này (chỉ cho phép thao tác web)
+    NOLOGIN_SHELL="/usr/sbin/nologin"
+    [ -x "$NOLOGIN_SHELL" ] || NOLOGIN_SHELL="/sbin/nologin"
+    [ -x "$NOLOGIN_SHELL" ] || NOLOGIN_SHELL="/bin/false"
+    if [ "$u_name" != "root" ]; then
+        usermod -s "$NOLOGIN_SHELL" "$u_name" 2>/dev/null || true
+    fi
 done
+
+# Khóa quyền SSH của tài khoản linux admin nếu tồn tại
+if id admin &>/dev/null; then
+    echo "[+] Khóa SSH tài khoản linux admin..."
+    NOLOGIN_SHELL="/usr/sbin/nologin"
+    [ -x "$NOLOGIN_SHELL" ] || NOLOGIN_SHELL="/sbin/nologin"
+    [ -x "$NOLOGIN_SHELL" ] || NOLOGIN_SHELL="/bin/false"
+    usermod -s "$NOLOGIN_SHELL" admin 2>/dev/null || true
+    passwd -l admin 2>/dev/null || true
+fi
+
+# Chặn truy cập SSH cho tài khoản admin trong cấu hình SSH daemon
+mkdir -p /etc/ssh/sshd_config.d 2>/dev/null || true
+if [ -d /etc/ssh/sshd_config.d ]; then
+    cat << 'EOF' > /etc/ssh/sshd_config.d/50-wpc-security.conf
+# WPCloud Security: Chặn SSH trực tiếp tài khoản linux admin
+DenyUsers admin
+EOF
+    chmod 644 /etc/ssh/sshd_config.d/50-wpc-security.conf 2>/dev/null || true
+fi
+
+if [ -f /etc/ssh/sshd_config ]; then
+    if ! grep -q "DenyUsers.*admin" /etc/ssh/sshd_config; then
+        echo "" >> /etc/ssh/sshd_config
+        echo "# WPCloud Security: Chặn SSH trực tiếp tài khoản linux admin" >> /etc/ssh/sshd_config
+        echo "DenyUsers admin" >> /etc/ssh/sshd_config
+    fi
+    systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true
+fi
 
 # Restart Webserver để nạp lại danh sách supplementary groups cho nobody & www-data
 if systemctl is-active --quiet lsws 2>/dev/null; then

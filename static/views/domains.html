@@ -311,15 +311,15 @@
                                                     </div>
                                                 </div>
 
-                                                <!-- Terminal / SSH -->
-                                                <div @click="(currentUser.role === 'reseller' || isHostingUser) ? impersonateWebsiteUser(d) : openWebTerminal(d)"
+                                                <!-- Terminal / SSH (Chỉ Admin mới có quyền truy cập root terminal) -->
+                                                <div v-if="currentUser.role === 'admin'" @click="openWebTerminal(d)"
                                                     class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
                                                     <div class="w-10 h-10 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center shrink-0 font-mono text-sm font-bold shadow-sm">
                                                         &gt;_
                                                     </div>
                                                     <div class="min-w-0">
-                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Web Terminal</div>
-                                                        <div class="text-[10px] text-slate-400 truncate">{{ (currentUser.role === 'reseller' || isHostingUser) ? 'Đăng nhập Web User' : 'SSH Shell (' + d.domain_name + ')' }}</div>
+                                                        <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition truncate">Terminal SSH (root)</div>
+                                                        <div class="text-[10px] text-slate-400 truncate">Quyền root hệ thống</div>
                                                     </div>
                                                 </div>
 
@@ -429,8 +429,8 @@
                                             </div>
                                         </div>
 
-                                        <!-- Cấu hình quyền truy cập SSH cho Website -->
-                                        <div class="pt-3 border-t border-slate-200 flex items-center justify-between">
+                                        <!-- Cấu hình quyền truy cập SSH cho Website (Chỉ Admin) -->
+                                        <div v-if="currentUser.role === 'admin'" class="pt-3 border-t border-slate-200 flex items-center justify-between">
                                             <div class="flex items-center space-x-3">
                                                 <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
                                                     &gt;_

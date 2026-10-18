@@ -43,7 +43,7 @@ CONF_DATA = parse_wpc_conf(get_conf_path())
 
 class Settings:
     PROJECT_NAME: str = "WPCloud"
-    VERSION: str = "0.5.35"
+    VERSION: str = "0.5.36"
     API_V1_STR: str = "/api/v1"
     
     # Mạng & Cổng kết nối

@@ -42,16 +42,32 @@ int main(int argc, char *argv[]) {
         // 1. Kiểm tra xem user Linux đã tồn tại chưa (ví dụ tài khoản hệ thống hoặc tạo trước đó)
         snprintf(cmd, sizeof(cmd), "id -u %s >/dev/null 2>&1", username);
         if (system(cmd) != 0) {
-            // Chưa tồn tại -> tạo mới
-            snprintf(cmd, sizeof(cmd), "useradd -m -s /bin/bash %s 2>/dev/null", username);
+            // Chưa tồn tại -> tạo mới (khóa SSH bằng nologin cho hosting user)
+            snprintf(cmd, sizeof(cmd), 
+                "useradd -m -s /usr/sbin/nologin %s 2>/dev/null || "
+                "useradd -m -s /sbin/nologin %s 2>/dev/null || "
+                "useradd -m -s /bin/false %s 2>/dev/null", 
+                username, username, username);
             if (system(cmd) != 0) {
                 // Thử tạo không cần -m nếu thư mục /home/username đã có
-                snprintf(cmd, sizeof(cmd), "useradd -s /bin/bash %s", username);
+                snprintf(cmd, sizeof(cmd), 
+                    "useradd -s /usr/sbin/nologin %s 2>/dev/null || "
+                    "useradd -s /sbin/nologin %s 2>/dev/null || "
+                    "useradd -s /bin/false %s 2>/dev/null", 
+                    username, username, username);
                 if (system(cmd) != 0) {
                     send_json_error("user", "Khong the tao Linux user (ten da bi trung hoac he thong tu choi)");
                     return 1;
                 }
             }
+        } else {
+            // Nếu user đã tồn tại, đảm bảo shell bị khóa nologin
+            snprintf(cmd, sizeof(cmd), 
+                "usermod -s /usr/sbin/nologin %s 2>/dev/null || "
+                "usermod -s /sbin/nologin %s 2>/dev/null || "
+                "usermod -s /bin/false %s 2>/dev/null", 
+                username, username, username);
+            IGNORE_RESULT(system(cmd));
         }
 
         // Tạo cấu trúc thư mục chuẩn (liệt kê rõ ràng từng thư mục vì /bin/sh không hỗ trợ brace expansion {})

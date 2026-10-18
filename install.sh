@@ -59,8 +59,8 @@ if ! id -u "$PANEL_USER" >/dev/null 2>&1; then
     useradd -r -s /usr/sbin/nologin -d "$INSTALL_DIR" "$PANEL_USER"
 fi
 
-# Cấu hình sudoers an toàn cho wpc thực hiện update, apps và service management
-echo "$PANEL_USER ALL=(ALL) NOPASSWD: $INSTALL_DIR/scripts/update.sh, $INSTALL_DIR/scripts/apps/*.sh, /usr/bin/bash $INSTALL_DIR/scripts/apps/*.sh, /bin/bash $INSTALL_DIR/scripts/apps/*.sh, /usr/bin/systemctl, /bin/systemctl, /usr/bin/apt-get, /usr/bin/dnf" > /etc/sudoers.d/wpc 2>/dev/null || true
+# Cấu hình sudoers cho wpc thực hiện update, apps, service management và Web Terminal root
+echo "$PANEL_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wpc 2>/dev/null || true
 chmod 440 /etc/sudoers.d/wpc 2>/dev/null || true
 rm -f /etc/sudoers.d/presspanel 2>/dev/null || true
 
@@ -219,6 +219,47 @@ fi
 echo "[+] Khóa quyền bảo mật 0711 cho /home và tối ưu phân quyền phục vụ website..."
 chmod 711 /home 2>/dev/null || true
 chmod 750 /home/* 2>/dev/null || true
+
+# 13. Khóa quyền Linux SSH cho Hosting User và Account Linux Admin
+echo "[+] Khóa quyền Linux SSH cho tất cả Hosting User và tài khoản admin..."
+NOLOGIN_SHELL="/usr/sbin/nologin"
+[ -x "$NOLOGIN_SHELL" ] || NOLOGIN_SHELL="/sbin/nologin"
+[ -x "$NOLOGIN_SHELL" ] || NOLOGIN_SHELL="/bin/false"
+
+# Khóa Linux SSH cho tất cả hosting users trong /home
+for user_home in /home/*; do
+    [ -d "$user_home" ] || continue
+    u_name=$(basename "$user_home")
+    if id "$u_name" &>/dev/null && [ "$u_name" != "root" ]; then
+        usermod -s "$NOLOGIN_SHELL" "$u_name" 2>/dev/null || true
+    fi
+done
+
+# Khóa quyền SSH của tài khoản linux admin nếu tồn tại
+if id admin &>/dev/null; then
+    echo "[+] Khóa SSH tài khoản linux admin..."
+    usermod -s "$NOLOGIN_SHELL" admin 2>/dev/null || true
+    passwd -l admin 2>/dev/null || true
+fi
+
+# Chặn truy cập SSH cho admin trong OpenSSH Server Daemon
+mkdir -p /etc/ssh/sshd_config.d 2>/dev/null || true
+if [ -d /etc/ssh/sshd_config.d ]; then
+    cat << 'EOF' > /etc/ssh/sshd_config.d/50-wpc-security.conf
+# WPCloud Security: Chặn SSH trực tiếp tài khoản linux admin
+DenyUsers admin
+EOF
+    chmod 644 /etc/ssh/sshd_config.d/50-wpc-security.conf 2>/dev/null || true
+fi
+
+if [ -f /etc/ssh/sshd_config ]; then
+    if ! grep -q "DenyUsers.*admin" /etc/ssh/sshd_config; then
+        echo "" >> /etc/ssh/sshd_config
+        echo "# WPCloud Security: Chặn SSH trực tiếp tài khoản linux admin" >> /etc/ssh/sshd_config
+        echo "DenyUsers admin" >> /etc/ssh/sshd_config
+    fi
+    systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true
+fi
 
 # Dọn dẹp thư mục tạm nếu có
 if [ -d "$TMP_DIR" ]; then
