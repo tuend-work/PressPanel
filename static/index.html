@@ -38,30 +38,103 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    <script>
+        (function() {
+            var theme = localStorage.getItem('wpc_theme');
+            if (theme !== 'light') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.add('light');
+            }
+        })();
+    </script>
     <style>
-        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #f3f6fa; color: #1e293b; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
         code, pre { font-family: 'JetBrains Mono', monospace; }
-        .wp-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04); }
-        .glass { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04); }
-        .glass-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04); color: #1e293b; }
-        .WPC-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04); color: #1e293b; }
+
+        /* Dark Mode (Default) Theme Styles */
+        html.dark, body.dark {
+            background-color: #0c1017 !important;
+            color: #e2e8f0 !important;
+        }
+
+        html.light, body.light {
+            background-color: #f3f6fa !important;
+            color: #1e293b !important;
+        }
+
+        /* Harmonious Dark Mode Background & Layout Overrides */
+        body.dark #app,
+        body.dark .bg-\[\#f3f6fa\],
+        html.dark body {
+            background-color: #0c1017 !important;
+        }
+
+        body.dark header.bg-white,
+        body.dark header {
+            background-color: #111722 !important;
+            border-color: #1e2736 !important;
+            color: #f1f5f9 !important;
+        }
+
+        body.dark header input {
+            background-color: #0b1017 !important;
+            border-color: #222d3d !important;
+            color: #f1f5f9 !important;
+        }
+
+        body.dark .wp-card, body.dark .glass-card, body.dark .WPC-card {
+            background: #141c28 !important;
+            border-color: #222d3d !important;
+            color: #e2e8f0 !important;
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4) !important;
+        }
+
+        body.dark .glass {
+            background: #131a24 !important;
+            border-color: #1f2837 !important;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+        }
+
+        body.dark .bg-white {
+            background-color: #141c28 !important;
+            border-color: #222d3d !important;
+            color: #e2e8f0 !important;
+        }
+
+        body.dark .text-slate-800 { color: #f1f5f9 !important; }
+        body.dark .text-slate-700 { color: #e2e8f0 !important; }
+        body.dark .text-slate-600 { color: #cbd5e1 !important; }
+        body.dark .border-slate-200, body.dark .border-slate-200\/80 { border-color: #1f2937 !important; }
+        body.dark .bg-slate-50 { background-color: #0e141e !important; border-color: #222d3d !important; }
+        body.dark .bg-slate-100 { background-color: #182230 !important; }
+        body.dark .hover\:bg-slate-100:hover { background-color: #1a2536 !important; }
+        body.dark .hover\:bg-slate-50:hover { background-color: #151e2b !important; }
+        body.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: #1f2937 !important; }
+
+        body.dark .custom-scrollbar::-webkit-scrollbar-track { background: #0c1017; }
+        body.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e2837; border-radius: 3px; }
+
+        /* Light Mode Specific Styles */
+        body.light .wp-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04); }
+        body.light .glass { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08); }
+        body.light .glass-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; color: #1e293b; }
+        body.light .WPC-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; color: #1e293b; }
+
+        body.light main h2.text-white, body.light main h3.text-white, body.light main h4.text-white { color: #1e293b !important; }
+        body.light main p.text-slate-400 { color: #64748b !important; }
+        body.light .glass-card h3.text-white, body.light .WPC-card h3.text-white, body.light .glass-card h4.text-white, body.light .WPC-card h4.text-white { color: #1e293b !important; }
+        body.light .glass-card .text-slate-300, body.light .WPC-card .text-slate-300 { color: #334155 !important; }
+        body.light .glass-card .text-slate-400, body.light .WPC-card .text-slate-400 { color: #64748b !important; }
+        body.light .glass-card .bg-slate-900, body.light .WPC-card .bg-slate-900, body.light .glass-card .bg-\[\#141921\], body.light .WPC-card .bg-\[\#141921\], body.light .glass-card .bg-\[\#151a22\], body.light .WPC-card .bg-\[\#151a22\] { background-color: #f8fafc !important; }
+        body.light .glass-card .border-slate-800, body.light .WPC-card .border-slate-800, body.light .glass-card .border-\[\#232b36\], body.light .WPC-card .border-\[\#232b36\] { border-color: #e2e8f0 !important; }
         
-        /* Light mode text & background normalization for main content */
-        main h2.text-white, main h3.text-white, main h4.text-white { color: #1e293b !important; }
-        main p.text-slate-400 { color: #64748b !important; }
-        .glass-card h3.text-white, .WPC-card h3.text-white, .glass-card h4.text-white, .WPC-card h4.text-white { color: #1e293b !important; }
-        .glass-card .text-slate-300, .WPC-card .text-slate-300 { color: #334155 !important; }
-        .glass-card .text-slate-400, .WPC-card .text-slate-400 { color: #64748b !important; }
-        .glass-card .bg-slate-900, .WPC-card .bg-slate-900, .glass-card .bg-\[\#141921\], .WPC-card .bg-\[\#141921\], .glass-card .bg-\[\#151a22\], .WPC-card .bg-\[\#151a22\] { background-color: #f8fafc !important; }
-        .glass-card .border-slate-800, .WPC-card .border-slate-800, .glass-card .border-\[\#232b36\], .WPC-card .border-\[\#232b36\] { border-color: #e2e8f0 !important; }
-        
-        /* WPC Toolbar & Table Light Mode Overrides */
-        main .bg-slate-900\/80 { background-color: #ffffff !important; border-color: #e2e8f0 !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04); }
-        main .bg-\[\#141921\] { background-color: #f8fafc !important; color: #475569 !important; border-color: #e2e8f0 !important; }
-        main .border-\[\#232b36\] { border-color: #e2e8f0 !important; }
-        main .divide-\[\#232b36\] > :not([hidden]) ~ :not([hidden]) { border-color: #f1f5f9 !important; }
-        main table tbody tr:hover { background-color: #f8fafc !important; }
-        main input[type="checkbox"] { background-color: #ffffff !important; border-color: #cbd5e1 !important; }
+        body.light main .bg-slate-900\/80 { background-color: #ffffff !important; border-color: #e2e8f0 !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04); }
+        body.light main .bg-\[\#141921\] { background-color: #f8fafc !important; color: #475569 !important; border-color: #e2e8f0 !important; }
+        body.light main .border-\[\#232b36\] { border-color: #e2e8f0 !important; }
+        body.light main .divide-\[\#232b36\] > :not([hidden]) ~ :not([hidden]) { border-color: #f1f5f9 !important; }
+        body.light main table tbody tr:hover { background-color: #f8fafc !important; }
+        body.light main input[type="checkbox"] { background-color: #ffffff !important; border-color: #cbd5e1 !important; }
         
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
@@ -72,8 +145,8 @@
         [v-cloak] { display: none !important; }
     </style>
 </head>
-<body class="bg-[#f3f6fa] text-slate-800 min-h-screen custom-scrollbar antialiased">
-    <div id="app" v-cloak class="min-h-screen flex flex-col">
+<body class="min-h-screen custom-scrollbar antialiased transition-colors duration-200">
+    <div id="app" v-cloak class="min-h-screen flex flex-col transition-colors duration-200">
         <!-- 1. MÀN HÌNH ĐĂNG NHẬP (KHI CHƯA AUTH) -->
         <div v-if="!token" class="min-h-screen flex flex-col justify-between p-4 sm:p-8 bg-[#0a111c]">
             <header class="max-w-7xl mx-auto w-full flex items-center justify-between">
@@ -132,7 +205,7 @@
         </div>
 
         <!-- 2. GIAO DIỆN CHÍNH WPCLOUD CONTROL PANEL (KHI ĐÃ AUTH) -->
-        <div v-else class="min-h-screen flex flex-col md:flex-row bg-[#f3f6fa]">
+        <div v-else class="min-h-screen flex flex-col md:flex-row transition-colors duration-200" :class="isDarkMode ? 'bg-[#0c1017]' : 'bg-[#f3f6fa]'">
             <!-- Sidebar Trái WPC Control Panel (Dark Navy #0e1726, width 220px on PC) -->
             <aside class="w-full md:w-[220px] bg-[#0d1624] text-slate-300 flex flex-col justify-between shrink-0 shadow-xl z-20">
                 <div class="overflow-y-auto sidebar-scrollbar flex-1 flex flex-col justify-between">
@@ -319,8 +392,8 @@
                 </div>
             </aside>
 
-            <!-- Main Content Area (Trắng / Xám nhạt #f3f6fa) -->
-            <div class="flex-1 flex flex-col min-w-0 bg-[#f3f6fa]">
+            <!-- Main Content Area -->
+            <div class="flex-1 flex flex-col min-w-0 transition-colors duration-200" :class="isDarkMode ? 'bg-[#0c1017]' : 'bg-[#f3f6fa]'">
                 <!-- Impersonation Notice Bar (Khi Admin / Reseller Login As User hoặc Login as Web User) -->
                 <div v-if="isImpersonating" class="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-5 py-2.5 flex items-center justify-between text-xs shadow-sm font-medium shrink-0 animate-fadeIn">
                     <div class="flex items-center space-x-2.5">
@@ -333,11 +406,12 @@
                     </button>
                 </div>
 
-                <!-- Topbar Header WPCloud Style (Nền Trắng, Search Box, Chuông thông báo, Avatar User) -->
-                <header class="h-16 bg-white border-b border-slate-200/80 px-6 flex items-center justify-between shrink-0 shadow-sm z-10">
+                <!-- Topbar Header WPCloud Style (Hỗ trợ Dark & Light Mode) -->
+                <header class="h-16 px-6 flex items-center justify-between shrink-0 shadow-sm z-10 transition-colors duration-200"
+                    :class="isDarkMode ? 'bg-[#111722] border-b border-[#1e2736]' : 'bg-white border-b border-slate-200/80'">
                     <!-- Left: Hamburger toggle & Rounded Search Input -->
                     <div class="flex items-center space-x-4 flex-1 max-w-xl">
-                        <button class="text-slate-500 hover:text-slate-800 p-1.5 rounded-lg hover:bg-slate-100 transition md:hidden">
+                        <button class="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition md:hidden">
                             <i data-lucide="menu" class="w-5 h-5"></i>
                         </button>
                         <div class="relative w-full max-w-md">
@@ -345,50 +419,82 @@
                                 <i data-lucide="search" class="w-4 h-4"></i>
                             </span>
                             <input type="text" placeholder="Tìm kiếm domain, server, khách hàng..."
-                                class="w-full pl-9 pr-4 py-2 rounded-full bg-slate-50 border border-slate-200/80 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white transition shadow-sm">
+                                class="w-full pl-9 pr-4 py-2 rounded-full text-xs transition shadow-sm focus:outline-none"
+                                :class="isDarkMode ? 'bg-[#0b1017] border border-[#222d3d] text-slate-200 placeholder-slate-500 focus:border-blue-500 focus:bg-[#111722]' : 'bg-slate-50 border border-slate-200/80 text-slate-700 placeholder-slate-400 focus:border-blue-500 focus:bg-white'">
                         </div>
                     </div>
 
-                    <!-- Right Controls (Notification Bell, Avatar & Username) -->
-                    <div class="flex items-center space-x-4">
-                        <!-- Tasks Box Button -->
-                        <button @click="openMessageBox('tasks')" title="Tiến trình đang chạy" class="relative p-2 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition">
+                    <!-- Right Controls (Notification Bell, Theme Switcher, Avatar & Username) -->
+                    <div class="flex items-center space-x-3 sm:space-x-4">
+                        <!-- Tasks Box Button (Chuông thông báo) -->
+                        <button @click="openMessageBox('tasks')" title="Tiến trình đang chạy & Thông báo"
+                            class="relative p-2 rounded-full transition"
+                            :class="isDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'">
                             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
                                 <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
                             </svg>
-                            <span v-if="runningTasks.length > 0" class="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white font-bold text-[9px] flex items-center justify-center ring-2 ring-white animate-pulse">
+                            <span v-if="runningTasks.length > 0" class="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white font-bold text-[9px] flex items-center justify-center ring-2"
+                                :class="isDarkMode ? 'ring-[#111722]' : 'ring-white animate-pulse'">
                                 {{ runningTasks.length }}
                             </span>
-                            <span v-else class="absolute top-1 right-1 w-4 h-4 rounded-full bg-slate-300 text-slate-700 font-bold text-[9px] flex items-center justify-center ring-2 ring-white">
+                            <span v-else class="absolute top-1 right-1 w-4 h-4 rounded-full font-bold text-[9px] flex items-center justify-center ring-2"
+                                :class="isDarkMode ? 'bg-slate-800 text-slate-400 ring-[#111722] border border-slate-700' : 'bg-slate-300 text-slate-700 ring-white'">
                                 0
                             </span>
                         </button>
 
-                        <div class="h-6 w-px bg-slate-200"></div>
+                        <!-- Theme Toggle Button (Ngay bên chuông thông báo) -->
+                        <button @click="toggleTheme"
+                            :title="isDarkMode ? 'Chuyển sang Giao diện Sáng (Light Mode)' : 'Chuyển sang Giao diện Tối (Dark Mode)'"
+                            class="p-2 rounded-full transition flex items-center justify-center cursor-pointer shadow-sm"
+                            :class="isDarkMode ? 'text-amber-400 hover:text-amber-300 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80' : 'text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200'">
+                            <!-- Icon Mặt Trời khi đang ở Dark Mode -->
+                            <svg v-if="isDarkMode" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="5"></circle>
+                                <line x1="12" y1="1" x2="12" y2="3"></line>
+                                <line x1="12" y1="21" x2="12" y2="23"></line>
+                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                <line x1="1" y1="12" x2="3" y2="12"></line>
+                                <line x1="21" y1="12" x2="23" y2="12"></line>
+                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                            </svg>
+                            <!-- Icon Mặt Trăng khi đang ở Light Mode -->
+                            <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                            </svg>
+                        </button>
+
+                        <div class="h-6 w-px" :class="isDarkMode ? 'bg-slate-800' : 'bg-slate-200'"></div>
 
                         <!-- User Profile Info -->
                         <div class="flex items-center space-x-3 cursor-pointer group" @click="currentTab = 'profile'">
-                            <div class="w-9 h-9 rounded-full bg-slate-300 text-slate-600 flex items-center justify-center font-bold text-xs ring-2 ring-slate-100 shadow-sm overflow-hidden">
+                            <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs ring-2 shadow-sm overflow-hidden"
+                                :class="isDarkMode ? 'bg-slate-700 text-slate-200 ring-slate-800' : 'bg-slate-300 text-slate-600 ring-slate-100'">
                                 <span v-if="!currentUser.avatar">{{ (currentUser.full_name || currentUser.username || 'U').slice(0, 2).toUpperCase() }}</span>
                             </div>
                             <div class="hidden sm:flex flex-col text-left">
-                                <span class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition">{{ currentUser.full_name || (currentUser.username === 'admin' ? 'Nguyễn Đức Tuệ' : currentUser.username) }}</span>
+                                <span class="text-xs font-bold transition"
+                                    :class="isDarkMode ? 'text-slate-200 group-hover:text-blue-400' : 'text-slate-800 group-hover:text-blue-600'">
+                                    {{ currentUser.full_name || (currentUser.username === 'admin' ? 'Nguyễn Đức Tuệ' : currentUser.username) }}
+                                </span>
                                 <span class="text-[10px] text-slate-400 capitalize font-medium">{{ currentUser.role === 'admin' ? 'Administrator' : 'User' }}</span>
                             </div>
                         </div>
 
                         <!-- Logout Button -->
-                        <button @click="handleLogout" title="Đăng Xuất" class="text-slate-400 hover:text-rose-600 transition text-sm p-1.5 rounded-lg hover:bg-rose-50">
+                        <button @click="handleLogout" title="Đăng Xuất" class="text-slate-400 hover:text-rose-500 transition text-sm p-1.5 rounded-lg"
+                            :class="isDarkMode ? 'hover:bg-slate-800' : 'hover:bg-rose-50'">
                             <i data-lucide="log-out" class="w-4 h-4"></i>
                         </button>
                     </div>
                 </header>
 
-
                 <!-- Dynamic Views -->
-                <!-- Dynamic Views: Toan bo cac view va modals duoc tach ra file HTML rieng de toi uu toc do -->
-                <main class="flex-1 p-6 overflow-y-auto custom-scrollbar">
+                <main class="flex-1 p-6 overflow-y-auto custom-scrollbar transition-colors duration-200"
+                    :class="isDarkMode ? 'bg-[#0c1017] text-slate-100' : 'bg-[#f3f6fa] text-slate-800'">
                     <div id="views-container"></div>
                 </main>
             </div>
@@ -407,8 +513,8 @@
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.4').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.4').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.35').then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=0.5.35').then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -421,6 +527,35 @@
             createApp({
             setup() {
                 const token = ref(localStorage.getItem('wpc_token') || '');
+                // Quản lý Dark & Light Mode (Mặc định là Dark Mode theo yêu cầu)
+                const savedTheme = localStorage.getItem('wpc_theme');
+                const isDarkMode = ref(savedTheme !== 'light');
+
+                const applyThemeToDom = (dark) => {
+                    if (dark) {
+                        document.documentElement.classList.add('dark');
+                        document.documentElement.classList.remove('light');
+                        document.body.classList.add('dark');
+                        document.body.classList.remove('light');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                        document.documentElement.classList.add('light');
+                        document.body.classList.remove('dark');
+                        document.body.classList.add('light');
+                    }
+                };
+
+                const toggleTheme = () => {
+                    isDarkMode.value = !isDarkMode.value;
+                    localStorage.setItem('wpc_theme', isDarkMode.value ? 'dark' : 'light');
+                    applyThemeToDom(isDarkMode.value);
+                    nextTick(() => {
+                        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                            window.lucide.createIcons();
+                        }
+                    });
+                };
+
                 let initialUser = { username: 'admin', role: 'admin' };
                 try {
                     const saved = localStorage.getItem('wpc_user');
@@ -2820,6 +2955,7 @@
 
                 let timer = null;
                 onMounted(() => {
+                    applyThemeToDom(isDarkMode.value);
                     window.addEventListener('hashchange', onHashChange);
                     const savedUser = localStorage.getItem('wpc_user');
                     if (savedUser) {
@@ -2909,7 +3045,8 @@
                     showAdvDbModal, advDbForm, showGetDbModal, getDbForm, redisStats, handleFlushRedis,
                     generateRandomPassword, copyToClipboard,
                     dbStoreApps, getCurrentDbApp, getCurrentDbPortAndStatus,
-                    openPgAdmin, openMongoExpress, openRedisCommander
+                    openPgAdmin, openMongoExpress, openRedisCommander,
+                    isDarkMode, toggleTheme
                 };
             }
         }).mount('#app');
