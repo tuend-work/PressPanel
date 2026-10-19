@@ -394,17 +394,6 @@
 
             <!-- Main Content Area -->
             <div class="flex-1 flex flex-col min-w-0 transition-colors duration-200" :class="isDarkMode ? 'bg-[#0c1017]' : 'bg-[#f3f6fa]'">
-                <!-- Impersonation Notice Bar (Khi Admin / Reseller Login As User hoặc Login as Web User) -->
-                <div v-if="isImpersonating" class="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-5 py-2.5 flex items-center justify-between text-xs shadow-sm font-medium shrink-0 animate-fadeIn">
-                    <div class="flex items-center space-x-2.5">
-                        <span class="text-base">⚠️</span>
-                        <span>Đang đăng nhập dưới quyền {{ currentUser.role === 'user' ? 'Web User' : 'User' }}: <b>{{ currentUser.username }}</b> (Chế độ Login as User)</span>
-                    </div>
-                    <button @click="exitImpersonation" class="px-3 py-1 rounded-lg bg-slate-900 hover:bg-black text-white font-bold transition flex items-center space-x-1.5 shadow">
-                        <i data-lucide="corner-up-left" class="w-3.5 h-3.5"></i>
-                        <span>Thoát Chế Độ Login As</span>
-                    </button>
-                </div>
 
                 <!-- Topbar Header WPCloud Style (Hỗ trợ Dark & Light Mode) -->
                 <header class="h-16 px-6 flex items-center justify-between shrink-0 shadow-sm z-10 transition-colors duration-200"
@@ -484,6 +473,18 @@
                             </div>
                         </div>
 
+                        <!-- Back to Impersonator Button (Chế độ Login As) -->
+                        <button v-if="isImpersonating" @click="exitImpersonation"
+                            :title="'Quay lại ' + impersonatorTitle"
+                            class="px-2.5 py-1.5 rounded-lg font-bold text-xs transition flex items-center space-x-1.5 shadow-sm border"
+                            :class="isDarkMode ? 'bg-amber-500/15 hover:bg-amber-500 text-amber-400 hover:text-white border-amber-500/30' : 'bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white border-amber-300'">
+                            <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="9 14 4 9 9 4"></polyline>
+                                <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+                            </svg>
+                            <span>Back to {{ impersonatorTitle }}</span>
+                        </button>
+
                         <!-- Logout Button -->
                         <button @click="handleLogout" title="Đăng Xuất" class="text-slate-400 hover:text-rose-500 transition text-sm p-1.5 rounded-lg"
                             :class="isDarkMode ? 'hover:bg-slate-800' : 'hover:bg-rose-50'">
@@ -513,8 +514,8 @@
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.41').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.41').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.42').then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=0.5.42').then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -622,6 +623,17 @@
                     install_wp: false
                 });
                 const isImpersonating = ref(!!sessionStorage.getItem('wpc_admin_backup_token'));
+                const impersonatorTitle = computed(() => {
+                    try {
+                        const uStr = sessionStorage.getItem('wpc_admin_backup_user');
+                        if (uStr) {
+                            const u = JSON.parse(uStr);
+                            if (u.role === 'admin' || u.role === 'superadmin') return 'Admin';
+                            return 'Hosting user';
+                        }
+                    } catch(e) {}
+                    return 'Admin';
+                });
 
                 // Selection & Batch Action State (WPC Style)
                 const selectedCustomerIds = ref([]);
@@ -3017,7 +3029,7 @@
 
                 return {
                     token, currentUser, currentTab, domains, showAddDomainModal, isHostingUser, isWebUser,
-                    customers, showAddCustomerModal, creatingCustomer, newCustomer, isImpersonating,
+                    customers, showAddCustomerModal, creatingCustomer, newCustomer, isImpersonating, impersonatorTitle,
                     selectedCustomerIds, selectedDomainIds, selectedSubIds, showCustomerStatusMenu, showSubStatusMenu,
                     isAllCustomersSelected, toggleSelectAllCustomers, isAllDomainsSelected, toggleSelectAllDomains,
                     isAllSubsSelected, toggleSelectAllSubs, handleSetCustomerStatus, handleBatchDeleteCustomers, handleBatchDeleteDomains,
