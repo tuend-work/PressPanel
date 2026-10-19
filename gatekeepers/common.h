@@ -109,8 +109,14 @@ static inline int is_safe_config_path(const char *path) {
         strncmp(path, "/etc/openresty/", 15) == 0 ||
         strncmp(path, "/usr/local/lsws/", 16) == 0 ||
         strncmp(path, "/etc/php/", 9) == 0 ||
+        strncmp(path, "/etc/php", 8) == 0 ||
+        strncmp(path, "/etc/opt/remi/", 14) == 0 ||
         strncmp(path, "/etc/mysql/", 11) == 0 ||
+        strncmp(path, "/etc/my.cnf", 11) == 0 ||
         strncmp(path, "/etc/redis/", 11) == 0 ||
+        strncmp(path, "/etc/redis.conf", 15) == 0 ||
+        strncmp(path, "/etc/pure-ftpd", 14) == 0 ||
+        strncmp(path, "/etc/fail2ban/", 14) == 0 ||
         strncmp(path, "/opt/wpc/templates/", 19) == 0
     );
     if (!is_allowed_dir) return 0;

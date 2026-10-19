@@ -339,6 +339,32 @@ elif systemctl is-active --quiet nginx 2>/dev/null; then
     systemctl restart nginx 2>/dev/null || true
 fi
 
+# Chuẩn hóa systemd timer/service aliases cross-distro (RHEL/AlmaLinux vs Debian/Ubuntu)
+if [ -d /etc/systemd/system ]; then
+    # 1. Certbot timer: certbot-renew.timer (RHEL) <-> certbot.timer (Debian)
+    if [ -f /usr/lib/systemd/system/certbot-renew.timer ] && [ ! -f /etc/systemd/system/certbot.timer ]; then
+        ln -sf /usr/lib/systemd/system/certbot-renew.timer /etc/systemd/system/certbot.timer 2>/dev/null || true
+        ln -sf /usr/lib/systemd/system/certbot-renew.service /etc/systemd/system/certbot.service 2>/dev/null || true
+    elif [ -f /lib/systemd/system/certbot.timer ] && [ ! -f /etc/systemd/system/certbot-renew.timer ]; then
+        ln -sf /lib/systemd/system/certbot.timer /etc/systemd/system/certbot-renew.timer 2>/dev/null || true
+        ln -sf /lib/systemd/system/certbot.service /etc/systemd/system/certbot-renew.service 2>/dev/null || true
+    fi
+
+    # 2. Redis service: redis (RHEL) <-> redis-server (Debian)
+    if [ -f /usr/lib/systemd/system/redis.service ] && [ ! -f /etc/systemd/system/redis-server.service ]; then
+        ln -sf /usr/lib/systemd/system/redis.service /etc/systemd/system/redis-server.service 2>/dev/null || true
+    elif [ -f /lib/systemd/system/redis-server.service ] && [ ! -f /etc/systemd/system/redis.service ]; then
+        ln -sf /lib/systemd/system/redis-server.service /etc/systemd/system/redis.service 2>/dev/null || true
+    fi
+
+    # 3. MySQL / MariaDB service
+    if [ -f /usr/lib/systemd/system/mariadb.service ] && [ ! -f /etc/systemd/system/mysql.service ]; then
+        ln -sf /usr/lib/systemd/system/mariadb.service /etc/systemd/system/mysql.service 2>/dev/null || true
+    fi
+
+    systemctl daemon-reload 2>/dev/null || true
+fi
+
 # 8. Cập nhật scripts điều khiển hệ thống bằng atomic replacement và dọn dẹp
 for s_item in "$TMP_DIR/scripts"/*; do
     [ -e "$s_item" ] || continue

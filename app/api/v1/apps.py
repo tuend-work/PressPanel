@@ -326,35 +326,138 @@ SUPPORTED_APPS = [
     }
 ]
 
-def get_nginx_service() -> str:
-    """Tự động phát hiện service đang chạy là openresty hay nginx"""
+APP_SERVICE_CANDIDATES: Dict[str, List[str]] = {
+    "nginx": ["openresty", "nginx"],
+    "ols": ["lshttpd", "lsws"],
+    "mysql": ["mariadb", "mysqld", "mysql"],
+    "redis": ["redis", "redis-server"],
+    "pgsql": ["postgresql", "postgresql-16", "postgresql-15", "postgresql-14"],
+    "mongodb": ["mongod", "mongodb"],
+    "sqlserver": ["mssql-server"],
+    "certbot": ["certbot-renew.timer", "certbot.timer", "certbot-renew.service", "certbot.service"],
+    "pure-ftpd": ["pure-ftpd", "pure-ftpd-mysql"],
+    "fail2ban": ["fail2ban"],
+    "mongo-express": ["mongo-express"],
+    "redis-commander": ["redis-commander"]
+}
+
+def get_app_service_candidates(app_id: str) -> List[str]:
+    """Trả về danh sách service candidates cho một app_id (bao gồm cả dynamic PHP)"""
+    if app_id in APP_SERVICE_CANDIDATES:
+        return APP_SERVICE_CANDIDATES[app_id]
+    if app_id.startswith("php") and len(app_id) >= 5:
+        ver = f"{app_id[3]}.{app_id[4]}"
+        clean_ver = app_id[3:5]
+        return [f"php{ver}-fpm", f"php{clean_ver}-php-fpm", "php-fpm"]
+    return []
+
+def resolve_app_service(app_id: str) -> str:
+    """Tự động phát hiện chính xác tên daemon service/timer thực tế trên OS"""
+    candidates = get_app_service_candidates(app_id)
+    if not candidates:
+        app = next((a for a in SUPPORTED_APPS if a["id"] == app_id), None)
+        return app.get("service", "") if app else ""
     if os.name == "nt":
-        return "nginx"
-    for svc in ["openresty", "nginx"]:
+        return candidates[0]
+    
+    # 1. Tìm candidate đang active
+    for svc in candidates:
         try:
             r = subprocess.run(["systemctl", "is-active", "--quiet", svc], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if r.returncode == 0:
                 return svc
         except Exception:
             pass
-    if os.path.exists("/usr/local/openresty/nginx/sbin/nginx") and not os.path.exists("/usr/sbin/nginx"):
-        return "openresty"
-    return "nginx"
+            
+    # 2. Tìm candidate đã được cài đặt (enabled hoặc unit file tồn tại)
+    for svc in candidates:
+        try:
+            r = subprocess.run(["systemctl", "status", svc], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if r.returncode in [0, 3]:
+                return svc
+        except Exception:
+            pass
 
-def get_nginx_config_path() -> str:
-    """Tự động phát hiện file cấu hình nginx.conf hoặc openresty"""
-    paths = [
-        "/usr/local/openresty/nginx/conf/nginx.conf",
-        "/etc/openresty/nginx.conf",
-        "/etc/nginx/nginx.conf"
-    ]
+    return candidates[0]
+
+def resolve_app_config_path(app_id: str, file_type: str = "main") -> str:
+    """Tự động phát hiện chính xác đường dẫn file cấu hình thực tế tồn tại trên hệ thống (AlmaLinux, RHEL, Ubuntu, Debian)"""
+    # Xử lý PHP động
+    if app_id.startswith("php") and len(app_id) >= 5:
+        ver = f"{app_id[3]}.{app_id[4]}"
+        clean_ver = app_id[3:5]
+        if file_type == "pool":
+            php_pool_paths = [
+                f"/etc/php/{ver}/fpm/pool.d/www.conf",
+                f"/etc/opt/remi/php{clean_ver}/php-fpm.d/www.conf",
+                f"/etc/php-fpm.d/www.conf"
+            ]
+            for p in php_pool_paths:
+                if os.path.exists(p):
+                    return p
+            return php_pool_paths[0]
+        else:
+            php_ini_paths = [
+                f"/etc/php/{ver}/fpm/php.ini",
+                f"/etc/opt/remi/php{clean_ver}/php.ini",
+                f"/etc/php.ini",
+                f"/usr/local/lsws/lsphp{clean_ver}/etc/php/{ver}/litespeed/php.ini"
+            ]
+            for p in php_ini_paths:
+                if os.path.exists(p):
+                    return p
+            return php_ini_paths[0]
+
+    config_map = {
+        "nginx": [
+            "/usr/local/openresty/nginx/conf/nginx.conf",
+            "/etc/openresty/nginx.conf",
+            "/etc/nginx/nginx.conf"
+        ],
+        "ols": [
+            "/usr/local/lsws/conf/httpd_config.conf",
+            "/usr/local/lsws/conf/httpd_config.xml"
+        ],
+        "mysql": [
+            "/etc/my.cnf.d/mariadb-server.cnf",
+            "/etc/my.cnf.d/server.cnf",
+            "/etc/my.cnf",
+            "/etc/mysql/mariadb.conf.d/50-server.cnf",
+            "/etc/mysql/my.cnf",
+            "/etc/mysql/mysql.conf.d/mysqld.cnf"
+        ],
+        "mariadb": [
+            "/etc/my.cnf.d/mariadb-server.cnf",
+            "/etc/my.cnf.d/server.cnf",
+            "/etc/my.cnf",
+            "/etc/mysql/mariadb.conf.d/50-server.cnf",
+            "/etc/mysql/my.cnf"
+        ],
+        "redis": [
+            "/etc/redis.conf",
+            "/etc/redis/redis.conf"
+        ],
+        "pure-ftpd": [
+            "/etc/pure-ftpd/pure-ftpd.conf",
+            "/etc/pure-ftpd.conf"
+        ],
+        "fail2ban": [
+            "/etc/fail2ban/jail.local",
+            "/etc/fail2ban/jail.conf"
+        ],
+        "certbot": [
+            "/etc/letsencrypt/cli.ini"
+        ]
+    }
+
+    paths = config_map.get(app_id, [])
     for p in paths:
         if os.path.exists(p):
             return p
-    return "/etc/nginx/nginx.conf"
+    return paths[0] if paths else ""
 
 def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
-    """Kiểm tra thực tế nhị phân và service trên Linux (thông minh cho cả Nginx & OpenResty)"""
+    """Kiểm tra thực tế nhị phân và service trên Linux với cơ chế nhận diện thông minh đa nền tảng"""
     installed = False
     running = False
 
@@ -368,10 +471,13 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
             installed = True
             break
 
-    # 2. Kiểm tra service nếu app có service đi kèm
-    if app["id"] == "nginx" and os.name != "nt":
-        active_svc = "nginx"
-        for svc_name in ["openresty", "nginx"]:
+    # 2. Tự động nhận diện daemon service/timer phù hợp với hệ điều hành (RHEL/AlmaLinux vs Debian/Ubuntu)
+    app_id = app["id"]
+    candidates = get_app_service_candidates(app_id)
+    active_service = app.get("service", "")
+
+    if candidates and os.name != "nt":
+        for svc_name in candidates:
             try:
                 res = subprocess.run(
                     ["systemctl", "is-active", "--quiet", svc_name],
@@ -380,12 +486,17 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
                 )
                 if res.returncode == 0:
                     running = True
-                    active_svc = svc_name
                     installed = True
+                    active_service = svc_name
                     break
             except Exception:
                 pass
-        app = {**app, "service": active_svc}
+        
+        # Nếu chưa running, kiểm tra xem unit file có tồn tại trên OS không để gán đúng tên service
+        if not running:
+            active_service = resolve_app_service(app_id)
+
+        app = {**app, "service": active_service}
     elif app["service"] and os.name != "nt":
         try:
             res = subprocess.run(
@@ -579,47 +690,48 @@ async def app_action(
 
     # 3. HÀNH ĐỘNG ĐIỀU KHIỂN DỊCH VỤ (START / STOP / RESTART / RELOAD)
     if req.action in ["start", "stop", "restart", "reload"]:
-        if not app.get("service"):
+        srv = resolve_app_service(req.app_id)
+        candidates = get_app_service_candidates(req.app_id)
+        if not srv and not candidates and not app.get("service"):
             raise HTTPException(status_code=400, detail="Ứng dụng này không chạy dạng dịch vụ daemon.")
         
-        srv = app["service"]
-        if req.app_id == "nginx":
-            srv = get_nginx_service()
+        services_to_try = [srv] if srv else []
+        for c in candidates:
+            if c not in services_to_try:
+                services_to_try.append(c)
+        if app.get("service") and app["service"] not in services_to_try:
+            services_to_try.append(app["service"])
 
+        last_error = ""
         # Ưu tiên thực thi qua C Gatekeeper SUID (tránh lỗi Polkit / Interactive authentication required)
         if os.path.isfile(gatekeeper_bin):
-            proc = subprocess.run(
-                [gatekeeper_bin, "service", req.action, srv],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            if proc.returncode == 0:
-                return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} ({srv}) thành công!"}
-            elif req.app_id == "nginx":
-                alt_srv = "openresty" if srv == "nginx" else "nginx"
-                proc_alt = subprocess.run([gatekeeper_bin, "service", req.action, alt_srv], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                if proc_alt.returncode == 0:
-                    return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} ({alt_srv}) thành công!"}
+            for target_svc in services_to_try:
+                proc = subprocess.run(
+                    [gatekeeper_bin, "service", req.action, target_svc],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                if proc.returncode == 0:
+                    return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} ({target_svc}) thành công!"}
+                last_error = proc.stderr or proc.stdout
 
         # Fallback sudo nếu chưa compile C Gatekeeper
-        try:
-            res = subprocess.run(
-                ["sudo", "systemctl", req.action, srv],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            if res.returncode == 0:
-                return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} ({srv}) thành công!"}
-            elif req.app_id == "nginx":
-                alt_srv = "openresty" if srv == "nginx" else "nginx"
-                res_alt = subprocess.run(["sudo", "systemctl", req.action, alt_srv], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                if res_alt.returncode == 0:
-                    return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} ({alt_srv}) thành công!"}
-            raise HTTPException(status_code=500, detail=f"Lỗi: {res.stderr}")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Lỗi thao tác service: {str(e)}")
+        for target_svc in services_to_try:
+            try:
+                res = subprocess.run(
+                    ["sudo", "systemctl", req.action, target_svc],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                if res.returncode == 0:
+                    return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} ({target_svc}) thành công!"}
+                last_error = res.stderr or res.stdout
+            except Exception as e:
+                last_error = str(e)
+
+        raise HTTPException(status_code=500, detail=f"Lỗi thao tác service ({', '.join(services_to_try)}): {last_error}")
 
     raise HTTPException(status_code=400, detail="Hành động không hợp lệ.")
 
@@ -638,70 +750,8 @@ APP_CONFIG_PATHS = {
 
 @router.get("/config")
 async def get_app_config(app_id: str, file_type: str = "main", current_user: dict = Depends(get_current_user)):
-    """Đọc file cấu hình thực tế của ứng dụng để hiển thị trong Popup Settings (hỗ trợ cả OpenResty, php.ini và pool www.conf)"""
-    lookup_id = f"{app_id}_pool" if file_type == "pool" and app_id.startswith("php") else app_id
-    if app_id == "nginx":
-        conf_path = get_nginx_config_path()
-    else:
-        conf_path = APP_CONFIG_PATHS.get(lookup_id)
-    
-    # Lấy phiên bản PHP nếu là app PHP (vd: php84 -> 8.4, php56 -> 5.6)
-    php_ver = None
-    if app_id.startswith("php") and len(app_id) >= 5:
-        php_ver = f"{app_id[3]}.{app_id[4]}"
-        if file_type == "pool":
-            conf_path = f"/etc/php/{php_ver}/fpm/pool.d/www.conf"
-        else:
-            conf_path = f"/etc/php/{php_ver}/fpm/php.ini"
-
-    alternatives = {
-        "nginx": [
-            "/usr/local/openresty/nginx/conf/nginx.conf",
-            "/etc/openresty/nginx.conf",
-            "/etc/nginx/nginx.conf"
-        ],
-        "ols": ["/usr/local/lsws/conf/httpd_config.conf", "/usr/local/lsws/conf/httpd_config.xml"],
-        "mysql": ["/etc/mysql/my.cnf", "/etc/mysql/mysql.conf.d/mysqld.cnf", "/etc/my.cnf"],
-        "mariadb": ["/etc/mysql/mariadb.conf.d/50-server.cnf", "/etc/mysql/my.cnf"],
-        "fail2ban": ["/etc/fail2ban/jail.local", "/etc/fail2ban/jail.conf"]
-    }
-    if php_ver:
-        php_num = php_ver.replace(".", "")
-        if file_type == "pool":
-            alternatives[lookup_id] = [
-                f"/etc/php/{php_ver}/fpm/pool.d/www.conf",
-                f"/etc/php-fpm.d/www.conf"
-            ]
-        else:
-            alternatives[lookup_id] = [
-                f"/etc/php/{php_ver}/fpm/php.ini",
-                f"/usr/local/lsws/lsphp{php_num}/etc/php/{php_ver}/litespeed/php.ini",
-                f"/etc/php.ini"
-            ]
-
-    # Thử tìm file thực tế tồn tại trên hệ thống
-    found_path = None
-    paths_to_check = [conf_path] + alternatives.get(lookup_id, []) if conf_path else alternatives.get(lookup_id, [])
-    
-    # 1. Kiểm tra tồn tại bằng gatekeeper hoặc test -f (tránh permission error do thư mục cha 0700)
-    for p in paths_to_check:
-        if not p:
-            continue
-        if os.path.exists(p):
-            found_path = p
-            break
-        # Nếu cha thư mục bị chặn quyền (như /usr/local/lsws/conf/), kiểm tra qua subprocess
-        if os.name != "nt":
-            try:
-                check_ret = subprocess.run(["test", "-f", p], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                if check_ret.returncode == 0:
-                    found_path = p
-                    break
-            except Exception:
-                pass
-
-    if not found_path and conf_path:
-        found_path = conf_path
+    """Đọc file cấu hình thực tế của ứng dụng để hiển thị trong Popup Settings (hỗ trợ cả OpenResty, MariaDB, Redis, php.ini và pool www.conf)"""
+    found_path = resolve_app_config_path(app_id, file_type)
 
     content = ""
     gatekeeper_bin = f"{WPC_BASE}/bin/app"
@@ -737,12 +787,12 @@ async def get_app_config(app_id: str, file_type: str = "main", current_user: dic
         content = f"# Chưa tìm thấy file cấu hình cho ứng dụng {app_id}.\n# Đường dẫn dự kiến: {found_path or 'Mặc định hệ thống'}"
 
     # Kiểm tra trạng thái tự khởi động lại (systemctl is-enabled)
-    app = next((a for a in SUPPORTED_APPS if a["id"] == app_id), None)
+    srv = resolve_app_service(app_id)
     autorestart = False
-    if app and app.get("service") and os.name != "nt":
+    if srv and os.name != "nt":
         try:
             check_enabled = subprocess.run(
-                ["systemctl", "is-enabled", "--quiet", app["service"]],
+                ["systemctl", "is-enabled", "--quiet", srv],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
@@ -764,25 +814,12 @@ async def save_app_config(req: ConfigUpdateRequest, current_user: dict = Depends
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền chỉnh sửa cấu hình hệ thống.")
 
-    lookup_id = f"{req.app_id}_pool" if req.file_type == "pool" and req.app_id.startswith("php") else req.app_id
-    if req.app_id == "nginx":
-        conf_path = get_nginx_config_path()
-    else:
-        conf_path = APP_CONFIG_PATHS.get(lookup_id)
-    
-    # Xác định đường dẫn cấu hình PHP động cho mọi phiên bản (5.6 - 8.5)
-    if req.app_id.startswith("php") and len(req.app_id) >= 5:
-        php_ver = f"{req.app_id[3]}.{req.app_id[4]}"
-        if req.file_type == "pool":
-            conf_path = f"/etc/php/{php_ver}/fpm/pool.d/www.conf"
-        else:
-            conf_path = f"/etc/php/{php_ver}/fpm/php.ini"
-
+    conf_path = resolve_app_config_path(req.app_id, req.file_type)
     if not conf_path:
         raise HTTPException(status_code=400, detail="Không tìm thấy cấu hình của ứng dụng này.")
 
     # Ghi nội dung an toàn qua file tạm và move
-    tmp_path = f"/tmp/wpc_{lookup_id}_conf.tmp"
+    tmp_path = f"/tmp/wpc_{req.app_id}_{req.file_type}_conf.tmp"
     gatekeeper_bin = f"{WPC_BASE}/bin/app"
 
     try:
@@ -793,6 +830,8 @@ async def save_app_config(req: ConfigUpdateRequest, current_user: dict = Depends
         if os.path.isfile(gatekeeper_bin):
             res = subprocess.run([gatekeeper_bin, "config-write", tmp_path, conf_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if res.returncode == 0:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
                 return {"status": "ok", "message": f"Đã lưu file cấu hình {conf_path} thành công!"}
 
         # Fallback 1: Dùng sudo cp
@@ -818,29 +857,42 @@ async def toggle_autorestart(req: AutorestartRequest, current_user: dict = Depen
     """Bật/Tắt chế độ tự khởi động lại (systemctl enable/disable) cho ứng dụng khi bị tắt"""
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền đổi thiết lập dịch vụ.")
+    
     app = next((a for a in SUPPORTED_APPS if a["id"] == req.app_id), None)
-    if not app or not app.get("service"):
+    srv = resolve_app_service(req.app_id)
+    candidates = get_app_service_candidates(req.app_id)
+    if not srv and not candidates and (not app or not app.get("service")):
         raise HTTPException(status_code=400, detail="Ứng dụng này không có dịch vụ daemon để cấu hình tự khởi động.")
 
-    srv = app["service"]
+    services_to_try = [srv] if srv else []
+    for c in candidates:
+        if c not in services_to_try:
+            services_to_try.append(c)
+    if app and app.get("service") and app["service"] not in services_to_try:
+        services_to_try.append(app["service"])
+
     op = "enable" if req.enabled else "disable"
     gatekeeper_bin = f"{WPC_BASE}/bin/app"
 
     if os.path.isfile(gatekeeper_bin):
-        proc = subprocess.run([gatekeeper_bin, "service", op, srv], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if proc.returncode == 0:
-            return {"status": "ok", "message": f"Đã {'bật' if req.enabled else 'tắt'} tự khởi động cho {app['name']} thành công!"}
+        for target_svc in services_to_try:
+            proc = subprocess.run([gatekeeper_bin, "service", op, target_svc], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if proc.returncode == 0:
+                app_name = app['name'] if app else req.app_id
+                return {"status": "ok", "message": f"Đã {'bật' if req.enabled else 'tắt'} tự khởi động cho {app_name} ({target_svc}) thành công!"}
 
-    try:
-        res = subprocess.run(["sudo", "systemctl", op, srv], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if res.returncode == 0:
-            return {"status": "ok", "message": f"Đã {'bật' if req.enabled else 'tắt'} tự khởi động cho {app['name']} thành công!"}
-        else:
-            # Fallback không sudo
-            subprocess.run(["systemctl", op, srv], check=True)
-            return {"status": "ok", "message": f"Đã {'bật' if req.enabled else 'tắt'} tự khởi động cho {app['name']} thành công!"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi: {str(e)}")
+    last_error = ""
+    for target_svc in services_to_try:
+        try:
+            res = subprocess.run(["sudo", "systemctl", op, target_svc], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if res.returncode == 0:
+                app_name = app['name'] if app else req.app_id
+                return {"status": "ok", "message": f"Đã {'bật' if req.enabled else 'tắt'} tự khởi động cho {app_name} ({target_svc}) thành công!"}
+            last_error = res.stderr or res.stdout
+        except Exception as e:
+            last_error = str(e)
+
+    raise HTTPException(status_code=500, detail=f"Lỗi: {last_error}")
 
 # ==========================================
 # CẤU HÌNH NÂNG CAO PHP (WPC Style: Extensions, Directives, Logs, phpinfo)
