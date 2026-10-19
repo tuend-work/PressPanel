@@ -227,12 +227,12 @@ cp VERSION "$INSTALL_DIR/" 2>/dev/null || true
 chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
 chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"/app "$INSTALL_DIR"/conf "$INSTALL_DIR"/data "$INSTALL_DIR"/logs "$INSTALL_DIR"/static
 
-# Cài đặt lệnh CLI wpc toàn hệ thống
+# Cài đặt lệnh CLI wpc toàn hệ thống (cả /usr/local/bin và /usr/bin để đảm bảo 100% có trong $PATH)
 if [ -f "$INSTALL_DIR/scripts/wpc" ]; then
     cp "$INSTALL_DIR/scripts/wpc" /usr/local/bin/wpc
     chmod +x /usr/local/bin/wpc
+    ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || cp "$INSTALL_DIR/scripts/wpc" /usr/bin/wpc 2>/dev/null || true
 fi
-rm -f /usr/local/bin/presspanel 2>/dev/null || true
 
 # 10. Khởi tạo Database SQLite
 echo "[+] Khởi tạo cơ sở dữ liệu SQLite..."

@@ -106,12 +106,13 @@ fi
 
 chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
 
-# Cập nhật CLI tool /usr/local/bin/wpc
+# Cập nhật CLI tool /usr/local/bin/wpc và /usr/bin/wpc
 if [ -f "$TMP_DIR/scripts/wpc" ]; then
     cp "$TMP_DIR/scripts/wpc" /usr/local/bin/wpc
     chmod +x /usr/local/bin/wpc
+    ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || cp "$TMP_DIR/scripts/wpc" /usr/bin/wpc 2>/dev/null || true
 fi
-rm -f /usr/local/bin/presspanel 2>/dev/null || true
+rm -f /usr/local/bin/presspanel /usr/bin/presspanel 2>/dev/null || true
 
 # 4. Nâng cấp các thư viện Python nếu có bổ sung
 echo "[+] Kiểm tra và cập nhật dependencies Python..."
