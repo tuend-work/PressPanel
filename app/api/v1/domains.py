@@ -139,7 +139,8 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
 
         reseller_id = str(current_user.get("parent_id", 1) or 1)
         await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
-        await run_gatekeeper("cgroup", "set-user", reseller_id, hosting_username, str(current_user.get("cpu_pct", 100) or 100), str(current_user.get("mem_mb", 1024) or 1024), "100", "100")
+        if hosting_username != isolated_user:
+            await run_gatekeeper("cgroup", "set-user", reseller_id, hosting_username, str(current_user.get("cpu_pct", 100) or 100), str(current_user.get("mem_mb", 1024) or 1024), "100", "100")
 
         await db.execute("""
             INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version, package_id, allow_ssh)

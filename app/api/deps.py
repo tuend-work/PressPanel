@@ -39,6 +39,29 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         user_dict["role"] = "user"
         if "web_domain_id" in payload:
             user_dict["web_domain_id"] = payload["web_domain_id"]
+            db2 = await get_db_connection()
+            try:
+                d_cur = await db2.execute("""
+                    SELECT d.domain_name, d.document_root, d.package_id,
+                           p.name as package_name, p.cpu_pct, p.mem_mb, p.disk_mb
+                    FROM domains d
+                    LEFT JOIN packages p ON d.package_id = p.id
+                    WHERE d.id = ?
+                """, (payload["web_domain_id"],))
+                d_row = await d_cur.fetchone()
+                if d_row:
+                    if d_row["package_name"]:
+                        user_dict["package_name"] = d_row["package_name"]
+                    if d_row["cpu_pct"] is not None:
+                        user_dict["cpu_pct"] = d_row["cpu_pct"]
+                    if d_row["mem_mb"] is not None:
+                        user_dict["mem_mb"] = d_row["mem_mb"]
+                    if d_row["disk_mb"] is not None:
+                        user_dict["disk_mb"] = d_row["disk_mb"]
+                    user_dict["domain_name"] = d_row["domain_name"]
+                    user_dict["document_root"] = d_row["document_root"]
+            finally:
+                await db2.close()
         if "web_user_name" in payload:
             user_dict["username"] = payload["web_user_name"]
 

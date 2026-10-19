@@ -30,7 +30,7 @@
                                 <!-- Gauge 1: Trạng Thái Tài Khoản -->
                                 <div class="wp-card p-5 flex flex-col justify-between hover:shadow-md transition">
                                     <div class="flex items-center justify-between pb-2 mb-1 border-b border-slate-100">
-                                        <span class="text-xs font-bold text-slate-700">Tài Khoản Hosting</span>
+                                        <span class="text-xs font-bold text-slate-700">{{ currentUser.web_domain_id ? 'Website Plan' : 'Tài Khoản Hosting' }}</span>
                                         <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
                                             ● Hoạt động
                                         </span>
@@ -40,11 +40,11 @@
                                             📦
                                         </div>
                                         <div class="font-bold text-slate-800 text-sm">{{ sysStats.user_info?.package_name || 'Standard Plan' }}</div>
-                                        <div class="text-[11px] text-slate-400 font-mono mt-0.5">Hosting Container (Cgroups v2)</div>
+                                        <div class="text-[11px] text-slate-400 font-mono mt-0.5">{{ currentUser.web_domain_id ? 'Website Container (Cgroups v2)' : 'Hosting Container (Cgroups v2)' }}</div>
                                     </div>
                                     <div class="text-center pt-2 border-t border-slate-100">
                                         <div class="text-[11px] text-slate-500 font-mono">
-                                            Web Panel User (Cách ly an toàn)
+                                            {{ currentUser.web_domain_id ? 'Tài nguyên Website (Cách ly an toàn)' : 'Web Panel User (Cách ly an toàn)' }}
                                         </div>
                                     </div>
                                 </div>
