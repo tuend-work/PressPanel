@@ -303,32 +303,110 @@ EOF
         ;;
 
     set-php)
-        echo "[+] Chuyen PHP sang $PHP_VER cho $DOMAIN..."
+        echo "[+] Chuyen PHP sang $PHP_VER cho $DOMAIN (Webserver: $WEBSERVER)..."
         PHP_NUM=$(echo "$PHP_VER" | tr -d '.')
         ensure_linux_user "$USERNAME"
 
-        # Đảm bảo các thư mục cần thiết của user tồn tại và đúng quyền trước khi kích hoạt pool
+        # 1. Đảm bảo phân quyền chuẩn 0711 Shared Hosting cho toàn bộ cây thư mục website
+        DOMAIN_DIR="/home/$USERNAME/domains/$DOMAIN"
+        DOC_ROOT="$DOMAIN_DIR/public_html"
+        [ ! -d "$DOC_ROOT" ] && DOC_ROOT="/home/$USERNAME/httpdocs/$DOMAIN"
+
+        chmod 711 "/home" 2>/dev/null || true
+        chmod 711 "/home/$USERNAME" 2>/dev/null || true
+        chmod 711 "/home/$USERNAME/domains" 2>/dev/null || true
+        [ -d "$DOMAIN_DIR" ] && chmod 711 "$DOMAIN_DIR" 2>/dev/null || true
+        if [ -d "$DOC_ROOT" ]; then
+            chmod 755 "$DOC_ROOT" 2>/dev/null || true
+            find "$DOC_ROOT" -type d -exec chmod 755 {} + 2>/dev/null || true
+            find "$DOC_ROOT" -type f -exec chmod 644 {} + 2>/dev/null || true
+        fi
+
+        # Khóa chặt các thư mục nhạy cảm 0700
         mkdir -p "/home/$USERNAME/logs" "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions"
         chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/logs" "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
-        chmod 700 "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
+        chmod 700 "/home/$USERNAME/logs" "/home/$USERNAME/ssl" "/home/$USERNAME/backups" "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
+        [ -d "/home/$USERNAME/.ssh" ] && chmod 700 "/home/$USERNAME/.ssh" 2>/dev/null || true
 
-        # OpenLiteSpeed
-        if [ -f "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf" ]; then
-            sed -i -E "s|path[[:space:]]+/usr/local/lsws/lsphp[0-9]+/bin/lsphp|path /usr/local/lsws/lsphp${PHP_NUM}/bin/lsphp|" "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf" 2>/dev/null || true
-            sed -i -E "s/lsapi:lsphp[0-9]+/lsapi:lsphp$PHP_NUM/" "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf" 2>/dev/null || true
-            /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lsws 2>/dev/null || true
-            (sleep 1 && pgrep -u "$USERNAME" | while read -r pid; do
-                for cg_proc in /sys/fs/cgroup/wpc/reseller_*/user_${USERNAME}/cgroup.procs /sys/fs/cgroup/wpc/user_${USERNAME}/cgroup.procs; do
-                    [ -f "$cg_proc" ] && echo "$pid" > "$cg_proc" 2>/dev/null || true
-                done
-            done) &>/dev/null &
+        # Đảm bảo thư mục socket OLS có quyền 1777
+        mkdir -p /tmp/lshttpd 2>/dev/null || true
+        chmod 1777 /tmp/lshttpd 2>/dev/null || true
+
+        # 2. Xử lý OpenLiteSpeed khi chọn OLS
+        if [ "$WEBSERVER" = "ols" ] || ([ "$WEBSERVER" = "all" ] && [ -f "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf" ]); then
+            VH_CONF="/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf"
+            if [ -f "$VH_CONF" ]; then
+                # Cập nhật đường dẫn binary PHP cho LSPHP
+                sed -i -E "s|path[[:space:]]+/usr/local/lsws/lsphp[0-9]+/bin/lsphp|path /usr/local/lsws/lsphp${PHP_NUM}/bin/lsphp|" "$VH_CONF" 2>/dev/null || true
+                sed -i -E "s/lsapi:lsphp[0-9]+/lsapi:lsphp$PHP_NUM/" "$VH_CONF" 2>/dev/null || true
+
+                # Đảm bảo có indexFiles nếu file cũ chưa có
+                if ! grep -q "indexFiles" "$VH_CONF"; then
+                    sed -i "1s/^/indexFiles                index.php, index.html, index.htm\n\n/" "$VH_CONF" 2>/dev/null || true
+                fi
+
+                # Đảm bảo có accessControl nếu file cũ chưa có
+                if ! grep -q "accessControl" "$VH_CONF"; then
+                    cat << 'EOF_AC' >> "$VH_CONF"
+
+accessControl {
+  allow                   *
+}
+EOF_AC
+                fi
+
+                # Đảm bảo có rewrite nếu file cũ chưa có
+                if ! grep -q "autoLoadHtaccess" "$VH_CONF"; then
+                    cat << 'EOF_RW' >> "$VH_CONF"
+
+rewrite  {
+  enable                  1
+  autoLoadHtaccess        1
+}
+EOF_RW
+                fi
+
+                # Đảm bảo restrained 0 trong httpd_config.conf cho vhost này
+                if [ -f "/usr/local/lsws/conf/httpd_config.conf" ]; then
+                    sed -i "/virtualhost[[:space:]]\+$DOMAIN[[:space:]]*{/,/^[[:space:]]*}/ s/restrained[[:space:]]\+1/restrained              0/" /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
+                fi
+
+                # Dừng ngay tiến trình lsphp cũ của user này để OLS khởi tạo LSPHP phiên bản mới
+                pkill -9 -u "$USERNAME" -f "lsphp" 2>/dev/null || true
+                rm -f "/tmp/lshttpd/lsphp_${USERNAME}.sock" 2>/dev/null || true
+
+                # Khởi động lại OLS để nhận cấu hình tức thì
+                /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
+
+                (sleep 1 && pgrep -u "$USERNAME" | while read -r pid; do
+                    for cg_proc in /sys/fs/cgroup/wpc/reseller_*/user_${USERNAME}/cgroup.procs /sys/fs/cgroup/wpc/user_${USERNAME}/cgroup.procs; do
+                        [ -f "$cg_proc" ] && echo "$pid" > "$cg_proc" 2>/dev/null || true
+                    done
+                done) &>/dev/null &
+            fi
+
+            # Khi chạy OLS, TUYỆT ĐỐI KHÔNG để PHP-FPM service của user này chạy
+            rm -f "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
+            for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+                systemctl stop "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+                systemctl disable "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+                rm -f "/etc/php/${pver}/fpm/users/${USERNAME}.conf" "/run/php/php${pver}-fpm-${USERNAME}.sock" "/run/php/php${pver}-fpm-${USERNAME}.pid" 2>/dev/null || true
+            done
         fi
-        # Nginx
-        if [ -f "/etc/nginx/conf.d/$DOMAIN.conf" ]; then
-            # Xoá pool cũ ở các phiên bản khác nếu có
-            # Xoá service / pool cũ ở các phiên bản khác
-            for pdir in /etc/php/*/fpm/users; do
-                [ -d "$pdir" ] && rm -f "$pdir/${USERNAME}.conf" 2>/dev/null || true
+
+        # 3. Xử lý Nginx khi chọn Nginx
+        if [ "$WEBSERVER" = "nginx" ] || ([ "$WEBSERVER" = "all" ] && [ -f "/etc/nginx/conf.d/$DOMAIN.conf" ]); then
+            # Dừng tiến trình lsphp cũ của user nếu có
+            pkill -9 -u "$USERNAME" -f "lsphp" 2>/dev/null || true
+            rm -f "/tmp/lshttpd/lsphp_${USERNAME}.sock" 2>/dev/null || true
+
+            # Xoá pool cũ ở các phiên bản khác
+            for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+                if [ "$pver" != "$PHP_VER" ]; then
+                    systemctl stop "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+                    systemctl disable "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+                    rm -f "/etc/php/${pver}/fpm/users/${USERNAME}.conf" "/run/php/php${pver}-fpm-${USERNAME}.sock" "/run/php/php${pver}-fpm-${USERNAME}.pid" 2>/dev/null || true
+                fi
             done
             for pdir in /etc/php/*/fpm/pool.d; do
                 [ -d "$pdir" ] && rm -f "$pdir/${USERNAME}.conf" 2>/dev/null || true
@@ -346,8 +424,10 @@ EOF
                     NEW_SOCK="/var/run/php/php${PHP_VER}-fpm.sock"
                 fi
             fi
-            sed -i -E "s|fastcgi_pass unix:[^;]+;|fastcgi_pass unix:${NEW_SOCK};|" "/etc/nginx/conf.d/$DOMAIN.conf"
-            nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+            if [ -f "/etc/nginx/conf.d/$DOMAIN.conf" ]; then
+                sed -i -E "s|fastcgi_pass unix:[^;]+;|fastcgi_pass unix:${NEW_SOCK};|" "/etc/nginx/conf.d/$DOMAIN.conf"
+                nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+            fi
         fi
         exit 0
         ;;
