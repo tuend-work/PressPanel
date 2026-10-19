@@ -172,6 +172,12 @@
                                                 </td>
                                                 <td class="py-3.5 px-4 text-right">
                                                     <div class="flex items-center justify-end space-x-1.5">
+                                                        <!-- Action: Virtual Host (OLS / Nginx - Image 2) -->
+                                                        <button @click="openDomainVhostModal(d)" title="Cấu hình VirtualHost (OLS/Nginx)"
+                                                            class="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-emerald-400 font-bold text-xs transition flex items-center space-x-1 shadow-sm border border-slate-700">
+                                                            <span>⚡</span>
+                                                            <span>VHost</span>
+                                                        </button>
                                                         <!-- Action 1: Manage (login vào để quản lý) -->
                                                         <button @click="impersonateWebsiteUser(d)" title="Login vào quản lý website này"
                                                             class="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition flex items-center space-x-1 shadow-sm">
@@ -257,7 +263,7 @@
                                     </div>
                                 </div>
 
-                                <!-- Subtabs Header: Dashboard, Hosting & DNS, Mail (WPC Obsidian Style) -->
+                                <!-- Subtabs Header: Dashboard, Hosting & DNS, Mail, Virtual Host (WPC Obsidian Style) -->
                                 <div class="px-6 pt-3 border-b border-slate-200 bg-white flex items-center space-x-6 text-xs font-semibold">
                                     <button @click="setDomainSubTab(d.id, 'dashboard')"
                                         :class="getDomainSubTab(d.id) === 'dashboard' ? 'text-blue-600 border-b-2 border-blue-600 pb-2.5' : 'text-slate-500 hover:text-slate-800 pb-2.5'">
@@ -270,6 +276,14 @@
                                     <button @click="setDomainSubTab(d.id, 'mail')"
                                         :class="getDomainSubTab(d.id) === 'mail' ? 'text-blue-600 border-b-2 border-blue-600 pb-2.5' : 'text-slate-500 hover:text-slate-800 pb-2.5'">
                                         Mail
+                                    </button>
+                                    <button @click="setDomainSubTab(d.id, 'vhost'); fetchDomainVhostConfig(d)"
+                                        :class="getDomainSubTab(d.id) === 'vhost' ? 'text-emerald-600 border-b-2 border-emerald-600 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 pb-2.5'">
+                                        <span class="flex items-center gap-1.5">
+                                            <span>⚡</span>
+                                            <span>Virtual Host (VHost)</span>
+                                            <span class="text-[9px] px-1.5 py-0.2 rounded font-mono uppercase bg-emerald-100 text-emerald-800">{{ d.webserver || 'OLS' }}</span>
+                                        </span>
                                     </button>
                                 </div>
 
@@ -443,6 +457,23 @@
                                                     </div>
                                                 </div>
 
+                                                <!-- Cấu hình VirtualHost Webserver (Image 2) -->
+                                                <div @click="setDomainSubTab(d.id, 'vhost'); fetchDomainVhostConfig(d)"
+                                                    class="p-3.5 rounded-xl border-2 border-emerald-500/30 hover:border-emerald-500 hover:shadow-md bg-gradient-to-br from-emerald-50/50 to-teal-50/30 cursor-pointer transition flex items-center space-x-3.5 group relative">
+                                                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center shrink-0 font-bold text-sm shadow-sm">
+                                                        ⚡
+                                                    </div>
+                                                    <div class="min-w-0 flex-1">
+                                                        <div class="flex items-center justify-between">
+                                                            <span class="text-xs font-bold text-slate-900 group-hover:text-emerald-600 transition">Cấu Hình VHost</span>
+                                                            <span class="text-[10px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded shadow-sm">{{ d.webserver === 'ols' ? 'OLS' : 'Nginx' }}</span>
+                                                        </div>
+                                                        <div class="text-[11px] text-slate-500 mt-0.5 truncate">
+                                                            Rewrite, Context, SSL, Security...
+                                                        </div>
+                                                    </div>
+                                                </div>
+
                                                 <!-- Logs -->
                                                 <div class="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-sm bg-white cursor-pointer transition flex items-center space-x-3.5 group">
                                                     <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200 text-lg">
@@ -604,6 +635,357 @@
                                         <h4 class="font-bold text-slate-800">Quản Lý Mail Server Cho {{ d.domain_name }}</h4>
                                         <p class="text-slate-500 mt-1 max-w-md mx-auto">Thiết lập tài khoản email theo tên miền, cấu hình bản ghi DKIM, SPF, DMARC và Webmail.</p>
                                     </div>
+                                </div>
+
+                                <!-- TAB 4: VIRTUAL HOST CONFIGURATION (MATCHING IMAGE 2 EXACTLY) -->
+                                <div v-if="getDomainSubTab(d.id) === 'vhost'" class="p-6 space-y-4 text-xs bg-[#0f131a] text-slate-300">
+                                    <!-- Header matching Image 2 -->
+                                    <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#232b36]">
+                                        <div class="flex items-center space-x-2 text-sm font-bold text-white">
+                                            <span class="text-emerald-400 text-lg">🗂️</span>
+                                            <span>Virtual Host {{ d.domain_name }}</span>
+                                            <span class="text-slate-500">&gt;</span>
+                                            <span class="text-emerald-400 capitalize">{{ (getDomainVhostTab(d.id) || 'registration').replace('_', ' ') }}</span>
+                                            <span class="text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase"
+                                                :class="d.webserver === 'ols' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'">
+                                                {{ d.webserver === 'ols' ? '⚡ OpenLiteSpeed' : '🌐 Nginx' }}
+                                            </span>
+                                            <span class="text-[10px] px-2 py-0.5 rounded font-mono bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                                                PHP {{ d.php_version || '8.2' }}
+                                            </span>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <button @click="fetchDomainVhostConfig(d)" :disabled="loadingVhostConfig"
+                                                class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1 shadow">
+                                                <span :class="{'animate-spin': loadingVhostConfig}">🔄</span>
+                                                <span>Làm mới</span>
+                                            </button>
+                                            <button @click="openDomainVhostModal(d, getDomainVhostTab(d.id))"
+                                                class="px-3 py-1.5 rounded-lg bg-blue-600/30 text-blue-300 hover:bg-blue-600/40 border border-blue-500/40 font-semibold transition flex items-center space-x-1">
+                                                <span>⛶</span>
+                                                <span>Toàn Màn Hình</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Horizontal Tabs matching Image 2 -->
+                                    <div class="flex items-center space-x-1 overflow-x-auto custom-scrollbar border-b border-[#232b36] pt-1">
+                                        <button v-for="tab in [
+                                            { id: 'registration', label: 'Registration' },
+                                            { id: 'general', label: 'General' },
+                                            { id: 'log', label: 'Log' },
+                                            { id: 'security', label: 'Security' },
+                                            { id: 'external_app', label: 'External App' },
+                                            { id: 'script_handler', label: 'Script Handler' },
+                                            { id: 'rewrite', label: 'Rewrite' },
+                                            { id: 'context', label: 'Context' },
+                                            { id: 'ssl', label: 'SSL' },
+                                            { id: 'websocket', label: 'Web Socket Proxy' },
+                                            { id: 'modules', label: 'Modules' },
+                                            { id: 'raw_config', label: 'Raw Config' }
+                                        ]" :key="tab.id"
+                                            @click="setDomainVhostTab(d.id, tab.id)"
+                                            :class="getDomainVhostTab(d.id) === tab.id ? 'border-b-2 border-emerald-400 text-emerald-400 font-bold bg-[#1a212d]' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'"
+                                            class="px-3.5 py-2 text-xs font-medium transition whitespace-nowrap rounded-t-lg">
+                                            {{ tab.label }}
+                                        </button>
+                                    </div>
+
+                                    <!-- TAB PANELS -->
+                                    <!-- TAB: REGISTRATION -->
+                                    <div v-if="getDomainVhostTab(d.id) === 'registration'" class="space-y-4">
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                            <h4 class="font-bold text-white text-sm">Thông Tin Đăng Ký VirtualHost</h4>
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <span class="text-slate-400 text-[11px]">Virtual Host Name:</span>
+                                                    <span class="font-mono font-bold text-white block mt-0.5">{{ d.domain_name }}</span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-slate-400 text-[11px]">Webserver Engine:</span>
+                                                    <span class="font-bold text-emerald-400 block mt-0.5">{{ d.webserver === 'ols' ? 'OpenLiteSpeed (LSWS)' : 'Nginx Web Server' }}</span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-slate-400 text-[11px]">Document Root:</span>
+                                                    <span class="font-mono text-cyan-300 block mt-0.5 truncate">{{ d.document_root || ('/home/' + (d.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)) + '/domains/' + d.domain_name + '/public_html') }}</span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-slate-400 text-[11px]">Config File:</span>
+                                                    <span class="font-mono text-amber-300 block mt-0.5 truncate">{{ d.webserver === 'ols' ? '/usr/local/lsws/conf/vhosts/' + d.domain_name + '/vhconf.conf' : '/etc/nginx/conf.d/' + d.domain_name + '.conf' }}</span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-slate-400 text-[11px]">Isolated Linux User:</span>
+                                                    <span class="font-mono font-bold text-blue-400 block mt-0.5">{{ d.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) }}</span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-slate-400 text-[11px]">suEXEC Mode:</span>
+                                                    <span class="text-emerald-400 font-mono font-bold block mt-0.5">setUIDMode 2 (User Isolated)</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] flex flex-wrap items-center justify-between gap-3">
+                                            <div>
+                                                <h5 class="font-bold text-white">Tái tạo cấu hình VirtualHost từ Template</h5>
+                                                <p class="text-[11px] text-slate-400 mt-0.5">Build lại toàn bộ file VirtualHost cho domain này chuẩn theo kiến trúc bảo mật suEXEC & isolated cgroup.</p>
+                                            </div>
+                                            <button @click="rebuildDomainVhost(d)" :disabled="rebuildingVhost"
+                                                class="px-4 py-2 rounded-xl bg-amber-600/30 text-amber-300 hover:bg-amber-600/40 border border-amber-500/40 font-bold transition flex items-center space-x-1.5 shadow">
+                                                <span v-if="rebuildingVhost" class="animate-spin">⏳</span>
+                                                <span v-else>🛠️</span>
+                                                <span>{{ rebuildingVhost ? 'Đang tái tạo...' : 'Tái Tạo VirtualHost' }}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- TAB: GENERAL -->
+                                    <div v-if="getDomainVhostTab(d.id) === 'general'" class="space-y-4">
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                            <h4 class="font-bold text-white text-sm">Cấu Hình Chung (General Settings)</h4>
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label class="text-slate-400 text-[11px] block mb-1">Primary Domain:</label>
+                                                    <input type="text" :value="d.domain_name" readonly class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs">
+                                                </div>
+                                                <div>
+                                                    <label class="text-slate-400 text-[11px] block mb-1">Domain Aliases:</label>
+                                                    <input type="text" :value="'www.' + d.domain_name" readonly class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs">
+                                                </div>
+                                                <div>
+                                                    <label class="text-slate-400 text-[11px] block mb-1">Admin Email:</label>
+                                                    <input type="email" :value="'admin@' + d.domain_name" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs">
+                                                </div>
+                                                <div>
+                                                    <label class="text-slate-400 text-[11px] block mb-1">Index Files:</label>
+                                                    <input type="text" value="index.php, index.html, index.htm" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs">
+                                                </div>
+                                            </div>
+                                            <div class="pt-3 border-t border-[#232b36] flex flex-wrap gap-4">
+                                                <label class="flex items-center space-x-2 cursor-pointer">
+                                                    <input type="checkbox" checked class="rounded text-emerald-500 bg-slate-950 border-slate-700">
+                                                    <span class="text-slate-300">Bật Gzip Compression</span>
+                                                </label>
+                                                <label class="flex items-center space-x-2 cursor-pointer">
+                                                    <input type="checkbox" checked class="rounded text-emerald-500 bg-slate-950 border-slate-700">
+                                                    <span class="text-slate-300">Bật Brotli Compression</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- TAB: LOG -->
+                                    <div v-if="getDomainVhostTab(d.id) === 'log'" class="space-y-4">
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                            <h4 class="font-bold text-white text-sm">Cấu Hình Nhật Ký (Virtual Host Logs)</h4>
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label class="text-slate-400 text-[11px] block mb-1">Access Log:</label>
+                                                    <input type="text" :value="'/home/' + d.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) + '/domains/' + d.domain_name + '/logs/access.log'" readonly class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono text-xs">
+                                                </div>
+                                                <div>
+                                                    <label class="text-slate-400 text-[11px] block mb-1">Error Log:</label>
+                                                    <input type="text" :value="'/home/' + d.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) + '/domains/' + d.domain_name + '/logs/error.log'" readonly class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono text-xs">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- TAB: SECURITY -->
+                                    <div v-if="getDomainVhostTab(d.id) === 'security'" class="space-y-4">
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                            <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                                                <span class="text-emerald-400">🛡️</span>
+                                                <span>Thiết Lập Bảo Mật & Hardening VHost</span>
+                                            </h4>
+                                            <div class="space-y-2">
+                                                <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                                                    <div>
+                                                        <span class="font-bold text-white block">HTTP Security Headers (OWASP)</span>
+                                                        <span class="text-[11px] text-slate-400">X-Frame-Options, X-Content-Type-Options, X-XSS-Protection</span>
+                                                    </div>
+                                                    <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold">Active</span>
+                                                </div>
+                                                <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                                                    <div>
+                                                        <span class="font-bold text-white block">Bảo vệ WordPress wp-config.php (0640)</span>
+                                                        <span class="text-[11px] text-slate-400">Chặn tuyệt đối truy cập HTTP và bảo vệ database credentials</span>
+                                                    </div>
+                                                    <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold">Protected</span>
+                                                </div>
+                                                <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                                                    <div>
+                                                        <span class="font-bold text-white block">Chặn chạy mã PHP trong thư mục Uploads & Cache</span>
+                                                        <span class="text-[11px] text-slate-400">Ngăn chặn 100% webshell / backdoor upload trái phép</span>
+                                                    </div>
+                                                    <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold">Blocked</span>
+                                                </div>
+                                                <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                                                    <div>
+                                                        <span class="font-bold text-white block">Chặn XML-RPC (xmlrpc.php)</span>
+                                                        <span class="text-[11px] text-slate-400">Chống tấn công Brute-force & DDoS WordPress</span>
+                                                    </div>
+                                                    <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold">Denied</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- TAB: EXTERNAL APP -->
+                                    <div v-if="getDomainVhostTab(d.id) === 'external_app'" class="space-y-4">
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                            <h4 class="font-bold text-white text-sm">External Application (LSAPI / FastCGI Worker)</h4>
+                                            <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                                                <div class="flex items-center justify-between">
+                                                    <span class="font-mono font-bold text-cyan-300">
+                                                        {{ d.webserver === 'ols' ? ('lsphp_' + (d.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16))) : ('php' + (d.php_version || '8.2') + '-fpm-' + (d.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16))) }}
+                                                    </span>
+                                                    <span class="text-[10px] px-2 py-0.5 rounded font-mono bg-blue-500/20 text-blue-300 font-bold">
+                                                        {{ d.webserver === 'ols' ? 'LiteSpeed SAPI (lsapi)' : 'Nginx FastCGI' }}
+                                                    </span>
+                                                </div>
+                                                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px] pt-1">
+                                                    <div>
+                                                        <span class="text-slate-500 block">Socket:</span>
+                                                        <span class="font-mono text-slate-300 truncate block">{{ d.webserver === 'ols' ? 'uds://tmp/lshttpd/lsphp.sock' : '/run/php/php-fpm.sock' }}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span class="text-slate-500 block">Max Conns:</span>
+                                                        <span class="font-mono text-slate-300">10 (LSAPI_CHILDREN=10)</span>
+                                                    </div>
+                                                    <div>
+                                                        <span class="text-slate-500 block">Memory Limits:</span>
+                                                        <span class="font-mono text-slate-300">1024M / 2048M</span>
+                                                    </div>
+                                                    <div>
+                                                        <span class="text-slate-500 block">Process Limits:</span>
+                                                        <span class="font-mono text-slate-300">200 / 300</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- TAB: SCRIPT HANDLER -->
+                                    <div v-if="getDomainVhostTab(d.id) === 'script_handler'" class="space-y-4">
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                            <h4 class="font-bold text-white text-sm">Script Handler Mappings</h4>
+                                            <table class="w-full text-left text-xs">
+                                                <thead>
+                                                    <tr class="border-b border-slate-800 text-slate-400">
+                                                        <th class="py-2 px-3">Suffix</th>
+                                                        <th class="py-2 px-3">Handler Type</th>
+                                                        <th class="py-2 px-3">Handler Name</th>
+                                                        <th class="py-2 px-3">Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="font-mono text-[11px]">
+                                                    <tr class="border-b border-slate-800/50">
+                                                        <td class="py-2.5 px-3 text-cyan-300 font-bold">php</td>
+                                                        <td class="py-2.5 px-3">{{ d.webserver === 'ols' ? 'lsapi' : 'fastcgi' }}</td>
+                                                        <td class="py-2.5 px-3 text-slate-300">{{ d.webserver === 'ols' ? 'lsapi:lsphp_' + (d.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)) : 'php-fpm pool' }}</td>
+                                                        <td class="py-2.5 px-3 text-emerald-400 font-bold">● Active</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <!-- TAB: REWRITE -->
+                                    <div v-if="getDomainVhostTab(d.id) === 'rewrite'" class="space-y-4">
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                            <h4 class="font-bold text-white text-sm">Rewrite Rules</h4>
+                                            <textarea readonly class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[11px] h-40 custom-scrollbar resize-none leading-relaxed">
+RewriteRule ^/\.well-known/ - [L]
+RewriteRule ^/(\.git|\.env|\.user\.ini|\.svn|composer\.(json|lock)|package\.json|\.sql|\.bak|\.log) - [F,L]
+RewriteRule ^/wp-config\.php$ - [F,L]
+RewriteRule ^/(wp-content/uploads|cache)/.*\.php$ - [F,L]
+RewriteRule ^/xmlrpc\.php$ - [F,L]
+                                            </textarea>
+                                        </div>
+                                    </div>
+
+                                    <!-- TAB: CONTEXT -->
+                                    <div v-if="getDomainVhostTab(d.id) === 'context'" class="space-y-4">
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                            <h4 class="font-bold text-white text-sm">Context & Location Blocks</h4>
+                                            <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 font-mono text-cyan-300">
+                                                context / { type null; location $DOC_ROOT/; allow *; }
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- TAB: SSL -->
+                                    <div v-if="getDomainVhostTab(d.id) === 'ssl'" class="space-y-4">
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                            <h4 class="font-bold text-white text-sm">SSL / TLS Configuration</h4>
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <span class="text-slate-400 text-[11px]">Certificate:</span>
+                                                    <span class="font-mono text-cyan-300 block mt-0.5 truncate">{{ '/home/' + d.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) + '/ssl/fullchain.pem' }}</span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-slate-400 text-[11px]">Private Key:</span>
+                                                    <span class="font-mono text-cyan-300 block mt-0.5 truncate">{{ '/home/' + d.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) + '/ssl/privkey.pem' }}</span>
+                                                </div>
+                                            </div>
+                                            <div class="pt-3 border-t border-[#232b36] flex justify-end">
+                                                <button @click="installSSL(d)" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs transition shadow">
+                                                    🔒 Cấp Phát Let's Encrypt SSL
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- TAB: WEBSOCKET -->
+                                    <div v-if="getDomainVhostTab(d.id) === 'websocket'" class="space-y-4">
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                            <h4 class="font-bold text-white text-sm">Web Socket Proxy</h4>
+                                            <p class="text-[11px] text-slate-400">Định tuyến kết nối WebSocket tới cổng nội bộ máy chủ (127.0.0.1:3000).</p>
+                                        </div>
+                                    </div>
+
+                                    <!-- TAB: MODULES -->
+                                    <div v-if="getDomainVhostTab(d.id) === 'modules'" class="space-y-4">
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                            <h4 class="font-bold text-white text-sm">Virtual Host Modules</h4>
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                                                    <span class="font-bold text-white block">⚡ LSCache / FastCGI Cache</span>
+                                                    <span class="mt-1 inline-block px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold">Active</span>
+                                                </div>
+                                                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                                                    <span class="font-bold text-white block">💨 Browser Cache & Expire Headers</span>
+                                                    <span class="mt-1 inline-block px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold">Active</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- TAB: RAW CONFIG -->
+                                    <div v-if="getDomainVhostTab(d.id) === 'raw_config'" class="space-y-3">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-slate-400 font-mono text-[11px] truncate max-w-md">
+                                                📁 {{ domainVhostConfigPath }}
+                                            </span>
+                                            <button @click="fetchDomainVhostConfig(d)" class="text-cyan-400 hover:underline text-[11px]">
+                                                Tải lại nội dung
+                                            </button>
+                                        </div>
+                                        <textarea v-model="domainVhostConfigContent"
+                                            class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs focus:outline-none focus:border-cyan-500 resize-none h-80 custom-scrollbar leading-relaxed">
+                                        </textarea>
+                                        <div class="flex justify-between items-center pt-1">
+                                            <span class="text-[10px] text-slate-500 italic">
+                                                💡 Sau khi lưu, webserver sẽ tự động reload để áp dụng cấu hình VirtualHost mới.
+                                            </span>
+                                            <button @click="saveDomainVhostConfig(d)" :disabled="savingVhostConfig"
+                                                class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white shadow-lg shadow-emerald-500/20 flex items-center space-x-1.5">
+                                                <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
+                                                <span>{{ savingVhostConfig ? 'Đang lưu...' : 'Lưu Cấu Hình VirtualHost' }}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
                                 </div>
 
                             </div>

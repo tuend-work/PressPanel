@@ -514,8 +514,8 @@
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.63').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.63').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.64').then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=0.5.64').then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -889,6 +889,50 @@
                 const savingConfig = ref(false);
                 const rewritingConfig = ref(false);
 
+                // Cấu hình Server Configuration cho Webserver (OLS & Nginx - Image 1 Style)
+                const wsServerTab = ref('general');
+                const wsServerConfig = ref({
+                    serverName: 'localhost',
+                    adminEmail: 'root@localhost',
+                    workerProcesses: 'auto',
+                    runUser: 'nobody',
+                    runGroup: 'nobody',
+                    chrootPath: '/',
+                    enableGzip: true,
+                    enableBrotli: true,
+                    defaultCharset: 'UTF-8',
+                    gracefulTimeout: 300,
+                    // Log
+                    logLevel: 'DEBUG',
+                    logFormat: 'combined',
+                    rollingSize: '10M',
+                    keepDays: 30,
+                    // Tuning
+                    maxConnections: 10000,
+                    maxSslConnections: 5000,
+                    connTimeout: 60,
+                    keepAliveRequests: 1000,
+                    maxBodySize: '128M',
+                    gzipLevel: 6,
+                    clientBodyBufferSize: '128k',
+                    // Security
+                    allowSymbolLink: '2',
+                    setUIDMode: '2',
+                    serverTokens: false,
+                    blockDotFiles: true,
+                    blockWpConfig: true,
+                    blockUploadsPhp: true,
+                    blockXmlrpc: true,
+                    rateLimitEnabled: true,
+                    rateLimitReqSec: 20,
+                    rateLimitBurst: 40,
+                    // Modules
+                    lscacheEnabled: true,
+                    modSecurityEnabled: true,
+                    http2Enabled: true,
+                    http3Enabled: true
+                });
+
                 const handleRewriteWebserverConfig = async (webserver) => {
                     const wsName = webserver.toUpperCase();
                     if (!confirm(`Bạn có chắc chắn muốn TÁI TẠO LẠI toàn bộ cấu hình VirtualHost cho ${wsName}?\nHệ thống sẽ tự động sao lưu cấu hình hiện tại và tạo lại từ template + cơ sở dữ liệu websites.`)) return;
@@ -1052,7 +1096,12 @@
 
                 const openAppSettings = async (app) => {
                     selectedSettingApp.value = app;
-                    appSettingTab.value = 'service';
+                    if (['ols', 'nginx'].includes(app.id)) {
+                        appSettingTab.value = 'server_config';
+                        wsServerTab.value = 'general';
+                    } else {
+                        appSettingTab.value = 'service';
+                    }
                     showAppSettingModal.value = true;
                     loadAppConfig(app.id);
                     if (app.category === 'php') {
@@ -2310,6 +2359,100 @@
                     }
                 };
 
+                // Virtual Host Tabs per Domain & Modal (OLS & Nginx - Image 2 Style)
+                const activeDomainVhostTabs = ref({});
+                const getDomainVhostTab = (domainId) => {
+                    return activeDomainVhostTabs.value[domainId] || 'registration';
+                };
+                const setDomainVhostTab = (domainId, tab) => {
+                    activeDomainVhostTabs.value = { ...activeDomainVhostTabs.value, [domainId]: tab };
+                };
+
+                const showDomainVhostModal = ref(false);
+                const selectedVhostDomain = ref(null);
+                const domainVhostConfigContent = ref('');
+                const domainVhostConfigPath = ref('');
+                const loadingVhostConfig = ref(false);
+                const savingVhostConfig = ref(false);
+                const rebuildingVhost = ref(false);
+
+                const openDomainVhostModal = async (domain, initialTab = 'registration') => {
+                    selectedVhostDomain.value = domain;
+                    setDomainVhostTab(domain.id, initialTab);
+                    showDomainVhostModal.value = true;
+                    await fetchDomainVhostConfig(domain);
+                };
+
+                const fetchDomainVhostConfig = async (domain) => {
+                    const dom = domain || selectedVhostDomain.value;
+                    if (!dom) return;
+                    loadingVhostConfig.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${dom.id}/vhost-config`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            domainVhostConfigContent.value = data.content || '';
+                            domainVhostConfigPath.value = data.config_path || '';
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải vhost config:', e);
+                    } finally {
+                        loadingVhostConfig.value = false;
+                    }
+                };
+
+                const saveDomainVhostConfig = async (domain) => {
+                    const dom = domain || selectedVhostDomain.value;
+                    if (!dom) return;
+                    savingVhostConfig.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${dom.id}/vhost-config`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ content: domainVhostConfigContent.value })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Lưu cấu hình VirtualHost thành công!');
+                        } else {
+                            alert(data.detail || 'Lỗi khi lưu cấu hình VirtualHost.');
+                        }
+                    } catch (e) {
+                        alert('Lỗi: ' + e.message);
+                    } finally {
+                        savingVhostConfig.value = false;
+                    }
+                };
+
+                const rebuildDomainVhost = async (domain) => {
+                    const dom = domain || selectedVhostDomain.value;
+                    if (!dom) return;
+                    if (!confirm(`Bạn có chắc muốn tái tạo lại VirtualHost cho ${dom.domain_name} từ template chuẩn?`)) return;
+                    rebuildingVhost.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${dom.id}/vhost-rebuild`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Tái tạo VirtualHost thành công!');
+                            await fetchDomainVhostConfig(dom);
+                        } else {
+                            alert(data.detail || 'Lỗi khi tái tạo VirtualHost.');
+                        }
+                    } catch (e) {
+                        alert('Lỗi: ' + e.message);
+                    } finally {
+                        rebuildingVhost.value = false;
+                    }
+                };
+
                 const fetchInstalledPhpList = async () => {
                     try {
                         const ws = activeSystemWebserver.value || 'ols';
@@ -3048,7 +3191,7 @@
                     redisStats.value.memory_used = '1.2 MB';
                 };
 
-                const panelVersion = ref('0.5.63');
+                const panelVersion = ref('0.5.64');
                 const showUpdateModal = ref(false);
                 const isUpdating = ref(false);
                 const updateCompleted = ref(false);
@@ -3333,6 +3476,7 @@
                     getApp, fetchAppsList, handleAppAction, openPhpMyAdmin, appVersions,
                     showAppSettingModal, selectedSettingApp, appSettingTab, appConfigPath,
                     appConfigContent, savingConfig, rewritingConfig, handleRewriteWebserverConfig,
+                    wsServerTab, wsServerConfig,
                     openAppSettings, loadAppConfig,
                     saveCurrentAppConfig, toggleAppAutorestart,
                     phpExtensions, loadingExtensions, phpDirectives, savingDirectives,
@@ -3340,6 +3484,10 @@
                     fetchPhpDirectives, savePhpDirectives, fetchPhpInfo,
                     activeDomainSubTab, showChangePhpModal, targetPhpDomain, selectedNewPhpVersion,
                     changingPhp, allPhpVersions, availablePhpData, loadingAvailablePhp, installedPhpVersions, fetchInstalledPhpList, getDomainSubTab, setDomainSubTab,
+                    activeDomainVhostTabs, getDomainVhostTab, setDomainVhostTab,
+                    showDomainVhostModal, selectedVhostDomain, domainVhostConfigContent, domainVhostConfigPath,
+                    loadingVhostConfig, savingVhostConfig, rebuildingVhost, openDomainVhostModal,
+                    fetchDomainVhostConfig, saveDomainVhostConfig, rebuildDomainVhost,
                     openChangePhpModal, confirmChangePhp,
                     phpModalTab, domainPhpIni, loadingDomainPhpIni, savingDomainPhpIni, applyPhpPreset, loadDomainPhpIni, saveDomainPhpIni,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain, handleToggleDomainStatus,

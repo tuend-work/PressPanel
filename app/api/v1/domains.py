@@ -1,5 +1,7 @@
 import os
 import re
+import subprocess
+import shutil
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -782,5 +784,152 @@ async def update_domain_status(
         "domain_status": req.status,
         "message": f"Website '{domain['domain_name']}' đã được {action_text} thành công!"
     }
+
+
+class VHostConfigRequest(BaseModel):
+    content: str
+
+
+@router.get("/{domain_id}/vhost-config")
+async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(get_current_user)):
+    """Lấy nội dung file cấu hình VirtualHost (OpenLiteSpeed / Nginx) cho từng domain"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.*, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Không có quyền truy cập cấu hình website này")
+
+    clean_domain = domain["domain_name"]
+    ws = domain["webserver"] or "ols"
+    isolated_user = domain_to_linux_user(clean_domain)
+    doc_root = f"/home/{isolated_user}/domains/{clean_domain}/public_html"
+
+    if ws == "ols":
+        conf_path = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
+    else:
+        conf_path = f"/etc/nginx/conf.d/{clean_domain}.conf"
+
+    content = ""
+    if os.path.exists(conf_path):
+        try:
+            with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+        except PermissionError:
+            try:
+                proc = subprocess.run(["sudo", "cat", conf_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.returncode == 0:
+                    content = proc.stdout
+            except Exception:
+                pass
+        except Exception as e:
+            content = f"# Lỗi đọc file cấu hình: {str(e)}"
+    else:
+        content = f"# Chưa tìm thấy file vhost cấu hình tại {conf_path}.\n# Bấm 'Tái Tạo VHost Từ Template' để tự động tạo lại."
+
+    return {
+        "status": "success",
+        "domain_id": domain_id,
+        "domain_name": clean_domain,
+        "webserver": ws,
+        "php_version": domain["php_version"],
+        "isolated_user": isolated_user,
+        "doc_root": doc_root,
+        "ssl_enabled": bool(domain["ssl_enabled"]),
+        "config_path": conf_path,
+        "content": content
+    }
+
+
+@router.post("/{domain_id}/vhost-config")
+async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, current_user: dict = Depends(get_current_user)):
+    """Lưu và nạp lại cấu hình VirtualHost cho domain"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.*, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Không có quyền chỉnh sửa cấu hình website này")
+
+    clean_domain = domain["domain_name"]
+    ws = domain["webserver"] or "ols"
+    if ws == "ols":
+        conf_path = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
+    else:
+        conf_path = f"/etc/nginx/conf.d/{clean_domain}.conf"
+
+    os.makedirs(os.path.dirname(conf_path), exist_ok=True)
+    tmp_path = f"/tmp/wpc_vhost_{clean_domain}.tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(req.content)
+
+        # Di chuyển đè vào file cấu hình
+        try:
+            shutil.move(tmp_path, conf_path)
+        except PermissionError:
+            subprocess.run(["sudo", "mv", tmp_path, conf_path], check=True)
+
+        try:
+            os.chmod(conf_path, 0o644)
+        except Exception:
+            subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
+
+        # Reload webserver
+        if ws == "ols":
+            subprocess.run(["/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
+        else:
+            subprocess.run(["systemctl", "reload", "nginx"], check=False)
+
+        return {"status": "success", "message": f"Đã lưu và nạp lại cấu hình VirtualHost cho {clean_domain}!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi lưu file cấu hình: {str(e)}")
+
+
+@router.post("/{domain_id}/vhost-rebuild")
+async def rebuild_domain_vhost(domain_id: int, current_user: dict = Depends(get_current_user)):
+    """Tái tạo VirtualHost từ template chuẩn của OpenLiteSpeed / Nginx"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.*, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Không có quyền tái tạo website này")
+
+    clean_domain = domain["domain_name"]
+    ws = domain["webserver"] or "ols"
+    isolated_user = domain_to_linux_user(clean_domain)
+    hosting_username = domain["owner_username"]
+
+    res = await run_gatekeeper("vhost", "add", isolated_user, clean_domain, ws, domain["php_version"], hosting_username)
+    return {"status": "success", "message": f"Đã tái tạo cấu hình VirtualHost cho {clean_domain} từ template chuẩn!"}
+
 
 
