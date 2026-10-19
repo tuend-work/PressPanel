@@ -7,6 +7,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from app.api.deps import get_current_user
 from app.db.session import get_db_connection
+from app.executor.gatekeeper import run_gatekeeper
 
 router = APIRouter(prefix="/system", tags=["System Status"])
 
@@ -315,17 +316,11 @@ async def system_status(current_user: dict = Depends(get_current_user)):
                 except Exception:
                     pass
 
-            # Tự động đồng bộ các PID PHP-FPM / worker vào cgroup.procs
-            procs_file = os.path.join(cg_dir, "cgroup.procs")
-            if os.path.exists(procs_file) and active_pids:
+        # Tự động đồng bộ các PID PHP-FPM / LSPHP / worker vào cgroup.procs qua SUID C Gatekeeper
+        if active_pids:
+            for u in query_users:
                 try:
-                    with open(procs_file, "r") as pf:
-                        existing = set(pf.read().split())
-                    new_pids = [p for p in active_pids if p not in existing]
-                    if new_pids:
-                        with open(procs_file, "a") as pf:
-                            for p in new_pids:
-                                pf.write(f"{p}\n")
+                    await run_gatekeeper("cgroup", "sync", u)
                 except Exception:
                     pass
 

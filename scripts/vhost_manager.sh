@@ -320,10 +320,9 @@ EOF
                 fi
 
                 /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
-                (sleep 1 && pgrep -u "$USERNAME" | while read -r pid; do
-                    for cg_proc in /sys/fs/cgroup/wpc/reseller_*/user_${USERNAME}/cgroup.procs /sys/fs/cgroup/wpc/user_${USERNAME}/cgroup.procs; do
-                        [ -f "$cg_proc" ] && echo "$pid" > "$cg_proc" 2>/dev/null || true
-                    done
+                (sleep 1 && /opt/wpc/bin/cgroup sync "$USERNAME" 2>/dev/null || true
+                for lscg in /usr/local/lsws/lsns/bin/lscgctl /usr/local/lsws/bin/lscgctl; do
+                    [ -x "$lscg" ] && "$lscg" set "$USERNAME" --cpu=200 2>/dev/null || true
                 done) &>/dev/null &
             fi
         fi
@@ -500,11 +499,9 @@ EOF_RW
 
                 # Khởi động lại OLS để nhận cấu hình tức thì
                 /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
-
-                (sleep 1 && pgrep -u "$USERNAME" | while read -r pid; do
-                    for cg_proc in /sys/fs/cgroup/wpc/reseller_*/user_${USERNAME}/cgroup.procs /sys/fs/cgroup/wpc/user_${USERNAME}/cgroup.procs; do
-                        [ -f "$cg_proc" ] && echo "$pid" > "$cg_proc" 2>/dev/null || true
-                    done
+                (sleep 1 && /opt/wpc/bin/cgroup sync "$USERNAME" 2>/dev/null || true
+                for lscg in /usr/local/lsws/lsns/bin/lscgctl /usr/local/lsws/bin/lscgctl; do
+                    [ -x "$lscg" ] && "$lscg" set "$USERNAME" --cpu=200 2>/dev/null || true
                 done) &>/dev/null &
             fi
 

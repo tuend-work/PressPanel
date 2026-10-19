@@ -11,7 +11,7 @@ int main(int argc, char *argv[]) {
     init_security_env();
 
     if (argc < 2) {
-        send_json_error("cgroup", "Thieu lenh cgroup. Cu phap: cgroup <set-reseller|set-user|stats|freeze> [args...]");
+        send_json_error("cgroup", "Thieu lenh cgroup. Cu phap: cgroup <set-reseller|set-user|sync|attach|stats|freeze> [args...]");
         return 1;
     }
 
@@ -106,7 +106,12 @@ int main(int argc, char *argv[]) {
             "if [ %u -gt 0 ]; then systemctl set-property user-%u.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; fi; "
             "systemctl set-property wpc-user-%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; "
             "systemctl set-property wpc-hosting_%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; "
-            "pgrep -u %s | while read -r p; do echo \"$p\" > %s/cgroup.procs 2>/dev/null || echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; done",
+            "for lscg in /usr/local/lsws/lsns/bin/lscgctl /usr/local/lsws/bin/lscgctl; do "
+            "  if [ -x \"$lscg\" ]; then \"$lscg\" set %s --cpu=%d 2>/dev/null || true; fi; "
+            "done; "
+            "pgrep -u %s | while read -r p; do echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; done; "
+            "pgrep -f 'lsphp.*%s' | while read -r p; do echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; done; "
+            "pgrep -f 'pool %s' | while read -r p; do echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; done",
             reseller_path,
             reseller_path,
             path,
@@ -120,10 +125,49 @@ int main(int argc, char *argv[]) {
             (unsigned int)uid, (unsigned int)uid, cpu, mem_mb, pids,
             username, cpu, mem_mb, pids,
             username, cpu, mem_mb, pids,
+            username, cpu,
+            username, path, user_flat_path,
+            username, path, user_flat_path,
             username, path, user_flat_path);
         IGNORE_RESULT(system(cmd));
 
         send_json_ok("\"message\":\"Da cap nhat cgroup user thanh cong\"");
+        return 0;
+    }
+    else if (strcmp(action, "sync") == 0) {
+        /*
+         * Tự động quét và di chuyển TẤT CẢ tiến trình của user (LSPHP, PHP-FPM, worker)
+         * vào đúng Cgroups v2 slice của user đó thông qua quyền SUID root
+         */
+        const char *username = (argc >= 3) ? argv[2] : NULL;
+        char cmd[4096];
+        if (username && strlen(username) > 0) {
+            if (!is_safe_id(username)) {
+                send_json_error("cgroup", "Username khong hop le");
+                return 1;
+            }
+            snprintf(cmd, sizeof(cmd),
+                "for cg in /sys/fs/cgroup/wpc/reseller_*/user_%s/cgroup.procs /sys/fs/cgroup/wpc/user_%s/cgroup.procs; do "
+                "  if [ -f \"$cg\" ]; then "
+                "    pgrep -u %s | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+                "    pgrep -f 'lsphp.*%s' | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+                "    pgrep -f 'pool %s' | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+                "  fi; "
+                "done",
+                username, username, username, username, username);
+        } else {
+            snprintf(cmd, sizeof(cmd),
+                "for cg in /sys/fs/cgroup/wpc/reseller_*/user_*/cgroup.procs /sys/fs/cgroup/wpc/user_*/cgroup.procs; do "
+                "  [ -f \"$cg\" ] || continue; "
+                "  u=$(basename $(dirname \"$cg\") | sed 's/^user_//'); "
+                "  [ -n \"$u\" ] || continue; "
+                "  pgrep -u \"$u\" | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+                "  pgrep -f \"lsphp.*$u\" | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+                "  pgrep -f \"pool $u\" | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+                "done");
+        }
+        IGNORE_RESULT(system(cmd));
+        send_json_ok("\"message\":\"Da dong bo tien trinh vao cgroups thanh cong\"");
         return 0;
     }
     else if (strcmp(action, "attach") == 0) {

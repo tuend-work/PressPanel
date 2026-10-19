@@ -280,6 +280,31 @@ systemctl daemon-reload
 systemctl enable wpc
 systemctl restart wpc
 
+# 11.1 Cài đặt dịch vụ giám sát Cgroups v2 thời gian thực (wpc-cgroup)
+cat << 'EOF_CGSVC' > /etc/systemd/system/wpc-cgroup.service
+[Unit]
+Description=WPCloud Cgroups v2 Realtime Process Enforcer
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /opt/wpc/scripts/cgroup_attach.sh daemon
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF_CGSVC
+
+systemctl daemon-reload 2>/dev/null || true
+systemctl enable wpc-cgroup.service 2>/dev/null || true
+systemctl restart wpc-cgroup.service 2>/dev/null || true
+
+# Kích hoạt Cgroups v2 cho OpenLiteSpeed nếu có tiện ích lsns
+if [ -x "/usr/local/lsws/lsns/bin/lssetup" ]; then
+    /usr/local/lsws/lsns/bin/lssetup -i 1 2>/dev/null || true
+fi
+
 # 12. Cấu hình bảo mật hệ thống: hidepid=2 và khóa quyền cô lập /home
 echo "[+] Cấu hình bảo mật cách ly tiến trình (/proc hidepid=2)..."
 groupadd -r procview 2>/dev/null || true
