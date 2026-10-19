@@ -344,6 +344,16 @@ async def change_domain_php(
         await db.close()
         raise HTTPException(status_code=400, detail=f"Phiên bản PHP không hợp lệ. Cho phép: {', '.join(sorted(ALLOWED_PHP_VERSIONS))}")
 
+    if active_ws == "ols":
+        clean_pnum = new_php.replace(".", "")
+        lsphp_path = f"/usr/local/lsws/lsphp{clean_pnum}/bin/lsphp"
+        if os.name != "nt" and not os.path.exists(lsphp_path):
+            await db.close()
+            raise HTTPException(
+                status_code=400,
+                detail=f"OpenLiteSpeed không hỗ trợ PHP {new_php} (thiếu gói lsphp{clean_pnum} trên hệ điều hành này). Để chạy website với PHP {new_php}, vui lòng chuyển webserver sang Nginx (sử dụng PHP-FPM {new_php})!"
+            )
+
     # Thực thi Gatekeeper: vhost set-php <user> <domain> <ols|nginx> <php_ver> [hosting_user]
     res = await run_gatekeeper("vhost", "set-php", isolated_user, clean_domain, active_ws, new_php, hosting_username)
     if res.get("status") == "error":
