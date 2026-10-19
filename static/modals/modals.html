@@ -1285,9 +1285,11 @@
                                         <span>🔄</span>
                                         <span>Khởi Động Lại Webserver</span>
                                     </button>
-                                    <button @click="alert('Đã cập nhật cấu hình Webserver thành công!')"
-                                        class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white shadow-lg shadow-emerald-500/20 flex items-center space-x-1.5 text-xs">
-                                        <span>💾 Lưu Cấu Hình</span>
+                                    <button @click="saveWsServerSettings(selectedSettingApp?.id)" :disabled="savingWsServerConfig"
+                                        class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white shadow-lg shadow-emerald-500/20 flex items-center space-x-1.5 text-xs transition">
+                                        <span v-if="savingWsServerConfig" class="animate-spin">⏳</span>
+                                        <span v-else>💾</span>
+                                        <span>{{ savingWsServerConfig ? 'Đang lưu...' : 'Lưu Cấu Hình Webserver' }}</span>
                                     </button>
                                 </div>
                             </div>
@@ -1855,6 +1857,12 @@
                             </span>
                         </div>
                         <div class="flex items-center space-x-3">
+                            <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
+                                class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow-lg shadow-emerald-500/20 transition">
+                                <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
+                                <span v-else>💾</span>
+                                <span>{{ savingVhostConfig ? 'Đang lưu...' : 'Lưu Thay Đổi' }}</span>
+                            </button>
                             <button @click="fetchDomainVhostConfig(selectedVhostDomain)" 
                                 :disabled="loadingVhostConfig"
                                 class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
@@ -1944,134 +1952,170 @@
 
                         <!-- TAB 2: GENERAL -->
                         <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'general'" class="space-y-4">
-                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
-                                <h4 class="font-bold text-white text-sm">Cấu Hình Chung (General Settings)</h4>
+                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
+                                <div class="flex items-center justify-between border-b border-[#232b36] pb-2">
+                                    <h4 class="font-bold text-white text-sm">Cấu Hình Chung (General Settings)</h4>
+                                    <span class="text-[11px] text-emerald-400">✏️ Cho phép chỉnh sửa trực tiếp</span>
+                                </div>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label class="text-slate-400 text-[11px] block mb-1">Primary Domain:</label>
+                                        <label class="text-slate-400 text-[11px] block mb-1">Primary Domain (Tên miền chính):</label>
                                         <input type="text" :value="selectedVhostDomain?.domain_name" readonly
-                                            class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs">
+                                            class="w-full px-3 py-2 rounded-lg bg-slate-950/60 border border-slate-800 text-slate-400 font-mono text-xs cursor-not-allowed">
                                     </div>
                                     <div>
-                                        <label class="text-slate-400 text-[11px] block mb-1">Domain Aliases:</label>
-                                        <input type="text" :value="'www.' + selectedVhostDomain?.domain_name" readonly
-                                            class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs">
+                                        <label class="text-slate-400 text-[11px] block mb-1">Domain Aliases (Tên miền phụ/bí danh, phân cách bằng dấu phẩy):</label>
+                                        <input type="text" v-model="getDomainVhostSettings(selectedVhostDomain?.id).aliases" placeholder="www.domain.com, sub.domain.com"
+                                            class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
                                     </div>
                                     <div>
                                         <label class="text-slate-400 text-[11px] block mb-1">Administrator Email:</label>
-                                        <input type="email" :value="'admin@' + selectedVhostDomain?.domain_name"
-                                            class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs">
+                                        <input type="email" v-model="getDomainVhostSettings(selectedVhostDomain?.id).adminEmail" placeholder="admin@domain.com"
+                                            class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
                                     </div>
                                     <div>
-                                        <label class="text-slate-400 text-[11px] block mb-1">Index Files:</label>
-                                        <input type="text" value="index.php, index.html, index.htm"
-                                            class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs">
+                                        <label class="text-slate-400 text-[11px] block mb-1">Index Files (Thứ tự file mặc định):</label>
+                                        <input type="text" v-model="getDomainVhostSettings(selectedVhostDomain?.id).indexFiles" placeholder="index.php, index.html, index.htm"
+                                            class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
                                     </div>
                                 </div>
                                 <div class="pt-3 border-t border-[#232b36] flex flex-wrap gap-4">
                                     <label class="flex items-center space-x-2 cursor-pointer">
-                                        <input type="checkbox" checked class="rounded text-emerald-500 bg-slate-950 border-slate-700">
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).enableGzip" class="rounded text-emerald-500 bg-slate-950 border-slate-700">
                                         <span class="text-slate-300">Bật Gzip Compression (enableGzip 1)</span>
                                     </label>
                                     <label class="flex items-center space-x-2 cursor-pointer">
-                                        <input type="checkbox" checked class="rounded text-emerald-500 bg-slate-950 border-slate-700">
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).enableBr" class="rounded text-emerald-500 bg-slate-950 border-slate-700">
                                         <span class="text-slate-300">Bật Brotli Compression (enableBr 1)</span>
                                     </label>
                                     <label class="flex items-center space-x-2 cursor-pointer">
-                                        <input type="checkbox" checked class="rounded text-emerald-500 bg-slate-950 border-slate-700">
-                                        <span class="text-slate-300">Auto Fix Permissions (0755 / 0644 / 0640)</span>
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).autoFixPerms" class="rounded text-emerald-500 bg-slate-950 border-slate-700">
+                                        <span class="text-slate-300">Tự động chuẩn hóa phân quyền (0755 / 0644 / 0640)</span>
                                     </label>
+                                </div>
+                                <div class="pt-3 border-t border-[#232b36] flex justify-end">
+                                    <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
+                                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
+                                        <span v-else>💾</span>
+                                        <span>Lưu Thiết Lập General</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
 
                         <!-- TAB 3: LOG -->
                         <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'log'" class="space-y-4">
-                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
-                                <h4 class="font-bold text-white text-sm">Cấu Hình Nhật Ký (Virtual Host Logs)</h4>
+                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
+                                <div class="flex items-center justify-between border-b border-[#232b36] pb-2">
+                                    <h4 class="font-bold text-white text-sm">Cấu Hình Nhật Ký (Virtual Host Logs)</h4>
+                                    <span class="text-[11px] text-emerald-400">✏️ Cho phép chỉnh sửa mức ghi log và lưu trữ</span>
+                                </div>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label class="text-slate-400 text-[11px] block mb-1">Access Log File:</label>
                                         <input type="text" :value="'/home/' + selectedVhostDomain?.domain_name?.replace(/[^a-zA-Z0-9]/g, '')?.slice(0, 16) + '/domains/' + selectedVhostDomain?.domain_name + '/logs/access.log'" readonly
-                                            class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono text-xs">
+                                            class="w-full px-3 py-2 rounded-lg bg-slate-950/60 border border-slate-800 text-slate-400 font-mono text-xs cursor-not-allowed">
                                     </div>
                                     <div>
                                         <label class="text-slate-400 text-[11px] block mb-1">Error Log File:</label>
                                         <input type="text" :value="'/home/' + selectedVhostDomain?.domain_name?.replace(/[^a-zA-Z0-9]/g, '')?.slice(0, 16) + '/domains/' + selectedVhostDomain?.domain_name + '/logs/error.log'" readonly
-                                            class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono text-xs">
+                                            class="w-full px-3 py-2 rounded-lg bg-slate-950/60 border border-slate-800 text-slate-400 font-mono text-xs cursor-not-allowed">
                                     </div>
                                     <div>
                                         <label class="text-slate-400 text-[11px] block mb-1">Log Level:</label>
-                                        <select class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono text-xs">
+                                        <select v-model="getDomainVhostSettings(selectedVhostDomain?.id).logLevel" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
                                             <option value="DEBUG">DEBUG (Chi tiết nhất)</option>
                                             <option value="INFO">INFO (Thông tin chuẩn)</option>
-                                            <option value="WARN" selected>WARN (Cảnh báo)</option>
+                                            <option value="WARN">WARN (Cảnh báo)</option>
                                             <option value="ERROR">ERROR (Chỉ lỗi)</option>
                                         </select>
                                     </div>
                                     <div>
-                                        <label class="text-slate-400 text-[11px] block mb-1">Rolling Size & Retention:</label>
+                                        <label class="text-slate-400 text-[11px] block mb-1">Rolling Size & Retention (Dung lượng cuộn & Số ngày lưu):</label>
                                         <div class="flex space-x-2">
-                                            <input type="text" value="10M" class="w-1/2 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono text-xs">
-                                            <input type="text" value="30 ngày" class="w-1/2 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono text-xs">
+                                            <input type="text" v-model="getDomainVhostSettings(selectedVhostDomain?.id).rollingSize" placeholder="10M" class="w-1/2 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
+                                            <input type="number" v-model="getDomainVhostSettings(selectedVhostDomain?.id).keepDays" placeholder="30" class="w-1/2 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
                                         </div>
                                     </div>
+                                </div>
+                                <div class="pt-3 border-t border-[#232b36] flex justify-end">
+                                    <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
+                                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
+                                        <span v-else>💾</span>
+                                        <span>Lưu Thiết Lập Log</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
 
                         <!-- TAB 4: SECURITY -->
                         <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'security'" class="space-y-4">
-                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
-                                <h4 class="font-bold text-white text-sm flex items-center gap-2">
-                                    <span class="text-emerald-400">🛡️</span>
-                                    <span>Thiết Lập Bảo Mật & Hardening VHost</span>
-                                </h4>
-                                <div class="space-y-2.5">
-                                    <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
+                                <div class="flex items-center justify-between border-b border-[#232b36] pb-2">
+                                    <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                                        <span class="text-emerald-400">🛡️</span>
+                                        <span>Thiết Lập Bảo Mật & Hardening VHost</span>
+                                    </h4>
+                                    <span class="text-[11px] text-emerald-400">Bật/Tắt các lớp bảo vệ trực tiếp</span>
+                                </div>
+                                <div class="space-y-3">
+                                    <label class="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700 transition">
                                         <div>
                                             <span class="font-bold text-white block">HTTP Security Headers (OWASP Standards)</span>
                                             <span class="text-[11px] text-slate-400">X-Frame-Options: SAMEORIGIN, X-Content-Type-Options: nosniff, X-XSS-Protection</span>
                                         </div>
-                                        <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">Active</span>
-                                    </div>
-                                    <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).secHeaders" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700">
+                                    </label>
+                                    <label class="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700 transition">
                                         <div>
                                             <span class="font-bold text-white block">Bảo vệ file cấu hình WordPress wp-config.php</span>
                                             <span class="text-[11px] text-slate-400">Chặn tuyệt đối truy cập HTTP từ bên ngoài và phân quyền nghiêm ngặt 0640</span>
                                         </div>
-                                        <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">Protected</span>
-                                    </div>
-                                    <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).blockWpConfig" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700">
+                                    </label>
+                                    <label class="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700 transition">
                                         <div>
                                             <span class="font-bold text-white block">Chặn chạy mã độc PHP trong thư mục Uploads & Cache</span>
                                             <span class="text-[11px] text-slate-400">Ngăn chặn 100% webshell / backdoor upload thông qua form người dùng</span>
                                         </div>
-                                        <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">Blocked</span>
-                                    </div>
-                                    <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).blockUploadsPhp" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700">
+                                    </label>
+                                    <label class="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700 transition">
                                         <div>
                                             <span class="font-bold text-white block">Chặn truy cập file ẩn và Repository (.git, .env, .sql, .bak)</span>
                                             <span class="text-[11px] text-slate-400">Chống lộ thông tin cơ sở dữ liệu và mã nguồn ứng dụng</span>
                                         </div>
-                                        <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">Denied</span>
-                                    </div>
-                                    <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).blockDotFiles" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700">
+                                    </label>
+                                    <label class="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700 transition">
                                         <div>
                                             <span class="font-bold text-white block">Chặn XML-RPC (xmlrpc.php)</span>
                                             <span class="text-[11px] text-slate-400">Chống tấn công dò mật khẩu Brute-force & DDoS WordPress</span>
                                         </div>
-                                        <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">Denied</span>
-                                    </div>
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).blockXmlrpc" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700">
+                                    </label>
+                                </div>
+                                <div class="pt-3 border-t border-[#232b36] flex justify-end">
+                                    <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
+                                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
+                                        <span v-else>💾</span>
+                                        <span>Lưu Thiết Lập Security</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
 
                         <!-- TAB 5: EXTERNAL APP -->
                         <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'external_app'" class="space-y-4">
-                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
-                                <h4 class="font-bold text-white text-sm">External Application (LSAPI Processor / FastCGI Backend)</h4>
-                                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
+                                <div class="flex items-center justify-between border-b border-[#232b36] pb-2">
+                                    <h4 class="font-bold text-white text-sm">External Application (LSAPI Processor / FastCGI Backend)</h4>
+                                    <span class="text-[11px] text-emerald-400">Tùy biến tài nguyên thực thi PHP</span>
+                                </div>
+                                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
                                     <div class="flex items-center justify-between">
                                         <span class="font-mono font-bold text-cyan-300">
                                             {{ selectedVhostDomain?.webserver === 'ols' ? ('lsphp_' + (selectedVhostDomain?.domain_name?.replace(/[^a-zA-Z0-9]/g, '')?.slice(0, 16))) : ('php' + (selectedVhostDomain?.php_version || '8.2') + '-fpm-' + (selectedVhostDomain?.domain_name?.replace(/[^a-zA-Z0-9]/g, '')?.slice(0, 16))) }}
@@ -2080,24 +2124,36 @@
                                             {{ selectedVhostDomain?.webserver === 'ols' ? 'LiteSpeed SAPI (lsapi)' : 'Nginx FastCGI' }}
                                         </span>
                                     </div>
-                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px] pt-1">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs pt-2">
                                         <div>
-                                            <span class="text-slate-500 block">Socket Address:</span>
-                                            <span class="font-mono text-slate-300 truncate block">{{ selectedVhostDomain?.webserver === 'ols' ? 'uds://tmp/lshttpd/lsphp.sock' : '/run/php/php-fpm.sock' }}</span>
+                                            <label class="text-slate-400 text-[11px] block mb-1">Max Connections (LSAPI_CHILDREN):</label>
+                                            <input type="number" v-model="getDomainVhostSettings(selectedVhostDomain?.id).maxConns" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
                                         </div>
                                         <div>
-                                            <span class="text-slate-500 block">Max Connections:</span>
-                                            <span class="font-mono text-slate-300">10 (LSAPI_CHILDREN=10)</span>
+                                            <label class="text-slate-400 text-[11px] block mb-1">Memory Soft Limit:</label>
+                                            <input type="text" v-model="getDomainVhostSettings(selectedVhostDomain?.id).memSoftLimit" placeholder="1024M" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
                                         </div>
                                         <div>
-                                            <span class="text-slate-500 block">Memory Limits:</span>
-                                            <span class="font-mono text-slate-300">1024M / 2048M</span>
+                                            <label class="text-slate-400 text-[11px] block mb-1">Memory Hard Limit:</label>
+                                            <input type="text" v-model="getDomainVhostSettings(selectedVhostDomain?.id).memHardLimit" placeholder="2048M" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
                                         </div>
                                         <div>
-                                            <span class="text-slate-500 block">Process Limits:</span>
-                                            <span class="font-mono text-slate-300">200 / 300</span>
+                                            <label class="text-slate-400 text-[11px] block mb-1">Process Soft Limit:</label>
+                                            <input type="number" v-model="getDomainVhostSettings(selectedVhostDomain?.id).procSoftLimit" placeholder="200" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-400 text-[11px] block mb-1">Process Hard Limit:</label>
+                                            <input type="number" v-model="getDomainVhostSettings(selectedVhostDomain?.id).procHardLimit" placeholder="300" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
                                         </div>
                                     </div>
+                                </div>
+                                <div class="pt-3 border-t border-[#232b36] flex justify-end">
+                                    <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
+                                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
+                                        <span v-else>💾</span>
+                                        <span>Lưu Thiết Lập External App</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -2129,30 +2185,26 @@
 
                         <!-- TAB 7: REWRITE -->
                         <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'rewrite'" class="space-y-4">
-                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
-                                <div class="flex items-center justify-between">
-                                    <h4 class="font-bold text-white text-sm">Rewrite Rules & .htaccess</h4>
+                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
+                                <div class="flex items-center justify-between border-b border-[#232b36] pb-2">
+                                    <div>
+                                        <h4 class="font-bold text-white text-sm">Rewrite Rules & Hardening</h4>
+                                        <p class="text-[11px] text-slate-400 mt-0.5">Quy tắc định tuyến và chặn lọc URL cho website này.</p>
+                                    </div>
                                     <span class="text-[10px] px-2 py-0.5 rounded font-mono bg-emerald-500/20 text-emerald-400 font-bold">
                                         {{ selectedVhostDomain?.webserver === 'ols' ? 'autoLoadHtaccess 1' : 'try_files $uri $uri/ /index.php' }}
                                     </span>
                                 </div>
-                                <p class="text-[11px] text-slate-400">OpenLiteSpeed tự động nạp file .htaccess của WordPress và WooCommerce mà không cần reload máy chủ. Dưới đây là các rule hardening bổ sung:</p>
-                                <textarea readonly class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[11px] h-48 custom-scrollbar resize-none leading-relaxed">
-# 1. ACME challenge cho SSL Certbot
-RewriteRule ^/\.well-known/ - [L]
-
-# 2. Chặn file nhạy cảm và source code
-RewriteRule ^/(\.git|\.env|\.user\.ini|\.svn|composer\.(json|lock)|package\.json|\.sql|\.bak|\.log) - [F,L]
-
-# 3. Bảo vệ file cấu hình WordPress wp-config.php
-RewriteRule ^/wp-config\.php$ - [F,L]
-
-# 4. Chống thực thi PHP webshell trong uploads
-RewriteRule ^/(wp-content/uploads|cache)/.*\.php$ - [F,L]
-
-# 5. Chặn XML-RPC chống DDoS & Brute-force
-RewriteRule ^/xmlrpc\.php$ - [F,L]
-                                </textarea>
+                                <textarea v-model="getDomainVhostSettings(selectedVhostDomain?.id).rewriteRules"
+                                    class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 font-mono text-[11px] h-52 custom-scrollbar resize-y leading-relaxed focus:border-emerald-500 focus:outline-none"></textarea>
+                                <div class="pt-3 border-t border-[#232b36] flex justify-end">
+                                    <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
+                                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
+                                        <span v-else>💾</span>
+                                        <span>Lưu Quy Tắc Rewrite</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -2206,39 +2258,70 @@ RewriteRule ^/xmlrpc\.php$ - [F,L]
 
                         <!-- TAB 10: WEBSOCKET PROXY -->
                         <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'websocket'" class="space-y-4">
-                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
-                                <h4 class="font-bold text-white text-sm">Web Socket Proxy</h4>
-                                <p class="text-[11px] text-slate-400">Định tuyến kết nối WebSocket tới ứng dụng backend (Node.js, Python, Golang socket).</p>
+                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
+                                <div class="flex items-center justify-between border-b border-[#232b36] pb-2">
+                                    <div>
+                                        <h4 class="font-bold text-white text-sm">Web Socket Proxy</h4>
+                                        <p class="text-[11px] text-slate-400 mt-0.5">Định tuyến kết nối WebSocket tới ứng dụng backend (Node.js, Python, Golang socket).</p>
+                                    </div>
+                                    <label class="flex items-center space-x-2 cursor-pointer">
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).wsEnabled" class="rounded text-emerald-500 bg-slate-950 border-slate-700">
+                                        <span class="text-white text-xs font-semibold">Bật Proxy</span>
+                                    </label>
+                                </div>
                                 <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <div>
                                             <label class="text-slate-400 text-[11px] block mb-1">WebSocket URI:</label>
-                                            <input type="text" value="/ws" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 font-mono text-xs">
+                                            <input type="text" v-model="getDomainVhostSettings(selectedVhostDomain?.id).wsUri" placeholder="/ws" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
                                         </div>
                                         <div>
-                                            <label class="text-slate-400 text-[11px] block mb-1">Target Address:</label>
-                                            <input type="text" value="127.0.0.1:3000" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 font-mono text-xs">
+                                            <label class="text-slate-400 text-[11px] block mb-1">Target Address (IP:Port):</label>
+                                            <input type="text" v-model="getDomainVhostSettings(selectedVhostDomain?.id).wsTarget" placeholder="127.0.0.1:3000" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
                                         </div>
                                     </div>
+                                </div>
+                                <div class="pt-3 border-t border-[#232b36] flex justify-end">
+                                    <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
+                                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
+                                        <span v-else>💾</span>
+                                        <span>Lưu Thiết Lập WebSocket</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
 
                         <!-- TAB 11: MODULES -->
                         <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'modules'" class="space-y-4">
-                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
-                                <h4 class="font-bold text-white text-sm">Virtual Host Modules</h4>
+                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
+                                <div class="flex items-center justify-between border-b border-[#232b36] pb-2">
+                                    <h4 class="font-bold text-white text-sm">Virtual Host Modules</h4>
+                                    <span class="text-[11px] text-emerald-400">Tối ưu bộ nhớ cache và trình duyệt</span>
+                                </div>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div class="p-3 rounded-lg bg-slate-950 border border-slate-800">
-                                        <span class="font-bold text-white block">⚡ LSCache / FastCGI Cache</span>
-                                        <span class="text-[11px] text-slate-400">Tối ưu cache trang tĩnh và dynamic WordPress</span>
-                                        <span class="mt-2 inline-block px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold">Enabled</span>
-                                    </div>
-                                    <div class="p-3 rounded-lg bg-slate-950 border border-slate-800">
-                                        <span class="font-bold text-white block">💨 Browser Cache & Expire Headers</span>
-                                        <span class="text-[11px] text-slate-400">Header max-age=2592000 cho CSS, JS, Fonts, Images</span>
-                                        <span class="mt-2 inline-block px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold">Enabled</span>
-                                    </div>
+                                    <label class="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-start justify-between cursor-pointer hover:border-slate-700 transition">
+                                        <div>
+                                            <span class="font-bold text-white block">⚡ LSCache / FastCGI Cache</span>
+                                            <span class="text-[11px] text-slate-400">Tối ưu cache trang tĩnh và dynamic WordPress</span>
+                                        </div>
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).lscacheEnabled" class="mt-1 rounded text-emerald-500 bg-slate-900 border-slate-700">
+                                    </label>
+                                    <label class="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-start justify-between cursor-pointer hover:border-slate-700 transition">
+                                        <div>
+                                            <span class="font-bold text-white block">💨 Browser Cache & Expire Headers</span>
+                                            <span class="text-[11px] text-slate-400">Header max-age=2592000 cho CSS, JS, Fonts, Images</span>
+                                        </div>
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).browserCacheEnabled" class="mt-1 rounded text-emerald-500 bg-slate-900 border-slate-700">
+                                    </label>
+                                </div>
+                                <div class="pt-3 border-t border-[#232b36] flex justify-end">
+                                    <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
+                                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
+                                        <span v-else>💾</span>
+                                        <span>Lưu Thiết Lập Modules</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>

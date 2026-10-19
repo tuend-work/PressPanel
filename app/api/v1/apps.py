@@ -1325,4 +1325,232 @@ async def rewrite_webserver_config(
         raise HTTPException(status_code=500, detail=f"Lỗi tái tạo cấu hình webserver: {str(e)}")
 
 
+class WebserverSettingsUpdateRequest(BaseModel):
+    webserver: str = "ols"
+    serverName: Optional[str] = None
+    adminEmail: Optional[str] = None
+    workerProcesses: Optional[str] = None
+    runUser: Optional[str] = None
+    runGroup: Optional[str] = None
+    chrootPath: Optional[str] = None
+    enableGzip: Optional[bool] = None
+    enableBrotli: Optional[bool] = None
+    gracefulTimeout: Optional[int] = None
+    logLevel: Optional[str] = None
+    rollingSize: Optional[str] = None
+    keepDays: Optional[int] = None
+    maxConnections: Optional[int] = None
+    maxSslConnections: Optional[int] = None
+    connTimeout: Optional[int] = None
+    keepAliveRequests: Optional[int] = None
+    maxBodySize: Optional[str] = None
+    gzipLevel: Optional[int] = None
+    allowSymbolLink: Optional[str] = None
+    setUIDMode: Optional[str] = None
+    rateLimitEnabled: Optional[bool] = None
+    rateLimitReqSec: Optional[int] = None
+    rateLimitBurst: Optional[int] = None
+
+
+@router.get("/webserver-settings")
+async def get_webserver_settings(webserver: str = "ols", current_user: dict = Depends(get_current_user)):
+    """Lấy cấu hình chi tiết của Web Server (OpenLiteSpeed hoặc Nginx) để hiển thị trong các Tab cấu hình"""
+    ws = webserver.lower()
+    conf_path = "/usr/local/lsws/conf/httpd_config.conf" if ws == "ols" else "/etc/nginx/nginx.conf"
+    if ws != "ols" and not os.path.exists(conf_path) and os.path.exists("/usr/local/openresty/nginx/conf/nginx.conf"):
+        conf_path = "/usr/local/openresty/nginx/conf/nginx.conf"
+
+    content = ""
+    if os.path.exists(conf_path):
+        try:
+            with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+        except Exception:
+            try:
+                proc = subprocess.run(["sudo", "cat", conf_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.returncode == 0:
+                    content = proc.stdout
+            except Exception:
+                pass
+
+    import re
+    settings = {
+        "serverName": "localhost",
+        "adminEmail": "root@localhost",
+        "workerProcesses": "auto",
+        "runUser": "nobody",
+        "runGroup": "nobody",
+        "chrootPath": "/",
+        "enableGzip": True,
+        "enableBrotli": True,
+        "defaultCharset": "UTF-8",
+        "gracefulTimeout": 300,
+        "logLevel": "DEBUG",
+        "logFormat": "combined",
+        "rollingSize": "10M",
+        "keepDays": 30,
+        "maxConnections": 10000,
+        "maxSslConnections": 5000,
+        "connTimeout": 60,
+        "keepAliveRequests": 1000,
+        "maxBodySize": "128M",
+        "gzipLevel": 6,
+        "clientBodyBufferSize": "128k",
+        "allowSymbolLink": "2",
+        "setUIDMode": "2",
+        "serverTokens": False,
+        "blockDotFiles": True,
+        "blockWpConfig": True,
+        "blockUploadsPhp": True,
+        "blockXmlrpc": True,
+        "rateLimitEnabled": True,
+        "rateLimitReqSec": 20,
+        "rateLimitBurst": 40,
+        "lscacheEnabled": True,
+        "modSecurityEnabled": True,
+        "http2Enabled": True,
+        "http3Enabled": True
+    }
+
+    if content:
+        if ws == "ols":
+            m = re.search(r"serverName\s+([^\r\n]+)", content)
+            if m: settings["serverName"] = m.group(1).strip()
+            m = re.search(r"adminEmails\s+([^\r\n]+)", content)
+            if m: settings["adminEmail"] = m.group(1).strip()
+            m = re.search(r"user\s+([^\r\n]+)", content)
+            if m: settings["runUser"] = m.group(1).strip()
+            m = re.search(r"group\s+([^\r\n]+)", content)
+            if m: settings["runGroup"] = m.group(1).strip()
+            m = re.search(r"logLevel\s+([A-Za-z]+)", content)
+            if m: settings["logLevel"] = m.group(1).upper()
+            m = re.search(r"maxConnections\s+(\d+)", content)
+            if m: settings["maxConnections"] = int(m.group(1))
+            m = re.search(r"maxSSLConnections\s+(\d+)", content)
+            if m: settings["maxSslConnections"] = int(m.group(1))
+            m = re.search(r"connTimeout\s+(\d+)", content)
+            if m: settings["connTimeout"] = int(m.group(1))
+            m = re.search(r"maxKeepAliveReq\s+(\d+)", content)
+            if m: settings["keepAliveRequests"] = int(m.group(1))
+            m = re.search(r"gracefulRestartTimeout\s+(\d+)", content)
+            if m: settings["gracefulTimeout"] = int(m.group(1))
+            m = re.search(r"allowSymbolLink\s+(\d+)", content)
+            if m: settings["allowSymbolLink"] = m.group(1)
+        else:
+            m = re.search(r"worker_processes\s+([^;]+);", content)
+            if m: settings["workerProcesses"] = m.group(1).strip()
+            m = re.search(r"worker_connections\s+(\d+);", content)
+            if m: settings["maxConnections"] = int(m.group(1))
+            m = re.search(r"keepalive_timeout\s+(\d+);", content)
+            if m: settings["connTimeout"] = int(m.group(1))
+            m = re.search(r"client_max_body_size\s+([^;]+);", content)
+            if m: settings["maxBodySize"] = m.group(1).strip()
+
+    return {
+        "status": "ok",
+        "webserver": ws,
+        "config_path": conf_path,
+        "settings": settings,
+        "content": content
+    }
+
+
+@router.post("/webserver-settings")
+async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_user: dict = Depends(get_current_user)):
+    """Lưu cấu hình máy chủ Web (OLS hoặc Nginx) và khởi động lại dịch vụ tương ứng"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền cập nhật cấu hình Webserver.")
+
+    ws = req.webserver.lower()
+    conf_path = "/usr/local/lsws/conf/httpd_config.conf" if ws == "ols" else "/etc/nginx/nginx.conf"
+    if ws != "ols" and not os.path.exists(conf_path) and os.path.exists("/usr/local/openresty/nginx/conf/nginx.conf"):
+        conf_path = "/usr/local/openresty/nginx/conf/nginx.conf"
+
+    content = ""
+    if os.path.exists(conf_path):
+        try:
+            with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+        except Exception:
+            try:
+                proc = subprocess.run(["sudo", "cat", conf_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.returncode == 0:
+                    content = proc.stdout
+            except Exception:
+                pass
+
+    if not content:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy file cấu hình webserver tại {conf_path}")
+
+    import re
+    if ws == "ols":
+        if req.serverName is not None and re.search(r"^serverName\s+.*$", content, flags=re.MULTILINE):
+            content = re.sub(r"^serverName\s+.*$", f"serverName              {req.serverName}", content, flags=re.MULTILINE)
+        if req.adminEmail is not None and re.search(r"^adminEmails\s+.*$", content, flags=re.MULTILINE):
+            content = re.sub(r"^adminEmails\s+.*$", f"adminEmails            {req.adminEmail}", content, flags=re.MULTILINE)
+        if req.logLevel is not None:
+            content = re.sub(r"(logLevel\s+)[A-Za-z]+", rf"\g<1>{req.logLevel}", content)
+        if req.rollingSize is not None:
+            content = re.sub(r"(rollingSize\s+)[0-9]+[A-Za-z]*", rf"\g<1>{req.rollingSize}", content)
+        if req.maxConnections is not None:
+            content = re.sub(r"(maxConnections\s+)[0-9]+", rf"\g<1>{req.maxConnections}", content)
+        if req.maxSslConnections is not None:
+            content = re.sub(r"(maxSSLConnections\s+)[0-9]+", rf"\g<1>{req.maxSslConnections}", content)
+        if req.connTimeout is not None:
+            content = re.sub(r"(connTimeout\s+)[0-9]+", rf"\g<1>{req.connTimeout}", content)
+        if req.keepAliveRequests is not None:
+            content = re.sub(r"(maxKeepAliveReq\s+)[0-9]+", rf"\g<1>{req.keepAliveRequests}", content)
+        if req.gracefulTimeout is not None:
+            content = re.sub(r"(gracefulRestartTimeout\s+)[0-9]+", rf"\g<1>{req.gracefulTimeout}", content)
+        if req.allowSymbolLink is not None:
+            content = re.sub(r"(allowSymbolLink\s+)[0-9]+", rf"\g<1>{req.allowSymbolLink}", content)
+    else:
+        if req.workerProcesses is not None:
+            content = re.sub(r"worker_processes\s+[^;]+;", f"worker_processes {req.workerProcesses};", content)
+        if req.maxConnections is not None:
+            content = re.sub(r"worker_connections\s+[0-9]+;", f"worker_connections {req.maxConnections};", content)
+        if req.connTimeout is not None:
+            content = re.sub(r"keepalive_timeout\s+[0-9]+;", f"keepalive_timeout {req.connTimeout};", content)
+        if req.maxBodySize is not None:
+            if "client_max_body_size" in content:
+                content = re.sub(r"client_max_body_size\s+[^;]+;", f"client_max_body_size {req.maxBodySize};", content)
+            else:
+                content = re.sub(r"(http\s*\{)", rf"\1\n    client_max_body_size {req.maxBodySize};", content)
+
+    # Ghi file cấu hình an toàn
+    tmp_path = f"/tmp/wpc_{ws}_main_conf.tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        try:
+            shutil.move(tmp_path, conf_path)
+        except PermissionError:
+            subprocess.run(["sudo", "mv", tmp_path, conf_path], check=True)
+
+        try:
+            os.chmod(conf_path, 0o644)
+        except Exception:
+            subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
+
+        # Reload webserver
+        if ws == "ols":
+            subprocess.run(["/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
+            subprocess.run(["sudo", "systemctl", "reload", "lshttpd"], check=False)
+        else:
+            if os.path.exists("/usr/local/openresty/nginx/sbin/nginx"):
+                subprocess.run(["sudo", "/usr/local/openresty/nginx/sbin/nginx", "-s", "reload"], check=False)
+            else:
+                subprocess.run(["sudo", "nginx", "-s", "reload"], check=False)
+            subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=False)
+
+        return {
+            "status": "ok",
+            "message": f"Đã lưu và cập nhật cấu hình máy chủ {ws.upper()} thành công!"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi lưu file cấu hình máy chủ: {str(e)}")
+
+
+
 

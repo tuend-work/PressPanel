@@ -790,9 +790,300 @@ class VHostConfigRequest(BaseModel):
     content: str
 
 
+class VHostSettingsUpdateRequest(BaseModel):
+    aliases: Optional[str] = None
+    adminEmail: Optional[str] = None
+    indexFiles: Optional[str] = None
+    enableGzip: Optional[bool] = None
+    enableBr: Optional[bool] = None
+    autoFixPerms: Optional[bool] = None
+    logLevel: Optional[str] = None
+    rollingSize: Optional[str] = None
+    keepDays: Optional[int] = None
+    secHeaders: Optional[bool] = None
+    blockWpConfig: Optional[bool] = None
+    blockUploadsPhp: Optional[bool] = None
+    blockDotFiles: Optional[bool] = None
+    blockXmlrpc: Optional[bool] = None
+    maxConns: Optional[int] = None
+    memSoftLimit: Optional[str] = None
+    memHardLimit: Optional[str] = None
+    procSoftLimit: Optional[int] = None
+    procHardLimit: Optional[int] = None
+    rewriteRules: Optional[str] = None
+    wsUri: Optional[str] = None
+    wsTarget: Optional[str] = None
+    wsEnabled: Optional[bool] = None
+    lscacheEnabled: Optional[bool] = None
+    browserCacheEnabled: Optional[bool] = None
+
+
+def parse_vhost_content(content: str, ws: str, domain_name: str) -> dict:
+    settings = {
+        "aliases": f"www.{domain_name}",
+        "adminEmail": f"admin@{domain_name}",
+        "indexFiles": "index.php, index.html, index.htm",
+        "enableGzip": True,
+        "enableBr": True,
+        "autoFixPerms": True,
+        "logLevel": "DEBUG",
+        "rollingSize": "10M",
+        "keepDays": 30,
+        "secHeaders": True,
+        "blockWpConfig": True,
+        "blockUploadsPhp": True,
+        "blockDotFiles": True,
+        "blockXmlrpc": True,
+        "maxConns": 10,
+        "memSoftLimit": "1024M",
+        "memHardLimit": "2048M",
+        "procSoftLimit": 200,
+        "procHardLimit": 300,
+        "rewriteRules": """# 1. Cho phép SSL ACME challenge (Let's Encrypt / Certbot)
+RewriteRule ^/\\.well-known/ - [L]
+
+# 2. Chặn file ẩn và file nhạy cảm
+RewriteRule ^/(\\.|\\.env|\\.git|composer\\.|\\.sql|\\.bak) - [F,L]
+
+# 3. Bảo vệ wp-config.php
+RewriteRule ^/wp-config\\.php$ - [F,L]
+
+# 4. Chống thực thi PHP webshell trong uploads
+RewriteRule ^/(wp-content/uploads|cache)/.*\\.php$ - [F,L]
+
+# 5. Chặn XML-RPC
+RewriteRule ^/xmlrpc\\.php$ - [F,L]""",
+        "wsUri": "/ws",
+        "wsTarget": "127.0.0.1:3000",
+        "wsEnabled": False,
+        "lscacheEnabled": True,
+        "browserCacheEnabled": True
+    }
+    if not content:
+        return settings
+
+    if ws == "ols":
+        m_alias = re.search(r"vhAliases\s+([^\r\n]+)", content)
+        if m_alias:
+            settings["aliases"] = m_alias.group(1).strip()
+
+        m_mail = re.search(r"adminEmails\s+([^\r\n]+)", content)
+        if m_mail:
+            settings["adminEmail"] = m_mail.group(1).strip()
+
+        m_idx = re.search(r"indexFiles\s+([^\r\n]+)", content)
+        if m_idx:
+            settings["indexFiles"] = m_idx.group(1).strip()
+
+        m_gzip = re.search(r"enableGzip\s+(\d+)", content)
+        if m_gzip:
+            settings["enableGzip"] = (m_gzip.group(1) == "1")
+
+        m_br = re.search(r"enableBr\s+(\d+)", content)
+        if m_br:
+            settings["enableBr"] = (m_br.group(1) == "1")
+
+        m_loglevel = re.search(r"logLevel\s+([A-Za-z]+)", content)
+        if m_loglevel:
+            settings["logLevel"] = m_loglevel.group(1).upper()
+
+        m_roll = re.search(r"rollingSize\s+([0-9]+[A-Za-z]*)", content)
+        if m_roll:
+            settings["rollingSize"] = m_roll.group(1)
+
+        m_days = re.search(r"keepDays\s+(\d+)", content)
+        if m_days:
+            try:
+                settings["keepDays"] = int(m_days.group(1))
+            except Exception:
+                pass
+
+        m_mc = re.search(r"maxConns\s+(\d+)", content)
+        if m_mc:
+            try:
+                settings["maxConns"] = int(m_mc.group(1))
+            except Exception:
+                pass
+
+        m_ms = re.search(r"memSoftLimit\s+([^\r\n]+)", content)
+        if m_ms:
+            settings["memSoftLimit"] = m_ms.group(1).strip()
+        m_mh = re.search(r"memHardLimit\s+([^\r\n]+)", content)
+        if m_mh:
+            settings["memHardLimit"] = m_mh.group(1).strip()
+
+        m_ps = re.search(r"procSoftLimit\s+(\d+)", content)
+        if m_ps:
+            try:
+                settings["procSoftLimit"] = int(m_ps.group(1))
+            except Exception:
+                pass
+        m_ph = re.search(r"procHardLimit\s+(\d+)", content)
+        if m_ph:
+            try:
+                settings["procHardLimit"] = int(m_ph.group(1))
+            except Exception:
+                pass
+
+        m_rw = re.search(r"rules\s+<<<END_rules([\s\S]*?)END_rules", content)
+        if m_rw:
+            settings["rewriteRules"] = m_rw.group(1).strip()
+
+        settings["blockWpConfig"] = ("wp-config.php" in content)
+        settings["blockUploadsPhp"] = ("uploads" in content and ".php" in content)
+        settings["blockDotFiles"] = (".env" in content or ".git" in content)
+        settings["blockXmlrpc"] = ("xmlrpc.php" in content)
+        settings["secHeaders"] = ("X-Frame-Options" in content)
+
+        m_ws = re.search(r"websocket\s+([^\s{]+)\s*\{[^}]*address\s+([^\r\n}]+)", content)
+        if m_ws:
+            settings["wsEnabled"] = True
+            settings["wsUri"] = m_ws.group(1).strip()
+            settings["wsTarget"] = m_ws.group(2).strip()
+
+    else:
+        m_srv = re.search(r"server_name\s+([^;]+);", content)
+        if m_srv:
+            names = m_srv.group(1).strip().split()
+            aliases = [n for n in names if n != domain_name]
+            settings["aliases"] = ", ".join(aliases) if aliases else ""
+
+        m_idx = re.search(r"index\s+([^;]+);", content)
+        if m_idx:
+            settings["indexFiles"] = m_idx.group(1).strip()
+
+        settings["blockWpConfig"] = ("wp-config.php" in content)
+        settings["blockUploadsPhp"] = ("uploads" in content and ".php" in content)
+        settings["blockDotFiles"] = (".env" in content or ".git" in content)
+        settings["blockXmlrpc"] = ("xmlrpc.php" in content)
+        settings["secHeaders"] = ("X-Frame-Options" in content)
+
+        m_ws = re.search(r"location\s+([^\s{]+)\s*\{[^}]*proxy_pass\s+http://([^;]+);", content)
+        if m_ws:
+            settings["wsEnabled"] = True
+            settings["wsUri"] = m_ws.group(1).strip()
+            settings["wsTarget"] = m_ws.group(2).strip()
+
+    return settings
+
+
+def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHostSettingsUpdateRequest) -> str:
+    if not content:
+        content = ""
+
+    if ws == "ols":
+        # 1. vhAliases
+        if settings.aliases is not None:
+            clean_al = settings.aliases.strip()
+            if re.search(r"^vhAliases\s+.*$", content, flags=re.MULTILINE):
+                content = re.sub(r"^vhAliases\s+.*$", f"vhAliases                 {clean_al}", content, flags=re.MULTILINE)
+            elif re.search(r"^vhDomain\s+.*$", content, flags=re.MULTILINE):
+                content = re.sub(r"^(vhDomain\s+.*)$", rf"\1\nvhAliases                 {clean_al}", content, flags=re.MULTILINE)
+
+        # 2. adminEmails
+        if settings.adminEmail is not None:
+            clean_email = settings.adminEmail.strip()
+            if re.search(r"^adminEmails\s+.*$", content, flags=re.MULTILINE):
+                content = re.sub(r"^adminEmails\s+.*$", f"adminEmails               {clean_email}", content, flags=re.MULTILINE)
+            elif re.search(r"^vhAliases\s+.*$", content, flags=re.MULTILINE):
+                content = re.sub(r"^(vhAliases\s+.*)$", rf"\1\nadminEmails               {clean_email}", content, flags=re.MULTILINE)
+
+        # 3. indexFiles
+        if settings.indexFiles is not None:
+            idx = settings.indexFiles.strip()
+            if re.search(r"^indexFiles\s+.*$", content, flags=re.MULTILINE):
+                content = re.sub(r"^indexFiles\s+.*$", f"indexFiles                {idx}", content, flags=re.MULTILINE)
+
+        # 4. enableGzip
+        if settings.enableGzip is not None:
+            gz_val = "1" if settings.enableGzip else "0"
+            if re.search(r"^enableGzip\s+.*$", content, flags=re.MULTILINE):
+                content = re.sub(r"^enableGzip\s+.*$", f"enableGzip                {gz_val}", content, flags=re.MULTILINE)
+
+        # 5. enableBr
+        if settings.enableBr is not None:
+            br_val = "1" if settings.enableBr else "0"
+            if re.search(r"^enableBr\s+.*$", content, flags=re.MULTILINE):
+                content = re.sub(r"^enableBr\s+.*$", f"enableBr                  {br_val}", content, flags=re.MULTILINE)
+
+        # 6. Log level
+        if settings.logLevel is not None:
+            content = re.sub(r"(errorlog[^{]*\{[^}]*logLevel\s+)[A-Za-z]+", rf"\g<1>{settings.logLevel}", content)
+
+        # 7. Rolling size & keepDays
+        if settings.rollingSize is not None:
+            content = re.sub(r"(rollingSize\s+)[0-9]+[A-Za-z]*", rf"\g<1>{settings.rollingSize}", content)
+        if settings.keepDays is not None:
+            content = re.sub(r"(keepDays\s+)[0-9]+", rf"\g<1>{settings.keepDays}", content)
+
+        # 8. External App tuning
+        if settings.maxConns is not None:
+            content = re.sub(r"(maxConns\s+)[0-9]+", rf"\g<1>{settings.maxConns}", content)
+            content = re.sub(r"(LSAPI_CHILDREN=)[0-9]+", rf"\g<1>{settings.maxConns}", content)
+        if settings.memSoftLimit is not None:
+            content = re.sub(r"(memSoftLimit\s+)[^\r\n]+", rf"\g<1>{settings.memSoftLimit}", content)
+        if settings.memHardLimit is not None:
+            content = re.sub(r"(memHardLimit\s+)[^\r\n]+", rf"\g<1>{settings.memHardLimit}", content)
+        if settings.procSoftLimit is not None:
+            content = re.sub(r"(procSoftLimit\s+)[0-9]+", rf"\g<1>{settings.procSoftLimit}", content)
+        if settings.procHardLimit is not None:
+            content = re.sub(r"(procHardLimit\s+)[0-9]+", rf"\g<1>{settings.procHardLimit}", content)
+
+        # 9. Rewrite Rules
+        if settings.rewriteRules is not None:
+            rw_block = f"rules                   <<<END_rules\n{settings.rewriteRules.strip()}\nEND_rules"
+            if "END_rules" in content:
+                content = re.sub(r"rules\s+<<<END_rules[\s\S]*?END_rules", rw_block, content)
+
+        # 10. WebSocket Proxy
+        if settings.wsEnabled is True:
+            uri = (settings.wsUri or "/ws").strip()
+            tgt = (settings.wsTarget or "127.0.0.1:3000").strip()
+            ws_code = f"\nwebsocket {uri} {{\n  address                 {tgt}\n}}\n"
+            if re.search(r"websocket\s+[^\s{]+\s*\{[^}]*\}", content):
+                content = re.sub(r"websocket\s+[^\s{]+\s*\{[^}]*\}", ws_code.strip(), content)
+            else:
+                content = content + "\n" + ws_code
+        elif settings.wsEnabled is False:
+            content = re.sub(r"\n?websocket\s+[^\s{]+\s*\{[^}]*\}\n?", "\n", content)
+
+    else:
+        # Nginx
+        if settings.aliases is not None:
+            alias_list = [a.strip() for a in settings.aliases.replace(",", " ").split() if a.strip()]
+            srv_names = [domain_name] + [a for a in alias_list if a != domain_name]
+            content = re.sub(r"server_name\s+[^;]+;", f"server_name {' '.join(srv_names)};", content)
+
+        if settings.indexFiles is not None:
+            idx = " ".join(settings.indexFiles.replace(",", " ").split())
+            content = re.sub(r"index\s+[^;]+;", f"index {idx};", content)
+
+        if settings.wsEnabled is True:
+            uri = (settings.wsUri or "/ws").strip()
+            tgt = (settings.wsTarget or "127.0.0.1:3000").strip()
+            ws_block = f"""
+    location {uri} {{
+        proxy_pass http://{tgt};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }}"""
+            if f"location {uri}" in content:
+                content = re.sub(rf"location\s+{re.escape(uri)}\s*\{{[^}}]*\}}", ws_block.strip(), content)
+            else:
+                last_brace = content.rfind("}")
+                if last_brace != -1:
+                    content = content[:last_brace] + ws_block + "\n}\n"
+        elif settings.wsEnabled is False and settings.wsUri:
+            content = re.sub(rf"\n?\s*location\s+{re.escape(settings.wsUri.strip())}\s*\{{[^}}]*\}}", "", content)
+
+    return content
+
+
 @router.get("/{domain_id}/vhost-config")
 async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(get_current_user)):
-    """Lấy nội dung file cấu hình VirtualHost (OpenLiteSpeed / Nginx) cho từng domain"""
+    """Lấy nội dung file cấu hình VirtualHost (OpenLiteSpeed / Nginx) cho từng domain kèm settings đã parse"""
     db = await get_db_connection()
     cursor = await db.execute("""
         SELECT d.*, u.username as owner_username, u.parent_id
@@ -836,6 +1127,8 @@ async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(g
     else:
         content = f"# Chưa tìm thấy file vhost cấu hình tại {conf_path}.\n# Bấm 'Tái Tạo VHost Từ Template' để tự động tạo lại."
 
+    parsed_settings = parse_vhost_content(content, ws, clean_domain)
+
     return {
         "status": "success",
         "domain_id": domain_id,
@@ -846,13 +1139,101 @@ async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(g
         "doc_root": doc_root,
         "ssl_enabled": bool(domain["ssl_enabled"]),
         "config_path": conf_path,
-        "content": content
+        "content": content,
+        "settings": parsed_settings
     }
+
+
+@router.post("/{domain_id}/vhost-settings")
+async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateRequest, current_user: dict = Depends(get_current_user)):
+    """Lưu các thiết lập VirtualHost theo từng Tab chức năng và nạp lại máy chủ web"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.*, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Không có quyền chỉnh sửa cấu hình website này")
+
+    clean_domain = domain["domain_name"]
+    ws = domain["webserver"] or "ols"
+    isolated_user = domain_to_linux_user(clean_domain)
+    if ws == "ols":
+        conf_path = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
+    else:
+        conf_path = f"/etc/nginx/conf.d/{clean_domain}.conf"
+
+    # Đọc cấu hình hiện tại
+    content = ""
+    if os.path.exists(conf_path):
+        try:
+            with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+        except Exception:
+            try:
+                proc = subprocess.run(["sudo", "cat", conf_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.returncode == 0:
+                    content = proc.stdout
+            except Exception:
+                pass
+
+    if not content:
+        # Nếu chưa có file vhost, lấy từ template
+        tpl_path = f"/opt/wpc/templates/vhost_ols/default.tpl" if ws == "ols" else f"/opt/wpc/templates/vhost_nginx/default.tpl"
+        if os.path.exists(tpl_path):
+            with open(tpl_path, "r", encoding="utf-8", errors="ignore") as tf:
+                content = tf.read().replace("{{DOMAIN}}", clean_domain).replace("{{USERNAME}}", isolated_user)
+        else:
+            content = f"# VirtualHost for {clean_domain}\n"
+
+    new_content = apply_vhost_settings(content, ws, clean_domain, req)
+
+    # Ghi file cấu hình an toàn
+    os.makedirs(os.path.dirname(conf_path), exist_ok=True)
+    tmp_path = f"/tmp/wpc_vhost_{clean_domain}.tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+
+        try:
+            shutil.move(tmp_path, conf_path)
+        except PermissionError:
+            subprocess.run(["sudo", "mv", tmp_path, conf_path], check=True)
+
+        try:
+            os.chmod(conf_path, 0o644)
+        except Exception:
+            subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
+
+        # Reload webserver
+        if ws == "ols":
+            subprocess.run(["/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
+            subprocess.run(["sudo", "systemctl", "reload", "lshttpd"], check=False)
+        else:
+            subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=False)
+
+        updated_settings = parse_vhost_content(new_content, ws, clean_domain)
+        return {
+            "status": "success",
+            "message": f"Đã lưu và cập nhật cấu hình VirtualHost cho {clean_domain} thành công!",
+            "content": new_content,
+            "settings": updated_settings
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi lưu file cấu hình VirtualHost: {str(e)}")
 
 
 @router.post("/{domain_id}/vhost-config")
 async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, current_user: dict = Depends(get_current_user)):
-    """Lưu và nạp lại cấu hình VirtualHost cho domain"""
+    """Lưu và nạp lại cấu hình VirtualHost cho domain (raw editor)"""
     db = await get_db_connection()
     cursor = await db.execute("""
         SELECT d.*, u.username as owner_username, u.parent_id
@@ -899,7 +1280,12 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
         else:
             subprocess.run(["systemctl", "reload", "nginx"], check=False)
 
-        return {"status": "success", "message": f"Đã lưu và nạp lại cấu hình VirtualHost cho {clean_domain}!"}
+        updated_settings = parse_vhost_content(req.content, ws, clean_domain)
+        return {
+            "status": "success",
+            "message": f"Đã lưu và nạp lại cấu hình VirtualHost cho {clean_domain}!",
+            "settings": updated_settings
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi lưu file cấu hình: {str(e)}")
 
