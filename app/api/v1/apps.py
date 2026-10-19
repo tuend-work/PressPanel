@@ -1056,32 +1056,34 @@ async def rewrite_webserver_config(
         # 2.4. Dọn dẹp tiến trình khi chuyển đổi Web Server
         if ws == "ols":
             try:
-                subprocess.run(["systemctl", "stop", "wpc-php*-fpm@*"], check=False)
-                subprocess.run(["systemctl", "disable", "wpc-php*-fpm@*"], check=False)
+                subprocess.run(["sudo", "systemctl", "stop", "wpc-php*-fpm@*"], check=False)
+                subprocess.run(["sudo", "systemctl", "disable", "wpc-php*-fpm@*"], check=False)
                 for pver in ["5.6", "7.0", "7.1", "7.2", "7.3", "7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"]:
-                    subprocess.run(["systemctl", "stop", f"php{pver}-fpm"], check=False)
-                    subprocess.run(["systemctl", "disable", f"php{pver}-fpm"], check=False)
-                subprocess.run(["pkill", "-9", "-f", "php-fpm"], check=False)
+                    subprocess.run(["sudo", "systemctl", "stop", f"php{pver}-fpm"], check=False)
+                    subprocess.run(["sudo", "systemctl", "disable", f"php{pver}-fpm"], check=False)
+                subprocess.run(["sudo", "pkill", "-9", "-f", "php-fpm"], check=False)
             except Exception:
                 pass
         elif ws == "nginx":
             try:
-                subprocess.run(["systemctl", "stop", "lshttpd"], check=False)
-                subprocess.run(["systemctl", "stop", "lsws"], check=False)
-                subprocess.run(["systemctl", "disable", "lshttpd"], check=False)
-                subprocess.run(["systemctl", "disable", "lsws"], check=False)
-                subprocess.run(["pkill", "-9", "-f", "openlitespeed"], check=False)
-                subprocess.run(["pkill", "-9", "-f", "lshttpd"], check=False)
-                subprocess.run(["pkill", "-9", "-f", "lsphp"], check=False)
-                subprocess.run(["pkill", "-9", "-f", "lscgid"], check=False)
-                subprocess.run(["rm", "-rf", "/tmp/lshttpd/*.sock"], check=False)
+                subprocess.run(["sudo", "systemctl", "stop", "lshttpd"], check=False)
+                subprocess.run(["sudo", "systemctl", "stop", "lsws"], check=False)
+                subprocess.run(["sudo", "systemctl", "disable", "lshttpd"], check=False)
+                subprocess.run(["sudo", "systemctl", "disable", "lsws"], check=False)
+                subprocess.run(["sudo", "pkill", "-9", "-f", "openlitespeed"], check=False)
+                subprocess.run(["sudo", "pkill", "-9", "-f", "lshttpd"], check=False)
+                subprocess.run(["sudo", "pkill", "-9", "-f", "lsphp"], check=False)
+                subprocess.run(["sudo", "pkill", "-9", "-f", "lscgid"], check=False)
+                subprocess.run(["sudo", "rm", "-rf", "/tmp/lshttpd/*.sock"], check=False)
             except Exception:
                 pass
 
         # 2.5. Chạy rewrite-all trên gatekeeper vhost để xử lý cấu hình gốc (listeners, đổi 8088 -> 80)
         try:
             if os.path.isfile(gatekeeper_vhost):
-                subprocess.run([gatekeeper_vhost, "rewrite-all", ws], check=False)
+                proc_rw = subprocess.run([gatekeeper_vhost, "rewrite-all", ws], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc_rw.returncode != 0 and os.path.isfile(script_vhost):
+                    subprocess.run(["sudo", script_vhost, "rewrite-all", "all", "all", ws], check=False)
             elif os.path.isfile(script_vhost):
                 subprocess.run(["sudo", script_vhost, "rewrite-all", "all", "all", ws], check=False)
         except Exception as rwe:
@@ -1126,16 +1128,25 @@ async def rewrite_webserver_config(
                 fail_count += 1
                 backup_notes.append(f"Lỗi tạo vhost {row.get('domain_name', 'unknown')}: {str(e_vhost)}")
 
-        # 4. Reload Web Server tương ứng
-        srv_name = "lshttpd" if ws == "ols" else "nginx"
-        gatekeeper_app = f"{WPC_BASE}/bin/app"
-        try:
-            if os.path.isfile(gatekeeper_app):
-                subprocess.run([gatekeeper_app, "service", "reload", srv_name], check=False)
-            else:
-                subprocess.run(["sudo", "systemctl", "reload", srv_name], check=False)
-        except Exception:
-            pass
+        # 4. Khởi động lại Web Server tương ứng và đảm bảo trạng thái hoạt động
+        if ws == "nginx":
+            try:
+                subprocess.run(["sudo", "systemctl", "enable", "nginx"], check=False)
+                test_proc = subprocess.run(["sudo", "nginx", "-t"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if test_proc.returncode == 0:
+                    subprocess.run(["sudo", "systemctl", "restart", "nginx"], check=False)
+                else:
+                    backup_notes.append(f"Cảnh báo Nginx config test: {test_proc.stderr or test_proc.stdout}")
+                    subprocess.run(["sudo", "systemctl", "restart", "nginx"], check=False)
+            except Exception as ngx_e:
+                backup_notes.append(f"Lỗi khởi động Nginx: {str(ngx_e)}")
+        elif ws == "ols":
+            try:
+                subprocess.run(["sudo", "systemctl", "enable", "lshttpd"], check=False)
+                subprocess.run(["sudo", "systemctl", "restart", "lshttpd"], check=False)
+                subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
+            except Exception as ols_e:
+                backup_notes.append(f"Lỗi khởi động OLS: {str(ols_e)}")
 
         if len(domains) == 0:
             msg = f"Đã chuẩn bị xong cấu hình cho {ws.upper()}, nhưng hiện tại chưa có website nào trong cơ sở dữ liệu."

@@ -328,7 +328,6 @@ EOF
                         -e "s|{{PHP_SOCK}}|$PHP_SOCK|g" \
                         "$WPC_DIR/templates/vhost_nginx/default.tpl" > "/etc/nginx/conf.d/$DOMAIN.conf"
                     nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
-                fi
             fi
         fi
 
@@ -565,7 +564,7 @@ EOF_RW
                     clean_k=$(echo "$key" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
                     clean_v=$(echo "$val" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^["'"'"']//' -e 's/["'"'"']$//')
                     [ -z "$clean_k" ] && continue
-                    [[ "$clean_k" =~ ^[#;] ]] && continue
+                    case "$clean_k" in \#*|\;*) continue ;; esac
                     
                     if [ "$clean_k" = "display_errors" ]; then
                         echo "  php_flag display_errors $clean_v" >> "$VH_CONF"
