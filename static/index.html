@@ -514,8 +514,8 @@
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.47').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.47').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.48').then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=0.5.48').then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -732,6 +732,22 @@
                 const availablePhpData = ref(null);
                 const loadingAvailablePhp = ref(false);
                 const installedPhpVersions = ref([]);
+                const phpModalTab = ref('version');
+                const domainPhpIni = ref({
+                    upload_max_filesize: '128M',
+                    post_max_size: '128M',
+                    memory_limit: '512M',
+                    max_execution_time: '300',
+                    max_input_time: '300',
+                    max_input_vars: '3000',
+                    display_errors: 'Off',
+                    date_timezone: 'Asia/Ho_Chi_Minh',
+                    custom_directives: '',
+                    user_ini_path: '',
+                    file_exists: false
+                });
+                const loadingDomainPhpIni = ref(false);
+                const savingDomainPhpIni = ref(false);
                 const allPhpVersions = ref([
                     { ver: '8.5', label: 'PHP 8.5 (Bản mới nhất)' },
                     { ver: '8.4', label: 'PHP 8.4' },
@@ -2112,34 +2128,117 @@
                     activeDomainSubTab.value = { ...activeDomainSubTab.value, [domainId]: tab };
                 };
 
-                const openChangePhpModal = async (domain) => {
+                const openChangePhpModal = async (domain, initialTab = 'version') => {
                     targetPhpDomain.value = domain;
                     selectedNewPhpVersion.value = domain.php_version || '8.2';
                     availablePhpData.value = null;
                     loadingAvailablePhp.value = true;
+                    phpModalTab.value = initialTab;
                     showChangePhpModal.value = true;
 
+                    fetch(`/api/v1/domains/${domain.id}/available-php`, {
+                        headers: { 'Authorization': `Bearer ${token.value}` }
+                    }).then(r => r.json()).then(data => {
+                        availablePhpData.value = data;
+                        const availList = data.available_versions || [];
+                        if (availList.some(p => p.ver === domain.php_version)) {
+                            selectedNewPhpVersion.value = domain.php_version;
+                        } else if (availList.length > 0) {
+                            const rec = availList.find(p => p.ver === '8.2') || availList[0];
+                            selectedNewPhpVersion.value = rec.ver;
+                        }
+                    }).catch(e => console.error('Lỗi lấy danh sách PHP khả dụng:', e))
+                    .finally(() => { loadingAvailablePhp.value = false; });
+
+                    loadDomainPhpIni(domain);
+                };
+
+                const loadDomainPhpIni = async (domain) => {
+                    const dom = domain || targetPhpDomain.value;
+                    if (!dom) return;
+                    loadingDomainPhpIni.value = true;
                     try {
-                        const res = await fetch(`/api/v1/domains/${domain.id}/available-php`, {
+                        const res = await fetch(`/api/v1/domains/${dom.id}/php-ini`, {
                             headers: { 'Authorization': `Bearer ${token.value}` }
                         });
                         if (res.ok) {
                             const data = await res.json();
-                            availablePhpData.value = data;
-                            const availList = data.available_versions || [];
-                            // Nếu phiên bản hiện tại có trong danh sách khả dụng thì chọn nó
-                            if (availList.some(p => p.ver === domain.php_version)) {
-                                selectedNewPhpVersion.value = domain.php_version;
-                            } else if (availList.length > 0) {
-                                // Nếu không khả dụng, ưu tiên bản 8.2 hoặc bản đầu tiên có sẵn
-                                const rec = availList.find(p => p.ver === '8.2') || availList[0];
-                                selectedNewPhpVersion.value = rec.ver;
-                            }
+                            domainPhpIni.value = {
+                                ...domainPhpIni.value,
+                                ...(data.directives || {}),
+                                custom_directives: data.custom_directives || '',
+                                user_ini_path: data.user_ini_path || '',
+                                file_exists: data.file_exists || false
+                            };
                         }
                     } catch (e) {
-                        console.error('Lỗi lấy danh sách PHP khả dụng:', e);
+                        console.error('Lỗi nạp cấu hình php.ini:', e);
                     } finally {
-                        loadingAvailablePhp.value = false;
+                        loadingDomainPhpIni.value = false;
+                    }
+                };
+
+                const saveDomainPhpIni = async () => {
+                    if (!targetPhpDomain.value) return;
+                    savingDomainPhpIni.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${targetPhpDomain.value.id}/php-ini`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                upload_max_filesize: domainPhpIni.value.upload_max_filesize,
+                                post_max_size: domainPhpIni.value.post_max_size,
+                                memory_limit: domainPhpIni.value.memory_limit,
+                                max_execution_time: domainPhpIni.value.max_execution_time,
+                                max_input_time: domainPhpIni.value.max_input_time,
+                                max_input_vars: domainPhpIni.value.max_input_vars,
+                                display_errors: domainPhpIni.value.display_errors,
+                                date_timezone: domainPhpIni.value.date_timezone,
+                                custom_directives: domainPhpIni.value.custom_directives
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Đã lưu và áp dụng cấu hình php.ini thành công!');
+                            domainPhpIni.value.file_exists = true;
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình php.ini'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        savingDomainPhpIni.value = false;
+                    }
+                };
+
+                const applyPhpPreset = (preset) => {
+                    if (preset === 'wp_standard') {
+                        domainPhpIni.value.upload_max_filesize = '64M';
+                        domainPhpIni.value.post_max_size = '64M';
+                        domainPhpIni.value.memory_limit = '256M';
+                        domainPhpIni.value.max_execution_time = '120';
+                        domainPhpIni.value.max_input_time = '120';
+                        domainPhpIni.value.max_input_vars = '3000';
+                        domainPhpIni.value.display_errors = 'Off';
+                    } else if (preset === 'woocommerce') {
+                        domainPhpIni.value.upload_max_filesize = '256M';
+                        domainPhpIni.value.post_max_size = '256M';
+                        domainPhpIni.value.memory_limit = '512M';
+                        domainPhpIni.value.max_execution_time = '300';
+                        domainPhpIni.value.max_input_time = '300';
+                        domainPhpIni.value.max_input_vars = '5000';
+                        domainPhpIni.value.display_errors = 'Off';
+                    } else if (preset === 'upload_heavy') {
+                        domainPhpIni.value.upload_max_filesize = '512M';
+                        domainPhpIni.value.post_max_size = '512M';
+                        domainPhpIni.value.memory_limit = '1024M';
+                        domainPhpIni.value.max_execution_time = '600';
+                        domainPhpIni.value.max_input_time = '600';
+                        domainPhpIni.value.max_input_vars = '10000';
+                        domainPhpIni.value.display_errors = 'Off';
                     }
                 };
 
@@ -3107,6 +3206,7 @@
                     activeDomainSubTab, showChangePhpModal, targetPhpDomain, selectedNewPhpVersion,
                     changingPhp, allPhpVersions, availablePhpData, loadingAvailablePhp, installedPhpVersions, fetchInstalledPhpList, getDomainSubTab, setDomainSubTab,
                     openChangePhpModal, confirmChangePhp,
+                    phpModalTab, domainPhpIni, loadingDomainPhpIni, savingDomainPhpIni, applyPhpPreset, loadDomainPhpIni, saveDomainPhpIni,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain, handleToggleDomainStatus,
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
                     fetchSystemStatus, restartPanel, refreshLucideIcons,

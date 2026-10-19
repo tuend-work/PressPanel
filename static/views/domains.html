@@ -410,18 +410,35 @@
                                             </h4>
                                             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                                 <!-- PHP Settings & Version Switcher (UX ĐỔI PHP CHUẨN WPC) -->
-                                                <div @click="openChangePhpModal(d)"
+                                                <div @click="openChangePhpModal(d, 'version')"
                                                     class="p-3.5 rounded-xl border-2 border-blue-500/30 hover:border-blue-500 hover:shadow-md bg-gradient-to-br from-blue-50/50 to-indigo-50/30 cursor-pointer transition flex items-center space-x-3.5 group relative">
                                                     <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 font-bold text-xs shadow-sm">
                                                         PHP
                                                     </div>
                                                     <div class="min-w-0 flex-1">
                                                         <div class="flex items-center justify-between">
-                                                            <span class="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition">PHP Settings</span>
-                                                            <span class="text-[10px] bg-blue-600 text-white font-bold px-1.5 py-0.5 rounded shadow-sm">Thay đổi</span>
+                                                            <span class="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition">Phiên Bản PHP</span>
+                                                            <span class="text-[10px] bg-blue-600 text-white font-bold px-1.5 py-0.5 rounded shadow-sm">Đổi</span>
                                                         </div>
                                                         <div class="text-[11px] font-mono font-bold text-blue-700 mt-0.5">
-                                                            Version {{ d.php_version }}
+                                                            PHP {{ d.php_version }}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Tùy Chỉnh php.ini Cho Từng Website -->
+                                                <div @click="openChangePhpModal(d, 'ini')"
+                                                    class="p-3.5 rounded-xl border-2 border-indigo-500/30 hover:border-indigo-500 hover:shadow-md bg-gradient-to-br from-indigo-50/50 to-purple-50/30 cursor-pointer transition flex items-center space-x-3.5 group relative">
+                                                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center shrink-0 font-mono font-bold text-xs shadow-sm">
+                                                        ini
+                                                    </div>
+                                                    <div class="min-w-0 flex-1">
+                                                        <div class="flex items-center justify-between">
+                                                            <span class="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition">Tùy Chỉnh php.ini</span>
+                                                            <span class="text-[10px] bg-indigo-600 text-white font-bold px-1.5 py-0.5 rounded shadow-sm">Cấu hình</span>
+                                                        </div>
+                                                        <div class="text-[11px] text-slate-500 mt-0.5 truncate">
+                                                            Upload, RAM, Timeout...
                                                         </div>
                                                     </div>
                                                 </div>

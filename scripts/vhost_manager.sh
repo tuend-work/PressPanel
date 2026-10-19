@@ -526,6 +526,60 @@ EOF_RW
         exit 0
         ;;
 
+    apply-php-ini)
+        echo "[+] Ap dung cau hinh php.ini cho $DOMAIN (User: $USERNAME, Webserver: $WEBSERVER)..."
+        DOC_ROOT="/home/$USERNAME/domains/$DOMAIN/public_html"
+        [ ! -d "$DOC_ROOT" ] && DOC_ROOT="/home/$USERNAME/httpdocs/$DOMAIN"
+
+        # 1. Phân quyền chuẩn cho file .user.ini
+        if [ -f "$DOC_ROOT/.user.ini" ]; then
+            if id "$USERNAME" &>/dev/null; then
+                chown "$USERNAME:$USERNAME" "$DOC_ROOT/.user.ini" 2>/dev/null || true
+            fi
+            chmod 644 "$DOC_ROOT/.user.ini" 2>/dev/null || true
+        fi
+
+        # 2. Xử lý OpenLiteSpeed: Cập nhật phpIniOverride trong vhconf.conf
+        if [ "$WEBSERVER" = "ols" ] || [ -f "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf" ]; then
+            VH_CONF="/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf"
+            if [ -f "$VH_CONF" ] && [ -f "$DOC_ROOT/.user.ini" ]; then
+                # Xóa block phpIniOverride cũ nếu có
+                sed -i '/phpIniOverride[[:space:]]*{/,/^[[:space:]]*}/d' "$VH_CONF" 2>/dev/null || true
+
+                # Tạo block phpIniOverride mới từ .user.ini
+                echo "" >> "$VH_CONF"
+                echo "phpIniOverride  {" >> "$VH_CONF"
+                while IFS='=' read -r key val || [ -n "$key" ]; do
+                    clean_k=$(echo "$key" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+                    clean_v=$(echo "$val" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+                    [ -z "$clean_k" ] && continue
+                    [[ "$clean_k" =~ ^[#;] ]] && continue
+                    
+                    if [ "$clean_k" = "display_errors" ]; then
+                        echo "  php_flag display_errors $clean_v" >> "$VH_CONF"
+                    else
+                        echo "  php_value $clean_k $clean_v" >> "$VH_CONF"
+                    fi
+                done < "$DOC_ROOT/.user.ini"
+                echo "}" >> "$VH_CONF"
+
+                # Reload OLS để nhận cấu hình tức thì
+                /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || true
+            fi
+        fi
+
+        # 3. Xử lý Nginx: Reload Nginx và các worker PHP-FPM của user
+        if [ "$WEBSERVER" = "nginx" ] || [ -f "/etc/nginx/conf.d/$DOMAIN.conf" ]; then
+            for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+                systemctl reload "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+            done
+            nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+        fi
+
+        echo "[+] Da ap dung cau hinh php.ini cho $DOMAIN thanh cong!"
+        exit 0
+        ;;
+
     rewrite-all)
         echo "[+] Rewrite toan bo cau hinh webserver: $WEBSERVER..."
         if [ "$WEBSERVER" = "ols" ]; then

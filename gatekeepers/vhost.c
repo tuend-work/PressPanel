@@ -9,7 +9,7 @@ int main(int argc, char *argv[]) {
     init_security_env();
 
     if (argc < 2) {
-        send_json_error("vhost", "Cu phap: vhost <add|remove|set-php|ssl|rewrite-all> [args...]");
+        send_json_error("vhost", "Cu phap: vhost <add|remove|set-php|ssl|rewrite-all|apply-php-ini> [args...]");
         return 1;
     }
 
@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (argc < 4) {
-        send_json_error("vhost", "Cu phap: vhost <add|remove|set-php|ssl> <username> <domain> [args...]");
+        send_json_error("vhost", "Cu phap: vhost <add|remove|set-php|ssl|apply-php-ini> <username> <domain> [args...]");
         return 1;
     }
 
@@ -89,6 +89,15 @@ int main(int argc, char *argv[]) {
     else if (strcmp(action, "ssl") == 0) {
         snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh ssl %s %s",
                  username, domain);
+    }
+    else if (strcmp(action, "apply-php-ini") == 0) {
+        const char *webserver = (argc > 4) ? argv[4] : "ols";
+        if (!is_safe_webserver(webserver)) {
+            send_json_error("vhost", "Webserver khong hop le");
+            return 1;
+        }
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh apply-php-ini %s %s %s",
+                 username, domain, webserver);
     }
     else {
         send_json_error("vhost", "Hanh dong khong hop le");

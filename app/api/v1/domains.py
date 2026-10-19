@@ -465,6 +465,221 @@ async def change_domain_php(
         "php_version": new_php
     }
 
+class DomainPhpIniUpdate(BaseModel):
+    upload_max_filesize: str = "128M"
+    post_max_size: str = "128M"
+    memory_limit: str = "512M"
+    max_execution_time: str = "300"
+    max_input_time: str = "300"
+    max_input_vars: str = "3000"
+    display_errors: str = "Off"
+    date_timezone: str = "Asia/Ho_Chi_Minh"
+    custom_directives: Optional[str] = ""
+
+@router.get("/{domain_id}/php-ini")
+async def get_domain_php_ini(
+    domain_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Đọc cấu hình php.ini (.user.ini) cho website chỉ định"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    active_ws = domain["webserver"] or "ols"
+
+    doc_root = f"/home/{isolated_user}/domains/{clean_domain}/public_html"
+    if not os.path.exists(doc_root) and os.path.exists(f"/home/{isolated_user}/httpdocs/{clean_domain}"):
+        doc_root = f"/home/{isolated_user}/httpdocs/{clean_domain}"
+
+    ini_path = os.path.join(doc_root, ".user.ini")
+
+    directives = {
+        "upload_max_filesize": "128M",
+        "post_max_size": "128M",
+        "memory_limit": "512M",
+        "max_execution_time": "300",
+        "max_input_time": "300",
+        "max_input_vars": "3000",
+        "display_errors": "Off",
+        "date_timezone": "Asia/Ho_Chi_Minh"
+    }
+    custom_lines = []
+
+    if os.path.exists(ini_path):
+        try:
+            with open(ini_path, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    stripped = line.strip()
+                    if not stripped or stripped.startswith(";") or stripped.startswith("#"):
+                        continue
+                    if "=" in stripped:
+                        k, v = stripped.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip('"').strip("'")
+                        if k == "date.timezone":
+                            directives["date_timezone"] = v
+                        elif k in directives:
+                            directives[k] = v
+                        else:
+                            custom_lines.append(f"{k} = {v}")
+        except Exception:
+            pass
+    elif active_ws == "ols":
+        vh_conf = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
+        if os.path.exists(vh_conf):
+            try:
+                with open(vh_conf, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                m_block = re.search(r"phpIniOverride\s*\{([^}]+)\}", content)
+                if m_block:
+                    for line in m_block.group(1).splitlines():
+                        parts = line.strip().split()
+                        if len(parts) >= 3 and parts[0] in ("php_value", "php_flag"):
+                            k, v = parts[1], parts[2]
+                            if k == "date.timezone":
+                                directives["date_timezone"] = v
+                            elif k in directives:
+                                directives[k] = v
+                            else:
+                                custom_lines.append(f"{k} = {v}")
+            except Exception:
+                pass
+
+    return {
+        "domain_id": domain_id,
+        "domain_name": clean_domain,
+        "webserver": active_ws,
+        "php_version": domain["php_version"],
+        "user_ini_path": ini_path,
+        "file_exists": os.path.exists(ini_path),
+        "directives": directives,
+        "custom_directives": "\n".join(custom_lines)
+    }
+
+@router.post("/{domain_id}/php-ini")
+async def save_domain_php_ini(
+    domain_id: int,
+    req: DomainPhpIniUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Lưu và áp dụng cấu hình php.ini (.user.ini) cho website"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    active_ws = domain["webserver"] or "ols"
+
+    def clean_val(val: str, max_len: int = 64) -> str:
+        s = str(val).strip()[:max_len]
+        return re.sub(r'[\r\n;"\'`$]', '', s)
+
+    up_size = clean_val(req.upload_max_filesize) or "128M"
+    post_size = clean_val(req.post_max_size) or "128M"
+    mem_limit = clean_val(req.memory_limit) or "512M"
+    max_exec = clean_val(req.max_execution_time) or "300"
+    max_input = clean_val(req.max_input_time) or "300"
+    max_vars = clean_val(req.max_input_vars) or "3000"
+    disp_err = "On" if req.display_errors.lower() in ("on", "1", "true") else "Off"
+    tz = clean_val(req.date_timezone) or "Asia/Ho_Chi_Minh"
+
+    lines = [
+        f"; WPCloud Generated PHP Configuration for {clean_domain}",
+        f"; Updated at runtime via WPCloud Panel",
+        f"upload_max_filesize = {up_size}",
+        f"post_max_size = {post_size}",
+        f"memory_limit = {mem_limit}",
+        f"max_execution_time = {max_exec}",
+        f"max_input_time = {max_input}",
+        f"max_input_vars = {max_vars}",
+        f"display_errors = {disp_err}",
+        f"date.timezone = {tz}",
+    ]
+
+    if req.custom_directives:
+        lines.append("")
+        lines.append("; Custom Directives")
+        for cline in req.custom_directives.splitlines():
+            cline_s = cline.strip()
+            if not cline_s or cline_s.startswith(";") or cline_s.startswith("#"):
+                continue
+            if "=" in cline_s:
+                ck, cv = cline_s.split("=", 1)
+                ck_clean = re.sub(r'[^a-zA-Z0-9_.-]', '', ck.strip())
+                cv_clean = clean_val(cv.strip(), 256)
+                if ck_clean and cv_clean:
+                    lines.append(f"{ck_clean} = {cv_clean}")
+
+    ini_content = "\n".join(lines) + "\n"
+
+    doc_root = f"/home/{isolated_user}/domains/{clean_domain}/public_html"
+    if not os.path.exists(doc_root) and os.path.exists(f"/home/{isolated_user}/httpdocs/{clean_domain}"):
+        doc_root = f"/home/{isolated_user}/httpdocs/{clean_domain}"
+
+    try:
+        os.makedirs(doc_root, exist_ok=True)
+        ini_path = os.path.join(doc_root, ".user.ini")
+        with open(ini_path, "w", encoding="utf-8") as f:
+            f.write(ini_content)
+    except Exception:
+        tmp_ini = f"/tmp/wpc_user_ini_{clean_domain}.tmp"
+        try:
+            with open(tmp_ini, "w", encoding="utf-8") as f:
+                f.write(ini_content)
+            import subprocess
+            subprocess.run(["cp", tmp_ini, ini_path], check=False)
+            os.remove(tmp_ini)
+        except Exception:
+            pass
+
+    # Gọi gatekeeper để set permission và reload webserver tương ứng
+    res = await run_gatekeeper("vhost", "apply-php-ini", isolated_user, clean_domain, active_ws)
+
+    return {
+        "status": "success",
+        "message": f"Cấu hình php.ini cho website {clean_domain} đã được lưu và áp dụng thành công!",
+        "directives": {
+            "upload_max_filesize": up_size,
+            "post_max_size": post_size,
+            "memory_limit": mem_limit,
+            "max_execution_time": max_exec,
+            "max_input_time": max_input,
+            "max_input_vars": max_vars,
+            "display_errors": disp_err,
+            "date_timezone": tz
+        }
+    }
+
 class DomainToggleSshRequest(BaseModel):
     allow_ssh: bool
 

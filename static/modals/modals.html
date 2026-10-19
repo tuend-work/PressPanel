@@ -62,26 +62,41 @@
                 </div>
             </div>
 
-            <!-- MODAL: PHP SETTINGS & VERSION SWITCHER (UX CHỌN PHP CHUẨN WPC) -->
-            <div v-if="showChangePhpModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-                <div class="bg-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-800 text-slate-100 animate-fadeIn">
+            <!-- MODAL: PHP SETTINGS & VERSION SWITCHER (UX CHỌN PHP & CHỈNH PHP.INI CHUẨN WPC) -->
+            <div v-if="showChangePhpModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
+                <div class="bg-slate-900 rounded-2xl max-w-xl w-full p-6 shadow-2xl relative border border-slate-800 text-slate-100 animate-fadeIn my-6 max-h-[92vh] flex flex-col">
                     <!-- Modal Header -->
-                    <div class="flex justify-between items-center mb-5 pb-3 border-b border-slate-800">
+                    <div class="flex justify-between items-center pb-4 border-b border-slate-800 shrink-0">
                         <div class="flex items-center space-x-3">
-                            <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center font-black text-xs shadow-lg shadow-blue-500/25">
+                            <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center font-black text-xs shadow-lg shadow-blue-500/25 shrink-0">
                                 PHP
                             </div>
                             <div>
                                 <h3 class="text-base font-bold text-white flex items-center gap-1.5">
                                     PHP Settings — <span class="text-blue-400 font-mono">{{ targetPhpDomain?.domain_name }}</span>
                                 </h3>
-                                <p class="text-xs text-slate-400 mt-0.5">Thay đổi môi trường thực thi PHP (PHP Runtime Switcher)</p>
+                                <p class="text-xs text-slate-400 mt-0.5">Quản lý môi trường thực thi & cấu hình php.ini riêng cho website</p>
                             </div>
                         </div>
                         <button @click="showChangePhpModal = false" class="text-slate-400 hover:text-white hover:bg-slate-800 text-xl leading-none p-1.5 rounded-xl transition">&times;</button>
                     </div>
 
-                    <div class="space-y-4 text-xs">
+                    <!-- Tabs Navigation: Phiên bản PHP vs Cấu hình php.ini -->
+                    <div class="flex border-b border-slate-800 mt-3 mb-4 shrink-0">
+                        <button type="button" @click="phpModalTab = 'version'"
+                            :class="phpModalTab === 'version' ? 'border-blue-500 text-blue-400 font-bold bg-blue-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
+                            class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5">
+                            <span>⚡ Phiên Bản PHP</span>
+                        </button>
+                        <button type="button" @click="phpModalTab = 'ini'; loadDomainPhpIni(targetPhpDomain)"
+                            :class="phpModalTab === 'ini' ? 'border-indigo-500 text-indigo-400 font-bold bg-indigo-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
+                            class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5">
+                            <span>⚙️ Cấu Hình php.ini (.user.ini)</span>
+                        </button>
+                    </div>
+
+                    <!-- TAB 1: ĐỔI PHIÊN BẢN PHP -->
+                    <div v-if="phpModalTab === 'version'" class="space-y-4 text-xs overflow-y-auto pr-1 flex-1">
                         <!-- Thông tin hiện tại -->
                         <div class="p-4 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-2 shadow-inner">
                             <div class="flex items-center justify-between">
@@ -157,14 +172,235 @@
 
                         <div class="flex justify-end space-x-2 pt-3 border-t border-slate-800">
                             <button type="button" @click="showChangePhpModal = false" :disabled="changingPhp"
-                                class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700 transition">
+                                class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700 transition">
                                 Hủy
                             </button>
                             <button type="button" @click="confirmChangePhp" :disabled="changingPhp || loadingAvailablePhp || !(availablePhpData?.available_versions?.length)"
-                                class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold shadow-lg shadow-blue-500/25 transition flex items-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                                class="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold shadow-lg shadow-blue-500/25 transition flex items-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
                                 <span v-if="changingPhp" class="animate-spin">⏳</span>
                                 <span>{{ changingPhp ? 'Đang chuyển đổi...' : 'Áp Dụng Phiên Bản' }}</span>
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: CẤU HÌNH PHP.INI CHO TỪNG WEBSITE -->
+                    <div v-else-if="phpModalTab === 'ini'" class="space-y-4 text-xs overflow-y-auto pr-1 flex-1">
+                        <!-- Banner trạng thái file .user.ini -->
+                        <div class="p-3 rounded-xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <span class="w-2.5 h-2.5 rounded-full" :class="domainPhpIni.file_exists ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'"></span>
+                                <span class="text-slate-300 font-medium">Tệp cấu hình riêng:</span>
+                                <code class="text-cyan-400 font-mono text-[11px] bg-slate-900 px-2 py-0.5 rounded">public_html/.user.ini</code>
+                            </div>
+                            <span class="text-[10px] px-2 py-0.5 rounded font-mono"
+                                :class="targetPhpDomain?.webserver === 'ols' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'">
+                                {{ targetPhpDomain?.webserver === 'ols' ? 'Đồng bộ OLS phpIniOverride' : 'Đồng bộ PHP-FPM Pool' }}
+                            </span>
+                        </div>
+
+                        <!-- Cấu hình mẫu nhanh (Quick Presets) -->
+                        <div>
+                            <div class="text-[11px] text-slate-400 font-bold mb-2">Cấu hình mẫu nhanh (1-Click Presets):</div>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button type="button" @click="applyPhpPreset('wp_standard')"
+                                    class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 hover:border-blue-500 text-left transition group">
+                                    <div class="font-bold text-slate-200 group-hover:text-blue-400 flex items-center gap-1">
+                                        <span>🚀</span> WP Chuẩn
+                                    </div>
+                                    <div class="text-[10px] text-slate-400 mt-1">64M Upload / 256M RAM</div>
+                                </button>
+                                <button type="button" @click="applyPhpPreset('woocommerce')"
+                                    class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 hover:border-purple-500 text-left transition group">
+                                    <div class="font-bold text-slate-200 group-hover:text-purple-400 flex items-center gap-1">
+                                        <span>🛒</span> WooCommerce
+                                    </div>
+                                    <div class="text-[10px] text-slate-400 mt-1">256M Upload / 512M RAM</div>
+                                </button>
+                                <button type="button" @click="applyPhpPreset('upload_heavy')"
+                                    class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 hover:border-emerald-500 text-left transition group">
+                                    <div class="font-bold text-slate-200 group-hover:text-emerald-400 flex items-center gap-1">
+                                        <span>📦</span> Upload Lớn
+                                    </div>
+                                    <div class="text-[10px] text-slate-400 mt-1">512M Upload / 1GB RAM</div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Loading Indicator khi nạp php.ini -->
+                        <div v-if="loadingDomainPhpIni" class="py-6 text-center text-slate-400">
+                            <span class="animate-spin text-lg inline-block mr-2">⏳</span> Đang đọc cấu hình php.ini của website...
+                        </div>
+
+                        <!-- Form thông số php.ini -->
+                        <div v-else class="space-y-3.5">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <!-- upload_max_filesize -->
+                                <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                    <div class="flex justify-between items-center">
+                                        <label class="font-bold text-slate-200">upload_max_filesize</label>
+                                        <span class="text-[10px] text-slate-400">Upload tối đa</span>
+                                    </div>
+                                    <input type="text" v-model="domainPhpIni.upload_max_filesize"
+                                        class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                    <div class="flex gap-1 pt-0.5">
+                                        <button v-for="v in ['32M', '64M', '128M', '256M', '512M']" :key="'up_' + v" type="button"
+                                            @click="domainPhpIni.upload_max_filesize = v"
+                                            class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 hover:bg-indigo-600/40 text-slate-300 font-mono transition">
+                                            {{ v }}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- post_max_size -->
+                                <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                    <div class="flex justify-between items-center">
+                                        <label class="font-bold text-slate-200">post_max_size</label>
+                                        <span class="text-[10px] text-slate-400">Kích thước POST</span>
+                                    </div>
+                                    <input type="text" v-model="domainPhpIni.post_max_size"
+                                        class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                    <div class="flex gap-1 pt-0.5">
+                                        <button v-for="v in ['32M', '64M', '128M', '256M', '512M']" :key="'post_' + v" type="button"
+                                            @click="domainPhpIni.post_max_size = v"
+                                            class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 hover:bg-indigo-600/40 text-slate-300 font-mono transition">
+                                            {{ v }}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- memory_limit -->
+                                <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                    <div class="flex justify-between items-center">
+                                        <label class="font-bold text-slate-200">memory_limit</label>
+                                        <span class="text-[10px] text-slate-400">Giới hạn RAM</span>
+                                    </div>
+                                    <input type="text" v-model="domainPhpIni.memory_limit"
+                                        class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                    <div class="flex gap-1 pt-0.5">
+                                        <button v-for="v in ['128M', '256M', '512M', '1024M', '2048M']" :key="'mem_' + v" type="button"
+                                            @click="domainPhpIni.memory_limit = v"
+                                            class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 hover:bg-indigo-600/40 text-slate-300 font-mono transition">
+                                            {{ v }}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- max_execution_time -->
+                                <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                    <div class="flex justify-between items-center">
+                                        <label class="font-bold text-slate-200">max_execution_time</label>
+                                        <span class="text-[10px] text-slate-400">Timeout (giây)</span>
+                                    </div>
+                                    <input type="text" v-model="domainPhpIni.max_execution_time"
+                                        class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                    <div class="flex gap-1 pt-0.5">
+                                        <button v-for="v in ['60', '120', '300', '600']" :key="'exec_' + v" type="button"
+                                            @click="domainPhpIni.max_execution_time = v"
+                                            class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 hover:bg-indigo-600/40 text-slate-300 font-mono transition">
+                                            {{ v }}s
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- max_input_vars -->
+                                <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                    <div class="flex justify-between items-center">
+                                        <label class="font-bold text-slate-200">max_input_vars</label>
+                                        <span class="text-[10px] text-slate-400">Số lượng biến form</span>
+                                    </div>
+                                    <input type="text" v-model="domainPhpIni.max_input_vars"
+                                        class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                    <div class="flex gap-1 pt-0.5">
+                                        <button v-for="v in ['1000', '3000', '5000', '10000']" :key="'vars_' + v" type="button"
+                                            @click="domainPhpIni.max_input_vars = v"
+                                            class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 hover:bg-indigo-600/40 text-slate-300 font-mono transition">
+                                            {{ v }}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- max_input_time -->
+                                <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                    <div class="flex justify-between items-center">
+                                        <label class="font-bold text-slate-200">max_input_time</label>
+                                        <span class="text-[10px] text-slate-400">Nhận dữ liệu (giây)</span>
+                                    </div>
+                                    <input type="text" v-model="domainPhpIni.max_input_time"
+                                        class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                    <div class="flex gap-1 pt-0.5">
+                                        <button v-for="v in ['60', '120', '300']" :key="'in_' + v" type="button"
+                                            @click="domainPhpIni.max_input_time = v"
+                                            class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 hover:bg-indigo-600/40 text-slate-300 font-mono transition">
+                                            {{ v }}s
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- display_errors -->
+                                <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                    <div class="flex justify-between items-center">
+                                        <label class="font-bold text-slate-200">display_errors</label>
+                                        <span class="text-[10px]" :class="domainPhpIni.display_errors === 'On' ? 'text-amber-400 font-semibold' : 'text-emerald-400'">
+                                            {{ domainPhpIni.display_errors === 'On' ? 'Đang bật debug' : 'Bảo mật (Đang ẩn)' }}
+                                        </span>
+                                    </div>
+                                    <select v-model="domainPhpIni.display_errors"
+                                        class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                        <option value="Off">Off — Tắt hiển thị lỗi (Khuyên dùng bảo mật)</option>
+                                        <option value="On">On — Bật hiển thị lỗi (Dành cho lập trình / Debug)</option>
+                                    </select>
+                                </div>
+
+                                <!-- date.timezone -->
+                                <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                    <div class="flex justify-between items-center">
+                                        <label class="font-bold text-slate-200">date.timezone</label>
+                                        <span class="text-[10px] text-slate-400">Múi giờ PHP</span>
+                                    </div>
+                                    <select v-model="domainPhpIni.date_timezone"
+                                        class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                        <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh (GMT+7)</option>
+                                        <option value="UTC">UTC (Giờ chuẩn quốc tế)</option>
+                                        <option value="Asia/Bangkok">Asia/Bangkok (GMT+7)</option>
+                                        <option value="Asia/Singapore">Asia/Singapore (GMT+8)</option>
+                                        <option value="Asia/Tokyo">Asia/Tokyo (GMT+9)</option>
+                                        <option value="America/New_York">America/New_York (EST/EDT)</option>
+                                        <option value="Europe/London">Europe/London (GMT/BST)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Chỉ thị tùy chỉnh nâng cao -->
+                            <details class="p-3 rounded-xl bg-slate-800/40 border border-slate-700/60 group">
+                                <summary class="font-bold text-slate-300 cursor-pointer hover:text-white flex items-center justify-between">
+                                    <span>⚙️ Chỉ thị tùy chỉnh bổ sung (Advanced Directives)</span>
+                                    <span class="text-[10px] text-slate-400 group-open:rotate-180 transition">▼</span>
+                                </summary>
+                                <div class="mt-2.5 space-y-1">
+                                    <p class="text-[10px] text-slate-400">Nhập các cặp <code>key = value</code> tùy biến khác của PHP cần ghi vào <code>.user.ini</code>:</p>
+                                    <textarea v-model="domainPhpIni.custom_directives" rows="3"
+                                        placeholder="opcache.enable = 1&#10;session.gc_maxlifetime = 1440"
+                                        class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-cyan-300 font-mono text-xs focus:outline-none focus:border-indigo-500"></textarea>
+                                </div>
+                            </details>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex justify-between items-center pt-3 border-t border-slate-800">
+                            <span class="text-[10px] text-slate-400">
+                                Cấu hình có hiệu lực tức thì sau khi lưu qua <code>.user.ini</code>.
+                            </span>
+                            <div class="flex space-x-2">
+                                <button type="button" @click="showChangePhpModal = false" :disabled="savingDomainPhpIni"
+                                    class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700 transition">
+                                    Đóng
+                                </button>
+                                <button type="button" @click="saveDomainPhpIni" :disabled="savingDomainPhpIni || loadingDomainPhpIni"
+                                    class="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-bold shadow-lg shadow-indigo-500/25 transition flex items-center space-x-1.5 disabled:opacity-50">
+                                    <span v-if="savingDomainPhpIni" class="animate-spin">⏳</span>
+                                    <span>{{ savingDomainPhpIni ? 'Đang lưu & áp dụng...' : 'Lưu & Áp Dụng php.ini' }}</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
