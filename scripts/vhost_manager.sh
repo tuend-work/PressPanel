@@ -675,6 +675,7 @@ EOF_RW
 
             # 4. Cấu hình OLS
             OLS_CONF="/usr/local/lsws/conf/httpd_config.conf"
+            if [ -f "$OLS_CONF" ]; then
                 # Sửa restrained 1 thành restrained 0 cho tất cả vhost
                 sed -i 's/restrained[[:space:]]\+1/restrained              0/g' "$OLS_CONF" 2>/dev/null || true
                 sed -i 's/allowSymbolLink[[:space:]]\+[01]/allowSymbolLink         2/g' "$OLS_CONF" 2>/dev/null || true

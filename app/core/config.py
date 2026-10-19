@@ -76,7 +76,7 @@ def get_or_create_secret_key() -> str:
 
 class Settings:
     PROJECT_NAME: str = "WPCloud"
-    VERSION: str = "0.5.62"
+    VERSION: str = "0.5.63"
     API_V1_STR: str = "/api/v1"
     
     # Mạng & Cổng kết nối
