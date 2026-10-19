@@ -14,9 +14,9 @@ class CustomerCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=32)
     password: str = Field(..., min_length=6)
     email: str = Field(..., min_length=5)
-    disk_mb: int = Field(5120, ge=500, le=500000)
-    cpu_pct: int = Field(100, ge=10, le=400)
-    mem_mb: int = Field(1024, ge=256, le=65536)
+    disk_mb: int = Field(5120, ge=500, le=5000000)
+    cpu_pct: int = Field(100, ge=10, le=12800)
+    mem_mb: int = Field(1024, ge=256, le=524288)
     package_id: Optional[int] = None
     # Subscription fields
     create_subscription: bool = True

@@ -514,8 +514,8 @@
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.53').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.53').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.54').then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=0.5.54').then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -1667,7 +1667,43 @@
                     }
                 };
 
+                const formatErrorDetail = (detail, fallback = 'Đã có lỗi xảy ra') => {
+                    if (!detail) return fallback;
+                    if (typeof detail === 'string') return detail;
+                    if (Array.isArray(detail)) {
+                        return detail.map(err => {
+                            const field = err.loc ? err.loc.filter(k => k !== 'body').join('.') : '';
+                            const msg = err.msg || JSON.stringify(err);
+                            return field ? `Trường '${field}': ${msg}` : msg;
+                        }).join('\n');
+                    }
+                    if (typeof detail === 'object') {
+                        if (detail.message) return detail.message;
+                        return JSON.stringify(detail);
+                    }
+                    return String(detail);
+                };
+
                 const handleAddCustomer = async () => {
+                    // 1. Kiểm tra validation phía client để tránh lỗi Pydantic 422 không rõ ràng
+                    const form = newCustomer.value;
+                    if (!form.username || !form.username.trim()) {
+                        alert('Vui lòng nhập Tên tài khoản Hosting User!');
+                        return;
+                    }
+                    if (!form.password || form.password.length < 6) {
+                        alert('Vui lòng nhập Mật khẩu (tối thiểu 6 ký tự)!');
+                        return;
+                    }
+                    if (!form.email || !form.email.trim()) {
+                        alert('Vui lòng nhập Email khách hàng!');
+                        return;
+                    }
+                    // Mặc định an toàn nếu trường số bị để trống
+                    if (form.cpu_pct === '' || form.cpu_pct === null || isNaN(form.cpu_pct)) form.cpu_pct = 100;
+                    if (form.disk_mb === '' || form.disk_mb === null || isNaN(form.disk_mb)) form.disk_mb = 5120;
+                    if (form.mem_mb === '' || form.mem_mb === null || isNaN(form.mem_mb)) form.mem_mb = 1024;
+
                     creatingCustomer.value = true;
                     try {
                         const res = await fetch('/api/v1/users/customers', {
@@ -1676,7 +1712,7 @@
                                 'Content-Type': 'application/json',
                                 'Authorization': `Bearer ${token.value}`
                             },
-                            body: JSON.stringify(newCustomer.value)
+                            body: JSON.stringify(form)
                         });
                         const data = await res.json();
                         if (res.ok) {
@@ -1700,7 +1736,7 @@
                             fetchCustomers();
                             fetchDomains();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể tạo Customer'));
+                            alert('Lỗi: ' + formatErrorDetail(data.detail, 'Không thể tạo Customer'));
                         }
                     } catch (e) {
                         alert('Lỗi kết nối: ' + e.message);

@@ -239,6 +239,11 @@ echo "[+] Khởi tạo cơ sở dữ liệu SQLite..."
 cd "$INSTALL_DIR"
 "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/app/db/init_db.py"
 
+# Đảm bảo quyền sở hữu wpc và quyền ghi 775/664 cho SQLite (tránh lỗi readonly database)
+chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"/data
+chmod 775 "$INSTALL_DIR"/data
+chmod 664 "$INSTALL_DIR"/data/panel.db* 2>/dev/null || true
+
 # 11. Cài đặt Systemd Service
 echo "[+] Đăng ký dịch vụ systemd wpc..."
 if [ -f "$SRC_DIR/systemd/wpc.service" ]; then

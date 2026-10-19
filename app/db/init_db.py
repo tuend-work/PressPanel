@@ -300,6 +300,29 @@ async def init_database():
 
     print("[+] SQLite Database initialized successfully with 12 tables!")
 
+    # Đảm bảo phân quyền đọc/ghi cho user wpc trên database và thư mục data
+    try:
+        import shutil, glob
+        data_dir = os.path.dirname(settings.DB_PATH)
+        os.chmod(data_dir, 0o775)
+        for f in glob.glob(f"{data_dir}/panel.db*"):
+            try:
+                os.chmod(f, 0o664)
+            except Exception:
+                pass
+        if hasattr(os, "geteuid") and os.geteuid() == 0:
+            try:
+                shutil.chown(data_dir, user="wpc", group="wpc")
+                for f in glob.glob(f"{data_dir}/panel.db*"):
+                    try:
+                        shutil.chown(f, user="wpc", group="wpc")
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+    except Exception:
+        pass
+
 if __name__ == "__main__":
     asyncio.run(init_database())
 

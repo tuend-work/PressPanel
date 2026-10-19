@@ -39,11 +39,13 @@ SUPPORTED_APPS = [
         "icon": "🌐",
         "desc": "Máy chủ Web & Reverse Proxy tin cậy, hiệu năng cao và phổ biến hàng đầu.",
         "service": "nginx",
-        "binary_checks": ["/usr/sbin/nginx", "/usr/bin/nginx"],
-        "default_version": "1.24.x",
+        "binary_checks": ["/usr/sbin/nginx", "/usr/bin/nginx", "/usr/local/openresty/nginx/sbin/nginx"],
+        "default_version": "1.26.x",
         "versions": [
-            {"value": "1.24.x", "label": "Nginx 1.24.x (Ổn định)"},
-            {"value": "latest", "label": "Nginx Mainline (Mới nhất)"}
+            {"value": "openresty", "label": "OpenResty (Nginx + LuaJIT, siêu hiệu năng)"},
+            {"value": "1.26.x", "label": "Nginx 1.26.x (Ổn định mới nhất)"},
+            {"value": "latest", "label": "Nginx Mainline (Mới nhất)"},
+            {"value": "1.24.x", "label": "Nginx 1.24.x (LTS ổn định)"}
         ]
     },
     {
@@ -56,9 +58,13 @@ SUPPORTED_APPS = [
         "binary_checks": ["/usr/bin/mariadb", "/usr/sbin/mariadbd", "/usr/sbin/mysqld", "/usr/bin/mysql"],
         "default_version": "mariadb-10.11",
         "versions": [
+            {"value": "mariadb-11.4", "label": "MariaDB 11.4 LTS (Mới nhất, tối ưu cực cao)"},
             {"value": "mariadb-10.11", "label": "MariaDB 10.11 LTS (Khuyên dùng, nhanh & nhẹ)"},
             {"value": "mariadb-10.6", "label": "MariaDB 10.6 LTS (Cũ, tương thích cao)"},
-            {"value": "mysql-8.0", "label": "Oracle MySQL 8.0 (Chính thức)"}
+            {"value": "mariadb-10.5", "label": "MariaDB 10.5 LTS (Kế thừa)"},
+            {"value": "mysql-8.4", "label": "Oracle MySQL 8.4 LTS (Mới nhất)"},
+            {"value": "mysql-8.0", "label": "Oracle MySQL 8.0 (Chính thức)"},
+            {"value": "percona-8.0", "label": "Percona Server for MySQL 8.0 (Doanh nghiệp)"}
         ]
     },
     {

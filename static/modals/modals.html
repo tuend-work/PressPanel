@@ -603,8 +603,8 @@
                                         class="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 font-mono text-center text-xs shadow-sm">
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] text-slate-500 mb-1">CPU (%)</label>
-                                    <input type="number" v-model.number="newCustomer.cpu_pct" min="10" max="400"
+                                    <label class="block text-[10px] text-slate-500 mb-1">CPU (%) <span class="text-[9px] text-blue-500 font-mono">({{ (sysStats.cpu_cores || 1) * 100 }}% max)</span></label>
+                                    <input type="number" v-model.number="newCustomer.cpu_pct" min="10" :max="(sysStats.cpu_cores || 16) * 100" placeholder="100 = 1 core"
                                         class="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 font-mono text-center text-xs shadow-sm">
                                 </div>
                             </div>

@@ -127,6 +127,8 @@ cd "$INSTALL_DIR"
 # 6. Đảm bảo phân quyền chính xác cho wpc
 PANEL_USER="wpc"
 chown -R "$PANEL_USER":"$PANEL_USER" "$INSTALL_DIR/app" "$INSTALL_DIR/data" "$INSTALL_DIR/logs" "$INSTALL_DIR/static" "$INSTALL_DIR/conf" 2>/dev/null || true
+chmod 775 "$INSTALL_DIR"/data 2>/dev/null || true
+chmod 664 "$INSTALL_DIR"/data/panel.db* 2>/dev/null || true
 echo "$PANEL_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wpc 2>/dev/null || true
 chmod 440 /etc/sudoers.d/wpc 2>/dev/null || true
 rm -f /etc/sudoers.d/presspanel 2>/dev/null || true
