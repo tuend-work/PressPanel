@@ -456,6 +456,14 @@ def resolve_app_config_path(app_id: str, file_type: str = "main") -> str:
             return p
     return paths[0] if paths else ""
 
+def get_nginx_service() -> str:
+    """Helper tương thích ngược lấy tên daemon service nginx/openresty thực tế"""
+    return resolve_app_service("nginx")
+
+def get_nginx_config_path() -> str:
+    """Helper tương thích ngược lấy file config nginx/openresty thực tế"""
+    return resolve_app_config_path("nginx")
+
 def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
     """Kiểm tra thực tế nhị phân và service trên Linux với cơ chế nhận diện thông minh đa nền tảng"""
     installed = False
@@ -1243,26 +1251,40 @@ async def rewrite_webserver_config(
                 backup_notes.append(f"Lỗi tạo vhost {row.get('domain_name', 'unknown')}: {str(e_vhost)}")
 
         # 4. Khởi động lại Web Server tương ứng và đảm bảo trạng thái hoạt động
+        gatekeeper_bin = f"{WPC_BASE}/bin/app"
         if ws == "nginx":
-            ngx_svc = get_nginx_service()
+            ngx_svc = resolve_app_service("nginx")
             try:
                 subprocess.run(["sudo", "systemctl", "enable", ngx_svc], check=False)
                 test_cmd = ["sudo", "nginx", "-t"]
                 if os.path.exists("/usr/local/openresty/nginx/sbin/nginx"):
                     test_cmd = ["sudo", "/usr/local/openresty/nginx/sbin/nginx", "-t"]
+                elif os.path.exists("/usr/sbin/nginx"):
+                    test_cmd = ["sudo", "/usr/sbin/nginx", "-t"]
                 test_proc = subprocess.run(test_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                if test_proc.returncode == 0:
-                    subprocess.run(["sudo", "systemctl", "restart", ngx_svc], check=False)
-                else:
+                if test_proc.returncode != 0:
                     backup_notes.append(f"Cảnh báo Nginx/OpenResty config test: {test_proc.stderr or test_proc.stdout}")
+                
+                # Khởi động lại qua Gatekeeper hoặc sudo
+                restarted = False
+                if os.path.isfile(gatekeeper_bin):
+                    p_restart = subprocess.run([gatekeeper_bin, "service", "restart", ngx_svc], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    restarted = (p_restart.returncode == 0)
+                if not restarted:
                     subprocess.run(["sudo", "systemctl", "restart", ngx_svc], check=False)
             except Exception as ngx_e:
                 backup_notes.append(f"Lỗi khởi động {ngx_svc}: {str(ngx_e)}")
         elif ws == "ols":
             try:
                 subprocess.run(["sudo", "systemctl", "enable", "lshttpd"], check=False)
-                subprocess.run(["sudo", "systemctl", "restart", "lshttpd"], check=False)
-                subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
+                restarted = False
+                if os.path.isfile(gatekeeper_bin):
+                    p1 = subprocess.run([gatekeeper_bin, "service", "restart", "lshttpd"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    p2 = subprocess.run([gatekeeper_bin, "service", "restart", "lsws"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    restarted = (p1.returncode == 0 or p2.returncode == 0)
+                if not restarted:
+                    subprocess.run(["sudo", "systemctl", "restart", "lshttpd"], check=False)
+                    subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
             except Exception as ols_e:
                 backup_notes.append(f"Lỗi khởi động OLS: {str(ols_e)}")
 
