@@ -50,7 +50,7 @@ group = ${USERNAME}
 listen = $SOCK_FILE
 listen.owner = www-data
 listen.group = www-data
-listen.mode = 0660
+listen.mode = 0666
 
 pm = dynamic
 pm.max_children = 10
@@ -138,6 +138,10 @@ EOF
         fi
 
         systemctl restart "$SVC_NAME" 2>/dev/null || true
+        for i in 1 2 3; do
+            [ -S "$SOCK_FILE" ] && chmod 666 "$SOCK_FILE" 2>/dev/null && break
+            sleep 0.2
+        done
         ;;
 
     start)

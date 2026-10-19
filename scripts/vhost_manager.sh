@@ -31,6 +31,164 @@ ensure_linux_user() {
     fi
 }
 
+# Cấu hình PHP cho OpenLiteSpeed: Hỗ trợ linh hoạt cả Native LSPHP, FastCGI Bridge (cho PHP cũ như 5.6), và Fallback
+setup_ols_vhost_php() {
+    local domain="$1"
+    local username="$2"
+    local php_ver="$3"
+    local hosting_user="$4"
+    local vh_conf="$5"
+
+    local php_num
+    php_num=$(echo "$php_ver" | tr -d '.')
+    local lsphp_bin="/usr/local/lsws/lsphp${php_num}/bin/lsphp"
+
+    # 1. Nếu chưa có binary LSPHP, thử tự động cài đặt qua apt
+    if [ ! -x "$lsphp_bin" ]; then
+        if command -v apt-get &>/dev/null; then
+            apt-get update -qq 2>/dev/null || true
+            apt-get install -y "lsphp${php_num}" "lsphp${php_num}-common" "lsphp${php_num}-mysql" "lsphp${php_num}-opcache" "lsphp${php_num}-curl" 2>/dev/null || true
+        fi
+    fi
+
+    # Xóa block extprocessor và scripthandler cũ trong vhconf.conf nếu đã có
+    sed -i '/extprocessor[[:space:]]\+[^[:space:]]\+[[:space:]]*{/,/^[[:space:]]*}/d' "$vh_conf" 2>/dev/null || true
+    sed -i '/scripthandler[[:space:]]*{/,/^[[:space:]]*}/d' "$vh_conf" 2>/dev/null || true
+
+    # 2. Trường hợp A: Có LSPHP native của OLS (/usr/local/lsws/lsphp<ver>/bin/lsphp)
+    if [ -x "$lsphp_bin" ]; then
+        echo "[+] Su dung Native LSPHP $php_num ($lsphp_bin) cho $domain"
+        cat <<EOF_LSPHP >> "$vh_conf"
+
+extprocessor lsphp_${username} {
+  type                    lsapi
+  address                 uds://tmp/lshttpd/lsphp_${username}.sock
+  maxConns                10
+  env                     LSAPI_CHILDREN=10
+  initTimeout             60
+  retryTimeout            0
+  persistConn             1
+  respBuffer              0
+  autoStart               1
+  path                    $lsphp_bin
+  backlog                 100
+  instances               1
+  runOn                   1
+  extUser                 ${username}
+  extGroup                ${username}
+  priority                0
+  memSoftLimit            1024M
+  memHardLimit            2048M
+  procSoftLimit           200
+  procHardLimit           300
+}
+
+scripthandler {
+  add                     lsapi:lsphp_${username} php
+}
+EOF_LSPHP
+
+        # Dừng tiến trình lsphp cũ để nạp binary mới
+        pkill -9 -u "$username" -f "lsphp" 2>/dev/null || true
+        rm -f "/tmp/lshttpd/lsphp_${username}.sock" 2>/dev/null || true
+
+        # Dừng và tắt toàn bộ PHP-FPM service của user vì OLS đã dùng LSPHP native
+        for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+            systemctl stop "wpc-php${pver}-fpm@${username}.service" 2>/dev/null || true
+            systemctl disable "wpc-php${pver}-fpm@${username}.service" 2>/dev/null || true
+            rm -f "/etc/php/${pver}/fpm/users/${username}.conf" "/run/php/php${pver}-fpm-${username}.sock" "/run/php/php${pver}-fpm-${username}.pid" 2>/dev/null || true
+        done
+
+    # 3. Trường hợp B: Không có LSPHP trong repo OLS nhưng có PHP-FPM (VD: PHP 5.6 trên Ubuntu) -> Bridge FastCGI
+    elif [ -x "/usr/sbin/php-fpm${php_ver}" ] || [ -f "/etc/php/${php_ver}/fpm/php-fpm.conf" ]; then
+        echo "[!] OLS khong co goi lsphp$php_num, tu dong bridge sang FastCGI PHP-FPM $php_ver cho $domain..."
+        if [ -f "$WPC_DIR/scripts/php_fpm_service.sh" ]; then
+            bash "$WPC_DIR/scripts/php_fpm_service.sh" create "$username" "$php_ver" "$hosting_user" 2>/dev/null || true
+        fi
+        local sock_file="/run/php/php${php_ver}-fpm-${username}.sock"
+        chmod 666 "$sock_file" 2>/dev/null || true
+
+        cat <<EOF_FCGI >> "$vh_conf"
+
+extprocessor fcgi_${username} {
+  type                    fcgi
+  address                 uds://run/php/php${php_ver}-fpm-${username}.sock
+  maxConns                10
+  initTimeout             60
+  retryTimeout            0
+  persistConn             1
+  respBuffer              0
+}
+
+scripthandler {
+  add                     fcgi:fcgi_${username} php
+}
+EOF_FCGI
+
+        # Dọn dẹp các service PHP-FPM khác của user, CHỈ GIỮ phiên bản $php_ver đang làm backend
+        for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+            if [ "$pver" != "$php_ver" ]; then
+                systemctl stop "wpc-php${pver}-fpm@${username}.service" 2>/dev/null || true
+                systemctl disable "wpc-php${pver}-fpm@${username}.service" 2>/dev/null || true
+                rm -f "/etc/php/${pver}/fpm/users/${username}.conf" "/run/php/php${pver}-fpm-${username}.sock" "/run/php/php${pver}-fpm-${username}.pid" 2>/dev/null || true
+            fi
+        done
+        pkill -9 -u "$username" -f "lsphp" 2>/dev/null || true
+        rm -f "/tmp/lshttpd/lsphp_${username}.sock" 2>/dev/null || true
+
+    # 4. Trường hợp C: Cả 2 đều thiếu, Fallback an toàn sang phiên bản LSPHP có sẵn để tránh lỗi 403
+    else
+        local fallback_num=""
+        for fb in 82 83 81 84 80 74; do
+            if [ -x "/usr/local/lsws/lsphp${fb}/bin/lsphp" ]; then
+                fallback_num="$fb"
+                break
+            fi
+        done
+        [ -z "$fallback_num" ] && fallback_num="82"
+        local fb_bin="/usr/local/lsws/lsphp${fallback_num}/bin/lsphp"
+        echo "[-] Canh bao: Khong tim thay binary PHP $php_ver, tu dong fallback sang LSPHP $fallback_num ($fb_bin)..."
+
+        cat <<EOF_FB >> "$vh_conf"
+
+extprocessor lsphp_${username} {
+  type                    lsapi
+  address                 uds://tmp/lshttpd/lsphp_${username}.sock
+  maxConns                10
+  env                     LSAPI_CHILDREN=10
+  initTimeout             60
+  retryTimeout            0
+  persistConn             1
+  respBuffer              0
+  autoStart               1
+  path                    $fb_bin
+  backlog                 100
+  instances               1
+  runOn                   1
+  extUser                 ${username}
+  extGroup                ${username}
+  priority                0
+  memSoftLimit            1024M
+  memHardLimit            2048M
+  procSoftLimit           200
+  procHardLimit           300
+}
+
+scripthandler {
+  add                     lsapi:lsphp_${username} php
+}
+EOF_FB
+
+        pkill -9 -u "$username" -f "lsphp" 2>/dev/null || true
+        rm -f "/tmp/lshttpd/lsphp_${username}.sock" 2>/dev/null || true
+        for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+            systemctl stop "wpc-php${pver}-fpm@${username}.service" 2>/dev/null || true
+            systemctl disable "wpc-php${pver}-fpm@${username}.service" 2>/dev/null || true
+            rm -f "/etc/php/${pver}/fpm/users/${username}.conf" "/run/php/php${pver}-fpm-${username}.sock" "/run/php/php${pver}-fpm-${username}.pid" 2>/dev/null || true
+        done
+    fi
+}
+
 # 2. Xử lý các hành động
 case "$ACTION" in
     add)
@@ -145,6 +303,7 @@ EOF
                         -e "s|{{DOCUMENT_ROOT}}|$DOC_ROOT|g" \
                         "$WPC_DIR/templates/vhost_ols/default.tpl" > "$VH_DIR/vhconf.conf"
                 fi
+                setup_ols_vhost_php "$DOMAIN" "$USERNAME" "$PHP_VER" "$HOSTING_USER" "$VH_DIR/vhconf.conf"
                 
                 # Đăng ký vhost vào httpd_config.conf nếu chưa có
                 OLS_MAIN_CONF="/usr/local/lsws/conf/httpd_config.conf"
@@ -336,10 +495,6 @@ EOF
         if [ "$WEBSERVER" = "ols" ] || ([ "$WEBSERVER" = "all" ] && [ -f "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf" ]); then
             VH_CONF="/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf"
             if [ -f "$VH_CONF" ]; then
-                # Cập nhật đường dẫn binary PHP cho LSPHP
-                sed -i -E "s|path[[:space:]]+/usr/local/lsws/lsphp[0-9]+/bin/lsphp|path /usr/local/lsws/lsphp${PHP_NUM}/bin/lsphp|" "$VH_CONF" 2>/dev/null || true
-                sed -i -E "s/lsapi:lsphp[0-9]+/lsapi:lsphp$PHP_NUM/" "$VH_CONF" 2>/dev/null || true
-
                 # Đảm bảo có indexFiles nếu file cũ chưa có
                 if ! grep -q "indexFiles" "$VH_CONF"; then
                     sed -i "1s/^/indexFiles                index.php, index.html, index.htm\n\n/" "$VH_CONF" 2>/dev/null || true
@@ -366,14 +521,13 @@ rewrite  {
 EOF_RW
                 fi
 
+                # Áp dụng cấu hình PHP chuyên sâu (Native LSPHP hoặc Bridge FastCGI nếu thiếu gói như PHP 5.6)
+                setup_ols_vhost_php "$DOMAIN" "$USERNAME" "$PHP_VER" "$HOSTING_USER" "$VH_CONF"
+
                 # Đảm bảo restrained 0 trong httpd_config.conf cho vhost này
                 if [ -f "/usr/local/lsws/conf/httpd_config.conf" ]; then
                     sed -i "/virtualhost[[:space:]]\+$DOMAIN[[:space:]]*{/,/^[[:space:]]*}/ s/restrained[[:space:]]\+1/restrained              0/" /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
                 fi
-
-                # Dừng ngay tiến trình lsphp cũ của user này để OLS khởi tạo LSPHP phiên bản mới
-                pkill -9 -u "$USERNAME" -f "lsphp" 2>/dev/null || true
-                rm -f "/tmp/lshttpd/lsphp_${USERNAME}.sock" 2>/dev/null || true
 
                 # Khởi động lại OLS để nhận cấu hình tức thì
                 /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
@@ -385,13 +539,8 @@ EOF_RW
                 done) &>/dev/null &
             fi
 
-            # Khi chạy OLS, TUYỆT ĐỐI KHÔNG để PHP-FPM service của user này chạy
+            # Dọn dẹp vhost Nginx khi đang chạy OLS
             rm -f "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
-            for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
-                systemctl stop "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
-                systemctl disable "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
-                rm -f "/etc/php/${pver}/fpm/users/${USERNAME}.conf" "/run/php/php${pver}-fpm-${USERNAME}.sock" "/run/php/php${pver}-fpm-${USERNAME}.pid" 2>/dev/null || true
-            done
         fi
 
         # 3. Xử lý Nginx khi chọn Nginx
@@ -510,6 +659,22 @@ EOF_RW
                 # Kích hoạt và khởi động lại lsws
                 systemctl enable lsws 2>/dev/null || systemctl enable lshttpd 2>/dev/null || true
                 /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
+
+                # Đảm bảo các vhost OLS đang dùng FastCGI Bridge (như PHP 5.6) có service PHP-FPM hoạt động
+                for vh in /usr/local/lsws/conf/vhosts/*/vhconf.conf; do
+                    if [ -f "$vh" ] && grep -q "type[[:space:]]\+fcgi" "$vh"; then
+                        sock_line=$(grep -oE "address[[:space:]]+uds://run/php/php[0-9.]+-fpm-[^[:space:]]+\.sock" "$vh" | head -n 1 || true)
+                        if [ -n "$sock_line" ]; then
+                            p_ver=$(echo "$sock_line" | sed -nE 's/.*php([0-9.]+)-fpm-.*/\1/p')
+                            p_user=$(echo "$sock_line" | sed -nE 's/.*-fpm-([^.]+)\.sock/\1/p')
+                            if [ -n "$p_ver" ] && [ -n "$p_user" ]; then
+                                systemctl enable "wpc-php${p_ver}-fpm@${p_user}.service" 2>/dev/null || true
+                                systemctl start "wpc-php${p_ver}-fpm@${p_user}.service" 2>/dev/null || true
+                                [ -S "/run/php/php${p_ver}-fpm-${p_user}.sock" ] && chmod 666 "/run/php/php${p_ver}-fpm-${p_user}.sock" 2>/dev/null || true
+                            fi
+                        fi
+                    fi
+                done
             fi
         elif [ "$WEBSERVER" = "nginx" ]; then
             # Tắt OLS và tiêu diệt triệt để toàn bộ tiến trình lshttpd / lsphp để giải phóng port & RAM
