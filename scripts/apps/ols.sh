@@ -43,6 +43,12 @@ case "$ACTION" in
     remove)
         echo "[+] Đang gỡ cài đặt OpenLiteSpeed..."
         systemctl stop lshttpd 2>/dev/null || true
+        systemctl stop lsws 2>/dev/null || true
+        pkill -9 -f "openlitespeed" 2>/dev/null || true
+        pkill -9 -f "lshttpd" 2>/dev/null || true
+        pkill -9 -f "lsphp" 2>/dev/null || true
+        pkill -9 -f "lscgid" 2>/dev/null || true
+        rm -rf /tmp/lshttpd/*.sock 2>/dev/null || true
         apt-get remove -y openlitespeed 2>/dev/null || true
         ;;
     *)

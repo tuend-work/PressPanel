@@ -168,6 +168,16 @@ asyncio.run(reset_pass())
             echo "    [-] Đã dừng toàn bộ dịch vụ PHP-FPM thừa (OpenLiteSpeed đang sử dụng LSPHP)"
         fi
 
+        # Nếu Nginx đang chạy và OLS tắt, dọn sạch toàn bộ tiến trình lsphp thừa của OpenLiteSpeed
+        if systemctl is-active --quiet nginx 2>/dev/null && ! systemctl is-active --quiet lshttpd 2>/dev/null; then
+            pkill -9 -f "openlitespeed" 2>/dev/null || true
+            pkill -9 -f "lshttpd" 2>/dev/null || true
+            pkill -9 -f "lsphp" 2>/dev/null || true
+            pkill -9 -f "lscgid" 2>/dev/null || true
+            rm -rf /tmp/lshttpd/*.sock 2>/dev/null || true
+            echo "    [-] Đã dừng toàn bộ dịch vụ LSPHP thừa (Nginx đang sử dụng PHP-FPM)"
+        fi
+
         for user_home in /home/*; do
             [ -d "$user_home" ] || continue
             u_name=$(basename "$user_home")

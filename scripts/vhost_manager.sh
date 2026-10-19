@@ -254,6 +254,9 @@ EOF
                 sed -i "/virtualhost[[:space:]]\+$DOMAIN[[:space:]]*{/,/^[[:space:]]*}/d" /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
                 sed -i "/map[[:space:]]\+$DOMAIN/d" /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
             fi
+            # Dừng tiến trình lsphp riêng của user này nếu có
+            pkill -9 -u "$USERNAME" -f "lsphp" 2>/dev/null || true
+            rm -f "/tmp/lshttpd/lsphp_${USERNAME}.sock" 2>/dev/null || true
             /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lsws 2>/dev/null || true
         fi
 
@@ -429,9 +432,15 @@ EOF
                 /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
             fi
         elif [ "$WEBSERVER" = "nginx" ]; then
-            # Tắt OLS để giải phóng port 80/443 cho Nginx
+            # Tắt OLS và tiêu diệt triệt để toàn bộ tiến trình lshttpd / lsphp để giải phóng port & RAM
+            echo "[+] Dang chuyen sang Nginx: Dung OLS va tat toan bo tien trinh lsphp..."
             /usr/local/lsws/bin/lswsctrl stop 2>/dev/null || systemctl stop lsws 2>/dev/null || systemctl stop lshttpd 2>/dev/null || true
             systemctl disable lsws 2>/dev/null || systemctl disable lshttpd 2>/dev/null || true
+            pkill -9 -f "openlitespeed" 2>/dev/null || true
+            pkill -9 -f "lshttpd" 2>/dev/null || true
+            pkill -9 -f "lsphp" 2>/dev/null || true
+            pkill -9 -f "lscgid" 2>/dev/null || true
+            rm -rf /tmp/lshttpd/*.sock 2>/dev/null || true
 
             # Chuẩn hóa phân quyền 711 /home
             chmod 711 /home 2>/dev/null || true

@@ -197,6 +197,12 @@ if ! systemctl is-active --quiet lshttpd 2>/dev/null && ! systemctl is-active --
         fi
     done
     /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true
+    # Dọn dẹp triệt để các tiến trình lsphp thừa của OLS
+    pkill -9 -f "openlitespeed" 2>/dev/null || true
+    pkill -9 -f "lshttpd" 2>/dev/null || true
+    pkill -9 -f "lsphp" 2>/dev/null || true
+    pkill -9 -f "lscgid" 2>/dev/null || true
+    rm -rf /tmp/lshttpd/*.sock 2>/dev/null || true
 fi
 
 # Đảm bảo thư mục runtime socket của OLS tồn tại và có quyền 1777

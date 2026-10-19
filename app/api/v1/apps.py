@@ -1024,7 +1024,7 @@ async def rewrite_webserver_config(
         success_count = 0
         fail_count = 0
 
-        # 2.4. Nếu chuyển sang OLS, tắt toàn bộ các service PHP-FPM (user + system)
+        # 2.4. Dọn dẹp tiến trình khi chuyển đổi Web Server
         if ws == "ols":
             try:
                 subprocess.run(["systemctl", "stop", "wpc-php*-fpm@*"], check=False)
@@ -1033,6 +1033,19 @@ async def rewrite_webserver_config(
                     subprocess.run(["systemctl", "stop", f"php{pver}-fpm"], check=False)
                     subprocess.run(["systemctl", "disable", f"php{pver}-fpm"], check=False)
                 subprocess.run(["pkill", "-9", "-f", "php-fpm"], check=False)
+            except Exception:
+                pass
+        elif ws == "nginx":
+            try:
+                subprocess.run(["systemctl", "stop", "lshttpd"], check=False)
+                subprocess.run(["systemctl", "stop", "lsws"], check=False)
+                subprocess.run(["systemctl", "disable", "lshttpd"], check=False)
+                subprocess.run(["systemctl", "disable", "lsws"], check=False)
+                subprocess.run(["pkill", "-9", "-f", "openlitespeed"], check=False)
+                subprocess.run(["pkill", "-9", "-f", "lshttpd"], check=False)
+                subprocess.run(["pkill", "-9", "-f", "lsphp"], check=False)
+                subprocess.run(["pkill", "-9", "-f", "lscgid"], check=False)
+                subprocess.run(["rm", "-rf", "/tmp/lshttpd/*.sock"], check=False)
             except Exception:
                 pass
 
