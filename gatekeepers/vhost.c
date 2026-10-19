@@ -17,6 +17,10 @@ int main(int argc, char *argv[]) {
 
     if (strcmp(action, "rewrite-all") == 0) {
         const char *webserver = (argc > 2) ? argv[2] : "ols";
+        if (!is_safe_webserver(webserver)) {
+            send_json_error("vhost", "Webserver khong hop le");
+            return 1;
+        }
         char cmd[512];
         snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh rewrite-all all all %s", webserver);
         int ret = system(cmd);
@@ -47,6 +51,10 @@ int main(int argc, char *argv[]) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
         const char *php_ver = (argc > 5) ? argv[5] : "8.2";
         const char *hosting_user = (argc > 6) ? argv[6] : username;
+        if (!is_safe_webserver(webserver) || !is_safe_php_ver(php_ver)) {
+            send_json_error("vhost", "Webserver hoac PHP version khong hop le");
+            return 1;
+        }
         if (argc > 6 && !is_safe_id(hosting_user)) {
             send_json_error("vhost", "Hosting user khong hop le");
             return 1;
@@ -56,6 +64,10 @@ int main(int argc, char *argv[]) {
     }
     else if (strcmp(action, "remove") == 0) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
+        if (!is_safe_webserver(webserver)) {
+            send_json_error("vhost", "Webserver khong hop le");
+            return 1;
+        }
         snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh remove %s %s %s",
                  username, domain, webserver);
     }
@@ -63,6 +75,10 @@ int main(int argc, char *argv[]) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
         const char *php_ver = (argc > 5) ? argv[5] : "8.2";
         const char *hosting_user = (argc > 6) ? argv[6] : username;
+        if (!is_safe_webserver(webserver) || !is_safe_php_ver(php_ver)) {
+            send_json_error("vhost", "Webserver hoac PHP version khong hop le");
+            return 1;
+        }
         if (argc > 6 && !is_safe_id(hosting_user)) {
             send_json_error("vhost", "Hosting user khong hop le");
             return 1;

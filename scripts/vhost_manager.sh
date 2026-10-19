@@ -137,7 +137,7 @@ EOF
 virtualhost $DOMAIN {
   vhRoot                  /home/$USERNAME
   configFile              conf/vhosts/$DOMAIN/vhconf.conf
-  allowSymbolLink         1
+  allowSymbolLink         2
   enableScript            1
   restrained              1
 }

@@ -10,7 +10,7 @@ set -euo pipefail
 # Tự động nhân bản script sang /tmp để tránh lỗi bash buffer khi tự ghi đè file scripts
 CURRENT_SCRIPT="${BASH_SOURCE[0]:-$0}"
 if [ -f "$CURRENT_SCRIPT" ] && [[ "$CURRENT_SCRIPT" != /tmp/* ]]; then
-    TMP_SELF="/tmp/wpc_update_runner_$$.sh"
+    TMP_SELF=$(mktemp /tmp/wpc_update_runner_XXXXXX.sh 2>/dev/null || echo "/tmp/wpc_update_runner_$$.sh")
     cp "$CURRENT_SCRIPT" "$TMP_SELF"
     chmod +x "$TMP_SELF"
     exec bash "$TMP_SELF" "$@"
@@ -18,7 +18,7 @@ fi
 
 INSTALL_DIR="/opt/wpc"
 REPO_URL="https://github.com/tuend-work/PressPanel.git"
-TMP_DIR="/tmp/wpc-update-$$"
+TMP_DIR=$(mktemp -d /tmp/wpc-update-XXXXXX 2>/dev/null || echo "/tmp/wpc-update-$$")
 
 echo "=========================================================="
 echo "         CẬP NHẬT WPCLOUD CONTROL PANEL TỪ GITHUB         "
@@ -214,12 +214,10 @@ for user_home in /home/*; do
     owner_u=$(stat -c '%U' "$user_home" 2>/dev/null || echo "$u_name")
     owner_g=$(stat -c '%G' "$user_home" 2>/dev/null || echo "$u_name")
     
-    # Gán bổ sung quyền group cho wpc, nobody (OLS), www-data (Nginx) để phục vụ website
+    # Gán bổ sung quyền group duy nhất cho user panel wpc để quản lý file an toàn
     for grp in "$u_name" "$owner_g" "$owner_u"; do
         if getent group "$grp" &>/dev/null; then
-            for svc_u in wpc nobody www-data; do
-                id "$svc_u" &>/dev/null && usermod -a -G "$grp" "$svc_u" 2>/dev/null || true
-            done
+            id "$PANEL_USER" &>/dev/null && usermod -a -G "$grp" "$PANEL_USER" 2>/dev/null || true
         fi
     done
 

@@ -22,12 +22,9 @@ int main(int argc, char *argv[]) {
     }
 
     // Bảo vệ tuyệt đối tài khoản hệ thống (root, wpc, nobody, www-data, UID < 1000)
-    if (strcmp(action, "delete") == 0 || strcmp(action, "suspend") == 0 ||
-        strcmp(action, "unsuspend") == 0 || strcmp(action, "set-quota") == 0) {
-        if (is_system_user(username)) {
-            send_json_error("user", "Tu choi thao tac: Khong duoc phep thay doi tai khoan he thong");
-            return 1;
-        }
+    if (is_system_user(username)) {
+        send_json_error("user", "Tu choi thao tac: Khong duoc phep thao tac tren tai khoan he thong");
+        return 1;
     }
 
     if (strcmp(action, "create") == 0) {

@@ -180,13 +180,31 @@ async def get_tasks_list(
 
 @router.get("/{task_id}/log")
 async def get_task_log(task_id: str, current_user: dict = Depends(get_current_user)):
-    """Đọc log thời gian thực của tác vụ"""
-    log_file = os.path.join(TASKS_LOG_DIR, f"{task_id}.log")
-    if not os.path.exists(log_file):
+    """Đọc log thời gian thực của tác vụ (Bảo vệ phân quyền và chống Path Traversal)"""
+    import re
+    if not re.match(r"^[a-zA-Z0-9_-]{1,32}$", task_id):
+        raise HTTPException(status_code=400, detail="Mã tác vụ không hợp lệ")
+
+    # Kiểm tra quyền sở hữu tác vụ nếu không phải là admin
+    if current_user.get("role") != "admin":
+        db = await get_db_connection()
+        cur = await db.execute("SELECT id FROM tasks WHERE id = ? AND user_id = ?", (task_id, current_user["id"]))
+        owner_check = await cur.fetchone()
+        await db.close()
+        if not owner_check:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền xem nhật ký tác vụ này")
+
+    from pathlib import Path
+    base_log_dir = Path(TASKS_LOG_DIR).resolve()
+    target_log = (base_log_dir / f"{task_id}.log").resolve()
+    if not target_log.is_relative_to(base_log_dir):
+        raise HTTPException(status_code=403, detail="Yêu cầu bị từ chối")
+
+    if not target_log.is_file():
         return {"id": task_id, "log": "Đang khởi tạo tiến trình... Vui lòng đợi.\n"}
 
     try:
-        with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+        with open(target_log, "r", encoding="utf-8", errors="replace") as f:
             content = f.read()
         return {"id": task_id, "log": content or "Đang chạy..."}
     except Exception as e:

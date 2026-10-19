@@ -41,9 +41,42 @@ def get_conf_path() -> str:
 
 CONF_DATA = parse_wpc_conf(get_conf_path())
 
+def get_or_create_secret_key() -> str:
+    env_key = os.getenv("WPC_SECRET_KEY")
+    if env_key and len(env_key) >= 16 and "change-this" not in env_key and "change-me" not in env_key:
+        return env_key
+    conf_key = CONF_DATA.get("secret_key", "")
+    if conf_key and len(conf_key) >= 16 and "change-this" not in conf_key and "change-me" not in conf_key:
+        return conf_key
+
+    # Tự động sinh và lưu khóa an toàn ngẫu nhiên nếu chưa có hoặc đang dùng khóa mặc định
+    key_file = os.path.join(CONF_DATA.get("data_dir", "/opt/wpc/data"), ".secret_key")
+    if not os.path.isdir(os.path.dirname(key_file)):
+        base_proj = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        key_file = os.path.join(base_proj, "data", ".secret_key")
+
+    try:
+        if os.path.isfile(key_file):
+            with open(key_file, "r", encoding="utf-8") as f:
+                k = f.read().strip()
+                if len(k) >= 32:
+                    return k
+        import secrets
+        new_k = secrets.token_hex(32)
+        os.makedirs(os.path.dirname(key_file), exist_ok=True)
+        with open(key_file, "w", encoding="utf-8") as f:
+            f.write(new_k)
+        try:
+            os.chmod(key_file, 0o600)
+        except Exception:
+            pass
+        return new_k
+    except Exception:
+        return conf_key or "wpc-fallback-secret-key-32-chars-long-minimum!!"
+
 class Settings:
     PROJECT_NAME: str = "WPCloud"
-    VERSION: str = "0.5.37"
+    VERSION: str = "0.5.38"
     API_V1_STR: str = "/api/v1"
     
     # Mạng & Cổng kết nối
@@ -51,8 +84,8 @@ class Settings:
     PORT: int = int(os.getenv("WPC_PORT", CONF_DATA.get("port", 8888)))
     SERVERNAME: str = CONF_DATA.get("servername", "localhost")
     
-    # Bảo mật & JWT
-    SECRET_KEY: str = os.getenv("WPC_SECRET_KEY", CONF_DATA.get("secret_key", "change-this-in-production-wpc-secret-key-123456"))
+    # Bảo mật & JWT (Tự sinh ngẫu nhiên nếu chưa cấu hình)
+    SECRET_KEY: str = get_or_create_secret_key()
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(CONF_DATA.get("access_token_expire_days", 7)) * 24 * 60
     SESSION_TIMEOUT: int = int(CONF_DATA.get("session_timeout", 60))

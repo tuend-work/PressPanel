@@ -38,13 +38,29 @@ int main(int argc, char *argv[]) {
     char cmd[1024];
 
     if (strcmp(action, "install") == 0) {
+        if (!is_safe_id(app_name)) {
+            send_json_error("app", "Ten app khong hop le");
+            return 1;
+        }
         const char *version = (argc > 3) ? argv[3] : "latest";
+        if (!is_safe_token(version)) {
+            send_json_error("app", "Version khong hop le");
+            return 1;
+        }
         snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/apps/%s.sh install %s", app_name, version);
     }
     else if (strcmp(action, "remove") == 0) {
+        if (!is_safe_id(app_name)) {
+            send_json_error("app", "Ten app khong hop le");
+            return 1;
+        }
         snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/apps/%s.sh remove", app_name);
     }
     else if (strcmp(action, "status") == 0) {
+        if (!is_safe_id(app_name)) {
+            send_json_error("app", "Ten app khong hop le");
+            return 1;
+        }
         snprintf(cmd, sizeof(cmd), "systemctl is-active --quiet %s", app_name);
         int active = (system(cmd) == 0);
         char extra[128];
@@ -73,13 +89,17 @@ int main(int argc, char *argv[]) {
         const char *op = argv[2];
         const char *php_ver = argv[3];
         const char *ext = argv[4];
+        if (!is_safe_id(op) || !is_safe_php_ver(php_ver) || !is_safe_token(ext)) {
+            send_json_error("app", "Tham so php-ext khong hop le");
+            return 1;
+        }
         snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/apps/php.sh %s-ext %s %s", op, php_ver, ext);
     }
     else if (strcmp(action, "config-read") == 0) {
-        // Doc file cau hinh an toan bang dac quyen root
+        // Doc file cau hinh an toan bang dac quyen root qua whitelist
         const char *filepath = argv[2];
-        if (strstr(filepath, "..")) {
-            send_json_error("app", "Duong dan khong hop le");
+        if (!is_safe_config_path(filepath)) {
+            send_json_error("app", "Duong dan doc cau hinh bi tu choi boi chinh sach bao mat");
             return 1;
         }
         FILE *fp = fopen(filepath, "r");
@@ -103,8 +123,8 @@ int main(int argc, char *argv[]) {
         }
         const char *src_tmp = argv[2];
         const char *dest_path = argv[3];
-        if (strstr(src_tmp, "..") || strstr(dest_path, "..")) {
-            send_json_error("app", "Duong dan khong hop le");
+        if (strncmp(src_tmp, "/tmp/", 5) != 0 || strstr(src_tmp, "..") || !is_safe_config_path(dest_path)) {
+            send_json_error("app", "Duong dan ghi cau hinh bi tu choi boi chinh sach bao mat");
             return 1;
         }
         FILE *fsrc = fopen(src_tmp, "r");
@@ -241,14 +261,14 @@ int main(int argc, char *argv[]) {
         const char *format = argv[4];
         const char *items = argv[5];
 
-        if (!is_safe_home_path(work_dir) || !is_safe_token(archive_name)) {
+        if (!is_safe_home_path(work_dir) || !is_safe_token(archive_name) || archive_name[0] == '-') {
             send_json_error("app", "Thu muc lam viec hoac ten file nen khong hop le");
             return 1;
         }
 
-        // Kiểm tra an toàn cho danh sách items
-        if (strstr(items, "..")) {
-            send_json_error("app", "Danh sach muc nen chua ky tu traversal nguy hiem");
+        // Kiểm tra an toàn cho danh sách items (chống cờ flag injection và traversal)
+        if (strstr(items, "..") || items[0] == '-' || strstr(items, " -")) {
+            send_json_error("app", "Danh sach muc nen chua ky tu traversal hoac co lenh nguy hiem");
             return 1;
         }
         for (size_t i = 0; items[i]; i++) {
@@ -262,11 +282,11 @@ int main(int argc, char *argv[]) {
 
         char archive_cmd[4096];
         if (strcmp(format, "zip") == 0) {
-            snprintf(archive_cmd, sizeof(archive_cmd), "cd '%s' && zip -r -q '%s' %s", work_dir, archive_name, items);
+            snprintf(archive_cmd, sizeof(archive_cmd), "cd '%s' && zip -r -q '%s' -- %s", work_dir, archive_name, items);
         } else if (strcmp(format, "tar") == 0) {
-            snprintf(archive_cmd, sizeof(archive_cmd), "cd '%s' && tar -cf '%s' %s", work_dir, archive_name, items);
+            snprintf(archive_cmd, sizeof(archive_cmd), "cd '%s' && tar -cf '%s' -- %s", work_dir, archive_name, items);
         } else if (strcmp(format, "tar.gz") == 0 || strcmp(format, "tgz") == 0 || strcmp(format, "gz") == 0) {
-            snprintf(archive_cmd, sizeof(archive_cmd), "cd '%s' && tar -czf '%s' %s", work_dir, archive_name, items);
+            snprintf(archive_cmd, sizeof(archive_cmd), "cd '%s' && tar -czf '%s' -- %s", work_dir, archive_name, items);
         } else {
             send_json_error("app", "Dinh dang nen khong duoc ho tro");
             return 1;

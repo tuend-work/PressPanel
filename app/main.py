@@ -34,12 +34,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS Middleware
+# CORS Middleware (Bảo mật: Không dùng wildcard kết hợp allow_credentials)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -83,9 +83,16 @@ async def serve_root():
 
 @app.get("/{full_path:path}", include_in_schema=False)
 async def serve_spa_fallback(full_path: str):
-    candidate = os.path.join(settings.STATIC_DIR, full_path)
-    if os.path.isfile(candidate):
-        return FileResponse(candidate)
+    from pathlib import Path
+    try:
+        static_base = Path(settings.STATIC_DIR).resolve()
+        candidate = (static_base / full_path).resolve()
+        # Chống triệt để Path Traversal ra khỏi STATIC_DIR
+        if candidate.is_relative_to(static_base) and candidate.is_file():
+            return FileResponse(str(candidate))
+    except (ValueError, Exception):
+        pass
+
     index_path = get_index_html_path()
     if index_path and os.path.isfile(index_path):
         return FileResponse(index_path, media_type="text/html")

@@ -33,10 +33,9 @@ int main(int argc, char *argv[]) {
             return 1;
         }
 
-        // Chặn ghi đè vào các file nhạy cảm của hệ điều hành
-        if (strstr(out_path, "..") || strstr(out_path, "/etc/shadow") ||
-            strstr(out_path, "/etc/sudoers") || strstr(out_path, "/etc/passwd")) {
-            send_json_error("template", "Duong dan out_path khong duoc phep ghi");
+        // Kiểm tra whitelist đường dẫn file cấu hình an toàn
+        if (!is_safe_config_path(out_path)) {
+            send_json_error("template", "Duong dan out_path khong duoc phep ghi boi chinh sach bao mat");
             return 1;
         }
 
@@ -100,6 +99,11 @@ int main(int argc, char *argv[]) {
         const char *app = argv[2];
         const char *level = argv[3];
         const char *id = argv[4];
+
+        if (!is_safe_id(app) || !is_safe_id(id) || !is_safe_id(level)) {
+            send_json_error("template", "Tham so template set khong hop le");
+            return 1;
+        }
 
         char tpl_path[512];
         if (strcmp(level, "default") == 0) {

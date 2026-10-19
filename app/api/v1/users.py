@@ -132,6 +132,15 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
     if not re.match(r"^[a-z0-9_-]{3,32}$", username):
         raise HTTPException(status_code=400, detail="Tên tài khoản không hợp lệ (3-32 ký tự, chỉ gồm a-z, 0-9, _, -)")
 
+    system_users = {
+        "root", "wpc", "nobody", "www-data", "bin", "daemon", "sys", "sync",
+        "games", "man", "lp", "mail", "news", "uucp", "proxy", "backup",
+        "list", "irc", "gnats", "systemd", "mysql", "mariadb", "nginx",
+        "lsadm", "redis", "postfix", "dovecot", "bind", "named", "sshd", "admin"
+    }
+    if username in system_users:
+        raise HTTPException(status_code=400, detail="Không được phép tạo tài khoản trùng với tên tài khoản hệ thống")
+
     db = await get_db_connection()
     cursor = await db.execute("SELECT id FROM users WHERE username = ? OR email = ?", (username, req.email.strip()))
     existing = await cursor.fetchone()

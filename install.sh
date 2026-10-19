@@ -9,7 +9,7 @@ INSTALL_DIR="/opt/wpc"
 PANEL_USER="wpc"
 PANEL_GROUP="wpc"
 REPO_URL="https://github.com/tuend-work/PressPanel.git"
-TMP_DIR="/tmp/wpc-install-$$"
+TMP_DIR=$(mktemp -d /tmp/wpc-install-XXXXXX 2>/dev/null || echo "/tmp/wpc-install-$$")
 
 echo "=========================================================="
 echo "    CÀI ĐẶT WPCLOUD CONTROL PANEL - TỐI ƯU CHO WORDPRESS  "
@@ -99,6 +99,10 @@ else
         cp "$SRC_DIR/conf/wpc.conf" "$INSTALL_DIR/conf/wpc.conf"
     fi
     sed -i "s/^port=.*/port=$PANEL_PORT/" "$INSTALL_DIR/conf/wpc.conf"
+    
+    # Tự động sinh Secret Key 64 hex ngẫu nhiên bảo vệ an toàn cho JWT
+    RANDOM_SECRET_KEY=$(openssl rand -hex 32 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(32))" 2>/dev/null || echo "wpc_sec_$(date +%s%N)_$RANDOM")
+    sed -i "s/^secret_key=.*/secret_key=$RANDOM_SECRET_KEY/" "$INSTALL_DIR/conf/wpc.conf"
     chmod 640 "$INSTALL_DIR/conf/wpc.conf"
     chown "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR/conf/wpc.conf"
 fi
@@ -134,9 +138,8 @@ for user_home in /home/*; do
     u_name=$(basename "$user_home")
     if id "$u_name" &>/dev/null; then
         chown -R "$u_name:$u_name" "$user_home" 2>/dev/null || true
-        for svc_u in wpc nobody www-data; do
-            id "$svc_u" &>/dev/null && usermod -a -G "$u_name" "$svc_u" 2>/dev/null || true
-        done
+        # Chỉ thêm user panel wpc vào group để quản lý file an toàn, không thêm nobody/www-data tránh phá vỡ cách ly
+        id "$PANEL_USER" &>/dev/null && usermod -a -G "$u_name" "$PANEL_USER" 2>/dev/null || true
         chmod 750 "$user_home" 2>/dev/null || true
         [ -d "$user_home/domains" ] && chmod 750 "$user_home/domains" 2>/dev/null || true
         [ -d "$user_home/public_html" ] && chmod 750 "$user_home/public_html" 2>/dev/null || true

@@ -20,8 +20,12 @@ def is_domain_owner(user_id: int, target_user: str) -> bool:
             return False
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
-        cur.execute("SELECT id FROM domains WHERE user_id = ? AND (document_root LIKE ? OR domain_name LIKE ?)",
-                    (user_id, f"%/home/{target_user}/%", f"%{target_user}%"))
+        # So khớp nghiêm ngặt theo document_root của website thuộc user_id (chống bypass bằng domain_name LIKE)
+        cur.execute("""
+            SELECT d.id FROM domains d
+            WHERE (d.user_id = ? OR d.user_id IN (SELECT id FROM users WHERE parent_id = ?))
+              AND (d.document_root = ? OR d.document_root LIKE ?)
+        """, (user_id, user_id, f"/home/{target_user}", f"/home/{target_user}/%"))
         row = cur.fetchone()
         conn.close()
         return bool(row)

@@ -158,6 +158,11 @@ int main(int argc, char *argv[]) {
         const char *reseller_id = argv[2];
         const char *username = argv[3];
 
+        if (!is_safe_id(reseller_id) || !is_safe_id(username)) {
+            send_json_error("cgroup", "Tham so ID hoac Username khong hop le");
+            return 1;
+        }
+
         char path[512];
         snprintf(path, sizeof(path), "%s/reseller_%s/user_%s/memory.current", CGROUP_ROOT, reseller_id, username);
         
@@ -181,6 +186,11 @@ int main(int argc, char *argv[]) {
         const char *reseller_id = argv[2];
         const char *username = argv[3];
         int freeze_state = atoi(argv[4]);
+
+        if (!is_safe_id(reseller_id) || !is_safe_id(username)) {
+            send_json_error("cgroup", "Tham so ID hoac Username khong hop le");
+            return 1;
+        }
 
         char path[512];
         snprintf(path, sizeof(path), "%s/reseller_%s/user_%s/cgroup.freeze", CGROUP_ROOT, reseller_id, username);

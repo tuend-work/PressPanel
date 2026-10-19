@@ -36,6 +36,11 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    if (is_system_user(username)) {
+        send_json_error("cage", "Tu choi thao tac tren tai khoan he thong");
+        return 1;
+    }
+
     struct passwd *pw = getpwnam(username);
     if (!pw) {
         send_json_error("cage", "Khong tim thay user Linux tuong ung");

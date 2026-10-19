@@ -29,9 +29,17 @@ int main(int argc, char *argv[]) {
         const char *admin_user = (argc > 5) ? argv[5] : "admin";
 
         // Kiểm tra không chứa ký tự phá vỡ lệnh shell
-        if (strchr(title, '\'') || strchr(admin_user, '\'')) {
-            send_json_error("wp", "Tieu de hoac admin user chua ky tu khong hop le");
+        if (!is_safe_id(admin_user)) {
+            send_json_error("wp", "Admin user khong hop le");
             return 1;
+        }
+        for (size_t i = 0; title[i]; i++) {
+            char c = title[i];
+            if (c == '\'' || c == '"' || c == '`' || c == '$' || c == ';' ||
+                c == '&' || c == '|' || c == '\n' || c == '\r' || c == '\\') {
+                send_json_error("wp", "Tieu de WordPress chua ky tu nguy hiem");
+                return 1;
+            }
         }
 
         // Nhận mật khẩu qua stdin
@@ -65,6 +73,10 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         const char *dest_domain = argv[4];
+        if (!is_safe_token(dest_domain)) {
+            send_json_error("wp", "Ten mien dich khong hop le");
+            return 1;
+        }
         snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh clone '%s' '%s' '%s'",
                  username, domain, dest_domain);
     }
@@ -74,12 +86,20 @@ int main(int argc, char *argv[]) {
     }
     else if (strcmp(action, "sso") == 0) {
         const char *admin_user = (argc > 4) ? argv[4] : "admin";
+        if (!is_safe_id(admin_user)) {
+            send_json_error("wp", "Admin user khong hop le");
+            return 1;
+        }
         snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh sso '%s' '%s' '%s'",
                  username, domain, admin_user);
     }
     else if (strcmp(action, "plugin") == 0 || strcmp(action, "theme") == 0) {
         const char *sub_action = (argc > 4) ? argv[4] : "list";
         const char *slug = (argc > 5) ? argv[5] : "";
+        if (!is_safe_id(sub_action) || (*slug && !is_safe_token(slug))) {
+            send_json_error("wp", "Tham so plugin/theme khong hop le");
+            return 1;
+        }
         snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh %s '%s' '%s' '%s' '%s'",
                  action, sub_action, username, domain, slug);
     }

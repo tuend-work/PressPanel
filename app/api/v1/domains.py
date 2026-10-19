@@ -7,6 +7,9 @@ from app.api.deps import get_current_user
 from app.db.session import get_db_connection
 from app.executor.gatekeeper import run_gatekeeper
 
+ALLOWED_PHP_VERSIONS = {"5.6", "7.0", "7.1", "7.2", "7.3", "7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"}
+ALLOWED_WEBSERVERS = {"ols", "nginx"}
+
 router = APIRouter(prefix="/domains", tags=["Websites & Domains"])
 
 class DomainCreate(BaseModel):
@@ -85,6 +88,12 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
     # Kiểm tra cấu trúc FQDN hợp lệ: không chứa ký tự lạ, không có .. hay khoảng trắng
     if not clean_domain or not re.match(r"^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$", clean_domain):
         raise HTTPException(status_code=400, detail="Tên miền không hợp lệ (ví dụ hợp lệ: example.com, mysite.vn)")
+
+    # Validate php_version and webserver
+    if req.php_version not in ALLOWED_PHP_VERSIONS:
+        raise HTTPException(status_code=400, detail=f"Phiên bản PHP không hợp lệ. Cho phép: {', '.join(sorted(ALLOWED_PHP_VERSIONS))}")
+    if req.webserver and req.webserver not in ALLOWED_WEBSERVERS:
+        raise HTTPException(status_code=400, detail="Máy chủ Web không hợp lệ (chỉ hỗ trợ ols hoặc nginx)")
 
     # MỖI WEBSITE LÀ MỘT LINUX USER ĐỘC LẬP
     # Tên user Linux là domain viết liền không dấu chấm (vd: example.com -> examplecom)
@@ -330,6 +339,10 @@ async def change_domain_php(
     active_ws = domain["webserver"]
     new_php = req.php_version
     hosting_username = domain["owner_username"] or isolated_user
+
+    if new_php not in ALLOWED_PHP_VERSIONS:
+        await db.close()
+        raise HTTPException(status_code=400, detail=f"Phiên bản PHP không hợp lệ. Cho phép: {', '.join(sorted(ALLOWED_PHP_VERSIONS))}")
 
     # Thực thi Gatekeeper: vhost set-php <user> <domain> <ols|nginx> <php_ver> [hosting_user]
     res = await run_gatekeeper("vhost", "set-php", isolated_user, clean_domain, active_ws, new_php, hosting_username)

@@ -292,20 +292,30 @@ async def update_root_password(req: DatabaseRootPasswordRequest, current_user: d
             success = False
             last_err = ""
             for sql_code in [sql_maria, sql_std]:
-                for cmd in [
-                    f"sudo mysql --defaults-file=/etc/mysql/debian.cnf -e \"{sql_code}\"",
-                    f"sudo mysql -u root -e \"{sql_code}\"",
-                    f"sudo mysql -u root -p'{esc_cur}' -e \"{sql_code}\"" if esc_cur else None,
-                    f"sudo mysql -u root -p'{esc_pass}' -e \"{sql_code}\"",
-                ]:
-                    if not cmd:
-                        continue
-                    proc = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                    if proc.returncode == 0:
-                        success = True
-                        break
-                    else:
-                        last_err = proc.stderr
+                candidates = [
+                    ["sudo", "mysql", "--defaults-file=/etc/mysql/debian.cnf"],
+                    ["sudo", "mysql", "-u", "root"],
+                ]
+                if esc_cur:
+                    candidates.append(["sudo", "mysql", "-u", "root", f"-p{req.current_password}"])
+                candidates.append(["sudo", "mysql", "-u", "root", f"-p{req.new_password}"])
+
+                for cmd_args in candidates:
+                    try:
+                        proc = subprocess.run(
+                            cmd_args,
+                            input=sql_code,
+                            text=True,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE
+                        )
+                        if proc.returncode == 0:
+                            success = True
+                            break
+                        else:
+                            last_err = proc.stderr
+                    except Exception as ex:
+                        last_err = str(ex)
                 if success:
                     break
             if not success:

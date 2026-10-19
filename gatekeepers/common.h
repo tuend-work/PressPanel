@@ -79,6 +79,59 @@ static inline int is_safe_home_path(const char *path) {
     return 1;
 }
 
+static inline int is_safe_php_ver(const char *ver) {
+    if (!ver || !*ver) return 0;
+    const char *allowed[] = {
+        "5.6", "7.0", "7.1", "7.2", "7.3", "7.4",
+        "8.0", "8.1", "8.2", "8.3", "8.4", "8.5", NULL
+    };
+    for (int i = 0; allowed[i] != NULL; i++) {
+        if (strcmp(ver, allowed[i]) == 0) return 1;
+    }
+    return 0;
+}
+
+static inline int is_safe_webserver(const char *ws) {
+    if (!ws || !*ws) return 0;
+    return (strcmp(ws, "ols") == 0 || strcmp(ws, "nginx") == 0);
+}
+
+static inline int is_safe_config_path(const char *path) {
+    if (!path || !*path) return 0;
+    if (strstr(path, "..")) return 0; // Chống Directory Traversal
+    size_t len = strlen(path);
+    if (len > 1024) return 0;
+
+    // Whitelist các thư mục cấu hình dịch vụ hợp lệ
+    int is_allowed_dir = (
+        strncmp(path, "/etc/nginx/", 11) == 0 ||
+        strncmp(path, "/usr/local/lsws/", 16) == 0 ||
+        strncmp(path, "/etc/php/", 9) == 0 ||
+        strncmp(path, "/etc/mysql/", 11) == 0 ||
+        strncmp(path, "/etc/redis/", 11) == 0 ||
+        strncmp(path, "/opt/wpc/templates/", 19) == 0
+    );
+    if (!is_allowed_dir) return 0;
+
+    // Cấm tuyệt đối các tệp/thư mục nhạy cảm cốt lõi của Linux & Panel
+    if (strstr(path, "/etc/shadow") || strstr(path, "/etc/sudoers") ||
+        strstr(path, "/etc/passwd") || strstr(path, "/etc/cron") ||
+        strstr(path, "/etc/pam.d") || strstr(path, "/etc/security") ||
+        strstr(path, "/etc/ld.so") || strstr(path, "/root") ||
+        strstr(path, "/opt/wpc/data") || strstr(path, "/opt/wpc/conf")) {
+        return 0;
+    }
+
+    for (size_t i = 0; i < len; i++) {
+        char c = path[i];
+        if (c == '\'' || c == '"' || c == '`' || c == '$' || c == ';' ||
+            c == '&' || c == '|' || c == '\n' || c == '\r' || c == '\\') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static inline int is_system_user(const char *username) {
     if (!username || !*username) return 1;
     const char *sys_users[] = {
