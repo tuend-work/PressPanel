@@ -71,8 +71,8 @@ int main(int argc, char *argv[]) {
         snprintf(cmd, sizeof(cmd), 
             "mkdir -p /home/%s/domains /home/%s/logs /home/%s/tmp /home/%s/ssl /home/%s/backups && "
             "chown -R %s:%s /home/%s 2>/dev/null || true && "
-            "chmod 0750 /home/%s && "
-            "chmod 0750 /home/%s/domains && "
+            "chmod 0711 /home/%s && "
+            "chmod 0711 /home/%s/domains && "
             "chmod 0700 /home/%s/logs /home/%s/tmp /home/%s/ssl /home/%s/backups",
             username, username, username, username, username,
             username, username, username,

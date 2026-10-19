@@ -131,23 +131,31 @@ if [ -n "$PROCVIEW_GID" ]; then
     fi
 fi
 
-# 7.2 Cấu hình khóa quyền bảo mật /home/* (chmod 750) để cô lập tuyệt đối dữ liệu giữa các User
-echo "[+] Khóa quyền bảo mật toàn bộ thư mục /home/* (chmod 750) để cô lập tuyệt đối giữa các User..."
+echo "[+] Phân quyền bảo mật 0711 cho /home/* để cô lập người dùng và cho phép webserver phục vụ..."
+mkdir -p /tmp/lshttpd 2>/dev/null || true
+chmod 1777 /tmp/lshttpd 2>/dev/null || true
 for user_home in /home/*; do
     [ -d "$user_home" ] || continue
     u_name=$(basename "$user_home")
     if id "$u_name" &>/dev/null; then
         chown -R "$u_name:$u_name" "$user_home" 2>/dev/null || true
-        # Chỉ thêm user panel wpc vào group để quản lý file an toàn, không thêm nobody/www-data tránh phá vỡ cách ly
-        id "$PANEL_USER" &>/dev/null && usermod -a -G "$u_name" "$PANEL_USER" 2>/dev/null || true
-        chmod 750 "$user_home" 2>/dev/null || true
-        [ -d "$user_home/domains" ] && chmod 750 "$user_home/domains" 2>/dev/null || true
-        [ -d "$user_home/public_html" ] && chmod 750 "$user_home/public_html" 2>/dev/null || true
+        for svc_u in "$PANEL_USER" nobody www-data; do
+            id "$svc_u" &>/dev/null && usermod -a -G "$u_name" "$svc_u" 2>/dev/null || true
+        done
+        chmod 711 "$user_home" 2>/dev/null || true
+        [ -d "$user_home/domains" ] && chmod 711 "$user_home/domains" 2>/dev/null || true
+        [ -d "$user_home/public_html" ] && chmod 755 "$user_home/public_html" 2>/dev/null || true
         for priv_dir in "$user_home/logs" "$user_home/ssl" "$user_home/backups" "$user_home/.tmp" "$user_home/.sessions" "$user_home/.ssh"; do
             [ -d "$priv_dir" ] && chmod 700 "$priv_dir" 2>/dev/null || true
         done
         if [ -d "$user_home/domains" ]; then
-            find "$user_home/domains" -maxdepth 2 -type d -exec chmod 750 {} + 2>/dev/null || true
+            find "$user_home/domains" -type d -exec chmod 755 {} + 2>/dev/null || true
+            find "$user_home/domains" -type f -exec chmod 644 {} + 2>/dev/null || true
+            find "$user_home/domains" -type d \( -name "logs" -o -name "ssl" -o -name "backups" \) -exec chmod 700 {} + 2>/dev/null || true
+        fi
+        if [ -d "$user_home/public_html" ]; then
+            find "$user_home/public_html" -type d -exec chmod 755 {} + 2>/dev/null || true
+            find "$user_home/public_html" -type f -exec chmod 644 {} + 2>/dev/null || true
         fi
     fi
 done
@@ -221,7 +229,7 @@ fi
 
 echo "[+] Khóa quyền bảo mật 0711 cho /home và tối ưu phân quyền phục vụ website..."
 chmod 711 /home 2>/dev/null || true
-chmod 750 /home/* 2>/dev/null || true
+chmod 711 /home/* 2>/dev/null || true
 
 # 13. Khóa quyền Linux SSH cho Hosting User và Account Linux Admin
 echo "[+] Khóa quyền Linux SSH cho tất cả Hosting User và tài khoản admin..."

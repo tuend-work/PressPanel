@@ -3,6 +3,13 @@ vhDomain                  {{DOMAIN}}
 vhAliases                 www.{{DOMAIN}}
 adminEmails               admin@{{DOMAIN}}
 enableGzip                1
+enableBr                  1
+
+indexFiles                index.php, index.html, index.htm
+
+accessControl {
+  allow                   *
+}
 
 errorlog $VH_ROOT/domains/{{DOMAIN}}/logs/error.log {
   useServer               0
@@ -14,6 +21,11 @@ accesslog $VH_ROOT/domains/{{DOMAIN}}/logs/access.log {
   useServer               0
   rollingSize             10M
   keepDays                30
+}
+
+rewrite  {
+  enable                  1
+  autoLoadHtaccess        1
 }
 
 extprocessor lsphp_{{USERNAME}} {
@@ -28,6 +40,7 @@ extprocessor lsphp_{{USERNAME}} {
   autoStart               1
   path                    /usr/local/lsws/lsphp{{PHP_VERSION}}/bin/lsphp
   backlog                 100
+  instances               1
   runOn                   1
   extUser                 {{USERNAME}}
   extGroup                {{USERNAME}}
@@ -41,4 +54,3 @@ extprocessor lsphp_{{USERNAME}} {
 scripthandler {
   add                     lsapi:lsphp_{{USERNAME}} php
 }
-

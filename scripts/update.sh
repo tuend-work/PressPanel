@@ -170,13 +170,19 @@ EOF
 done
 systemctl daemon-reload 2>/dev/null || true
 
-# Cập nhật cấu hình slice cho các user đã có standalone service
-for uconf in /etc/php/*/fpm/users/*.conf; do
-    [ -f "$uconf" ] || continue
-    UNAME=$(basename "$uconf" .conf)
-    PVER=$(echo "$uconf" | cut -d'/' -f4)
-    bash "$INSTALL_DIR/scripts/php_fpm_service.sh" create "$UNAME" "$PVER" "$UNAME" 2>/dev/null || true
-done
+# Cập nhật cấu hình slice cho các user đã có standalone service (chỉ khi Nginx đang kích hoạt)
+if ! systemctl is-active --quiet lshttpd 2>/dev/null && ! systemctl is-active --quiet lsws 2>/dev/null; then
+    for uconf in /etc/php/*/fpm/users/*.conf; do
+        [ -f "$uconf" ] || continue
+        UNAME=$(basename "$uconf" .conf)
+        PVER=$(echo "$uconf" | cut -d'/' -f4)
+        bash "$INSTALL_DIR/scripts/php_fpm_service.sh" create "$UNAME" "$PVER" "$UNAME" 2>/dev/null || true
+    done
+else
+    # Đang chạy OpenLiteSpeed: Dừng và tắt các standalone PHP-FPM user service để không tốn RAM
+    systemctl stop "wpc-php*-fpm@*" 2>/dev/null || true
+    systemctl disable "wpc-php*-fpm@*" 2>/dev/null || true
+fi
 
 # Khởi động lại các PHP-FPM để nhận drop-in và gán ngay PID vào Cgroups v2
 for php_ver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
@@ -185,6 +191,10 @@ for php_ver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
     fi
 done
 /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true
+
+# Đảm bảo thư mục runtime socket của OLS tồn tại và có quyền 1777
+mkdir -p /tmp/lshttpd 2>/dev/null || true
+chmod 1777 /tmp/lshttpd 2>/dev/null || true
 
 # 7.2 Cấu hình bảo mật procfs (hidepid=2) cách ly tiến trình giữa các user
 echo "[+] Kiểm tra và cấu hình cách ly tiến trình /proc (hidepid=2)..."
@@ -214,15 +224,17 @@ for user_home in /home/*; do
     owner_u=$(stat -c '%U' "$user_home" 2>/dev/null || echo "$u_name")
     owner_g=$(stat -c '%G' "$user_home" 2>/dev/null || echo "$u_name")
     
-    # Gán bổ sung quyền group duy nhất cho user panel wpc để quản lý file an toàn
+    # Gán bổ sung quyền group cho user panel wpc, nobody (OLS), www-data (Nginx) để phục vụ website
     for grp in "$u_name" "$owner_g" "$owner_u"; do
         if getent group "$grp" &>/dev/null; then
-            id "$PANEL_USER" &>/dev/null && usermod -a -G "$grp" "$PANEL_USER" 2>/dev/null || true
+            for svc_u in "$PANEL_USER" nobody www-data; do
+                id "$svc_u" &>/dev/null && usermod -a -G "$grp" "$svc_u" 2>/dev/null || true
+            done
         fi
     done
 
-    # 1. Khóa cửa thư mục home cấp 1: 0750 (cấm tiệt mọi user khác bước vào)
-    chmod 750 "$user_home" 2>/dev/null || true
+    # 1. Khóa cửa thư mục home cấp 1: 0711 (cấm tiệt user khác xem file, cho phép webserver traverse)
+    chmod 711 "$user_home" 2>/dev/null || true
 
     # 2. Khóa tuyệt đối các thư mục nhạy cảm cá nhân: 0700
     for priv_dir in "$user_home/logs" "$user_home/ssl" "$user_home/backups" "$user_home/.tmp" "$user_home/.sessions" "$user_home/.ssh" "$user_home/tmp"; do

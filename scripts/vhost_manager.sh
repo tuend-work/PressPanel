@@ -73,9 +73,30 @@ case "$ACTION" in
         else
             chown -R wpc:wpc "/home/$USERNAME" 2>/dev/null || true
         fi
-        # KHÓA CHẶT BẢO MẬT 0750: Tuyệt đối ngăn chặn user khác xem trộm file qua Terminal/SSH/PHP
-        chmod 750 "/home/$USERNAME" "/home/$USERNAME/domains" "$DOMAIN_DIR" "$DOC_ROOT" 2>/dev/null || true
+
+        # PHÂN QUYỀN CHUẨN SHARED HOSTING (cPanel / CyberPanel / OLS suEXEC standard):
+        # 1. /home và /home/$USERNAME: 0711 (drwx--x--x)
+        #    Cho phép Webserver (nobody/www-data) traverse (tìm đường) tới public_html,
+        #    nhưng TUYỆT ĐỐI NGĂN CHẶN các user khác đọc danh sách thư mục (không có 'r') hoặc sửa đổi (không có 'w').
+        chmod 711 "/home" 2>/dev/null || true
+        chmod 711 "/home/$USERNAME" 2>/dev/null || true
+        chmod 711 "/home/$USERNAME/domains" 2>/dev/null || true
+        chmod 711 "$DOMAIN_DIR" 2>/dev/null || true
+
+        # 2. Thư mục web (public_html) phân quyền 755 (thư mục) và 644 (file), owner $USERNAME:$USERNAME
+        chmod 755 "$DOC_ROOT" 2>/dev/null || true
+        find "$DOC_ROOT" -type d -exec chmod 755 {} + 2>/dev/null || true
+        find "$DOC_ROOT" -type f -exec chmod 644 {} + 2>/dev/null || true
+
+        # 3. KHÓA CHẶT các thư mục nhạy cảm 0700: Chỉ duy nhất owner ($USERNAME) và root có quyền truy cập
         chmod 700 "/home/$USERNAME/logs" "/home/$USERNAME/ssl" "/home/$USERNAME/backups" "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
+        [ -d "/home/$USERNAME/.ssh" ] && chmod 700 "/home/$USERNAME/.ssh" 2>/dev/null || true
+        [ -d "$DOMAIN_DIR/ssl" ] && chmod 700 "$DOMAIN_DIR/ssl" 2>/dev/null || true
+        [ -d "$DOMAIN_DIR/backups" ] && chmod 700 "$DOMAIN_DIR/backups" 2>/dev/null || true
+
+        # 4. Đảm bảo thư mục runtime socket của OLS tồn tại và có quyền sticky bit 1777
+        mkdir -p /tmp/lshttpd 2>/dev/null || true
+        chmod 1777 /tmp/lshttpd 2>/dev/null || true
 
         # Tạo file index.html mẫu nếu thư mục đang trống
         if [ ! -f "$DOC_ROOT/index.html" ] && [ ! -f "$DOC_ROOT/index.php" ]; then
@@ -111,102 +132,129 @@ EOF
             chmod 644 "$DOC_ROOT/index.html" 2>/dev/null || true
         fi
 
-        # Cấu hình OpenLiteSpeed nếu có OLS
+        # Cấu hình OpenLiteSpeed nếu chọn OLS hoặc all
         PHP_NUM=$(echo "$PHP_VER" | tr -d '.')
-        if [ -d "/usr/local/lsws/conf" ]; then
-            VH_DIR="/usr/local/lsws/conf/vhosts/$DOMAIN"
-            mkdir -p "$VH_DIR"
-            if [ -f "$WPC_DIR/templates/vhost_ols/default.tpl" ]; then
-                sed -e "s/{{DOMAIN}}/$DOMAIN/g" \
-                    -e "s/{{PHP_VERSION}}/$PHP_NUM/g" \
-                    -e "s/{{USERNAME}}/$USERNAME/g" \
-                    -e "s|{{DOCUMENT_ROOT}}|$DOC_ROOT|g" \
-                    "$WPC_DIR/templates/vhost_ols/default.tpl" > "$VH_DIR/vhconf.conf"
-            fi
-            
-            # Đăng ký vhost vào httpd_config.conf nếu chưa có
-            OLS_MAIN_CONF="/usr/local/lsws/conf/httpd_config.conf"
-            if [ -f "$OLS_MAIN_CONF" ]; then
-                # Đổi port 8088 thành 80 nếu còn tồn tại
-                sed -i 's/address *:8088/address *:80/g' "$OLS_MAIN_CONF" 2>/dev/null || true
+        if [ "$WEBSERVER" = "ols" ] || [ "$WEBSERVER" = "all" ]; then
+            if [ -d "/usr/local/lsws/conf" ]; then
+                VH_DIR="/usr/local/lsws/conf/vhosts/$DOMAIN"
+                mkdir -p "$VH_DIR"
+                if [ -f "$WPC_DIR/templates/vhost_ols/default.tpl" ]; then
+                    sed -e "s/{{DOMAIN}}/$DOMAIN/g" \
+                        -e "s/{{PHP_VERSION}}/$PHP_NUM/g" \
+                        -e "s/{{USERNAME}}/$USERNAME/g" \
+                        -e "s|{{DOCUMENT_ROOT}}|$DOC_ROOT|g" \
+                        "$WPC_DIR/templates/vhost_ols/default.tpl" > "$VH_DIR/vhconf.conf"
+                fi
                 
-                # Khai báo virtualhost block trong httpd_config.conf nếu chưa có
-                if ! grep -q "virtualhost $DOMAIN" "$OLS_MAIN_CONF"; then
-                    cat <<EOF >> "$OLS_MAIN_CONF"
+                # Đăng ký vhost vào httpd_config.conf nếu chưa có
+                OLS_MAIN_CONF="/usr/local/lsws/conf/httpd_config.conf"
+                if [ -f "$OLS_MAIN_CONF" ]; then
+                    # Đổi port 8088 thành 80 nếu còn tồn tại
+                    sed -i 's/address *:8088/address *:80/g' "$OLS_MAIN_CONF" 2>/dev/null || true
+                    
+                    # Khai báo virtualhost block trong httpd_config.conf nếu chưa có
+                    if ! grep -q "virtualhost $DOMAIN" "$OLS_MAIN_CONF"; then
+                        cat <<EOF >> "$OLS_MAIN_CONF"
 
 virtualhost $DOMAIN {
   vhRoot                  /home/$USERNAME
   configFile              conf/vhosts/$DOMAIN/vhconf.conf
   allowSymbolLink         2
   enableScript            1
-  restrained              1
+  restrained              0
 }
 EOF
+                    else
+                        # Đảm bảo restrained là 0 nếu block đã tồn tại
+                        sed -i "/virtualhost[[:space:]]\+$DOMAIN[[:space:]]*{/,/^[[:space:]]*}/ s/restrained[[:space:]]\+1/restrained              0/" "$OLS_MAIN_CONF" 2>/dev/null || true
+                    fi
+
+                    # Map virtualhost vào listener HTTP (port 80)
+                    # Dọn dẹp các dòng map bị chèn nhầm vào errorlog trước đó
+                    sed -i '/errorlog logs\/error\.log {/,/}/ { /map[[:space:]]/d }' "$OLS_MAIN_CONF" 2>/dev/null || true
+
+                    # Xóa mapping Example * mặc định cướp toàn bộ traffic
+                    sed -i 's/map[[:space:]]\+Example[[:space:]]\+\*/# map Example */g' "$OLS_MAIN_CONF" 2>/dev/null || true
+
+                    # Thêm map vào listener Default hoặc HTTP_80 nếu chưa có
+                    if ! grep -q "map[[:space:]]\+$DOMAIN" "$OLS_MAIN_CONF"; then
+                        # Dùng awk để chèn map an toàn ngay trước dấu ngoặc đóng } của listener HTTP_80 hoặc Default
+                        awk -v d="$DOMAIN" '
+                            /listener[[:space:]]+(Default|HTTP_80|HTTP)[[:space:]]*{/ { in_listener=1 }
+                            in_listener && /}/ {
+                                print "    map                      " d " " d ", *." d
+                                in_listener=0
+                            }
+                            { print }
+                        ' "$OLS_MAIN_CONF" > "$OLS_MAIN_CONF.tmp" && mv "$OLS_MAIN_CONF.tmp" "$OLS_MAIN_CONF"
+                    fi
+                    chmod 644 "$OLS_MAIN_CONF" 2>/dev/null || true
                 fi
 
-                # Map virtualhost vào listener HTTP (port 80)
-                # Dọn dẹp các dòng map bị chèn nhầm vào errorlog trước đó
-                sed -i '/errorlog logs\/error\.log {/,/}/ { /map[[:space:]]/d }' "$OLS_MAIN_CONF" 2>/dev/null || true
-
-                # Xóa mapping Example * mặc định cướp toàn bộ traffic
-                sed -i 's/map[[:space:]]\+Example[[:space:]]\+\*/# map Example */g' "$OLS_MAIN_CONF" 2>/dev/null || true
-
-                # Thêm map vào listener Default hoặc HTTP_80 nếu chưa có
-                if ! grep -q "map[[:space:]]\+$DOMAIN" "$OLS_MAIN_CONF"; then
-                    # Dùng awk để chèn map an toàn ngay trước dấu ngoặc đóng } của listener HTTP_80 hoặc Default
-                    awk -v d="$DOMAIN" '
-                        /listener[[:space:]]+(Default|HTTP_80|HTTP)[[:space:]]*{/ { in_listener=1 }
-                        in_listener && /}/ {
-                            print "    map                      " d " " d ", *." d
-                            in_listener=0
-                        }
-                        { print }
-                    ' "$OLS_MAIN_CONF" > "$OLS_MAIN_CONF.tmp" && mv "$OLS_MAIN_CONF.tmp" "$OLS_MAIN_CONF"
-                fi
-                chmod 644 "$OLS_MAIN_CONF" 2>/dev/null || true
+                /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
+                (sleep 1 && pgrep -u "$USERNAME" | while read -r pid; do
+                    for cg_proc in /sys/fs/cgroup/wpc/reseller_*/user_${USERNAME}/cgroup.procs /sys/fs/cgroup/wpc/user_${USERNAME}/cgroup.procs; do
+                        [ -f "$cg_proc" ] && echo "$pid" > "$cg_proc" 2>/dev/null || true
+                    done
+                done) &>/dev/null &
             fi
-
-            /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || true
-            (sleep 1 && pgrep -u "$USERNAME" | while read -r pid; do
-                for cg_proc in /sys/fs/cgroup/wpc/reseller_*/user_${USERNAME}/cgroup.procs /sys/fs/cgroup/wpc/user_${USERNAME}/cgroup.procs; do
-                    [ -f "$cg_proc" ] && echo "$pid" > "$cg_proc" 2>/dev/null || true
-                done
-            done) &>/dev/null &
         fi
 
-        # Cấu hình Nginx nếu có Nginx
-        if [ -d "/etc/nginx/conf.d" ]; then
-            if [ -f "$WPC_DIR/templates/vhost_nginx/default.tpl" ]; then
-                # Tạo thư mục tạm và session riêng cho user nếu chưa có
-                mkdir -p "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" "/home/$USERNAME/logs"
-                chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
-                chmod 700 "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
+        # Cấu hình Nginx CHỈ KHI chọn Nginx hoặc all
+        if [ "$WEBSERVER" = "nginx" ] || [ "$WEBSERVER" = "all" ]; then
+            if [ -d "/etc/nginx/conf.d" ]; then
+                if [ -f "$WPC_DIR/templates/vhost_nginx/default.tpl" ]; then
+                    # Tạo thư mục tạm và session riêng cho user nếu chưa có
+                    mkdir -p "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" "/home/$USERNAME/logs"
+                    chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
+                    chmod 700 "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
 
-                # 1. Tạo file PHP-FPM Pool & Systemd Template Service độc lập riêng cho User này
-                USER_POOL_SOCK="/run/php/php${PHP_VER}-fpm-${USERNAME}.sock"
-                PHP_SOCK="$USER_POOL_SOCK"
+                    # 1. Tạo file PHP-FPM Pool & Systemd Template Service độc lập riêng cho User này
+                    USER_POOL_SOCK="/run/php/php${PHP_VER}-fpm-${USERNAME}.sock"
+                    PHP_SOCK="$USER_POOL_SOCK"
 
-                if [ -f "$WPC_DIR/scripts/php_fpm_service.sh" ]; then
-                    bash "$WPC_DIR/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" "$HOSTING_USER" 2>/dev/null || true
-                fi
-
-                # Nếu pool sock chưa sinh ra kịp (fallback sang pool mặc định nếu cần)
-                if [ ! -e "$PHP_SOCK" ]; then
-                    if [ -e "/run/php/php${PHP_VER}-fpm.sock" ]; then
-                        PHP_SOCK="/run/php/php${PHP_VER}-fpm.sock"
-                    elif [ -e "/var/run/php/php${PHP_VER}-fpm.sock" ]; then
-                        PHP_SOCK="/var/run/php/php${PHP_VER}-fpm.sock"
+                    if [ -f "$WPC_DIR/scripts/php_fpm_service.sh" ]; then
+                        bash "$WPC_DIR/scripts/php_fpm_service.sh" create "$USERNAME" "$PHP_VER" "$HOSTING_USER" 2>/dev/null || true
                     fi
-                fi
 
-                sed -e "s/{{DOMAIN}}/$DOMAIN/g" \
-                    -e "s/{{PHP_VERSION}}/$PHP_VER/g" \
-                    -e "s/{{USERNAME}}/$USERNAME/g" \
-                    -e "s|{{DOCUMENT_ROOT}}|$DOC_ROOT|g" \
-                    -e "s|{{PHP_SOCK}}|$PHP_SOCK|g" \
-                    "$WPC_DIR/templates/vhost_nginx/default.tpl" > "/etc/nginx/conf.d/$DOMAIN.conf"
-                nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+                    # Nếu pool sock chưa sinh ra kịp (fallback sang pool mặc định nếu cần)
+                    if [ ! -e "$PHP_SOCK" ]; then
+                        if [ -e "/run/php/php${PHP_VER}-fpm.sock" ]; then
+                            PHP_SOCK="/run/php/php${PHP_VER}-fpm.sock"
+                        elif [ -e "/var/run/php/php${PHP_VER}-fpm.sock" ]; then
+                            PHP_SOCK="/var/run/php/php${PHP_VER}-fpm.sock"
+                        fi
+                    fi
+
+                    sed -e "s/{{DOMAIN}}/$DOMAIN/g" \
+                        -e "s/{{PHP_VERSION}}/$PHP_VER/g" \
+                        -e "s/{{USERNAME}}/$USERNAME/g" \
+                        -e "s|{{DOCUMENT_ROOT}}|$DOC_ROOT|g" \
+                        -e "s|{{PHP_SOCK}}|$PHP_SOCK|g" \
+                        "$WPC_DIR/templates/vhost_nginx/default.tpl" > "/etc/nginx/conf.d/$DOMAIN.conf"
+                    nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+                fi
             fi
+        fi
+
+        # Nếu webserver là OLS thì dọn dẹp cấu hình Nginx & dừng PHP-FPM user service
+        if [ "$WEBSERVER" = "ols" ]; then
+            rm -f "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
+            for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+                systemctl stop "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+                systemctl disable "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+                rm -f "/etc/php/${pver}/fpm/users/${USERNAME}.conf" "/run/php/php${pver}-fpm-${USERNAME}.sock" "/run/php/php${pver}-fpm-${USERNAME}.pid" 2>/dev/null || true
+            done
+        fi
+
+        # Nếu webserver là Nginx thì dọn cấu hình OLS của domain này
+        if [ "$WEBSERVER" = "nginx" ]; then
+            rm -rf "/usr/local/lsws/conf/vhosts/$DOMAIN" 2>/dev/null || true
+            if [ -f "/usr/local/lsws/conf/httpd_config.conf" ]; then
+                sed -i "/virtualhost[[:space:]]\+$DOMAIN[[:space:]]*{/,/^[[:space:]]*}/d" /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
+                sed -i "/map[[:space:]]\+$DOMAIN/d" /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
+            fi
+            /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lsws 2>/dev/null || true
         fi
 
         echo "[+] Khoi tao VirtualHost $DOMAIN thanh cong!"
@@ -263,7 +311,8 @@ EOF
 
         # OpenLiteSpeed
         if [ -f "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf" ]; then
-            sed -i -E "s/lsapi:lsphp[0-9]+/lsapi:lsphp$PHP_NUM/" "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf"
+            sed -i -E "s|path[[:space:]]+/usr/local/lsws/lsphp[0-9]+/bin/lsphp|path /usr/local/lsws/lsphp${PHP_NUM}/bin/lsphp|" "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf" 2>/dev/null || true
+            sed -i -E "s/lsapi:lsphp[0-9]+/lsapi:lsphp$PHP_NUM/" "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf" 2>/dev/null || true
             /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lsws 2>/dev/null || true
             (sleep 1 && pgrep -u "$USERNAME" | while read -r pid; do
                 for cg_proc in /sys/fs/cgroup/wpc/reseller_*/user_${USERNAME}/cgroup.procs /sys/fs/cgroup/wpc/user_${USERNAME}/cgroup.procs; do
@@ -313,8 +362,50 @@ EOF
     rewrite-all)
         echo "[+] Rewrite toan bo cau hinh webserver: $WEBSERVER..."
         if [ "$WEBSERVER" = "ols" ]; then
+            # 1. Dọn dẹp và dừng TOÀN BỘ tiến trình / service PHP-FPM riêng của user
+            echo "[+] Dang chuyen sang OLS: Tat cac service PHP-FPM nguoi dung..."
+            systemctl stop "wpc-php*-fpm@*" 2>/dev/null || true
+            systemctl disable "wpc-php*-fpm@*" 2>/dev/null || true
+            for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+                systemctl stop "wpc-php${pver}-fpm@*.service" 2>/dev/null || true
+                systemctl disable "wpc-php${pver}-fpm@*.service" 2>/dev/null || true
+            done
+            # Xóa socket và pid của php-fpm user
+            rm -f /run/php/php*-fpm-*.sock /run/php/php*-fpm-*.pid 2>/dev/null || true
+            # Tắt và dừng Nginx để giải phóng port 80/443 cho OLS
+            systemctl stop nginx 2>/dev/null || true
+            systemctl disable nginx 2>/dev/null || true
+
+            # 2. Đảm bảo thư mục runtime socket của OLS tồn tại và có quyền 1777
+            mkdir -p /tmp/lshttpd 2>/dev/null || true
+            chmod 1777 /tmp/lshttpd 2>/dev/null || true
+
+            # 3. Chuẩn hóa phân quyền 711 toàn bộ /home để tránh lỗi 403 OLS
+            chmod 711 /home 2>/dev/null || true
+            for udir in /home/*; do
+                if [ -d "$udir" ]; then
+                    u=$(basename "$udir")
+                    if [ "$u" != "wpc" ]; then
+                        chmod 711 "$udir" 2>/dev/null || true
+                        [ -d "$udir/domains" ] && chmod 711 "$udir/domains" 2>/dev/null || true
+                        for ddir in "$udir/domains"/*; do
+                            [ -d "$ddir" ] && chmod 711 "$ddir" 2>/dev/null || true
+                            if [ -d "$ddir/public_html" ]; then
+                                chmod 755 "$ddir/public_html" 2>/dev/null || true
+                                find "$ddir/public_html" -type d -exec chmod 755 {} + 2>/dev/null || true
+                                find "$ddir/public_html" -type f -exec chmod 644 {} + 2>/dev/null || true
+                            fi
+                        done
+                    fi
+                fi
+            done
+
+            # 4. Cấu hình OLS
             OLS_CONF="/usr/local/lsws/conf/httpd_config.conf"
             if [ -f "$OLS_CONF" ]; then
+                # Sửa restrained 1 thành restrained 0 cho tất cả vhost
+                sed -i 's/restrained[[:space:]]\+1/restrained              0/g' "$OLS_CONF" 2>/dev/null || true
+
                 # Đổi port 8088 thành 80 bất kể định dạng có khoảng trắng
                 sed -i -E 's/address[[:space:]]+(\*:|0\.0\.0\.0:|\[::\]:)?8088/address *:80/g' "$OLS_CONF" || true
                 sed -i 's/address *:8088/address *:80/g' "$OLS_CONF" || true
@@ -330,13 +421,30 @@ EOF
                 chmod 755 /usr/local/lsws/conf 2>/dev/null || true
                 chmod 644 "$OLS_CONF" 2>/dev/null || true
                 
-                # Khởi động lại lsws
+                # Kích hoạt và khởi động lại lsws
+                systemctl enable lsws 2>/dev/null || systemctl enable lshttpd 2>/dev/null || true
                 /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
             fi
         elif [ "$WEBSERVER" = "nginx" ]; then
-            # Kiểm tra cú pháp nginx và reload
+            # Tắt OLS để giải phóng port 80/443 cho Nginx
+            /usr/local/lsws/bin/lswsctrl stop 2>/dev/null || systemctl stop lsws 2>/dev/null || systemctl stop lshttpd 2>/dev/null || true
+            systemctl disable lsws 2>/dev/null || systemctl disable lshttpd 2>/dev/null || true
+
+            # Chuẩn hóa phân quyền 711 /home
+            chmod 711 /home 2>/dev/null || true
+            for udir in /home/*; do
+                if [ -d "$udir" ]; then
+                    u=$(basename "$udir")
+                    if [ "$u" != "wpc" ]; then
+                        chmod 711 "$udir" 2>/dev/null || true
+                        [ -d "$udir/domains" ] && chmod 711 "$udir/domains" 2>/dev/null || true
+                    fi
+                fi
+            done
+
+            systemctl enable nginx 2>/dev/null || true
             if command -v nginx &>/dev/null; then
-                nginx -t 2>/dev/null && nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+                nginx -t 2>/dev/null && nginx -s reload 2>/dev/null || systemctl restart nginx 2>/dev/null || true
             fi
         fi
         exit 0

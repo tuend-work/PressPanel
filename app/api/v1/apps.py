@@ -1024,6 +1024,14 @@ async def rewrite_webserver_config(
         success_count = 0
         fail_count = 0
 
+        # 2.4. Nếu chuyển sang OLS, tắt toàn bộ các service PHP-FPM của user
+        if ws == "ols":
+            try:
+                subprocess.run(["systemctl", "stop", "wpc-php*-fpm@*"], check=False)
+                subprocess.run(["systemctl", "disable", "wpc-php*-fpm@*"], check=False)
+            except Exception:
+                pass
+
         # 2.5. Chạy rewrite-all trên gatekeeper vhost để xử lý cấu hình gốc (listeners, đổi 8088 -> 80)
         try:
             if os.path.isfile(gatekeeper_vhost):

@@ -27,7 +27,7 @@ function show_help() {
     echo "  version     - Xem phiên bản hiện tại của WPCloud Panel"
     echo "  password    - Đổi mật khẩu tài khoản quản trị admin"
     echo "  port <số>   - Đổi cổng truy cập panel (tránh trùng cổng khác)"
-    echo "  fix-perms   - Khóa chặt quyền 0750 toàn bộ /home/* chống user xem trộm file nhau"
+    echo "  fix-perms   - Chuẩn hóa quyền 0711 toàn bộ /home/* chống xem trộm file và fix lỗi 403"
     echo "  help        - Hiển thị menu hướng dẫn này"
     echo "=========================================================="
 }
@@ -151,8 +151,16 @@ asyncio.run(reset_pass())
             echo "[-] Vui lòng chạy lệnh này với quyền root: sudo wpc fix-perms"
             exit 1
         fi
-        echo "[+] Đang rà soát và khóa quyền bảo mật thư mục người dùng (/home/*)..."
+        echo "[+] Đang rà soát và chuẩn hóa phân quyền thư mục người dùng (/home/*)..."
         chmod 711 /home 2>/dev/null || true
+        mkdir -p /tmp/lshttpd 2>/dev/null || true
+        chmod 1777 /tmp/lshttpd 2>/dev/null || true
+
+        # Nếu OLS đang chạy, dừng các standalone PHP-FPM service của user
+        if systemctl is-active --quiet lshttpd 2>/dev/null || systemctl is-active --quiet lsws 2>/dev/null; then
+            systemctl stop "wpc-php*-fpm@*" 2>/dev/null || true
+            systemctl disable "wpc-php*-fpm@*" 2>/dev/null || true
+        fi
 
         for user_home in /home/*; do
             [ -d "$user_home" ] || continue
@@ -169,7 +177,8 @@ asyncio.run(reset_pass())
                 fi
             done
 
-            chmod 750 "$user_home" 2>/dev/null || true
+            chmod 711 "$user_home" 2>/dev/null || true
+            [ -d "$user_home/domains" ] && chmod 711 "$user_home/domains" 2>/dev/null || true
             for priv_dir in "$user_home/logs" "$user_home/ssl" "$user_home/backups" "$user_home/.tmp" "$user_home/.sessions" "$user_home/.ssh" "$user_home/tmp"; do
                 [ -d "$priv_dir" ] && chmod 700 "$priv_dir" 2>/dev/null || true
             done
