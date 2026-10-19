@@ -479,6 +479,19 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
             installed = True
             break
 
+    # Bổ sung kiểm tra binary PHP Remi trên AlmaLinux / RHEL
+    if not installed and app.get("category") == "php":
+        clean_num = app["id"].replace("php", "")
+        remi_paths = [
+            f"/opt/remi/php{clean_num}/root/usr/sbin/php-fpm",
+            f"/usr/bin/php{clean_num}",
+            f"/etc/opt/remi/php{clean_num}"
+        ]
+        for rp in remi_paths:
+            if os.path.exists(rp):
+                installed = True
+                break
+
     # 2. Tự động nhận diện daemon service/timer phù hợp với hệ điều hành (RHEL/AlmaLinux vs Debian/Ubuntu)
     app_id = app["id"]
     candidates = get_app_service_candidates(app_id)

@@ -42,9 +42,11 @@ if [[ "$OS_ID" =~ ^(debian|ubuntu)$ ]]; then
     apt-get install -y build-essential gcc make python3 python3-venv python3-pip \
                        sqlite3 libsqlite3-dev curl wget git quota
 elif [[ "$OS_ID" =~ ^(almalinux|rocky|rhel|centos)$ ]]; then
-    # 1. Kích hoạt EPEL repository (bắt buộc cho certbot và các gói tiện ích trên RHEL/AlmaLinux)
-    echo "[+] Kích hoạt repository EPEL..."
+    # 1. Kích hoạt EPEL và Remi repository (bắt buộc cho certbot, đa phiên bản PHP Remi trên RHEL/AlmaLinux)
+    echo "[+] Kích hoạt repository EPEL và Remi..."
     dnf install -y epel-release || true
+    dnf install -y "https://rpms.remirepo.net/enterprise/remi-release-8.rpm" 2>/dev/null || \
+    dnf install -y "https://rpms.remirepo.net/enterprise/remi-release-9.rpm" 2>/dev/null || true
 
     # 2. Kích hoạt CodeReady Builder (CRB) hoặc PowerTools
     echo "[+] Kích hoạt repository CRB / PowerTools..."
