@@ -8,41 +8,41 @@
                                     <!-- 1. Tab MySQL (Active) -->
                                     <button @click="dbTypeTab = 'mysql'"
                                         :class="dbTypeTab === 'mysql' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
-                                        class="pb-2.5 text-sm transition relative tracking-wide">
+                                        class="pb-2 text-xs transition relative tracking-wide">
                                         <span>MySQL</span>
-                                        <div v-if="dbTypeTab === 'mysql'" class="w-6 h-[3px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
+                                        <div v-if="dbTypeTab === 'mysql'" class="w-5 h-[2px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
                                     </button>
 
                                     <!-- 2. Tab SQLServer -->
                                     <button @click="dbTypeTab = 'sqlserver'"
                                         :class="dbTypeTab === 'sqlserver' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
-                                        class="pb-2.5 text-sm transition relative tracking-wide">
+                                        class="pb-2 text-xs transition relative tracking-wide">
                                         <span>SQLServer</span>
-                                        <div v-if="dbTypeTab === 'sqlserver'" class="w-6 h-[3px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
+                                        <div v-if="dbTypeTab === 'sqlserver'" class="w-5 h-[2px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
                                     </button>
 
                                     <!-- 3. Tab MongoDB -->
                                     <button @click="dbTypeTab = 'mongodb'"
                                         :class="dbTypeTab === 'mongodb' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
-                                        class="pb-2.5 text-sm transition relative tracking-wide">
+                                        class="pb-2 text-xs transition relative tracking-wide">
                                         <span>MongoDB</span>
-                                        <div v-if="dbTypeTab === 'mongodb'" class="w-6 h-[3px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
+                                        <div v-if="dbTypeTab === 'mongodb'" class="w-5 h-[2px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
                                     </button>
 
                                     <!-- 4. Tab Redis -->
                                     <button @click="dbTypeTab = 'redis'"
                                         :class="dbTypeTab === 'redis' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
-                                        class="pb-2.5 text-sm transition relative tracking-wide">
+                                        class="pb-2 text-xs transition relative tracking-wide">
                                         <span>Redis</span>
-                                        <div v-if="dbTypeTab === 'redis'" class="w-6 h-[3px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
+                                        <div v-if="dbTypeTab === 'redis'" class="w-5 h-[2px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
                                     </button>
 
                                     <!-- 5. Tab PgSQL -->
                                     <button @click="dbTypeTab = 'pgsql'"
                                         :class="dbTypeTab === 'pgsql' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
-                                        class="pb-2.5 text-sm transition relative tracking-wide">
+                                        class="pb-2 text-xs transition relative tracking-wide">
                                         <span>PgSQL</span>
-                                        <div v-if="dbTypeTab === 'pgsql'" class="w-6 h-[3px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
+                                        <div v-if="dbTypeTab === 'pgsql'" class="w-5 h-[2px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
                                     </button>
                                 </div>
                             </div>

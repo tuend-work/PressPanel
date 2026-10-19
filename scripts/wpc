@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # ==============================================================================
 # WPCloud Control Panel CLI Management Tool
 # Cài đặt tại: /usr/local/bin/wpc

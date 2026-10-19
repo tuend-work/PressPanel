@@ -1,9 +1,9 @@
-                    <div v-if="currentTab === 'domains'" class="space-y-6 max-w-7xl mx-auto">
+                    <div v-if="currentTab === 'domains'" class="space-y-5 max-w-7xl mx-auto">
                         <!-- Action Bar Header -->
-                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                             <div>
-                                <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Danh Sách Website</h2>
-                                <p class="text-xs text-slate-500 mt-1">Quản lý toàn bộ VirtualHost, PHP, SSL và WordPress theo dạng thẻ WPC Obsidian</p>
+                                <h2 class="text-base sm:text-lg font-bold text-slate-800 dark:text-white tracking-tight">Danh Sách Website</h2>
+                                <p class="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">Quản lý toàn bộ VirtualHost, PHP, SSL và WordPress theo dạng thẻ WPC Obsidian</p>
                             </div>
                             <!-- Nếu là Admin: Thông báo rõ quy tắc bảo mật & phân quyền -->
                             <div v-if="currentUser.role === 'admin'" class="flex items-center space-x-3">
@@ -216,7 +216,7 @@
                                                 <span>&gt;</span>
                                             </div>
                                             <div class="flex items-center space-x-3">
-                                                <a :href="'http://' + d.domain_name" target="_blank" class="font-extrabold text-slate-900 hover:text-blue-600 text-xl tracking-tight transition flex items-center gap-2">
+                                                <a :href="'http://' + d.domain_name" target="_blank" class="font-bold text-slate-900 dark:text-white hover:text-blue-600 text-[15px] tracking-tight transition flex items-center gap-1.5">
                                                     <span>{{ d.domain_name }}</span>
                                                     <i data-lucide="external-link" class="w-4 h-4 text-slate-400"></i>
                                                 </a>

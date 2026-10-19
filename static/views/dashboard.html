@@ -1,13 +1,13 @@
-                    <div v-if="currentTab === 'dashboard'" class="space-y-6 max-w-7xl mx-auto">
+                    <div v-if="currentTab === 'dashboard'" class="space-y-5 max-w-7xl mx-auto">
                         
                         <!-- 1. GREETING BANNER -->
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                             <div>
-                                <h1 class="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2">
+                                <h1 class="text-base sm:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                     <span>👋</span>
                                     <span>Chào mừng, {{ currentUser.full_name || currentUser.username }}!</span>
                                 </h1>
-                                <p class="text-xs text-slate-500 mt-1">
+                                <p class="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">
                                     <span v-if="currentUser.role === 'admin'">Dưới đây là tổng quan hoạt động và tài nguyên máy chủ vật lý của bạn.</span>
                                     <span v-else>Dưới đây là thông tin gói dịch vụ và tài nguyên lưu trữ được cấp phát cho tài khoản của bạn.</span>
                                 </p>

@@ -69,6 +69,8 @@ if [ -d "$INSTALL_DIR/app/app" ]; then
 fi
 cp -r "$TMP_DIR/app"/* "$INSTALL_DIR/app/"
 cp -r "$TMP_DIR/templates"/* "$INSTALL_DIR/templates/" 2>/dev/null || true
+cp -r "$TMP_DIR/gatekeepers" "$INSTALL_DIR/" 2>/dev/null || true
+cp -r "$TMP_DIR/scripts"/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
 mkdir -p "$INSTALL_DIR/static"
 cp -r "$TMP_DIR/static"/* "$INSTALL_DIR/static/" 2>/dev/null || true
 cp "$TMP_DIR/VERSION" "$INSTALL_DIR/" 2>/dev/null || true
@@ -109,12 +111,14 @@ chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_
 # Cập nhật CLI tool /usr/local/bin/wpc thành binary ELF nhị phân (bảo mật, chống đọc trần)
 if [ -f "$TMP_DIR/gatekeepers/wpc.c" ]; then
     echo "[+] Biên dịch wpc CLI thành file thực thi nhị phân (ELF Binary)..."
-    gcc -O2 -fPIE -pie "$TMP_DIR/gatekeepers/wpc.c" -o /usr/local/bin/wpc 2>/dev/null || cp "$TMP_DIR/scripts/wpc" /usr/local/bin/wpc
+    gcc -O2 -fPIE -pie "$TMP_DIR/gatekeepers/wpc.c" -o /usr/local/bin/wpc || \
+    (command -v shc >/dev/null 2>&1 && shc -f "$TMP_DIR/scripts/wpc" -o /usr/local/bin/wpc) || \
+    cp "$TMP_DIR/scripts/wpc" /usr/local/bin/wpc
     strip /usr/local/bin/wpc 2>/dev/null || true
     chmod 755 /usr/local/bin/wpc
     ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || true
 elif [ -f "$TMP_DIR/scripts/wpc" ]; then
-    cp "$TMP_DIR/scripts/wpc" /usr/local/bin/wpc
+    (command -v shc >/dev/null 2>&1 && shc -f "$TMP_DIR/scripts/wpc" -o /usr/local/bin/wpc) || cp "$TMP_DIR/scripts/wpc" /usr/local/bin/wpc
     chmod 755 /usr/local/bin/wpc
     ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || true
 fi

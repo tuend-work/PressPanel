@@ -221,6 +221,7 @@ fi
 cp -r app/* "$INSTALL_DIR/app/"
 cp -r scripts/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
 cp -r templates/* "$INSTALL_DIR/templates/" 2>/dev/null || true
+cp -r gatekeepers "$INSTALL_DIR/" 2>/dev/null || true
 mkdir -p "$INSTALL_DIR/static"
 cp -r static/* "$INSTALL_DIR/static/" 2>/dev/null || true
 cp VERSION "$INSTALL_DIR/" 2>/dev/null || true
@@ -230,13 +231,15 @@ chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"/app "$INSTALL_DIR"/conf "$I
 # Cài đặt lệnh CLI wpc nhị phân (Binary ELF) toàn hệ thống (bảo vệ mã nguồn, chống đọc trần)
 if [ -f "$SRC_DIR/gatekeepers/wpc.c" ]; then
     echo "[+] Biên dịch wpc CLI thành file thực thi nhị phân (ELF Binary)..."
-    gcc -O2 -fPIE -pie "$SRC_DIR/gatekeepers/wpc.c" -o /usr/local/bin/wpc 2>/dev/null || cp "$INSTALL_DIR/scripts/wpc" /usr/local/bin/wpc
+    gcc -O2 -fPIE -pie "$SRC_DIR/gatekeepers/wpc.c" -o /usr/local/bin/wpc || \
+    (command -v shc >/dev/null 2>&1 && shc -f "$INSTALL_DIR/scripts/wpc" -o /usr/local/bin/wpc) || \
+    cp "$INSTALL_DIR/scripts/wpc" /usr/local/bin/wpc
     strip /usr/local/bin/wpc 2>/dev/null || true
     chmod 755 /usr/local/bin/wpc
     ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || true
 elif [ -f "$INSTALL_DIR/scripts/wpc" ]; then
-    cp "$INSTALL_DIR/scripts/wpc" /usr/local/bin/wpc
-    chmod +x /usr/local/bin/wpc
+    (command -v shc >/dev/null 2>&1 && shc -f "$INSTALL_DIR/scripts/wpc" -o /usr/local/bin/wpc) || cp "$INSTALL_DIR/scripts/wpc" /usr/local/bin/wpc
+    chmod 755 /usr/local/bin/wpc
     ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || true
 fi
 
