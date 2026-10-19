@@ -138,8 +138,15 @@ EOF
         fi
 
         systemctl restart "$SVC_NAME" 2>/dev/null || true
+        mkdir -p /tmp/lshttpd /run/php /var/run/php 2>/dev/null || true
+        chmod 755 /run/php /var/run/php 2>/dev/null || true
+        chmod 1777 /tmp/lshttpd 2>/dev/null || true
         for i in 1 2 3; do
-            [ -S "$SOCK_FILE" ] && chmod 666 "$SOCK_FILE" 2>/dev/null && break
+            if [ -S "$SOCK_FILE" ]; then
+                chmod 666 "$SOCK_FILE" 2>/dev/null || true
+                ln -sf "$SOCK_FILE" "/tmp/lshttpd/php${PHP_VER}-fpm-${USERNAME}.sock" 2>/dev/null || true
+                break
+            fi
             sleep 0.2
         done
         ;;

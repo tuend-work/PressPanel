@@ -106,13 +106,17 @@ EOF_LSPHP
             bash "$WPC_DIR/scripts/php_fpm_service.sh" create "$username" "$php_ver" "$hosting_user" 2>/dev/null || true
         fi
         local sock_file="/run/php/php${php_ver}-fpm-${username}.sock"
+        chmod 755 /run/php /var/run/php 2>/dev/null || true
         chmod 666 "$sock_file" 2>/dev/null || true
+        mkdir -p /tmp/lshttpd 2>/dev/null || true
+        chmod 1777 /tmp/lshttpd 2>/dev/null || true
+        ln -sf "$sock_file" "/tmp/lshttpd/php${php_ver}-fpm-${username}.sock" 2>/dev/null || true
 
         cat <<EOF_FCGI >> "$vh_conf"
 
 extprocessor fcgi_${username} {
-  type                    fcgi
-  address                 uds://run/php/php${php_ver}-fpm-${username}.sock
+  type                    fastcgi
+  address                 uds://tmp/lshttpd/php${php_ver}-fpm-${username}.sock
   maxConns                10
   initTimeout             60
   retryTimeout            0
@@ -121,7 +125,7 @@ extprocessor fcgi_${username} {
 }
 
 scripthandler {
-  add                     fcgi:fcgi_${username} php
+  add                     fastcgi:fcgi_${username} php
 }
 EOF_FCGI
 
