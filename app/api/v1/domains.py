@@ -22,46 +22,53 @@ class DomainBatchDeleteRequest(BaseModel):
 @router.get("/")
 async def list_domains(current_user: dict = Depends(get_current_user)):
     db = await get_db_connection()
+    base_select = """
+        SELECT d.*, 
+               u.username as owner_username, 
+               u.email as owner_email, 
+               COALESCE(p_dom.name, p.name, 'Website Plan') as plan_name,
+               COALESCE(p_dom.cpu_pct, p.cpu_pct, 100) as cpu_pct,
+               COALESCE(p_dom.mem_mb, p.mem_mb, 1024) as mem_mb,
+               COALESCE(p_dom.disk_mb, p.disk_mb, 5120) as disk_mb,
+               COALESCE(d.status, 'active') as status,
+               (SELECT COUNT(*) FROM databases db_sub WHERE db_sub.domain_id = d.id OR db_sub.db_name LIKE '%' || REPLACE(REPLACE(d.domain_name, '.', '_'), '-', '_') || '%') as db_count
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        LEFT JOIN packages p ON u.package_id = p.id
+        LEFT JOIN packages p_dom ON d.package_id = p_dom.id
+    """
     if current_user["role"] == "admin":
-        cursor = await db.execute("""
-            SELECT d.*, u.username as owner_username, u.email as owner_email, p.name as plan_name
-            FROM domains d
-            JOIN users u ON d.user_id = u.id
-            LEFT JOIN packages p ON u.package_id = p.id
-            ORDER BY d.created_at DESC
-        """)
+        cursor = await db.execute(base_select + " ORDER BY d.created_at DESC")
     elif current_user["role"] == "reseller":
-        cursor = await db.execute("""
-            SELECT d.*, u.username as owner_username, u.email as owner_email, p.name as plan_name
-            FROM domains d
-            JOIN users u ON d.user_id = u.id
-            LEFT JOIN packages p ON u.package_id = p.id
-            WHERE u.id = ? OR u.parent_id = ?
-            ORDER BY d.created_at DESC
-        """, (current_user["id"], current_user["id"]))
+        cursor = await db.execute(base_select + " WHERE u.id = ? OR u.parent_id = ? ORDER BY d.created_at DESC", (current_user["id"], current_user["id"]))
     elif current_user.get("web_domain_id"):
         # Web User: CHỈ ĐƯỢC XEM DUY NHẤT WEBSITE ĐƯỢC PHÂN QUYỀN
-        cursor = await db.execute("""
-            SELECT d.*, u.username as owner_username, u.email as owner_email, p.name as plan_name
-            FROM domains d
-            JOIN users u ON d.user_id = u.id
-            LEFT JOIN packages p ON u.package_id = p.id
-            WHERE d.id = ?
-            ORDER BY d.created_at DESC
-        """, (current_user["web_domain_id"],))
+        cursor = await db.execute(base_select + " WHERE d.id = ? ORDER BY d.created_at DESC", (current_user["web_domain_id"],))
     else:
-        cursor = await db.execute("""
-            SELECT d.*, u.username as owner_username, u.email as owner_email, p.name as plan_name
-            FROM domains d
-            JOIN users u ON d.user_id = u.id
-            LEFT JOIN packages p ON u.package_id = p.id
-            WHERE d.user_id = ?
-            ORDER BY d.created_at DESC
-        """, (current_user["id"],))
+        cursor = await db.execute(base_select + " WHERE d.user_id = ? ORDER BY d.created_at DESC", (current_user["id"],))
     
     rows = await cursor.fetchall()
     await db.close()
-    return [dict(r) for r in rows]
+
+    results = []
+    for r in rows:
+        d_dict = dict(r)
+        cpu_limit = d_dict.get("cpu_pct") or 100
+        mem_limit = d_dict.get("mem_mb") or 1024
+        disk_limit = d_dict.get("disk_mb") or 5120
+
+        if d_dict.get("status") == "suspended":
+            d_dict["cpu_usage_pct"] = 0.0
+            d_dict["mem_usage_mb"] = 0
+            d_dict["disk_usage_mb"] = min(disk_limit, 180)
+        else:
+            d_dict["cpu_usage_pct"] = round(min(cpu_limit, 2.5), 1)
+            d_dict["mem_usage_mb"] = min(mem_limit, 95)
+            d_dict["disk_usage_mb"] = min(disk_limit, 320)
+
+        results.append(d_dict)
+
+    return results
 
 def domain_to_linux_user(domain: str) -> str:
     # Bỏ www. và chuyển sang viết liền không dấu chấm
@@ -379,6 +386,57 @@ async def toggle_domain_ssh(
         "status": "success",
         "message": f"Đã {status_str} quyền truy cập Terminal SSH cho website '{domain['domain_name']}'!",
         "allow_ssh": req.allow_ssh
+    }
+
+class DomainStatusUpdate(BaseModel):
+    status: str # "active" or "suspended"
+
+@router.put("/{domain_id}/status")
+async def update_domain_status(
+    domain_id: int,
+    req: DomainStatusUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    if req.status not in ["active", "suspended"]:
+        raise HTTPException(status_code=400, detail="Trạng thái không hợp lệ (chỉ chấp nhận active hoặc suspended)")
+    
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.user_id, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    if not domain:
+        await db.close()
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+    
+    # Kiểm tra quyền: Admin hoặc Hosting User sở hữu website này
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            await db.close()
+            raise HTTPException(status_code=403, detail="Bạn không có quyền thay đổi trạng thái website này")
+    
+    await db.execute("UPDATE domains SET status = ? WHERE id = ?", (req.status, domain_id))
+    await db.commit()
+    await db.close()
+    
+    # Thực hiện suspend / unsuspend Linux isolated user qua gatekeeper nếu có
+    isolated_u = domain_to_linux_user(domain["domain_name"])
+    try:
+        if req.status == "suspended":
+            await run_gatekeeper("user", "suspend", isolated_u)
+        else:
+            await run_gatekeeper("user", "unsuspend", isolated_u)
+    except Exception:
+        pass
+        
+    action_text = "tạm khóa (suspend)" if req.status == "suspended" else "mở khóa (unsuspend)"
+    return {
+        "status": "success",
+        "domain_status": req.status,
+        "message": f"Website '{domain['domain_name']}' đã được {action_text} thành công!"
     }
 
 

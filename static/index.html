@@ -242,8 +242,8 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 3. Mail (WPC Style: Hỗ trợ Hosting & Web User) -->
-                            <button @click="currentTab = 'mail'" :class="navClass('mail')">
+                            <!-- 3. Mail (Ẩn khi ở chế độ Hosting User) -->
+                            <button v-if="!isHostingUser" @click="currentTab = 'mail'" :class="navClass('mail')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="mail" class="w-4 h-4 text-slate-400"></i>
                                     <span>Mail</span>
@@ -251,8 +251,8 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 4. Files / File Manager (Tất cả vai trò: Admin, Hosting User & Web User) -->
-                            <button @click="openFileManager()" :class="navClass('files')">
+                            <!-- 4. Files / File Manager (Ẩn khi ở chế độ Hosting User) -->
+                            <button v-if="!isHostingUser" @click="openFileManager()" :class="navClass('files')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="folder" class="w-4 h-4 text-slate-400"></i>
                                     <span>Files</span>
@@ -260,8 +260,8 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 5. Databases & Users (Admin, Hosting User & Web User) -->
-                            <button @click="currentTab = 'databases'" :class="navClass('databases')">
+                            <!-- 5. Databases & Users (Ẩn khi ở chế độ Hosting User) -->
+                            <button v-if="!isHostingUser" @click="currentTab = 'databases'" :class="navClass('databases')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="database" class="w-4 h-4 text-slate-400"></i>
                                     <span>Databases</span>
@@ -269,8 +269,8 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 6. Statistics (Hosting User & Web User) -->
-                            <button @click="currentTab = 'monitoring'" :class="navClass('monitoring')">
+                            <!-- 6. Statistics (Ẩn khi ở chế độ Hosting User) -->
+                            <button v-if="!isHostingUser" @click="currentTab = 'monitoring'" :class="navClass('monitoring')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="bar-chart-2" class="w-4 h-4 text-slate-400"></i>
                                     <span>Statistics</span>
@@ -278,8 +278,8 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 7. WordPress Toolkit (All Roles) -->
-                            <button @click="currentTab = 'wp'" :class="navClass('wp')">
+                            <!-- 7. WordPress Toolkit (Ẩn khi ở chế độ Hosting User) -->
+                            <button v-if="!isHostingUser" @click="currentTab = 'wp'" :class="navClass('wp')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="layers" class="w-4 h-4 text-slate-400"></i>
                                     <span>WordPress</span>
@@ -315,8 +315,8 @@
                                 <span class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">{{ customers.length }}</span>
                             </button>
 
-                            <!-- 8. Tiến trình & Hỗ trợ (All Roles) -->
-                            <button @click="openMessageBox('tasks')" :class="msgBoxTab === 'tasks' && showMessagesBox ? navClass('support') : 'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-[#142338] transition'">
+                            <!-- 8. Tiến trình & Hỗ trợ (Ẩn khi ở chế độ Hosting User) -->
+                            <button v-if="!isHostingUser" @click="openMessageBox('tasks')" :class="msgBoxTab === 'tasks' && showMessagesBox ? navClass('support') : 'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-[#142338] transition'">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="activity" class="w-4 h-4 text-slate-400"></i>
                                     <span>Tiến trình & Hỗ trợ</span>
@@ -344,8 +344,8 @@
                                 </div>
                             </button>
 
-                            <!-- 11. Báo cáo (Admin & Hosting User) -->
-                            <button v-if="['admin', 'reseller'].includes(currentUser.role)" @click="currentTab = 'monitoring'" :class="navClass('monitoring')">
+                            <!-- 11. Báo cáo (Chỉ Admin) -->
+                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'monitoring'" :class="navClass('monitoring')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="line-chart" class="w-4 h-4 text-slate-400"></i>
                                     <span>Báo cáo</span>
@@ -513,8 +513,8 @@
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.36').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.36').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.37').then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=0.5.37').then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -592,6 +592,9 @@
                     let chosen = validTabs.includes(hash) ? hash : 'dashboard';
                     if (chosen === 'service_plans' && isWebUser.value) {
                         chosen = 'dashboard';
+                    }
+                    if (isHostingUser.value && ['mail', 'files', 'databases', 'monitoring', 'wp'].includes(chosen)) {
+                        chosen = 'domains';
                     }
                     return chosen;
                 };
@@ -1429,6 +1432,33 @@
                             }
                         } else {
                             alert('Lỗi: ' + (data.detail || 'Không thể xóa website này'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
+                const handleToggleDomainStatus = async (domain) => {
+                    const newStatus = (domain.status === 'suspended') ? 'active' : 'suspended';
+                    const actionText = (newStatus === 'suspended') ? 'TẠM KHÓA (Suspend)' : 'MỞ KHÓA (Unsuspend)';
+                    if (!confirm(`Bạn có chắc chắn muốn ${actionText} website "${domain.domain_name}"?`)) return;
+
+                    try {
+                        const res = await fetch(`/api/v1/domains/${domain.id}/status`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ status: newStatus })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            domain.status = newStatus;
+                            alert(data.message || `Đã cập nhật trạng thái website ${domain.domain_name} thành công!`);
+                            fetchDomains();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể cập nhật trạng thái website'));
                         }
                     } catch (e) {
                         alert('Lỗi kết nối: ' + e.message);
@@ -3015,7 +3045,7 @@
                     activeDomainSubTab, showChangePhpModal, targetPhpDomain, selectedNewPhpVersion,
                     changingPhp, allPhpVersions, getDomainSubTab, setDomainSubTab,
                     openChangePhpModal, confirmChangePhp,
-                    navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain,
+                    navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain, handleToggleDomainStatus,
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
                     fetchSystemStatus, restartPanel, refreshLucideIcons,
                     filesList, fileCurrentPath, fileTargetUser, loadingFiles, pathParts,

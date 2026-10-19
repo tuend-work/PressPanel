@@ -73,11 +73,137 @@
                         </div>
 
                         <div v-else class="space-y-4">
-                            <!-- Card Domain WPC Obsidian Light -->
-                            <!-- WPC Obsidian 360 Website Overview Layout (Giống hình ảnh WPC tham chiếu) -->
-                            <div v-for="d in domains" :key="d.id"
-                                :class="selectedDomainIds.includes(d.id) ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-md' : 'border-slate-200/90 hover:border-slate-300 shadow-sm'"
-                                class="wp-card rounded-2xl overflow-hidden border transition bg-white text-slate-800">
+                            <!-- CHẾ ĐỘ 1: BẢNG DANH SÁCH DOMAIN TINH GỌN DÀNH CHO HOSTING USER (cPanel/DirectAdmin Style) -->
+                            <div v-if="isHostingUser" class="overflow-hidden rounded-2xl border border-slate-200/90 dark:border-[#1e2736] bg-white dark:bg-[#111722] shadow-sm">
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left border-collapse text-xs">
+                                        <thead>
+                                            <tr class="bg-slate-50/90 dark:bg-[#161f2e] border-b border-slate-200/80 dark:border-[#1e2736] text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                <th class="py-3.5 px-4 w-12 text-center">
+                                                    <input type="checkbox" @change="toggleSelectAllDomains" :checked="isAllDomainsSelected" class="rounded text-blue-600 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer">
+                                                </th>
+                                                <th class="py-3.5 px-2 w-10 text-center font-mono">STT</th>
+                                                <th class="py-3.5 px-4 min-w-[200px]">Website / Domain</th>
+                                                <th class="py-3.5 px-3 w-28 text-center">STATUS</th>
+                                                <th class="py-3.5 px-3 min-w-[120px]">Package</th>
+                                                <th class="py-3.5 px-4 min-w-[130px]">% CPU Đang Dùng</th>
+                                                <th class="py-3.5 px-4 min-w-[140px]">% RAM</th>
+                                                <th class="py-3.5 px-4 min-w-[140px]">% DISK</th>
+                                                <th class="py-3.5 px-3 w-24 text-center">DATABASE</th>
+                                                <th class="py-3.5 px-4 w-60 text-right">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100 dark:divide-[#1a2332]">
+                                            <tr v-for="(d, idx) in domains" :key="d.id" class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                                                <td class="py-3.5 px-4 text-center">
+                                                    <input type="checkbox" :value="d.id" v-model="selectedDomainIds" class="rounded text-blue-600 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer">
+                                                </td>
+                                                <td class="py-3.5 px-2 text-center font-mono text-slate-400 dark:text-slate-500 font-bold">
+                                                    {{ idx + 1 }}
+                                                </td>
+                                                <td class="py-3.5 px-4">
+                                                    <div class="flex flex-col">
+                                                        <a :href="'http://' + d.domain_name" target="_blank" class="font-extrabold text-sm text-slate-800 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition flex items-center gap-1.5">
+                                                            <span>{{ d.domain_name }}</span>
+                                                            <i data-lucide="external-link" class="w-3.5 h-3.5 text-slate-400"></i>
+                                                        </a>
+                                                        <div class="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400 font-mono">
+                                                            <span :class="d.webserver === 'ols' ? 'text-amber-500' : 'text-emerald-500'">{{ d.webserver === 'ols' ? 'OpenLiteSpeed' : 'Nginx' }}</span>
+                                                            <span>•</span>
+                                                            <span>PHP {{ d.php_version || '8.2' }}</span>
+                                                            <span>•</span>
+                                                            <span :class="d.ssl_enabled ? 'text-emerald-500' : 'text-slate-400'">{{ d.ssl_enabled ? '🔒 SSL' : 'No SSL' }}</span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="py-3.5 px-3 text-center">
+                                                    <span v-if="d.status === 'suspended'" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                                        <span>Suspended</span>
+                                                    </span>
+                                                    <span v-else class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                        <span>Active</span>
+                                                    </span>
+                                                </td>
+                                                <td class="py-3.5 px-3">
+                                                    <span class="px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium bg-slate-100 dark:bg-slate-800/80 text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-700/80">
+                                                        {{ d.plan_name || 'Website Starter' }}
+                                                    </span>
+                                                </td>
+                                                <td class="py-3.5 px-4">
+                                                    <div class="flex flex-col space-y-1">
+                                                        <div class="flex justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                                                            <span class="font-bold text-slate-700 dark:text-slate-200">{{ d.cpu_usage_pct || 0 }}%</span>
+                                                            <span>/ {{ d.cpu_pct || 100 }}%</span>
+                                                        </div>
+                                                        <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                            <div class="h-full bg-cyan-500 rounded-full transition-all duration-300" :style="{ width: Math.min(100, Math.max(3, (d.cpu_usage_pct || 0))) + '%' }"></div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="py-3.5 px-4">
+                                                    <div class="flex flex-col space-y-1">
+                                                        <div class="flex justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                                                            <span class="font-bold text-slate-700 dark:text-slate-200">{{ Math.round(((d.mem_usage_mb || 64) / (d.mem_mb || 1024)) * 100) }}%</span>
+                                                            <span>{{ d.mem_usage_mb || 64 }}M / {{ d.mem_mb || 1024 }}M</span>
+                                                        </div>
+                                                        <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                            <div class="h-full bg-indigo-500 rounded-full transition-all duration-300" :style="{ width: Math.min(100, Math.max(5, ((d.mem_usage_mb || 64) / (d.mem_mb || 1024)) * 100)) + '%' }"></div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="py-3.5 px-4">
+                                                    <div class="flex flex-col space-y-1">
+                                                        <div class="flex justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                                                            <span class="font-bold text-slate-700 dark:text-slate-200">{{ Math.round(((d.disk_usage_mb || 250) / (d.disk_mb || 5120)) * 100) }}%</span>
+                                                            <span>{{ ((d.disk_usage_mb || 250)/1024).toFixed(1) }}G / {{ ((d.disk_mb || 5120)/1024).toFixed(0) }}G</span>
+                                                        </div>
+                                                        <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                            <div class="h-full bg-amber-500 rounded-full transition-all duration-300" :style="{ width: Math.min(100, Math.max(5, ((d.disk_usage_mb || 250) / (d.disk_mb || 5120)) * 100)) + '%' }"></div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="py-3.5 px-3 text-center">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                        <span>🗄️</span>
+                                                        <span>{{ d.db_count || 0 }}</span>
+                                                    </span>
+                                                </td>
+                                                <td class="py-3.5 px-4 text-right">
+                                                    <div class="flex items-center justify-end space-x-1.5">
+                                                        <!-- Action 1: Manage (login vào để quản lý) -->
+                                                        <button @click="impersonateWebsiteUser(d)" title="Login vào quản lý website này"
+                                                            class="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition flex items-center space-x-1 shadow-sm">
+                                                            <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
+                                                            <span>Manage</span>
+                                                        </button>
+                                                        <!-- Action 2: Suspend or Unsuspend -->
+                                                        <button @click="handleToggleDomainStatus(d)" :title="d.status === 'suspended' ? 'Mở khóa website' : 'Tạm khóa website'"
+                                                            :class="d.status === 'suspended' ? 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' : 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800'"
+                                                            class="px-2 py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-1">
+                                                            <span>{{ d.status === 'suspended' ? '🔓 Unsuspend' : '⏸️ Suspend' }}</span>
+                                                        </button>
+                                                        <!-- Action 3: Delete -->
+                                                        <button @click="handleDeleteDomain(d)" title="Xóa hoàn toàn website này"
+                                                            class="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 transition">
+                                                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- CHẾ ĐỘ 2: CARD OBSIDIAN DÀNH CHO ADMIN HOẶC WEB USER -->
+                            <div v-else class="space-y-4">
+                                <!-- Card Domain WPC Obsidian Light -->
+                                <!-- WPC Obsidian 360 Website Overview Layout (Giống hình ảnh WPC tham chiếu) -->
+                                <div v-for="d in domains" :key="d.id"
+                                    :class="selectedDomainIds.includes(d.id) ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-md' : 'border-slate-200/90 hover:border-slate-300 shadow-sm'"
+                                    class="wp-card rounded-2xl overflow-hidden border transition bg-white text-slate-800">
                                 
                                 <!-- Header bar: Domain Name, Status Active, Action Buttons -->
                                 <div class="px-6 py-4 bg-slate-50/90 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
@@ -466,3 +592,4 @@
                             </div>
                         </div>
                     </div>
+                </div>
