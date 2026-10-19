@@ -646,24 +646,36 @@ async def save_domain_php_ini(
     if not os.path.exists(doc_root) and os.path.exists(f"/home/{isolated_user}/httpdocs/{clean_domain}"):
         doc_root = f"/home/{isolated_user}/httpdocs/{clean_domain}"
 
+    # 1. Ghi nội dung vào tệp tạm /tmp/wpc_phpini_{clean_domain}.ini
+    # Thư mục /tmp luôn có quyền ghi cho wpc
+    tmp_ini = f"/tmp/wpc_phpini_{clean_domain}.ini"
+    try:
+        with open(tmp_ini, "w", encoding="utf-8") as f:
+            f.write(ini_content)
+        os.chmod(tmp_ini, 0o644)
+    except Exception:
+        pass
+
+    # 2. Thử ghi trực tiếp vào doc_root nếu quyền cho phép
     try:
         os.makedirs(doc_root, exist_ok=True)
         ini_path = os.path.join(doc_root, ".user.ini")
         with open(ini_path, "w", encoding="utf-8") as f:
             f.write(ini_content)
     except Exception:
-        tmp_ini = f"/tmp/wpc_user_ini_{clean_domain}.tmp"
+        pass
+
+    # 3. Gọi gatekeeper hoặc sudo script để copy file, phân quyền và reload OLS/Nginx
+    res = await run_gatekeeper("vhost", "apply-php-ini", isolated_user, clean_domain, active_ws)
+    if res.get("status") == "error":
         try:
-            with open(tmp_ini, "w", encoding="utf-8") as f:
-                f.write(ini_content)
             import subprocess
-            subprocess.run(["cp", tmp_ini, ini_path], check=False)
-            os.remove(tmp_ini)
+            subprocess.run(
+                ["sudo", "/opt/wpc/scripts/vhost_manager.sh", "apply-php-ini", isolated_user, clean_domain, active_ws],
+                check=False
+            )
         except Exception:
             pass
-
-    # Gọi gatekeeper để set permission và reload webserver tương ứng
-    res = await run_gatekeeper("vhost", "apply-php-ini", isolated_user, clean_domain, active_ws)
 
     return {
         "status": "success",

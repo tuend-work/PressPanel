@@ -1033,9 +1033,10 @@ async def rewrite_webserver_config(
         domains = []
         try:
             cursor = await db.execute("""
-                SELECT d.id, d.domain_name, d.webserver, d.php_version, d.document_root, u.username
+                SELECT d.id, d.domain_name, d.webserver, d.php_version, d.document_root,
+                       COALESCE(u.username, 'admin') as username
                 FROM domains d
-                JOIN users u ON d.user_id = u.id
+                LEFT JOIN users u ON d.user_id = u.id
             """)
             domains = await cursor.fetchall()
             
@@ -1082,7 +1083,7 @@ async def rewrite_webserver_config(
             if os.path.isfile(gatekeeper_vhost):
                 subprocess.run([gatekeeper_vhost, "rewrite-all", ws], check=False)
             elif os.path.isfile(script_vhost):
-                subprocess.run(["bash", script_vhost, "rewrite-all", "all", "all", ws], check=False)
+                subprocess.run(["sudo", script_vhost, "rewrite-all", "all", "all", ws], check=False)
         except Exception as rwe:
             backup_notes.append(f"Lưu ý rewrite gốc: {str(rwe)}")
 
@@ -1090,24 +1091,40 @@ async def rewrite_webserver_config(
         for row in domains:
             try:
                 d_name = row["domain_name"]
+                hosting_u = row["username"] or "admin"
                 import re
-                u_name = re.sub(r"[^a-z0-9]", "", d_name)[:30] or row["username"]
+                u_name = re.sub(r"[^a-z0-9]", "", d_name)[:30] or hosting_u
                 php_ver = row["php_version"] or "8.2"
 
-                cmd = None
+                success = False
+                err_msg = ""
+                # Ưu tiên gatekeeper
                 if os.path.isfile(gatekeeper_vhost):
-                    cmd = [gatekeeper_vhost, "add", u_name, d_name, ws, php_ver]
-                elif os.path.isfile(script_vhost):
-                    cmd = ["bash", script_vhost, "add", u_name, d_name, ws, php_ver]
-
-                if cmd:
-                    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    proc = subprocess.run([gatekeeper_vhost, "add", u_name, d_name, ws, php_ver, hosting_u],
+                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     if proc.returncode == 0:
-                        success_count += 1
+                        success = True
                     else:
-                        fail_count += 1
-            except Exception:
+                        err_msg = proc.stderr or proc.stdout
+
+                # Fallback trực tiếp sudo script
+                if not success and os.path.isfile(script_vhost):
+                    proc = subprocess.run(["sudo", script_vhost, "add", u_name, d_name, ws, php_ver, hosting_u],
+                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    if proc.returncode == 0:
+                        success = True
+                    else:
+                        err_msg = proc.stderr or proc.stdout
+
+                if success:
+                    success_count += 1
+                else:
+                    fail_count += 1
+                    if err_msg:
+                        backup_notes.append(f"Lỗi tạo vhost {d_name}: {err_msg.strip()}")
+            except Exception as e_vhost:
                 fail_count += 1
+                backup_notes.append(f"Lỗi tạo vhost {row.get('domain_name', 'unknown')}: {str(e_vhost)}")
 
         # 4. Reload Web Server tương ứng
         srv_name = "lshttpd" if ws == "ols" else "nginx"
@@ -1116,14 +1133,21 @@ async def rewrite_webserver_config(
             if os.path.isfile(gatekeeper_app):
                 subprocess.run([gatekeeper_app, "service", "reload", srv_name], check=False)
             else:
-                subprocess.run(["systemctl", "reload", srv_name], check=False)
+                subprocess.run(["sudo", "systemctl", "reload", srv_name], check=False)
         except Exception:
             pass
 
+        if len(domains) == 0:
+            msg = f"Đã chuẩn bị xong cấu hình cho {ws.upper()}, nhưng hiện tại chưa có website nào trong cơ sở dữ liệu."
+        elif fail_count > 0:
+            msg = f"Tái tạo cấu hình {ws.upper()} hoàn tất: {success_count}/{len(domains)} website thành công, {fail_count} thất bại."
+        else:
+            msg = f"Tái tạo cấu hình {ws.upper()} thành công! Đã cập nhật {success_count} website từ cơ sở dữ liệu."
+
         return {
-            "status": "ok",
+            "status": "ok" if fail_count == 0 else "warning",
             "webserver": ws,
-            "message": f"Tái tạo cấu hình {ws.upper()} thành công! Đã cập nhật {success_count} website từ cơ sở dữ liệu.",
+            "message": msg,
             "details": {
                 "backup_info": backup_notes,
                 "total_domains": len(domains),

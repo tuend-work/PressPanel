@@ -4,7 +4,7 @@
 
 ### Bảng Điều Khiển Máy Chủ Độc Lập, Hiệu Năng Cao, Siêu Nhẹ & Tối Ưu Cho WordPress
 
-[![Version](https://img.shields.io/badge/version-0.5.48-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.5.49-blue.svg)](VERSION)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-green.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
 [![OS](https://img.shields.io/badge/OS-Ubuntu%20%7C%20Debian%20%7C%20AlmaLinux%20%7C%20Rocky-orange.svg)](#-yêu-cầu-hệ-thống)

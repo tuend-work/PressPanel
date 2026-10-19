@@ -296,8 +296,9 @@ EOF
 
         # Cấu hình Nginx CHỈ KHI chọn Nginx hoặc all
         if [ "$WEBSERVER" = "nginx" ] || [ "$WEBSERVER" = "all" ]; then
-            if [ -d "/etc/nginx/conf.d" ]; then
-                if [ -f "$WPC_DIR/templates/vhost_nginx/default.tpl" ]; then
+            mkdir -p /etc/nginx/conf.d /etc/nginx/sites-available /etc/nginx/sites-enabled
+            rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+            if [ -f "$WPC_DIR/templates/vhost_nginx/default.tpl" ]; then
                     # Tạo thư mục tạm và session riêng cho user nếu chưa có
                     mkdir -p "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" "/home/$USERNAME/logs"
                     chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/.tmp" "/home/$USERNAME/.sessions" 2>/dev/null || true
@@ -530,28 +531,39 @@ EOF_RW
         echo "[+] Ap dung cau hinh php.ini cho $DOMAIN (User: $USERNAME, Webserver: $WEBSERVER)..."
         DOC_ROOT="/home/$USERNAME/domains/$DOMAIN/public_html"
         [ ! -d "$DOC_ROOT" ] && DOC_ROOT="/home/$USERNAME/httpdocs/$DOMAIN"
+        mkdir -p "$DOC_ROOT" 2>/dev/null || true
 
-        # 1. Phân quyền chuẩn cho file .user.ini
+        # 1. Đưa tệp tạm /tmp/wpc_phpini_${DOMAIN}.ini vào $DOC_ROOT/.user.ini nếu có
+        TMP_INI="/tmp/wpc_phpini_${DOMAIN}.ini"
+        if [ -f "$TMP_INI" ]; then
+            cp -f "$TMP_INI" "$DOC_ROOT/.user.ini" 2>/dev/null || true
+            rm -f "$TMP_INI" 2>/dev/null || true
+        fi
+
+        # 2. Phân quyền chuẩn cho file .user.ini
         if [ -f "$DOC_ROOT/.user.ini" ]; then
             if id "$USERNAME" &>/dev/null; then
                 chown "$USERNAME:$USERNAME" "$DOC_ROOT/.user.ini" 2>/dev/null || true
             fi
             chmod 644 "$DOC_ROOT/.user.ini" 2>/dev/null || true
+            touch "$DOC_ROOT/.user.ini" 2>/dev/null || true
         fi
 
-        # 2. Xử lý OpenLiteSpeed: Cập nhật phpIniOverride trong vhconf.conf
+        # 3. Xử lý OpenLiteSpeed: Cập nhật phpIniOverride trong vhconf.conf
         if [ "$WEBSERVER" = "ols" ] || [ -f "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf" ]; then
             VH_CONF="/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf"
             if [ -f "$VH_CONF" ] && [ -f "$DOC_ROOT/.user.ini" ]; then
                 # Xóa block phpIniOverride cũ nếu có
                 sed -i '/phpIniOverride[[:space:]]*{/,/^[[:space:]]*}/d' "$VH_CONF" 2>/dev/null || true
 
-                # Tạo block phpIniOverride mới từ .user.ini
+                # Tạo block phpIniOverride mới từ .user.ini theo đúng chuẩn OpenLiteSpeed:
+                # php_value directive_name value
+                # php_flag boolean_directive On|Off
                 echo "" >> "$VH_CONF"
                 echo "phpIniOverride  {" >> "$VH_CONF"
                 while IFS='=' read -r key val || [ -n "$key" ]; do
                     clean_k=$(echo "$key" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-                    clean_v=$(echo "$val" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+                    clean_v=$(echo "$val" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^["'"'"']//' -e 's/["'"'"']$//')
                     [ -z "$clean_k" ] && continue
                     [[ "$clean_k" =~ ^[#;] ]] && continue
                     
@@ -563,12 +575,16 @@ EOF_RW
                 done < "$DOC_ROOT/.user.ini"
                 echo "}" >> "$VH_CONF"
 
-                # Reload OLS để nhận cấu hình tức thì
-                /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || true
+                # QUAN TRỌNG: Kill toàn bộ tiến trình lsphp cũ của user này để giải phóng worker đang giữ cache trong bộ nhớ
+                pkill -9 -u "$USERNAME" -f "lsphp" 2>/dev/null || true
+                rm -f "/tmp/lshttpd/lsphp_${USERNAME}.sock" 2>/dev/null || true
+
+                # Khởi động lại / reload OLS
+                /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
             fi
         fi
 
-        # 3. Xử lý Nginx: Reload Nginx và các worker PHP-FPM của user
+        # 4. Xử lý Nginx: Reload Nginx và các worker PHP-FPM của user
         if [ "$WEBSERVER" = "nginx" ] || [ -f "/etc/nginx/conf.d/$DOMAIN.conf" ]; then
             for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
                 systemctl reload "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
@@ -675,6 +691,10 @@ EOF_RW
             pkill -9 -f "lsphp" 2>/dev/null || true
             pkill -9 -f "lscgid" 2>/dev/null || true
             rm -rf /tmp/lshttpd/*.sock 2>/dev/null || true
+
+            # Chuẩn bị cấu hình Nginx
+            mkdir -p /etc/nginx/conf.d /etc/nginx/sites-available /etc/nginx/sites-enabled
+            rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
 
             # Chuẩn hóa phân quyền 711 /home
             chmod 711 /home 2>/dev/null || true
