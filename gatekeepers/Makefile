@@ -8,7 +8,10 @@ BIN_DIR = $(PREFIX)/bin
 
 .PHONY: all clean install
 
-all: $(MODULES)
+all: $(MODULES) wpc
+
+wpc: wpc.c
+	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
 
 %: %.c common.h
 	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
@@ -20,6 +23,11 @@ install: all
 		install -m 4750 -o root -g wpc $$mod $(BIN_DIR)/$$mod 2>/dev/null || \
 		install -m 4750 $$mod $(BIN_DIR)/$$mod; \
 	done
+	@if [ -f wpc ]; then \
+		echo "Installing compiled wpc CLI binary to /usr/local/bin/wpc"; \
+		install -m 755 wpc /usr/local/bin/wpc 2>/dev/null || true; \
+		ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || true; \
+	fi
 
 clean:
-	rm -f $(MODULES) *.o
+	rm -f $(MODULES) wpc *.o

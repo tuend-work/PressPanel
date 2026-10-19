@@ -227,12 +227,22 @@ cp VERSION "$INSTALL_DIR/" 2>/dev/null || true
 chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
 chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"/app "$INSTALL_DIR"/conf "$INSTALL_DIR"/data "$INSTALL_DIR"/logs "$INSTALL_DIR"/static
 
-# Cài đặt lệnh CLI wpc toàn hệ thống (cả /usr/local/bin và /usr/bin để đảm bảo 100% có trong $PATH)
-if [ -f "$INSTALL_DIR/scripts/wpc" ]; then
+# Cài đặt lệnh CLI wpc nhị phân (Binary ELF) toàn hệ thống (bảo vệ mã nguồn, chống đọc trần)
+if [ -f "$SRC_DIR/gatekeepers/wpc.c" ]; then
+    echo "[+] Biên dịch wpc CLI thành file thực thi nhị phân (ELF Binary)..."
+    gcc -O2 -fPIE -pie "$SRC_DIR/gatekeepers/wpc.c" -o /usr/local/bin/wpc 2>/dev/null || cp "$INSTALL_DIR/scripts/wpc" /usr/local/bin/wpc
+    strip /usr/local/bin/wpc 2>/dev/null || true
+    chmod 755 /usr/local/bin/wpc
+    ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || true
+elif [ -f "$INSTALL_DIR/scripts/wpc" ]; then
     cp "$INSTALL_DIR/scripts/wpc" /usr/local/bin/wpc
     chmod +x /usr/local/bin/wpc
-    ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || cp "$INSTALL_DIR/scripts/wpc" /usr/bin/wpc 2>/dev/null || true
+    ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || true
 fi
+
+# Biên dịch trước mã nguồn Python sang bytecode (.pyc)
+echo "[+] Tối ưu hóa & biên dịch trước bytecode Python (.pyc)..."
+"$INSTALL_DIR/venv/bin/python" -m compileall -q "$INSTALL_DIR/app" 2>/dev/null || true
 
 # 10. Khởi tạo Database SQLite
 echo "[+] Khởi tạo cơ sở dữ liệu SQLite..."

@@ -106,13 +106,22 @@ fi
 
 chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
 
-# Cập nhật CLI tool /usr/local/bin/wpc và /usr/bin/wpc
-if [ -f "$TMP_DIR/scripts/wpc" ]; then
+# Cập nhật CLI tool /usr/local/bin/wpc thành binary ELF nhị phân (bảo mật, chống đọc trần)
+if [ -f "$TMP_DIR/gatekeepers/wpc.c" ]; then
+    echo "[+] Biên dịch wpc CLI thành file thực thi nhị phân (ELF Binary)..."
+    gcc -O2 -fPIE -pie "$TMP_DIR/gatekeepers/wpc.c" -o /usr/local/bin/wpc 2>/dev/null || cp "$TMP_DIR/scripts/wpc" /usr/local/bin/wpc
+    strip /usr/local/bin/wpc 2>/dev/null || true
+    chmod 755 /usr/local/bin/wpc
+    ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || true
+elif [ -f "$TMP_DIR/scripts/wpc" ]; then
     cp "$TMP_DIR/scripts/wpc" /usr/local/bin/wpc
-    chmod +x /usr/local/bin/wpc
-    ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || cp "$TMP_DIR/scripts/wpc" /usr/bin/wpc 2>/dev/null || true
+    chmod 755 /usr/local/bin/wpc
+    ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || true
 fi
 rm -f /usr/local/bin/presspanel /usr/bin/presspanel 2>/dev/null || true
+
+# Biên dịch trước mã nguồn Python sang bytecode (.pyc)
+"$INSTALL_DIR/venv/bin/python" -m compileall -q "$INSTALL_DIR/app" 2>/dev/null || true
 
 # 4. Nâng cấp các thư viện Python nếu có bổ sung
 echo "[+] Kiểm tra và cập nhật dependencies Python..."
