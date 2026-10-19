@@ -38,10 +38,32 @@ if [[ "$OS_ID" =~ ^(debian|ubuntu)$ ]]; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -y
     apt-get install -y build-essential gcc make python3 python3-venv python3-pip \
-                       sqlite3 libsqlite3-dev curl wget git quota certbot
+                       sqlite3 libsqlite3-dev curl wget git quota certbot || \
+    apt-get install -y build-essential gcc make python3 python3-venv python3-pip \
+                       sqlite3 libsqlite3-dev curl wget git quota
 elif [[ "$OS_ID" =~ ^(almalinux|rocky|rhel|centos)$ ]]; then
-    dnf groupinstall -y "Development Tools"
-    dnf install -y gcc make python3 python3-pip sqlite-devel curl wget git quota certbot
+    # 1. Kích hoạt EPEL repository (bắt buộc cho certbot và các gói tiện ích trên RHEL/AlmaLinux)
+    echo "[+] Kích hoạt repository EPEL..."
+    dnf install -y epel-release || true
+
+    # 2. Kích hoạt CodeReady Builder (CRB) hoặc PowerTools
+    echo "[+] Kích hoạt repository CRB / PowerTools..."
+    dnf config-manager --set-enabled crb 2>/dev/null || \
+    dnf config-manager --set-enabled powertools 2>/dev/null || \
+    dnf config-manager --set-enabled "PowerTools" 2>/dev/null || true
+
+    # 3. Cài đặt Development Tools và các công cụ biên dịch
+    dnf groupinstall -y "Development Tools" || dnf install -y gcc gcc-c++ make || true
+    dnf install -y gcc make sqlite-devel curl wget git quota tar || true
+
+    # 4. Cài đặt Python (ưu tiên Python 3.11 hoặc 3.9 nếu trên EL8 mặc định là Python 3.6)
+    dnf install -y python3.11 python3.11-pip python3.11-devel 2>/dev/null || \
+    dnf install -y python39 python39-pip python39-devel 2>/dev/null || \
+    dnf install -y python3 python3-pip python3-devel 2>/dev/null || true
+
+    # 5. Cài đặt certbot từ EPEL (không dừng script nếu mirror chưa đồng bộ)
+    echo "[+] Cài đặt certbot..."
+    dnf install -y certbot || true
 fi
 
 # 3. Chuẩn bị mã nguồn dự án (nếu chạy qua curl | bash)
@@ -54,9 +76,13 @@ fi
 cd "$SRC_DIR"
 
 # 4. Tạo tài khoản hệ thống cho WPCloud
+NOLOGIN_SHELL="/usr/sbin/nologin"
+[ -x "$NOLOGIN_SHELL" ] || NOLOGIN_SHELL="/sbin/nologin"
+[ -x "$NOLOGIN_SHELL" ] || NOLOGIN_SHELL="/bin/false"
+
 if ! id -u "$PANEL_USER" >/dev/null 2>&1; then
     echo "[+] Tạo user hệ thống: $PANEL_USER..."
-    useradd -r -s /usr/sbin/nologin -d "$INSTALL_DIR" "$PANEL_USER"
+    useradd -r -s "$NOLOGIN_SHELL" -d "$INSTALL_DIR" "$PANEL_USER"
 fi
 
 # Cấu hình sudoers cho wpc thực hiện update, apps, service management và Web Terminal root
@@ -162,7 +188,26 @@ done
 
 # 8. Thiết lập môi trường Python venv
 echo "[+] Thiết lập Python Virtualenv..."
-python3 -m venv "$INSTALL_DIR/venv"
+# Ưu tiên tìm binary Python >= 3.9 hiện đại
+PYTHON_BIN=""
+for py in python3.12 python3.11 python3.10 python3.9 python3; do
+    if command -v "$py" &>/dev/null; then
+        PY_VER=$("$py" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "0.0")
+        PY_MAJOR=$(echo "$PY_VER" | cut -d. -f1)
+        PY_MINOR=$(echo "$PY_VER" | cut -d. -f2)
+        if [ "$PY_MAJOR" -ge 3 ] && [ "$PY_MINOR" -ge 9 ]; then
+            PYTHON_BIN=$(command -v "$py")
+            break
+        fi
+    fi
+done
+
+if [ -z "$PYTHON_BIN" ]; then
+    PYTHON_BIN=$(command -v python3 || echo "python3")
+fi
+
+echo "[+] Sử dụng: $($PYTHON_BIN --version 2>&1)"
+"$PYTHON_BIN" -m venv "$INSTALL_DIR/venv" || virtualenv -p "$PYTHON_BIN" "$INSTALL_DIR/venv"
 "$INSTALL_DIR/venv/bin/pip" install --upgrade pip
 "$INSTALL_DIR/venv/bin/pip" install -r requirements.txt
 
@@ -200,6 +245,10 @@ if [ -f "$SRC_DIR/systemd/wpc.service" ]; then
     cp "$SRC_DIR/systemd/wpc.service" /etc/systemd/system/wpc.service
 elif [ -f "$INSTALL_DIR/systemd/wpc.service" ]; then
     cp "$INSTALL_DIR/systemd/wpc.service" /etc/systemd/system/wpc.service
+fi
+
+if [ -f /etc/systemd/system/wpc.service ]; then
+    sed -i "s/--port 8888/--port $PANEL_PORT/g" /etc/systemd/system/wpc.service 2>/dev/null || true
 fi
 
 # Dọn dẹp presspanel cũ nếu có để tránh xung đột
