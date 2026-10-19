@@ -1024,11 +1024,15 @@ async def rewrite_webserver_config(
         success_count = 0
         fail_count = 0
 
-        # 2.4. Nếu chuyển sang OLS, tắt toàn bộ các service PHP-FPM của user
+        # 2.4. Nếu chuyển sang OLS, tắt toàn bộ các service PHP-FPM (user + system)
         if ws == "ols":
             try:
                 subprocess.run(["systemctl", "stop", "wpc-php*-fpm@*"], check=False)
                 subprocess.run(["systemctl", "disable", "wpc-php*-fpm@*"], check=False)
+                for pver in ["5.6", "7.0", "7.1", "7.2", "7.3", "7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"]:
+                    subprocess.run(["systemctl", "stop", f"php{pver}-fpm"], check=False)
+                    subprocess.run(["systemctl", "disable", f"php{pver}-fpm"], check=False)
+                subprocess.run(["pkill", "-9", "-f", "php-fpm"], check=False)
             except Exception:
                 pass
 

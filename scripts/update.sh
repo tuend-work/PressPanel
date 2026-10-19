@@ -179,18 +179,25 @@ if ! systemctl is-active --quiet lshttpd 2>/dev/null && ! systemctl is-active --
         bash "$INSTALL_DIR/scripts/php_fpm_service.sh" create "$UNAME" "$PVER" "$UNAME" 2>/dev/null || true
     done
 else
-    # Đang chạy OpenLiteSpeed: Dừng và tắt các standalone PHP-FPM user service để không tốn RAM
+    # Đang chạy OpenLiteSpeed: Dừng và tắt toàn bộ PHP-FPM (user + system) để không tốn RAM
     systemctl stop "wpc-php*-fpm@*" 2>/dev/null || true
     systemctl disable "wpc-php*-fpm@*" 2>/dev/null || true
+    for php_ver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+        systemctl stop "php${php_ver}-fpm" 2>/dev/null || true
+        systemctl disable "php${php_ver}-fpm" 2>/dev/null || true
+    done
+    pkill -9 -f "php-fpm" 2>/dev/null || true
 fi
 
-# Khởi động lại các PHP-FPM để nhận drop-in và gán ngay PID vào Cgroups v2
-for php_ver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
-    if systemctl is-active --quiet "php${php_ver}-fpm" 2>/dev/null; then
-        systemctl restart "php${php_ver}-fpm" 2>/dev/null || true
-    fi
-done
-/opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true
+# Nếu Nginx đang hoạt động thì khởi động lại PHP-FPM để nhận drop-in và gán vào Cgroups v2
+if ! systemctl is-active --quiet lshttpd 2>/dev/null && ! systemctl is-active --quiet lsws 2>/dev/null; then
+    for php_ver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+        if systemctl is-active --quiet "php${php_ver}-fpm" 2>/dev/null; then
+            systemctl restart "php${php_ver}-fpm" 2>/dev/null || true
+        fi
+    done
+    /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true
+fi
 
 # Đảm bảo thư mục runtime socket của OLS tồn tại và có quyền 1777
 mkdir -p /tmp/lshttpd 2>/dev/null || true

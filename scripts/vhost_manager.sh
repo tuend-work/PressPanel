@@ -362,16 +362,19 @@ EOF
     rewrite-all)
         echo "[+] Rewrite toan bo cau hinh webserver: $WEBSERVER..."
         if [ "$WEBSERVER" = "ols" ]; then
-            # 1. Dọn dẹp và dừng TOÀN BỘ tiến trình / service PHP-FPM riêng của user
-            echo "[+] Dang chuyen sang OLS: Tat cac service PHP-FPM nguoi dung..."
+            # 1. Dọn dẹp và dừng TOÀN BỘ tiến trình / service PHP-FPM riêng của user VÀ hệ thống
+            echo "[+] Dang chuyen sang OLS: Tat cac service PHP-FPM nguoi dung va he thong..."
             systemctl stop "wpc-php*-fpm@*" 2>/dev/null || true
             systemctl disable "wpc-php*-fpm@*" 2>/dev/null || true
             for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
                 systemctl stop "wpc-php${pver}-fpm@*.service" 2>/dev/null || true
                 systemctl disable "wpc-php${pver}-fpm@*.service" 2>/dev/null || true
+                systemctl stop "php${pver}-fpm" 2>/dev/null || true
+                systemctl disable "php${pver}-fpm" 2>/dev/null || true
             done
-            # Xóa socket và pid của php-fpm user
-            rm -f /run/php/php*-fpm-*.sock /run/php/php*-fpm-*.pid 2>/dev/null || true
+            pkill -9 -f "php-fpm" 2>/dev/null || true
+            # Xóa socket và pid của php-fpm
+            rm -f /run/php/php*-fpm*.sock /run/php/php*-fpm*.pid /var/run/php/php*-fpm*.sock 2>/dev/null || true
             # Tắt và dừng Nginx để giải phóng port 80/443 cho OLS
             systemctl stop nginx 2>/dev/null || true
             systemctl disable nginx 2>/dev/null || true
@@ -443,6 +446,12 @@ EOF
             done
 
             systemctl enable nginx 2>/dev/null || true
+            for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+                if [ -x "/usr/sbin/php-fpm${pver}" ]; then
+                    systemctl enable "php${pver}-fpm" 2>/dev/null || true
+                    systemctl restart "php${pver}-fpm" 2>/dev/null || true
+                fi
+            done
             if command -v nginx &>/dev/null; then
                 nginx -t 2>/dev/null && nginx -s reload 2>/dev/null || systemctl restart nginx 2>/dev/null || true
             fi
