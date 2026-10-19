@@ -13,50 +13,66 @@ router = APIRouter(prefix="/system", tags=["System Status"])
 _prev_net = {"bytes_sent": 0, "bytes_recv": 0, "time": 0.0}
 
 def get_system_stats():
-    # 1. Load Average
+    # 1. Load Average & CPU Cores
     try:
         load1, load5, load15 = os.getloadavg()
     except (AttributeError, OSError):
-        load1, load5, load15 = 0.5, 0.4, 0.35
+        load1, load5, load15 = 0.0, 0.0, 0.0
 
-    # 2. CPU Cores & Model
     cpu_cores = os.cpu_count() or 1
-    # Tính load percentage gần đúng từ load1 / cpu_cores
-    load_percent = min(100, int((load1 / cpu_cores) * 100)) if cpu_cores else 25
+    load_percent = min(100.0, round((load1 / cpu_cores) * 100, 1)) if cpu_cores else 0.0
 
-    # 3. RAM info từ /proc/meminfo (Linux) hoặc fallback
-    mem_total_gb = 8.0
-    mem_used_gb = 1.8
-    mem_percent = 22.5
-    if os.path.exists("/proc/meminfo"):
-        try:
-            meminfo = {}
-            with open("/proc/meminfo", "r") as f:
-                for line in f:
-                    parts = line.split(":")
-                    if len(parts) == 2:
-                        meminfo[parts[0].strip()] = int(parts[1].strip().split()[0])
-            total_kb = meminfo.get("MemTotal", 0)
-            avail_kb = meminfo.get("MemAvailable", meminfo.get("MemFree", 0))
-            used_kb = max(0, total_kb - avail_kb)
-            if total_kb > 0:
-                mem_total_gb = round(total_kb / 1024 / 1024, 2)
-                mem_used_gb = round(used_kb / 1024 / 1024, 2)
-                mem_percent = round((used_kb / total_kb) * 100, 1)
-        except Exception:
-            pass
+    # 2. CPU Usage thực tế từ psutil (nếu có) hoặc tính từ load
+    cpu_percent = load_percent
+    try:
+        import psutil
+        real_cpu = psutil.cpu_percent(interval=None)
+        if real_cpu >= 0:
+            cpu_percent = round(real_cpu, 1)
+    except Exception:
+        pass
+
+    # 3. RAM info từ psutil hoặc /proc/meminfo (Linux)
+    mem_total_gb = 0.0
+    mem_used_gb = 0.0
+    mem_percent = 0.0
+    try:
+        import psutil
+        vmem = psutil.virtual_memory()
+        mem_total_gb = round(vmem.total / (1024**3), 2)
+        mem_used_gb = round((vmem.total - vmem.available) / (1024**3), 2)
+        mem_percent = round(vmem.percent, 1)
+    except Exception:
+        if os.path.exists("/proc/meminfo"):
+            try:
+                meminfo = {}
+                with open("/proc/meminfo", "r") as f:
+                    for line in f:
+                        parts = line.split(":")
+                        if len(parts) == 2:
+                            meminfo[parts[0].strip()] = int(parts[1].strip().split()[0])
+                total_kb = meminfo.get("MemTotal", 0)
+                avail_kb = meminfo.get("MemAvailable", meminfo.get("MemFree", 0))
+                used_kb = max(0, total_kb - avail_kb)
+                if total_kb > 0:
+                    mem_total_gb = round(total_kb / 1024 / 1024, 2)
+                    mem_used_gb = round(used_kb / 1024 / 1024, 2)
+                    mem_percent = round((used_kb / total_kb) * 100, 1)
+            except Exception:
+                pass
 
     # 4. Disk Usage
+    disk_total_gb = 0.0
+    disk_used_gb = 0.0
+    disk_percent = 0.0
     try:
         disk_path = "/" if os.name != "nt" else "C:\\"
         usage = shutil.disk_usage(disk_path)
         disk_total_gb = round(usage.total / (1024**3), 1)
         disk_used_gb = round(usage.used / (1024**3), 1)
-        disk_percent = round((usage.used / usage.total) * 100, 1)
+        disk_percent = round((usage.used / usage.total) * 100, 1) if usage.total > 0 else 0.0
     except Exception:
-        disk_total_gb = 100.0
-        disk_used_gb = 42.0
-        disk_percent = 42.0
+        pass
 
     # 5. OS Details
     os_name = f"{platform.system()} {platform.release()}"
@@ -73,10 +89,10 @@ def get_system_stats():
     # 6. Network IO từ /proc/net/dev (Linux)
     global _prev_net
     cur_time = time.time()
-    up_speed = 12.4
-    down_speed = 18.2
-    bytes_sent = 1024 * 1024 * 500
-    bytes_recv = 1024 * 1024 * 1200
+    up_speed = 0.0
+    down_speed = 0.0
+    bytes_sent = 0
+    bytes_recv = 0
     if os.path.exists("/proc/net/dev"):
         try:
             tot_sent = 0
@@ -103,13 +119,13 @@ def get_system_stats():
         "cpu_cores": cpu_cores,
         "load": {
             "percent": load_percent,
-            "status": "Normal" if load_percent < 70 else ("Warning" if load_percent < 90 else "Critical"),
+            "status": "Bình thường" if load_percent < 70 else ("Cảnh báo" if load_percent < 90 else "Nguy hiểm"),
             "1m": round(load1, 2),
             "5m": round(load5, 2),
             "15m": round(load15, 2)
         },
         "cpu": {
-            "percent": min(100, max(5, int(load_percent * 0.9 + 5))),
+            "percent": cpu_percent,
             "cores": cpu_cores
         },
         "ram": {

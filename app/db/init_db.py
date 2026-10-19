@@ -226,7 +226,7 @@ async def init_database():
         except Exception:
             pass
         try:
-            await db.execute("UPDATE users SET full_name = 'Nguyễn Đức Tuệ' WHERE username = 'admin' AND (full_name IS NULL OR full_name = '')")
+            await db.execute("UPDATE users SET full_name = 'Administrator' WHERE username = 'admin' AND (full_name IS NULL OR full_name = '' OR full_name = 'Nguyễn Đức Tuệ')")
         except Exception:
             pass
         try:

@@ -5,7 +5,7 @@
                             <div>
                                 <h1 class="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2">
                                     <span>👋</span>
-                                    <span>Chào mừng, {{ currentUser.username === 'admin' ? 'Nguyễn Đức Tuệ' : currentUser.username }}!</span>
+                                    <span>Chào mừng, {{ currentUser.full_name || currentUser.username }}!</span>
                                 </h1>
                                 <p class="text-xs text-slate-500 mt-1">
                                     <span v-if="currentUser.role === 'admin'">Dưới đây là tổng quan hoạt động và tài nguyên máy chủ vật lý của bạn.</span>
@@ -303,7 +303,7 @@
                                     <div class="flex items-center justify-between pb-2 mb-1 border-b border-slate-100">
                                         <span class="text-xs font-bold text-slate-700">Tải máy chủ (Load)</span>
                                         <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                                              :class="(sysStats.load?.percent || 33) < 70 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'">
+                                              :class="(sysStats.load?.percent ?? 0) < 70 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'">
                                             {{ sysStats.load?.status || 'Bình thường' }}
                                         </span>
                                     </div>
@@ -313,19 +313,19 @@
                                                 <circle cx="56" cy="56" r="44" stroke="#f1f5f9" stroke-width="8" fill="transparent"/>
                                                 <circle cx="56" cy="56" r="44" stroke="#10b981" stroke-width="8" fill="transparent"
                                                     :stroke-dasharray="276.4"
-                                                    :stroke-dashoffset="276.4 * (1 - (sysStats.load?.percent || 33) / 100)"
+                                                    :stroke-dashoffset="276.4 * (1 - (sysStats.load?.percent ?? 0) / 100)"
                                                     stroke-linecap="round" class="transition-all duration-700"/>
                                             </svg>
                                             <div class="absolute inset-0 flex items-center justify-center font-extrabold text-xl text-slate-800">
-                                                {{ sysStats.load?.percent || 33 }}%
+                                                {{ sysStats.load?.percent ?? 0 }}%
                                             </div>
                                         </div>
                                     </div>
                                     <div class="text-center pt-2 border-t border-slate-100">
                                         <div class="text-[11px] text-slate-400 font-mono">
-                                            1m: <b class="text-slate-700">{{ sysStats.load?.['1m'] || '0.85' }}</b> | 
-                                            5m: <b class="text-slate-700">{{ sysStats.load?.['5m'] || '0.72' }}</b> | 
-                                            15m: <b class="text-slate-700">{{ sysStats.load?.['15m'] || '0.64' }}</b>
+                                            1m: <b class="text-slate-700">{{ sysStats.load?.['1m'] ?? '0.00' }}</b> | 
+                                            5m: <b class="text-slate-700">{{ sysStats.load?.['5m'] ?? '0.00' }}</b> | 
+                                            15m: <b class="text-slate-700">{{ sysStats.load?.['15m'] ?? '0.00' }}</b>
                                         </div>
                                     </div>
                                 </div>
@@ -334,7 +334,7 @@
                                 <div class="wp-card p-5 flex flex-col justify-between hover:shadow-md transition">
                                     <div class="flex items-center justify-between pb-2 mb-1 border-b border-slate-100">
                                         <span class="text-xs font-bold text-slate-700">CPU Usage (Máy chủ)</span>
-                                        <span class="text-[11px] text-blue-600 font-semibold">{{ sysStats.cpu_cores || 4 }} Cores</span>
+                                        <span class="text-[11px] text-blue-600 font-semibold">{{ sysStats.cpu_cores || 1 }} Cores</span>
                                     </div>
                                     <div class="flex items-center justify-center my-3">
                                         <div class="relative w-28 h-28 flex items-center justify-center">
@@ -342,18 +342,18 @@
                                                 <circle cx="56" cy="56" r="44" stroke="#f1f5f9" stroke-width="8" fill="transparent"/>
                                                 <circle cx="56" cy="56" r="44" stroke="#2563eb" stroke-width="8" fill="transparent"
                                                     :stroke-dasharray="276.4"
-                                                    :stroke-dashoffset="276.4 * (1 - (sysStats.cpu?.percent || 25) / 100)"
+                                                    :stroke-dashoffset="276.4 * (1 - (sysStats.cpu?.percent ?? 0) / 100)"
                                                     stroke-linecap="round" class="transition-all duration-700"/>
                                             </svg>
                                             <div class="absolute inset-0 flex items-center justify-center font-extrabold text-xl text-slate-800">
-                                                {{ sysStats.cpu?.percent || 25 }}%
+                                                {{ sysStats.cpu?.percent ?? 0 }}%
                                             </div>
                                         </div>
                                     </div>
                                     <div class="text-center pt-2 border-t border-slate-100">
                                         <div class="text-xs font-semibold text-slate-700">Bộ vi xử lý máy chủ</div>
                                         <div class="text-[11px] text-slate-400 font-mono mt-0.5">
-                                            {{ sysStats.cpu_cores || 4 }} vCPU Cores ảo hóa
+                                            {{ sysStats.cpu_cores || 1 }} vCPU Cores ảo hóa
                                         </div>
                                     </div>
                                 </div>
@@ -370,18 +370,18 @@
                                                 <circle cx="56" cy="56" r="44" stroke="#f1f5f9" stroke-width="8" fill="transparent"/>
                                                 <circle cx="56" cy="56" r="44" stroke="#10b981" stroke-width="8" fill="transparent"
                                                     :stroke-dasharray="276.4"
-                                                    :stroke-dashoffset="276.4 * (1 - (sysStats.ram?.percent || 22) / 100)"
+                                                    :stroke-dashoffset="276.4 * (1 - (sysStats.ram?.percent ?? 0) / 100)"
                                                     stroke-linecap="round" class="transition-all duration-700"/>
                                             </svg>
                                             <div class="absolute inset-0 flex items-center justify-center font-extrabold text-xl text-slate-800">
-                                                {{ sysStats.ram?.percent || 22 }}%
+                                                {{ sysStats.ram?.percent ?? 0 }}%
                                             </div>
                                         </div>
                                     </div>
                                     <div class="text-center pt-2 border-t border-slate-100">
                                         <div class="text-xs font-mono">
-                                            <span class="text-emerald-600 font-bold">{{ sysStats.ram?.used_gb || '1.8' }}GB</span>
-                                            <span class="text-slate-400"> / {{ sysStats.ram?.total_gb || '8.0' }}GB</span>
+                                            <span class="text-emerald-600 font-bold">{{ sysStats.ram?.used_gb ?? '0.0' }}GB</span>
+                                            <span class="text-slate-400"> / {{ sysStats.ram?.total_gb ?? '0.0' }}GB</span>
                                         </div>
                                     </div>
                                 </div>
@@ -390,7 +390,7 @@
                                 <div class="wp-card p-5 flex flex-col justify-between hover:shadow-md transition">
                                     <div class="flex items-center justify-between pb-2 mb-1 border-b border-slate-100">
                                         <span class="text-xs font-bold text-slate-700">Ổ cứng (Disk /)</span>
-                                        <span class="text-[11px] font-semibold" :class="(sysStats.disk?.percent || 42) > 80 ? 'text-amber-600' : 'text-blue-600'">
+                                        <span class="text-[11px] font-semibold" :class="(sysStats.disk?.percent ?? 0) > 80 ? 'text-amber-600' : 'text-blue-600'">
                                             Hệ thống /
                                         </span>
                                     </div>
@@ -399,23 +399,23 @@
                                             <svg class="w-28 h-28 transform -rotate-90">
                                                 <circle cx="56" cy="56" r="44" stroke="#f1f5f9" stroke-width="8" fill="transparent"/>
                                                 <circle cx="56" cy="56" r="44"
-                                                    :stroke="(sysStats.disk?.percent || 42) > 80 ? '#f59e0b' : '#3b82f6'"
+                                                    :stroke="(sysStats.disk?.percent ?? 0) > 80 ? '#f59e0b' : '#3b82f6'"
                                                     stroke-width="8" fill="transparent"
                                                     :stroke-dasharray="276.4"
-                                                    :stroke-dashoffset="276.4 * (1 - (sysStats.disk?.percent || 42) / 100)"
+                                                    :stroke-dashoffset="276.4 * (1 - (sysStats.disk?.percent ?? 0) / 100)"
                                                     stroke-linecap="round" class="transition-all duration-700"/>
                                             </svg>
                                             <div class="absolute inset-0 flex items-center justify-center font-extrabold text-xl text-slate-800">
-                                                {{ sysStats.disk?.percent || 42 }}%
+                                                {{ sysStats.disk?.percent ?? 0 }}%
                                             </div>
                                         </div>
                                     </div>
                                     <div class="text-center pt-2 border-t border-slate-100">
                                         <div class="text-xs font-mono">
-                                            <span :class="(sysStats.disk?.percent || 42) > 80 ? 'text-amber-600 font-bold' : 'text-blue-600 font-bold'">
-                                                {{ sysStats.disk?.used_gb || '42.0' }}GB
+                                            <span :class="(sysStats.disk?.percent ?? 0) > 80 ? 'text-amber-600 font-bold' : 'text-blue-600 font-bold'">
+                                                {{ sysStats.disk?.used_gb ?? '0.0' }}GB
                                             </span>
-                                            <span class="text-slate-400"> / {{ sysStats.disk?.total_gb || '100.0' }}GB</span>
+                                            <span class="text-slate-400"> / {{ sysStats.disk?.total_gb ?? '0.0' }}GB</span>
                                         </div>
                                     </div>
                                 </div>

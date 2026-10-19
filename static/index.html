@@ -467,7 +467,7 @@
                             <div class="hidden sm:flex flex-col text-left">
                                 <span class="text-xs font-bold transition"
                                     :class="isDarkMode ? 'text-slate-200 group-hover:text-blue-400' : 'text-slate-800 group-hover:text-blue-600'">
-                                    {{ currentUser.full_name || (currentUser.username === 'admin' ? 'Nguyễn Đức Tuệ' : currentUser.username) }}
+                                    {{ currentUser.full_name || currentUser.username }}
                                 </span>
                                 <span class="text-[10px] text-slate-400 capitalize font-medium">{{ currentUser.role === 'admin' ? 'Administrator' : 'User' }}</span>
                             </div>
@@ -514,8 +514,8 @@
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.51').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.51').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.52').then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=0.5.52').then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -1235,12 +1235,12 @@
                 // Dữ liệu giám sát System WPC Widget
                 const sysStats = ref({
                     os_name: 'Linux',
-                    cpu_cores: 4,
-                    load: { percent: 33, status: 'Normal', '1m': 0.85, '5m': 0.72, '15m': 0.64 },
-                    cpu: { percent: 25, cores: 4 },
-                    ram: { percent: 22, used_gb: 1.85, total_gb: 8.0 },
-                    disk: { percent: 42, used_gb: 42.0, total_gb: 100.0 },
-                    network: { up_speed_kb: 12.4, down_speed_kb: 18.2, total_sent_gb: 2.55, total_recv_gb: 1.18 },
+                    cpu_cores: 1,
+                    load: { percent: 0, status: 'Bình thường', '1m': '0.00', '5m': '0.00', '15m': '0.00' },
+                    cpu: { percent: 0, cores: 1 },
+                    ram: { percent: 0, used_gb: '0.0', total_gb: '0.0' },
+                    disk: { percent: 0, used_gb: '0.0', total_gb: '0.0' },
+                    network: { up_speed_kb: 0, down_speed_kb: 0, total_sent_gb: 0, total_recv_gb: 0 },
                     overview: {
                         sites: { running: 0, stopped: 0, all: 0 },
                         ftp: { accounts: 1 },
