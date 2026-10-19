@@ -23,9 +23,42 @@ accesslog $VH_ROOT/domains/{{DOMAIN}}/logs/access.log {
   keepDays                30
 }
 
+context / {
+  type                    null
+  location                $DOC_ROOT/
+  allow                   *
+  addDefaultCharset       off
+  extraHeaders            <<<END_extraHeaders
+X-Frame-Options: SAMEORIGIN
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: geolocation=(), camera=(), microphone=()
+END_extraHeaders
+}
+
 rewrite  {
   enable                  1
   autoLoadHtaccess        1
+  rules                   <<<END_rules
+# ========================================================
+# WPCloud Security Hardening: Chặn đứng các vector tấn công
+# ========================================================
+# 1. Cho phép SSL ACME challenge (Let's Encrypt / Certbot)
+RewriteRule ^/\.well-known/ - [L]
+
+# 2. Chặn truy cập file ẩn, file cấu hình và VCS repository
+RewriteRule ^/(\.git|\.env|\.user\.ini|\.svn|composer\.(json|lock)|package\.json|\.sql|\.bak|\.log) - [F,L]
+
+# 3. Bảo vệ file cấu hình WordPress wp-config.php
+RewriteRule ^/wp-config\.php$ - [F,L]
+
+# 4. Chống thực thi mã độc PHP trong thư mục uploads và cache
+RewriteRule ^/(wp-content/uploads|cache)/.*\.php$ - [F,L]
+
+# 5. Chặn XML-RPC chống tấn công Brute-force & DDoS WordPress
+RewriteRule ^/xmlrpc\.php$ - [F,L]
+END_rules
 }
 
 extprocessor lsphp_{{USERNAME}} {

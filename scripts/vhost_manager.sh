@@ -187,6 +187,35 @@ case "$ACTION" in
         [ -d "$DOMAIN_DIR/ssl" ] && chmod 700 "$DOMAIN_DIR/ssl" 2>/dev/null || true
         [ -d "$DOMAIN_DIR/backups" ] && chmod 700 "$DOMAIN_DIR/backups" 2>/dev/null || true
 
+        # 3.1 Khóa bảo vệ nghiêm ngặt file cấu hình nhạy cảm wp-config.php (0640)
+        for wp_cfg in "$DOC_ROOT/wp-config.php" "/home/$USERNAME/domains/$DOMAIN/wp-config.php"; do
+            if [ -f "$wp_cfg" ]; then
+                chmod 640 "$wp_cfg" 2>/dev/null || true
+                if id "$USERNAME" &>/dev/null; then
+                    chown "$USERNAME:$USERNAME" "$wp_cfg" 2>/dev/null || true
+                fi
+            fi
+        done
+
+        # 3.2 Khóa chống thực thi PHP webshell trong thư mục Uploads
+        if [ -d "$DOC_ROOT/wp-content/uploads" ] && [ ! -f "$DOC_ROOT/wp-content/uploads/.htaccess" ]; then
+            cat << 'EOF_UPLOADS' > "$DOC_ROOT/wp-content/uploads/.htaccess"
+# WPCloud Security Hardening: Chặn đứng thực thi mã độc PHP trong thư mục Uploads
+<FilesMatch "\.(php|php[0-9]|phtml|phar|pl|py|jsp|asp|sh|cgi)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Deny from all
+    </IfModule>
+</FilesMatch>
+EOF_UPLOADS
+            if id "$USERNAME" &>/dev/null; then
+                chown "$USERNAME:$USERNAME" "$DOC_ROOT/wp-content/uploads/.htaccess" 2>/dev/null || true
+            fi
+            chmod 644 "$DOC_ROOT/wp-content/uploads/.htaccess" 2>/dev/null || true
+        fi
+
         # 4. Đảm bảo thư mục runtime socket của OLS tồn tại và có quyền sticky bit 1777
         mkdir -p /tmp/lshttpd 2>/dev/null || true
         chmod 1777 /tmp/lshttpd 2>/dev/null || true
@@ -256,11 +285,16 @@ virtualhost $DOMAIN {
   allowSymbolLink         2
   enableScript            1
   restrained              0
+  setUIDMode              2
 }
 EOF
                     else
-                        # Đảm bảo restrained là 0 nếu block đã tồn tại
+                        # Đảm bảo restrained là 0 và có setUIDMode 2 nếu block đã tồn tại
                         sed -i "/virtualhost[[:space:]]\+$DOMAIN[[:space:]]*{/,/^[[:space:]]*}/ s/restrained[[:space:]]\+1/restrained              0/" "$OLS_MAIN_CONF" 2>/dev/null || true
+                        sed -i "/virtualhost[[:space:]]\+$DOMAIN[[:space:]]*{/,/^[[:space:]]*}/ s/allowSymbolLink[[:space:]]\+[01]/allowSymbolLink         2/" "$OLS_MAIN_CONF" 2>/dev/null || true
+                        if ! grep -A 8 "virtualhost $DOMAIN" "$OLS_MAIN_CONF" | grep -q "setUIDMode"; then
+                            sed -i "/virtualhost[[:space:]]\+$DOMAIN[[:space:]]*{/,/^[[:space:]]*}/ s/restrained[[:space:]]\+0/restrained              0\n  setUIDMode              2/" "$OLS_MAIN_CONF" 2>/dev/null || true
+                        fi
                     fi
 
                     # Map virtualhost vào listener HTTP (port 80)
@@ -641,9 +675,20 @@ EOF_RW
 
             # 4. Cấu hình OLS
             OLS_CONF="/usr/local/lsws/conf/httpd_config.conf"
-            if [ -f "$OLS_CONF" ]; then
                 # Sửa restrained 1 thành restrained 0 cho tất cả vhost
                 sed -i 's/restrained[[:space:]]\+1/restrained              0/g' "$OLS_CONF" 2>/dev/null || true
+                sed -i 's/allowSymbolLink[[:space:]]\+[01]/allowSymbolLink         2/g' "$OLS_CONF" 2>/dev/null || true
+
+                # Bổ sung setUIDMode 2 (User Home UID) cho tất cả virtualhost chưa có
+                awk '
+                    /virtualhost[[:space:]]+[^{]+{/ { in_vh=1; has_uid=0 }
+                    in_vh && /setUIDMode/ { has_uid=1 }
+                    in_vh && /}/ {
+                        if (!has_uid) print "  setUIDMode              2"
+                        in_vh=0
+                    }
+                    { print }
+                ' "$OLS_CONF" > "$OLS_CONF.tmp" 2>/dev/null && mv "$OLS_CONF.tmp" "$OLS_CONF" 2>/dev/null || true
 
                 # Đổi port 8088 thành 80 bất kể định dạng có khoảng trắng
                 sed -i -E 's/address[[:space:]]+(\*:|0\.0\.0\.0:|\[::\]:)?8088/address *:80/g' "$OLS_CONF" || true
