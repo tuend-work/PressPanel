@@ -707,16 +707,14 @@ EOF_RW
                 fi
             done
 
-            systemctl enable nginx 2>/dev/null || true
+            systemctl enable openresty 2>/dev/null || systemctl enable nginx 2>/dev/null || true
             for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
                 if [ -x "/usr/sbin/php-fpm${pver}" ]; then
                     systemctl enable "php${pver}-fpm" 2>/dev/null || true
                     systemctl restart "php${pver}-fpm" 2>/dev/null || true
                 fi
             done
-            if command -v nginx &>/dev/null; then
-                nginx -t 2>/dev/null && nginx -s reload 2>/dev/null || systemctl restart nginx 2>/dev/null || true
-            fi
+            (systemctl reload openresty 2>/dev/null || systemctl reload nginx 2>/dev/null || systemctl restart openresty 2>/dev/null || systemctl restart nginx 2>/dev/null || true)
         fi
         exit 0
         ;;

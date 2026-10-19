@@ -326,8 +326,35 @@ SUPPORTED_APPS = [
     }
 ]
 
+def get_nginx_service() -> str:
+    """Tự động phát hiện service đang chạy là openresty hay nginx"""
+    if os.name == "nt":
+        return "nginx"
+    for svc in ["openresty", "nginx"]:
+        try:
+            r = subprocess.run(["systemctl", "is-active", "--quiet", svc], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if r.returncode == 0:
+                return svc
+        except Exception:
+            pass
+    if os.path.exists("/usr/local/openresty/nginx/sbin/nginx") and not os.path.exists("/usr/sbin/nginx"):
+        return "openresty"
+    return "nginx"
+
+def get_nginx_config_path() -> str:
+    """Tự động phát hiện file cấu hình nginx.conf hoặc openresty"""
+    paths = [
+        "/usr/local/openresty/nginx/conf/nginx.conf",
+        "/etc/openresty/nginx.conf",
+        "/etc/nginx/nginx.conf"
+    ]
+    for p in paths:
+        if os.path.exists(p):
+            return p
+    return "/etc/nginx/nginx.conf"
+
 def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
-    """Kiểm tra thực tế nhị phân và service trên Linux"""
+    """Kiểm tra thực tế nhị phân và service trên Linux (thông minh cho cả Nginx & OpenResty)"""
     installed = False
     running = False
 
@@ -342,7 +369,24 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
             break
 
     # 2. Kiểm tra service nếu app có service đi kèm
-    if app["service"] and os.name != "nt":
+    if app["id"] == "nginx" and os.name != "nt":
+        active_svc = "nginx"
+        for svc_name in ["openresty", "nginx"]:
+            try:
+                res = subprocess.run(
+                    ["systemctl", "is-active", "--quiet", svc_name],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                if res.returncode == 0:
+                    running = True
+                    active_svc = svc_name
+                    installed = True
+                    break
+            except Exception:
+                pass
+        app = {**app, "service": active_svc}
+    elif app["service"] and os.name != "nt":
         try:
             res = subprocess.run(
                 ["systemctl", "is-active", "--quiet", app["service"]],
@@ -539,6 +583,9 @@ async def app_action(
             raise HTTPException(status_code=400, detail="Ứng dụng này không chạy dạng dịch vụ daemon.")
         
         srv = app["service"]
+        if req.app_id == "nginx":
+            srv = get_nginx_service()
+
         # Ưu tiên thực thi qua C Gatekeeper SUID (tránh lỗi Polkit / Interactive authentication required)
         if os.path.isfile(gatekeeper_bin):
             proc = subprocess.run(
@@ -548,9 +595,12 @@ async def app_action(
                 text=True
             )
             if proc.returncode == 0:
-                return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} thành công!"}
-            else:
-                raise HTTPException(status_code=500, detail=f"Lỗi: {proc.stderr or proc.stdout}")
+                return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} ({srv}) thành công!"}
+            elif req.app_id == "nginx":
+                alt_srv = "openresty" if srv == "nginx" else "nginx"
+                proc_alt = subprocess.run([gatekeeper_bin, "service", req.action, alt_srv], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc_alt.returncode == 0:
+                    return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} ({alt_srv}) thành công!"}
 
         # Fallback sudo nếu chưa compile C Gatekeeper
         try:
@@ -561,18 +611,13 @@ async def app_action(
                 text=True
             )
             if res.returncode == 0:
-                return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} thành công!"}
-            else:
-                # Thử lại bằng systemctl trực tiếp
-                res2 = subprocess.run(
-                    ["systemctl", req.action, srv],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True
-                )
-                if res2.returncode == 0:
-                    return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} thành công!"}
-                raise HTTPException(status_code=500, detail=f"Lỗi: {res.stderr or res2.stderr}")
+                return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} ({srv}) thành công!"}
+            elif req.app_id == "nginx":
+                alt_srv = "openresty" if srv == "nginx" else "nginx"
+                res_alt = subprocess.run(["sudo", "systemctl", req.action, alt_srv], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if res_alt.returncode == 0:
+                    return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} ({alt_srv}) thành công!"}
+            raise HTTPException(status_code=500, detail=f"Lỗi: {res.stderr}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Lỗi thao tác service: {str(e)}")
 
@@ -593,9 +638,12 @@ APP_CONFIG_PATHS = {
 
 @router.get("/config")
 async def get_app_config(app_id: str, file_type: str = "main", current_user: dict = Depends(get_current_user)):
-    """Đọc file cấu hình thực tế của ứng dụng để hiển thị trong Popup Settings (hỗ trợ cả php.ini và pool www.conf)"""
+    """Đọc file cấu hình thực tế của ứng dụng để hiển thị trong Popup Settings (hỗ trợ cả OpenResty, php.ini và pool www.conf)"""
     lookup_id = f"{app_id}_pool" if file_type == "pool" and app_id.startswith("php") else app_id
-    conf_path = APP_CONFIG_PATHS.get(lookup_id)
+    if app_id == "nginx":
+        conf_path = get_nginx_config_path()
+    else:
+        conf_path = APP_CONFIG_PATHS.get(lookup_id)
     
     # Lấy phiên bản PHP nếu là app PHP (vd: php84 -> 8.4, php56 -> 5.6)
     php_ver = None
@@ -607,6 +655,11 @@ async def get_app_config(app_id: str, file_type: str = "main", current_user: dic
             conf_path = f"/etc/php/{php_ver}/fpm/php.ini"
 
     alternatives = {
+        "nginx": [
+            "/usr/local/openresty/nginx/conf/nginx.conf",
+            "/etc/openresty/nginx.conf",
+            "/etc/nginx/nginx.conf"
+        ],
         "ols": ["/usr/local/lsws/conf/httpd_config.conf", "/usr/local/lsws/conf/httpd_config.xml"],
         "mysql": ["/etc/mysql/my.cnf", "/etc/mysql/mysql.conf.d/mysqld.cnf", "/etc/my.cnf"],
         "mariadb": ["/etc/mysql/mariadb.conf.d/50-server.cnf", "/etc/mysql/my.cnf"],
@@ -712,7 +765,10 @@ async def save_app_config(req: ConfigUpdateRequest, current_user: dict = Depends
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền chỉnh sửa cấu hình hệ thống.")
 
     lookup_id = f"{req.app_id}_pool" if req.file_type == "pool" and req.app_id.startswith("php") else req.app_id
-    conf_path = APP_CONFIG_PATHS.get(lookup_id)
+    if req.app_id == "nginx":
+        conf_path = get_nginx_config_path()
+    else:
+        conf_path = APP_CONFIG_PATHS.get(lookup_id)
     
     # Xác định đường dẫn cấu hình PHP động cho mọi phiên bản (5.6 - 8.5)
     if req.app_id.startswith("php") and len(req.app_id) >= 5:
@@ -1136,16 +1192,20 @@ async def rewrite_webserver_config(
 
         # 4. Khởi động lại Web Server tương ứng và đảm bảo trạng thái hoạt động
         if ws == "nginx":
+            ngx_svc = get_nginx_service()
             try:
-                subprocess.run(["sudo", "systemctl", "enable", "nginx"], check=False)
-                test_proc = subprocess.run(["sudo", "nginx", "-t"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                subprocess.run(["sudo", "systemctl", "enable", ngx_svc], check=False)
+                test_cmd = ["sudo", "nginx", "-t"]
+                if os.path.exists("/usr/local/openresty/nginx/sbin/nginx"):
+                    test_cmd = ["sudo", "/usr/local/openresty/nginx/sbin/nginx", "-t"]
+                test_proc = subprocess.run(test_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 if test_proc.returncode == 0:
-                    subprocess.run(["sudo", "systemctl", "restart", "nginx"], check=False)
+                    subprocess.run(["sudo", "systemctl", "restart", ngx_svc], check=False)
                 else:
-                    backup_notes.append(f"Cảnh báo Nginx config test: {test_proc.stderr or test_proc.stdout}")
-                    subprocess.run(["sudo", "systemctl", "restart", "nginx"], check=False)
+                    backup_notes.append(f"Cảnh báo Nginx/OpenResty config test: {test_proc.stderr or test_proc.stdout}")
+                    subprocess.run(["sudo", "systemctl", "restart", ngx_svc], check=False)
             except Exception as ngx_e:
-                backup_notes.append(f"Lỗi khởi động Nginx: {str(ngx_e)}")
+                backup_notes.append(f"Lỗi khởi động {ngx_svc}: {str(ngx_e)}")
         elif ws == "ols":
             try:
                 subprocess.run(["sudo", "systemctl", "enable", "lshttpd"], check=False)

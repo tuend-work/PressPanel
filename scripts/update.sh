@@ -328,7 +328,14 @@ elif [ -x "/usr/local/lsws/bin/lswsctrl" ]; then
     /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || true
 fi
 
-if systemctl is-active --quiet nginx 2>/dev/null; then
+# Tự động đồng bộ và bảo mật môi trường OpenResty (nếu có cài đặt)
+if [ -f "/usr/local/openresty/nginx/conf/nginx.conf" ] || command -v openresty &>/dev/null; then
+    bash "$TMP_DIR/scripts/apps/nginx.sh" configure 2>/dev/null || true
+fi
+
+if systemctl is-active --quiet openresty 2>/dev/null; then
+    systemctl restart openresty 2>/dev/null || true
+elif systemctl is-active --quiet nginx 2>/dev/null; then
     systemctl restart nginx 2>/dev/null || true
 fi
 

@@ -105,6 +105,8 @@ static inline int is_safe_config_path(const char *path) {
     // Whitelist các thư mục cấu hình dịch vụ hợp lệ
     int is_allowed_dir = (
         strncmp(path, "/etc/nginx/", 11) == 0 ||
+        strncmp(path, "/usr/local/openresty/", 21) == 0 ||
+        strncmp(path, "/etc/openresty/", 15) == 0 ||
         strncmp(path, "/usr/local/lsws/", 16) == 0 ||
         strncmp(path, "/etc/php/", 9) == 0 ||
         strncmp(path, "/etc/mysql/", 11) == 0 ||
