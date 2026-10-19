@@ -203,9 +203,15 @@ async def get_task_log(task_id: str, current_user: dict = Depends(get_current_us
     if not target_log.is_file():
         return {"id": task_id, "log": "Đang khởi tạo tiến trình... Vui lòng đợi.\n"}
 
+    db = await get_db_connection()
+    cur = await db.execute("SELECT status FROM tasks WHERE id = ?", (task_id,))
+    row = await cur.fetchone()
+    await db.close()
+    task_status = row["status"] if row else "unknown"
+
     try:
         with open(target_log, "r", encoding="utf-8", errors="replace") as f:
             content = f.read()
-        return {"id": task_id, "log": content or "Đang chạy..."}
+        return {"id": task_id, "log": content or "Đang chạy...", "status": task_status}
     except Exception as e:
-        return {"id": task_id, "log": f"Lỗi đọc file log: {str(e)}"}
+        return {"id": task_id, "log": f"Lỗi đọc file log: {str(e)}", "status": task_status}

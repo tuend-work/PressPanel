@@ -160,7 +160,7 @@ if [ -f "$TMP_DIR/systemd/wpc.service" ]; then
 fi
 systemctl daemon-reload 2>/dev/null || true
 systemctl enable wpc 2>/dev/null || true
-systemctl restart wpc 2>/dev/null || true
+# Dịch vụ wpc sẽ được khởi động lại ở cuối cùng của script để không kill tiến trình update giữa chừng
 
 # Khởi tạo các Systemd Template Service wpc-php<ver>-fpm@.service cho tất cả các bản PHP
 for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
@@ -400,3 +400,7 @@ echo "   CẬP NHẬT THÀNH CÔNG LÊN PHIÊN BẢN: $NEW_VER           "
 echo "   Trạng thái dịch vụ: $(systemctl is-active wpc 2>/dev/null) "
 echo "   Giao diện quản trị: http://<IP_MAY_CHU>:$PANEL_PORT   "
 echo "=========================================================="
+echo "[+] Hoàn tất toàn bộ tiến trình cập nhật 100%!"
+echo "[+] Đang khởi động lại dịch vụ WPCloud Control Panel..."
+(sleep 2 && systemctl restart wpc) >/dev/null 2>&1 &
+exit 0

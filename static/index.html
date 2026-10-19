@@ -386,7 +386,7 @@
                             </button>
                         </div>
                         <div class="mt-3 text-center text-[10px] text-slate-500 font-mono">
-                            WPCloud Control Panel v0.4.15
+                            WPCloud Control Panel v{{ panelVersion }}
                         </div>
                     </div>
                 </div>
@@ -514,8 +514,8 @@
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.59').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.59').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.60').then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=0.5.60').then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -3048,31 +3048,125 @@
                     redisStats.value.memory_used = '1.2 MB';
                 };
 
+                const panelVersion = ref('0.5.60');
                 const showUpdateModal = ref(false);
                 const isUpdating = ref(false);
-                const updateCountdown = ref(12);
+                const updateCompleted = ref(false);
+                const updateCountdown = ref(3);
+                const updateLogText = ref('');
+                let updatePollingTimer = null;
+
+                const fetchPanelVersion = async () => {
+                    try {
+                        const res = await fetch('/api/v1/system/version');
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data.current_version) panelVersion.value = data.current_version;
+                        }
+                    } catch (e) {}
+                };
+
+                const reloadNow = () => {
+                    window.location.reload();
+                };
+
+                const scrollToUpdateTerminal = () => {
+                    nextTick(() => {
+                        const el = document.getElementById('panelUpdateTerminal');
+                        if (el) {
+                            el.scrollTop = el.scrollHeight;
+                        }
+                    });
+                };
 
                 const handlePanelUpdate = async () => {
                     isUpdating.value = true;
-                    updateCountdown.value = 12;
+                    updateCompleted.value = false;
+                    updateCountdown.value = 3;
+                    updateLogText.value = "=== Bắt đầu tiến trình cập nhật WPCloud Control Panel ===\n[+] Đang gửi yêu cầu kích hoạt tác vụ cập nhật...\n";
+                    scrollToUpdateTerminal();
+
                     try {
                         const res = await fetch('/api/v1/system/update', {
                             method: 'POST',
                             headers: { 'Authorization': `Bearer ${token.value}` }
                         });
                         const data = await res.json();
-                        if (res.ok) {
-                            const interval = setInterval(() => {
-                                updateCountdown.value--;
-                                if (updateCountdown.value <= 0) {
-                                    clearInterval(interval);
-                                    window.location.reload();
-                                }
-                            }, 1000);
-                        } else {
+                        if (!res.ok) {
                             alert('Lỗi: ' + (data.detail || 'Không thể bắt đầu cập nhật'));
                             isUpdating.value = false;
+                            return;
                         }
+
+                        const taskId = data.task_id;
+                        updateLogText.value += `[+] Tác vụ cập nhật đã được khởi tạo: Task ID #${taskId}\n[+] Đang kết nối luồng nhật ký thời gian thực...\n\n`;
+                        scrollToUpdateTerminal();
+
+                        if (updatePollingTimer) clearInterval(updatePollingTimer);
+                        let failureCount = 0;
+
+                        updatePollingTimer = setInterval(async () => {
+                            try {
+                                const logRes = await fetch(`/api/v1/tasks/${taskId}/log`, {
+                                    headers: { 'Authorization': `Bearer ${token.value}` }
+                                });
+                                if (logRes.ok) {
+                                    const logData = await logRes.json();
+                                    if (logData.log) {
+                                        updateLogText.value = logData.log;
+                                        scrollToUpdateTerminal();
+                                    }
+
+                                    const isFinished = logData.status === 'completed' ||
+                                                     (logData.log && (
+                                                         logData.log.includes('CẬP NHẬT THÀNH CÔNG') ||
+                                                         logData.log.includes('Hoàn tất toàn bộ tiến trình cập nhật 100%')
+                                                     ));
+
+                                    if (isFinished) {
+                                        clearInterval(updatePollingTimer);
+                                        isUpdating.value = false;
+                                        updateCompleted.value = true;
+                                        updateLogText.value += '\n[+] Cập nhật thành công 100%! Đang khởi động lại panel... Tự động tải lại trang sau 3 giây.\n';
+                                        scrollToUpdateTerminal();
+
+                                        const countInterval = setInterval(() => {
+                                            updateCountdown.value--;
+                                            if (updateCountdown.value <= 0) {
+                                                clearInterval(countInterval);
+                                                window.location.reload();
+                                            }
+                                        }, 1000);
+                                    } else if (logData.status === 'failed') {
+                                        clearInterval(updatePollingTimer);
+                                        isUpdating.value = false;
+                                        updateLogText.value += '\n[-] Tác vụ cập nhật thất bại. Vui lòng kiểm tra nhật ký chi tiết ở trên.\n';
+                                        scrollToUpdateTerminal();
+                                    }
+                                } else if (logRes.status === 502 || logRes.status === 503 || logRes.status === 504) {
+                                    failureCount++;
+                                    if (failureCount >= 3) {
+                                        clearInterval(updatePollingTimer);
+                                        isUpdating.value = false;
+                                        updateCompleted.value = true;
+                                        updateLogText.value += '\n[+] Dịch vụ WPCloud đã nạp mã nguồn mới và đang khởi động lại. Đang làm mới giao diện...\n';
+                                        scrollToUpdateTerminal();
+                                        setTimeout(() => window.location.reload(), 2000);
+                                    }
+                                }
+                            } catch (err) {
+                                failureCount++;
+                                if (failureCount >= 3) {
+                                    clearInterval(updatePollingTimer);
+                                    isUpdating.value = false;
+                                    updateCompleted.value = true;
+                                    updateLogText.value += '\n[+] Dịch vụ WPCloud đã khởi động lại. Đang làm mới giao diện...\n';
+                                    scrollToUpdateTerminal();
+                                    setTimeout(() => window.location.reload(), 2500);
+                                }
+                            }
+                        }, 800);
+
                     } catch (e) {
                         alert('Lỗi kết nối: ' + e.message);
                         isUpdating.value = false;
@@ -3188,6 +3282,7 @@
                     if (savedUser) {
                         try { currentUser.value = JSON.parse(savedUser); } catch(e){}
                     }
+                    fetchPanelVersion();
                     if (token.value) {
                         fetchDomains();
                         fetchCustomers();
@@ -3227,7 +3322,7 @@
                     selectedPlanTab, filteredServicePlans, websitePlans,
                     showChangePlanModal, selectedCustomerForPlan, targetPlanId, changingPlan, selectedPlanPreview,
                     openChangePlanModal, confirmChangePlan,
-                    showUpdateModal, isUpdating, updateCountdown, handlePanelUpdate,
+                    panelVersion, showUpdateModal, isUpdating, updateCompleted, updateCountdown, updateLogText, handlePanelUpdate, reloadNow,
                     showMessagesBox, msgBoxTab, runningTasks, completedTasks,
                     selectedTaskId, selectedTaskLog, fetchTasks, viewTaskLog,
                     refreshSelectedLog, openMessageBox, currentFormattedDate,

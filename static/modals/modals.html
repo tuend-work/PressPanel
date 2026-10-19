@@ -1254,51 +1254,80 @@
                 </div>
             </div>
 
-            <!-- MODAL: CẬP NHẬT PHIÊN BẢN WPCLOUD CONTROL PANEL -->
-            <div v-if="showUpdateModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative border border-slate-200">
-                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+            <!-- MODAL: CẬP NHẬT PHIÊN BẢN WPCLOUD CONTROL PANEL (TERMINAL STREAMING STYLE) -->
+            <div v-if="showUpdateModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-[#1f2430] rounded-2xl max-w-2xl w-full shadow-2xl relative border border-slate-700/80 overflow-hidden text-slate-200">
+                    <!-- Modal Header -->
+                    <div class="flex justify-between items-center px-5 py-3.5 border-b border-slate-700/60 bg-[#181d26]">
                         <div class="flex items-center space-x-2.5">
-                            <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-lg font-bold">
-                                🔄
-                            </div>
-                            <h3 class="text-base font-bold text-slate-800">Cập Nhật WPCloud Panel</h3>
+                            <span v-if="isUpdating" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                            <span v-else class="text-base">🔄</span>
+                            <h3 class="text-sm font-medium text-slate-100 tracking-wide">
+                                {{ isUpdating ? 'Updating panel, please wait...' : 'Cập Nhật WPCloud Control Panel' }}
+                            </h3>
                         </div>
-                        <button v-if="!isUpdating" @click="showUpdateModal = false" class="text-slate-400 hover:text-slate-700 text-xl font-bold">&times;</button>
+                        <button @click="showUpdateModal = false" class="text-slate-400 hover:text-white text-lg font-bold w-7 h-7 rounded-full hover:bg-slate-700/50 flex items-center justify-center transition leading-none">&times;</button>
                     </div>
 
-                    <div class="space-y-4 text-xs">
-                        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 space-y-2.5">
+                    <!-- Modal Body: Chế độ Xem Trước Cập Nhật (Khi chưa bấm) -->
+                    <div v-if="!isUpdating && !updateCompleted" class="p-5 space-y-4 text-xs">
+                        <div class="p-4 rounded-xl bg-[#141822] border border-slate-700/60 space-y-2.5">
                             <div class="flex justify-between items-center">
-                                <span class="text-slate-500 font-medium">Phiên bản hiện tại:</span>
-                                <span class="font-mono text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">v0.4.13</span>
+                                <span class="text-slate-400 font-medium">Phiên bản hiện tại:</span>
+                                <span class="font-mono text-blue-400 font-bold bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/30">v{{ panelVersion }}</span>
                             </div>
                             <div class="flex justify-between items-center">
-                                <span class="text-slate-500 font-medium">Kênh cập nhật:</span>
-                                <span class="text-emerald-600 font-mono font-semibold">GitHub Official (main)</span>
+                                <span class="text-slate-400 font-medium">Kênh cập nhật:</span>
+                                <span class="text-emerald-400 font-mono font-semibold">GitHub Official (main)</span>
                             </div>
                             <div class="flex justify-between items-center">
-                                <span class="text-slate-500 font-medium">Bảo toàn dữ liệu:</span>
-                                <span class="text-emerald-600 font-semibold">100% (DB & Websites an toàn)</span>
+                                <span class="text-slate-400 font-medium">Bảo toàn dữ liệu:</span>
+                                <span class="text-emerald-400 font-semibold">100% (DB & Websites an toàn)</span>
                             </div>
                         </div>
 
-                        <div v-if="isUpdating" class="p-5 rounded-xl bg-blue-50/80 border border-blue-200 text-center space-y-2">
-                            <div class="text-2xl animate-spin text-blue-600">⚡</div>
-                            <div class="font-bold text-slate-800 text-sm">Đang Tiến Hành Cập Nhật...</div>
-                            <p class="text-slate-600 text-[11px] leading-relaxed">Hệ thống đang kéo mã nguồn mới nhất, biên dịch C Gatekeepers và khởi động lại dịch vụ.</p>
-                            <div class="text-blue-600 font-mono text-xs pt-1 font-semibold">Tự động tải lại trang sau {{ updateCountdown }} giây...</div>
-                        </div>
+                        <p class="text-slate-400 text-[11px] leading-relaxed">
+                            Nhấn nút bên dưới để kéo mã nguồn mới nhất từ GitHub, cập nhật các module C Gatekeeper và khởi động lại panel mượt mà. Tiến trình cập nhật sẽ được hiển thị trực quan theo thời gian thực.
+                        </p>
 
-                        <div v-else class="text-slate-500 text-[11px] leading-relaxed">
-                            Nhấn nút bên dưới để cập nhật mã nguồn mới nhất, bổ sung tính năng và bản vá bảo mật từ GitHub. Hệ thống sẽ tự động khởi động lại dịch vụ sau khi hoàn tất.
-                        </div>
-
-                        <div v-if="!isUpdating" class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
-                            <button type="button" @click="showUpdateModal = false" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium transition">Đóng</button>
-                            <button type="button" @click="handlePanelUpdate" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-md shadow-blue-500/20 transition flex items-center space-x-1.5">
+                        <div class="flex justify-end space-x-2 pt-2 border-t border-slate-700/50">
+                            <button type="button" @click="showUpdateModal = false" class="px-4 py-2 rounded-xl bg-slate-700/60 text-slate-300 hover:bg-slate-700 font-medium transition">Đóng</button>
+                            <button type="button" @click="handlePanelUpdate" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/25 transition flex items-center space-x-1.5">
                                 <span>⚡</span> <span>Bắt Đầu Cập Nhật</span>
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- Modal Body: Chế độ Terminal Streaming Log Giống Hệt aaPanel (Khi đang hoặc đã cập nhật) -->
+                    <div v-else class="p-4 space-y-3">
+                        <div id="panelUpdateTerminal" class="bg-[#12161f] border border-slate-800 rounded-xl p-4 font-mono text-[12px] leading-relaxed text-slate-300 h-96 overflow-y-auto whitespace-pre-wrap select-text shadow-inner">
+{{ updateLogText || 'Starting update process, please wait...' }}
+                        </div>
+
+                        <!-- Footer Status & Action -->
+                        <div class="flex items-center justify-between pt-1 px-1 text-xs">
+                            <div class="flex items-center space-x-2 text-[11px]">
+                                <span v-if="isUpdating" class="flex items-center space-x-1.5 text-blue-400">
+                                    <span class="animate-spin text-sm">⚡</span>
+                                    <span>Đang cập nhật mã nguồn & biên dịch hệ thống...</span>
+                                </span>
+                                <span v-else-if="updateCompleted" class="flex items-center space-x-1.5 text-emerald-400 font-semibold">
+                                    <span>✅</span>
+                                    <span>Hoàn tất! Tự động tải lại trang sau {{ updateCountdown }}s...</span>
+                                </span>
+                                <span v-else class="text-amber-400">
+                                    <span>⚠️</span> <span>Tiến trình hoàn tất hoặc dừng lại.</span>
+                                </span>
+                            </div>
+
+                            <div class="flex space-x-2">
+                                <button v-if="isUpdating" @click="showUpdateModal = false" class="px-3 py-1.5 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-slate-300 text-xs transition">
+                                    Chạy ngầm
+                                </button>
+                                <button v-if="updateCompleted" @click="reloadNow" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition">
+                                    Tải lại ngay
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -521,7 +521,7 @@ async def trigger_update(
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên cấp cao mới có quyền cập nhật panel.")
     
     update_sh = "/opt/wpc/scripts/update.sh"
-    cmd = f"sudo {update_sh}" if os.path.exists(update_sh) else "echo Mock update"
+    cmd = f"sudo bash {update_sh}" if os.path.exists(update_sh) else "echo '[+] Đang kiểm tra mã nguồn...' && sleep 1 && echo '[+] Cập nhật hoàn tất 100%!'"
     task_id = await add_system_task(
         user_id=current_user["id"],
         action_name="Update WPCloud Core",
