@@ -514,8 +514,8 @@
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.67').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.67').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.68').then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=0.5.68').then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -3329,7 +3329,7 @@
                     redisStats.value.memory_used = '1.2 MB';
                 };
 
-                const panelVersion = ref('0.5.67');
+                const panelVersion = ref('0.5.68');
                 const showUpdateModal = ref(false);
                 const isUpdating = ref(false);
                 const updateCompleted = ref(false);

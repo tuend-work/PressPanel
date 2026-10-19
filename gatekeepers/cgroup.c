@@ -7,6 +7,16 @@
 
 #define CGROUP_ROOT "/sys/fs/cgroup/wpc"
 
+static void write_cgroup_file(const char *dir, const char *file, const char *val) {
+    char fpath[512];
+    snprintf(fpath, sizeof(fpath), "%s/%s", dir, file);
+    FILE *fp = fopen(fpath, "w");
+    if (fp) {
+        fputs(val, fp);
+        fclose(fp);
+    }
+}
+
 int main(int argc, char *argv[]) {
     init_security_env();
 
@@ -81,11 +91,9 @@ int main(int argc, char *argv[]) {
          * 1. Reseller cấp cha: wpc.slice -> wpc-reseller_%s.slice
          * 2. Hosting User (Khách hàng): wpc-hosting_%s.slice (đặt CPUQuota và MemoryMax của gói hosting)
          * 3. Website con của Hosting User: Kế thừa hoặc nằm trong wpc-hosting_%s-site_%s.slice
-         * Bằng cách này, dù Hosting User tạo bao nhiêu website con thì tổng CPU/RAM của tất cả
-         * các website con KHÔNG BAO GIỜ vượt quá trần của Hosting User!
          */
-        char cmd[8192];
-        snprintf(cmd, sizeof(cmd),
+        char init_cmd[4096];
+        snprintf(init_cmd, sizeof(init_cmd),
             "mkdir -p /sys/fs/cgroup/wpc && "
             "for c in cpu memory io pids; do "
             "  echo \"+$c\" > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true; "
@@ -95,41 +103,51 @@ int main(int argc, char *argv[]) {
             "for c in cpu memory io pids; do "
             "  echo \"+$c\" > %s/cgroup.subtree_control 2>/dev/null || true; "
             "done; "
-            "mkdir -p %s && "
-            "echo '%lld' > %s/memory.max 2>/dev/null || true; "
-            "echo '%d 100000' > %s/cpu.max 2>/dev/null || true; "
-            "echo '%d' > %s/pids.max 2>/dev/null || true; "
-            "mkdir -p %s && "
-            "echo '%lld' > %s/memory.max 2>/dev/null || true; "
-            "echo '%d 100000' > %s/cpu.max 2>/dev/null || true; "
-            "echo '%d' > %s/pids.max 2>/dev/null || true; "
+            "mkdir -p %s %s",
+            reseller_path, reseller_path, path, user_flat_path);
+        IGNORE_RESULT(system(init_cmd));
+
+        /* Ghi trực tiếp các file quota qua fopen/fputs (an toàn tuyệt đối, không sợ tràn chuỗi) */
+        char val_buf[128];
+        snprintf(val_buf, sizeof(val_buf), "%lld\n", (long long)mem_mb * 1024 * 1024);
+        write_cgroup_file(path, "memory.max", val_buf);
+        write_cgroup_file(user_flat_path, "memory.max", val_buf);
+
+        snprintf(val_buf, sizeof(val_buf), "%d 100000\n", cpu * 1000);
+        write_cgroup_file(path, "cpu.max", val_buf);
+        write_cgroup_file(user_flat_path, "cpu.max", val_buf);
+
+        snprintf(val_buf, sizeof(val_buf), "%d\n", pids);
+        write_cgroup_file(path, "pids.max", val_buf);
+        write_cgroup_file(user_flat_path, "pids.max", val_buf);
+
+        /* Systemd Slices và OpenLiteSpeed native lscgctl */
+        char sys_cmd[4096];
+        snprintf(sys_cmd, sizeof(sys_cmd),
             "if [ %u -gt 0 ]; then systemctl set-property user-%u.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; fi; "
             "systemctl set-property wpc-user-%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; "
             "systemctl set-property wpc-hosting_%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; "
             "for lscg in /usr/local/lsws/lsns/bin/lscgctl /usr/local/lsws/bin/lscgctl; do "
             "  if [ -x \"$lscg\" ]; then \"$lscg\" set %s --cpu=%d 2>/dev/null || true; fi; "
-            "done; "
-            "pgrep -u %s | while read -r p; do echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; done; "
-            "pgrep -f 'lsphp.*%s' | while read -r p; do echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; done; "
-            "pgrep -f 'pool %s' | while read -r p; do echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; echo \"$p\" > %s/cgroup.procs 2>/dev/null || true; done",
-            reseller_path,
-            reseller_path,
-            path,
-            mem_mb * 1024 * 1024, path,
-            cpu * 1000, path,
-            pids, path,
-            user_flat_path,
-            mem_mb * 1024 * 1024, user_flat_path,
-            cpu * 1000, user_flat_path,
-            pids, user_flat_path,
+            "done",
             (unsigned int)uid, (unsigned int)uid, cpu, mem_mb, pids,
             username, cpu, mem_mb, pids,
             username, cpu, mem_mb, pids,
-            username, cpu,
-            username, path, user_flat_path,
-            username, path, user_flat_path,
-            username, path, user_flat_path);
-        IGNORE_RESULT(system(cmd));
+            username, cpu);
+        IGNORE_RESULT(system(sys_cmd));
+
+        /* Đồng bộ các tiến trình đang chạy của user vào cgroup.procs */
+        char sync_cmd[4096];
+        snprintf(sync_cmd, sizeof(sync_cmd),
+            "for cg in %s/cgroup.procs %s/cgroup.procs; do "
+            "  if [ -f \"$cg\" ]; then "
+            "    pgrep -u %s | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+            "    pgrep -f 'lsphp.*%s' | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+            "    pgrep -f 'pool %s' | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+            "  fi; "
+            "done",
+            path, user_flat_path, username, username, username);
+        IGNORE_RESULT(system(sync_cmd));
 
         send_json_ok("\"message\":\"Da cap nhat cgroup user thanh cong\"");
         return 0;
