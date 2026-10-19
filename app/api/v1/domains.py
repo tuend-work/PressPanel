@@ -306,6 +306,100 @@ async def impersonate_website_user(
         }
     }
 
+ALL_KNOWN_PHP = [
+    ("8.5", "PHP 8.5 (Bản mới nhất)"),
+    ("8.4", "PHP 8.4"),
+    ("8.3", "PHP 8.3"),
+    ("8.2", "PHP 8.2 (Khuyên dùng)"),
+    ("8.1", "PHP 8.1"),
+    ("8.0", "PHP 8.0"),
+    ("7.4", "PHP 7.4 (WordPress legacy)"),
+    ("7.3", "PHP 7.3"),
+    ("7.2", "PHP 7.2"),
+    ("7.1", "PHP 7.1"),
+    ("7.0", "PHP 7.0"),
+    ("5.6", "PHP 5.6 (Legacy)")
+]
+
+def get_available_php_for_ws(webserver: str) -> list:
+    """Quét và chỉ trả về các phiên bản PHP THỰC SỰ ĐÃ CÀI ĐẶT và hoạt động được trên Webserver chỉ định"""
+    res = []
+    ws = (webserver or "ols").lower()
+    is_windows = (os.name == "nt")
+
+    for ver, label in ALL_KNOWN_PHP:
+        pnum = ver.replace(".", "")
+        if ws == "ols":
+            lsphp_path = f"/usr/local/lsws/lsphp{pnum}/bin/lsphp"
+            if is_windows or os.path.exists(lsphp_path):
+                res.append({
+                    "ver": ver,
+                    "label": f"PHP {ver}" + (" (Khuyên dùng)" if ver == "8.2" else ""),
+                    "raw_label": label,
+                    "handler": "LiteSpeed SAPI (lsapi)",
+                    "binary": lsphp_path
+                })
+        else:
+            fpm_bin = f"/usr/sbin/php-fpm{ver}"
+            fpm_conf = f"/etc/php/{ver}/fpm/php-fpm.conf"
+            if is_windows or os.path.exists(fpm_bin) or os.path.exists(fpm_conf):
+                res.append({
+                    "ver": ver,
+                    "label": f"PHP {ver}" + (" (Khuyên dùng)" if ver == "8.2" else ""),
+                    "raw_label": label,
+                    "handler": "PHP-FPM Socket",
+                    "binary": fpm_bin
+                })
+    return res
+
+@router.get("/installed-php")
+async def get_installed_php_list(
+    webserver: Optional[str] = "ols",
+    current_user: dict = Depends(get_current_user)
+):
+    """Lấy danh sách các phiên bản PHP đã cài đặt và khả dụng cho webserver"""
+    return {
+        "webserver": webserver,
+        "available_versions": get_available_php_for_ws(webserver)
+    }
+
+@router.get("/{domain_id}/available-php")
+async def get_domain_available_php(
+    domain_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Chỉ trả về danh sách PHP ĐÃ CÀI ĐẶT và có thể hoạt động cho website này"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    ws = domain["webserver"] or "ols"
+    current_p = domain["php_version"] or "8.2"
+    avail = get_available_php_for_ws(ws)
+    is_cur_avail = any(p["ver"] == current_p for p in avail)
+
+    return {
+        "domain_id": domain_id,
+        "domain_name": domain["domain_name"],
+        "webserver": ws,
+        "current_php": current_p,
+        "is_current_available": is_cur_avail,
+        "available_versions": avail
+    }
+
 class ChangePhpRequest(BaseModel):
     php_version: str
 

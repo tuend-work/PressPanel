@@ -36,10 +36,15 @@
                         </div>
 
                         <div>
-                            <label class="block font-semibold text-slate-300 mb-1">Phiên Bản PHP</label>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="block font-semibold text-slate-300">Phiên Bản PHP</label>
+                                <span v-if="installedPhpVersions.length" class="text-[10px] text-emerald-400 font-mono">
+                                    {{ installedPhpVersions.length }} phiên bản đã cài
+                                </span>
+                            </div>
                             <select v-model="newDomain.php_version" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500 font-mono text-xs">
-                                <option v-for="p in allPhpVersions" :key="p.ver" :value="p.ver">
-                                    {{ p.label }}
+                                <option v-for="p in (installedPhpVersions.length ? installedPhpVersions : allPhpVersions)" :key="p.ver" :value="p.ver">
+                                    {{ p.label }} {{ p.handler ? '— ' + p.handler : '' }}
                                 </option>
                             </select>
                         </div>
@@ -58,66 +63,105 @@
             </div>
 
             <!-- MODAL: PHP SETTINGS & VERSION SWITCHER (UX CHỌN PHP CHUẨN WPC) -->
-            <div v-if="showChangePhpModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-200 text-slate-800 animate-fadeIn">
-                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+            <div v-if="showChangePhpModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                <div class="bg-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-800 text-slate-100 animate-fadeIn">
+                    <!-- Modal Header -->
+                    <div class="flex justify-between items-center mb-5 pb-3 border-b border-slate-800">
                         <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-md">
+                            <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center font-black text-xs shadow-lg shadow-blue-500/25">
                                 PHP
                             </div>
                             <div>
-                                <h3 class="text-base font-bold text-slate-900">PHP Settings - {{ targetPhpDomain?.domain_name }}</h3>
-                                <p class="text-xs text-slate-500">Thay đổi môi trường thực thi PHP (hỗ trợ từ PHP 5.6 đến 8.5)</p>
+                                <h3 class="text-base font-bold text-white flex items-center gap-1.5">
+                                    PHP Settings — <span class="text-blue-400 font-mono">{{ targetPhpDomain?.domain_name }}</span>
+                                </h3>
+                                <p class="text-xs text-slate-400 mt-0.5">Thay đổi môi trường thực thi PHP (PHP Runtime Switcher)</p>
                             </div>
                         </div>
-                        <button @click="showChangePhpModal = false" class="text-slate-400 hover:text-slate-700 text-xl leading-none p-1 rounded-lg hover:bg-slate-100 transition">&times;</button>
+                        <button @click="showChangePhpModal = false" class="text-slate-400 hover:text-white hover:bg-slate-800 text-xl leading-none p-1.5 rounded-xl transition">&times;</button>
                     </div>
 
                     <div class="space-y-4 text-xs">
                         <!-- Thông tin hiện tại -->
-                        <div class="p-3.5 rounded-xl bg-blue-50/70 border border-blue-100 flex items-center justify-between">
-                            <div>
-                                <div class="text-slate-500">Phiên bản PHP hiện tại:</div>
-                                <div class="font-bold text-blue-800 text-sm font-mono mt-0.5">PHP {{ targetPhpDomain?.php_version }}</div>
+                        <div class="p-4 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-2 shadow-inner">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-slate-400 text-xs">Phiên bản PHP hiện tại:</div>
+                                    <div class="font-bold text-white text-base font-mono mt-0.5 flex items-center gap-2">
+                                        <span>PHP {{ targetPhpDomain?.php_version }}</span>
+                                        <span v-if="availablePhpData && !availablePhpData.is_current_available" class="text-rose-400 text-xs font-sans font-semibold px-2 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/20">Không khả dụng</span>
+                                    </div>
+                                </div>
+                                <span class="text-[11px] px-3 py-1 rounded-full font-mono font-semibold"
+                                    :class="targetPhpDomain?.webserver === 'ols' ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30' : 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30'">
+                                    {{ targetPhpDomain?.webserver === 'ols' ? '⚡ LiteSpeed LSAPI' : '🌐 Nginx PHP-FPM' }}
+                                </span>
                             </div>
-                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold font-mono">
-                                {{ targetPhpDomain?.webserver === 'ols' ? 'LSAPI LSPHP' : 'PHP-FPM Socket' }}
-                            </span>
+
+                            <!-- Cảnh báo nếu phiên bản hiện tại không khả dụng trên webserver -->
+                            <div v-if="availablePhpData && !availablePhpData.is_current_available" class="mt-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] leading-relaxed flex items-start gap-2.5">
+                                <span class="text-sm leading-none mt-0.5">⚠️</span>
+                                <div>
+                                    <span class="font-bold">Cảnh báo:</span> Phiên bản <b>PHP {{ targetPhpDomain?.php_version }}</b> không khả dụng trên <b>{{ targetPhpDomain?.webserver === 'ols' ? 'OpenLiteSpeed' : 'Nginx' }}</b> của máy chủ này. Vui lòng chuyển sang một trong các phiên bản khả dụng bên dưới để website hoạt động ổn định.
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Dropdown chọn PHP Version mới -->
+                        <!-- Dropdown chọn PHP Version mới: CHỈ HIỂN THỊ CÁC BẢN ĐÃ CÀI ĐẶT / KHẢ DỤNG -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1.5">Chọn phiên bản PHP mới:</label>
-                            <select v-model="selectedNewPhpVersion"
-                                class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 font-mono text-xs shadow-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20">
-                                <option v-for="p in allPhpVersions" :key="'switch_' + p.ver" :value="p.ver">
-                                    {{ p.label }}
+                            <div class="flex justify-between items-center mb-1.5">
+                                <label class="font-bold text-slate-200">Chọn phiên bản PHP mới:</label>
+                                <span v-if="loadingAvailablePhp" class="text-blue-400 text-[11px] flex items-center gap-1 animate-pulse">
+                                    <span>⏳</span> Đang quét phiên bản khả dụng...
+                                </span>
+                                <span v-else class="text-emerald-400 text-[11px] font-mono">
+                                    {{ (availablePhpData?.available_versions || []).length }} phiên bản khả dụng
+                                </span>
+                            </div>
+
+                            <select v-if="!loadingAvailablePhp && (availablePhpData?.available_versions || []).length > 0"
+                                v-model="selectedNewPhpVersion"
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-xs shadow-inner focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition">
+                                <option v-for="p in availablePhpData.available_versions" :key="'switch_' + p.ver" :value="p.ver">
+                                    {{ p.label }} — {{ p.handler }}
                                 </option>
                             </select>
-                            <p class="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
-                                💡 Khi chuyển đổi, hệ thống sẽ tự động cấu hình lại VirtualHost web server (Nginx fastcgi_pass hoặc OpenLiteSpeed lsapi), tạo socket FPM cô lập và reload dịch vụ mà không làm gián đoạn website.
+
+                            <div v-else-if="!loadingAvailablePhp" class="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between">
+                                <span>Chưa có phiên bản PHP nào khả dụng cho {{ targetPhpDomain?.webserver === 'ols' ? 'OpenLiteSpeed' : 'Nginx' }}.</span>
+                                <button type="button" @click="showChangePhpModal = false; currentTab = 'apps'" class="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-[11px] transition">
+                                    Cài đặt tại App Store
+                                </button>
+                            </div>
+
+                            <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                                💡 Hệ thống chỉ hiển thị các phiên bản PHP đã cài đặt và thực sự chạy được trên Webserver của website này để chống lỗi 403 / 503.
                             </p>
                         </div>
 
                         <!-- FastCGI / Handler Info -->
-                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5 text-[11px] text-slate-600">
-                            <div class="flex justify-between">
-                                <span>Kiểu xử lý (Handler Type):</span>
-                                <span class="font-semibold text-slate-800">{{ targetPhpDomain?.webserver === 'ols' ? 'LiteSpeed SAPI (lsapi)' : 'FPM application served by Nginx' }}</span>
+                        <div class="p-3.5 rounded-xl bg-slate-800/50 border border-slate-700/60 space-y-2 text-[11px] text-slate-300">
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-400">Kiểu xử lý (Handler Type):</span>
+                                <span class="font-semibold text-slate-200">{{ targetPhpDomain?.webserver === 'ols' ? 'LiteSpeed SAPI (lsapi)' : 'FPM application served by Nginx' }}</span>
                             </div>
-                            <div class="flex justify-between">
-                                <span>Isolated Linux User:</span>
-                                <span class="font-mono text-slate-800 font-bold">{{ targetPhpDomain?.domain_name ? targetPhpDomain.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) : 'www-data' }}</span>
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-400">Isolated Linux User:</span>
+                                <span class="font-mono text-emerald-400 font-bold">{{ targetPhpDomain?.domain_name ? targetPhpDomain.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) : 'www-data' }}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-400">Webserver hiện tại:</span>
+                                <span class="font-mono font-bold uppercase text-blue-400">{{ targetPhpDomain?.webserver || 'OLS' }}</span>
                             </div>
                         </div>
 
-                        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-800">
                             <button type="button" @click="showChangePhpModal = false" :disabled="changingPhp"
-                                class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition">
+                                class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700 transition">
                                 Hủy
                             </button>
-                            <button type="button" @click="confirmChangePhp" :disabled="changingPhp"
-                                class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-500/20 transition flex items-center space-x-1.5">
+                            <button type="button" @click="confirmChangePhp" :disabled="changingPhp || loadingAvailablePhp || !(availablePhpData?.available_versions?.length)"
+                                class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold shadow-lg shadow-blue-500/25 transition flex items-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
                                 <span v-if="changingPhp" class="animate-spin">⏳</span>
                                 <span>{{ changingPhp ? 'Đang chuyển đổi...' : 'Áp Dụng Phiên Bản' }}</span>
                             </button>

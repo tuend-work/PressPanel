@@ -125,7 +125,7 @@ SUPPORTED_APPS = [
         "icon": "🐘",
         "desc": "Phiên bản PHP 8.5 thử nghiệm mới nhất của PHP Core Team.",
         "service": "php8.5-fpm",
-        "binary_checks": ["/usr/bin/php8.5", "/usr/local/lsws/lsphp85/bin/php"],
+        "binary_checks": ["/usr/sbin/php-fpm8.5", "/usr/local/lsws/lsphp85/bin/lsphp"],
         "default_version": "8.5"
     },
     {
@@ -135,7 +135,7 @@ SUPPORTED_APPS = [
         "icon": "🐘",
         "desc": "Phiên bản PHP 8.4 hiện đại nhất, hỗ trợ Property Hooks, Asymmetric Visibility.",
         "service": "php8.4-fpm",
-        "binary_checks": ["/usr/bin/php8.4", "/usr/local/lsws/lsphp84/bin/php"],
+        "binary_checks": ["/usr/sbin/php-fpm8.4", "/usr/local/lsws/lsphp84/bin/lsphp"],
         "default_version": "8.4"
     },
     {
@@ -145,7 +145,7 @@ SUPPORTED_APPS = [
         "icon": "🐘",
         "desc": "Phiên bản PHP 8.3 hiệu năng cao, bổ sung Typed Class Constants và json_validate.",
         "service": "php8.3-fpm",
-        "binary_checks": ["/usr/bin/php8.3", "/usr/local/lsws/lsphp83/bin/php"],
+        "binary_checks": ["/usr/sbin/php-fpm8.3", "/usr/local/lsws/lsphp83/bin/lsphp"],
         "default_version": "8.3"
     },
     {
@@ -155,7 +155,7 @@ SUPPORTED_APPS = [
         "icon": "🐘",
         "desc": "Phiên bản PHP 8.2 ổn định cao, khuyên dùng cho hầu hết website WordPress.",
         "service": "php8.2-fpm",
-        "binary_checks": ["/usr/bin/php8.2", "/usr/local/lsws/lsphp82/bin/php"],
+        "binary_checks": ["/usr/sbin/php-fpm8.2", "/usr/local/lsws/lsphp82/bin/lsphp"],
         "default_version": "8.2"
     },
     {
@@ -165,7 +165,7 @@ SUPPORTED_APPS = [
         "icon": "🐘",
         "desc": "PHP 8.1 hỗ trợ Enums, Readonly Properties, First-class Callables.",
         "service": "php8.1-fpm",
-        "binary_checks": ["/usr/bin/php8.1", "/usr/local/lsws/lsphp81/bin/php"],
+        "binary_checks": ["/usr/sbin/php-fpm8.1", "/usr/local/lsws/lsphp81/bin/lsphp"],
         "default_version": "8.1"
     },
     {
@@ -175,7 +175,7 @@ SUPPORTED_APPS = [
         "icon": "🐘",
         "desc": "PHP 8.0 giới thiệu JIT Compiler, Named Arguments và Union Types.",
         "service": "php8.0-fpm",
-        "binary_checks": ["/usr/bin/php8.0", "/usr/local/lsws/lsphp80/bin/php"],
+        "binary_checks": ["/usr/sbin/php-fpm8.0", "/usr/local/lsws/lsphp80/bin/lsphp"],
         "default_version": "8.0"
     },
     {
@@ -185,7 +185,7 @@ SUPPORTED_APPS = [
         "icon": "🐘",
         "desc": "Phiên bản PHP 7.4 Legacy ổn định nhất thế hệ PHP 7.x.",
         "service": "php7.4-fpm",
-        "binary_checks": ["/usr/bin/php7.4", "/usr/local/lsws/lsphp74/bin/php"],
+        "binary_checks": ["/usr/sbin/php-fpm7.4", "/usr/local/lsws/lsphp74/bin/lsphp"],
         "default_version": "7.4"
     },
     {
@@ -195,7 +195,7 @@ SUPPORTED_APPS = [
         "icon": "🐘",
         "desc": "PHP 7.3 dành cho các dự án và theme WordPress cũ.",
         "service": "php7.3-fpm",
-        "binary_checks": ["/usr/bin/php7.3", "/usr/local/lsws/lsphp73/bin/php"],
+        "binary_checks": ["/usr/sbin/php-fpm7.3", "/usr/local/lsws/lsphp73/bin/lsphp"],
         "default_version": "7.3"
     },
     {
@@ -205,7 +205,7 @@ SUPPORTED_APPS = [
         "icon": "🐘",
         "desc": "PHP 7.2 hỗ trợ mã nguồn WordPress 4.x - 5.x.",
         "service": "php7.2-fpm",
-        "binary_checks": ["/usr/bin/php7.2", "/usr/local/lsws/lsphp72/bin/php"],
+        "binary_checks": ["/usr/sbin/php-fpm7.2", "/usr/local/lsws/lsphp72/bin/lsphp"],
         "default_version": "7.2"
     },
     {
@@ -215,7 +215,7 @@ SUPPORTED_APPS = [
         "icon": "🐘",
         "desc": "PHP 7.1 hỗ trợ tương thích mã nguồn cũ.",
         "service": "php7.1-fpm",
-        "binary_checks": ["/usr/bin/php7.1", "/usr/local/lsws/lsphp71/bin/php"],
+        "binary_checks": ["/usr/sbin/php-fpm7.1", "/usr/local/lsws/lsphp71/bin/lsphp"],
         "default_version": "7.1"
     },
     {
@@ -225,7 +225,7 @@ SUPPORTED_APPS = [
         "icon": "🐘",
         "desc": "PHP 7.0 phiên bản nâng cấp tốc độ đột phá so với PHP 5.6.",
         "service": "php7.0-fpm",
-        "binary_checks": ["/usr/bin/php7.0", "/usr/local/lsws/lsphp70/bin/php"],
+        "binary_checks": ["/usr/sbin/php-fpm7.0", "/usr/local/lsws/lsphp70/bin/lsphp"],
         "default_version": "7.0"
     },
     {
@@ -235,7 +235,7 @@ SUPPORTED_APPS = [
         "icon": "🐘",
         "desc": "PHP 5.6 Legacy dành cho các website cổ, tương thích cao với script cũ.",
         "service": "php5.6-fpm",
-        "binary_checks": ["/usr/bin/php5.6", "/usr/local/lsws/lsphp56/bin/php"],
+        "binary_checks": ["/usr/sbin/php-fpm5.6", "/usr/local/lsws/lsphp56/bin/lsphp"],
         "default_version": "5.6"
     },
     {
@@ -325,15 +325,18 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
     installed = False
     running = False
 
-    # 1. Kiểm tra binary
+    # 1. Kiểm tra binary thực tế
     for b in app["binary_checks"]:
-        if os.path.exists(b) or shutil.which(b):
+        if os.path.exists(b):
+            installed = True
+            break
+        # Chỉ dùng which nếu b là command name đơn giản không có path
+        if "/" not in b and shutil.which(b):
             installed = True
             break
 
     # 2. Kiểm tra service nếu app có service đi kèm
     if app["service"] and os.name != "nt":
-        # Check systemctl is-active
         try:
             res = subprocess.run(
                 ["systemctl", "is-active", "--quiet", app["service"]],
@@ -345,7 +348,32 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
                 installed = True
         except Exception:
             pass
-    elif installed:
+
+    # 3. Đặc thù PHP: Trên OpenLiteSpeed, LSPHP chạy on-demand qua suEXEC chứ không chạy PHP-FPM service
+    if app.get("category") == "php" and installed:
+        if not running and os.name != "nt":
+            ver_clean = app.get("default_version", "").replace(".", "")
+            lsphp_bin = f"/usr/local/lsws/lsphp{ver_clean}/bin/lsphp"
+            if os.path.exists(lsphp_bin):
+                try:
+                    res_ols = subprocess.run(
+                        ["systemctl", "is-active", "--quiet", "lsws"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
+                    if res_ols.returncode == 0:
+                        running = True
+                    else:
+                        res_ols2 = subprocess.run(
+                            ["systemctl", "is-active", "--quiet", "lshttpd"],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL
+                        )
+                        if res_ols2.returncode == 0:
+                            running = True
+                except Exception:
+                    pass
+    elif installed and not app["service"]:
         running = True
 
     return {

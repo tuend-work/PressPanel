@@ -514,8 +514,8 @@
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.46').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.46').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.47').then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=0.5.47').then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -729,6 +729,9 @@
                 const targetPhpDomain = ref(null);
                 const selectedNewPhpVersion = ref('8.2');
                 const changingPhp = ref(false);
+                const availablePhpData = ref(null);
+                const loadingAvailablePhp = ref(false);
+                const installedPhpVersions = ref([]);
                 const allPhpVersions = ref([
                     { ver: '8.5', label: 'PHP 8.5 (Bản mới nhất)' },
                     { ver: '8.4', label: 'PHP 8.4' },
@@ -2109,10 +2112,35 @@
                     activeDomainSubTab.value = { ...activeDomainSubTab.value, [domainId]: tab };
                 };
 
-                const openChangePhpModal = (domain) => {
+                const openChangePhpModal = async (domain) => {
                     targetPhpDomain.value = domain;
                     selectedNewPhpVersion.value = domain.php_version || '8.2';
+                    availablePhpData.value = null;
+                    loadingAvailablePhp.value = true;
                     showChangePhpModal.value = true;
+
+                    try {
+                        const res = await fetch(`/api/v1/domains/${domain.id}/available-php`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            availablePhpData.value = data;
+                            const availList = data.available_versions || [];
+                            // Nếu phiên bản hiện tại có trong danh sách khả dụng thì chọn nó
+                            if (availList.some(p => p.ver === domain.php_version)) {
+                                selectedNewPhpVersion.value = domain.php_version;
+                            } else if (availList.length > 0) {
+                                // Nếu không khả dụng, ưu tiên bản 8.2 hoặc bản đầu tiên có sẵn
+                                const rec = availList.find(p => p.ver === '8.2') || availList[0];
+                                selectedNewPhpVersion.value = rec.ver;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Lỗi lấy danh sách PHP khả dụng:', e);
+                    } finally {
+                        loadingAvailablePhp.value = false;
+                    }
                 };
 
                 const confirmChangePhp = async () => {
@@ -2140,6 +2168,27 @@
                         alert('Lỗi kết nối: ' + e.message);
                     } finally {
                         changingPhp.value = false;
+                    }
+                };
+
+                const fetchInstalledPhpList = async () => {
+                    try {
+                        const ws = activeSystemWebserver.value || 'ols';
+                        const res = await fetch(`/api/v1/domains/installed-php?webserver=${ws}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            installedPhpVersions.value = data.available_versions || [];
+                            if (installedPhpVersions.value.length > 0) {
+                                if (!installedPhpVersions.value.some(p => p.ver === newDomain.value.php_version)) {
+                                    const defP = installedPhpVersions.value.find(p => p.ver === '8.2') || installedPhpVersions.value[0];
+                                    newDomain.value.php_version = defP.ver;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Lỗi lấy danh sách PHP đã cài:', e);
                     }
                 };
 
@@ -3009,6 +3058,7 @@
                         fetchTasks();
                         fetchUserProfile();
                         fetchDatabasesList();
+                        fetchInstalledPhpList();
                     }
                     refreshLucideIcons();
                     // Tự động làm mới số liệu và kiểm tra task chạy ngầm mỗi 3 giây
@@ -3055,7 +3105,7 @@
                     phpInfoContent, loadingPhpInfo, fetchPhpExtensions, togglePhpExtensionAction,
                     fetchPhpDirectives, savePhpDirectives, fetchPhpInfo,
                     activeDomainSubTab, showChangePhpModal, targetPhpDomain, selectedNewPhpVersion,
-                    changingPhp, allPhpVersions, getDomainSubTab, setDomainSubTab,
+                    changingPhp, allPhpVersions, availablePhpData, loadingAvailablePhp, installedPhpVersions, fetchInstalledPhpList, getDomainSubTab, setDomainSubTab,
                     openChangePhpModal, confirmChangePhp,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain, handleToggleDomainStatus,
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,

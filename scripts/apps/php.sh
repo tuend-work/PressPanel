@@ -90,10 +90,22 @@ EOF
             /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true
 
             # Nếu có OpenLiteSpeed thì cài thêm cả LSPHP tương ứng nếu có repo
-            LSPHP_PKG="lsphp$(echo "$VERSION_CLEAN" | tr -d '.')"
+            LSPHP_NUM=$(echo "$VERSION_CLEAN" | tr -d '.')
+            LSPHP_PKG="lsphp${LSPHP_NUM}"
             apt-get install -y "$LSPHP_PKG" "${LSPHP_PKG}-mysql" "${LSPHP_PKG}-curl" "${LSPHP_PKG}-opcache" 2>/dev/null || true
 
-            echo "[+] Đã cài đặt và kích hoạt PHP-FPM ${VERSION_CLEAN} thành công!"
+            # Xác thực thực tế: Phải có ít nhất PHP-FPM hoặc LSPHP thực sự hoạt động
+            INSTALLED_OK=0
+            if [ -x "/usr/sbin/php-fpm${VERSION_CLEAN}" ] || [ -x "/usr/bin/php${VERSION_CLEAN}" ] || [ -x "/usr/local/lsws/lsphp${LSPHP_NUM}/bin/lsphp" ]; then
+                INSTALLED_OK=1
+            fi
+
+            if [ "$INSTALLED_OK" -eq 0 ]; then
+                echo "[-] Lỗi: Cài đặt PHP ${VERSION_CLEAN} không thành công! Không tìm thấy gói php-fpm hoặc lsphp tương thích trên kho phần mềm."
+                exit 1
+            fi
+
+            echo "[+] Đã cài đặt và kích hoạt PHP Runtime ${VERSION_CLEAN} thành công!"
         fi
         ;;
 
