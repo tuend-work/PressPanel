@@ -1261,6 +1261,9 @@ async def get_domain_php_extensions(
         "extensions": result_list
     }
 
+class DomainPhpExtensionsUpdate(BaseModel):
+    extensions: Dict[str, bool]
+
 @router.post("/{domain_id}/php-extensions")
 async def save_domain_php_extensions(
     domain_id: int,
