@@ -1361,6 +1361,7 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
         # Bắt buộc thay thế mọi {{PHP_VERSION}} hoặc {{PHP_NUM}} còn sót lại bằng số phiên bản PHP cụ thể (ví dụ: 82)
         php_clean = str(php_ver or "8.2").strip()
         php_num = php_clean.replace(".", "")
+        content = re.sub(r"^[ \t]*path[ \t]+/usr/local/lsws/lsphp[^\n\r]*[{][^\n\r]*/bin/lsphp", f"  path                    /usr/local/lsws/lsphp{php_num}/bin/lsphp", content, flags=re.MULTILINE)
         content = re.sub(r"/usr/local/lsws/lsphp\{\{[^}]+\}\}/bin/lsphp", f"/usr/local/lsws/lsphp{php_num}/bin/lsphp", content)
         content = content.replace("{{PHP_VERSION}}", php_num).replace("{{PHP_NUM}}", php_num)
 
@@ -1447,6 +1448,7 @@ async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(g
     if content and ws == "ols":
         p_ver = str(domain["php_version"] or "8.2").strip()
         p_num = p_ver.replace(".", "")
+        content = re.sub(r"^[ \t]*path[ \t]+/usr/local/lsws/lsphp[^\n\r]*[{][^\n\r]*/bin/lsphp", f"  path                    /usr/local/lsws/lsphp{p_num}/bin/lsphp", content, flags=re.MULTILINE)
         content = re.sub(r"/usr/local/lsws/lsphp\{\{[^}]+\}\}/bin/lsphp", f"/usr/local/lsws/lsphp{p_num}/bin/lsphp", content)
         content = content.replace("{{PHP_VERSION}}", p_num).replace("{{PHP_NUM}}", p_num)
 
@@ -1635,6 +1637,7 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
     php_ver = str(domain["php_version"] or "8.2").strip()
     php_num = php_ver.replace(".", "")
     if ws == "ols":
+        clean_content = re.sub(r"^[ \t]*path[ \t]+/usr/local/lsws/lsphp[^\n\r]*[{][^\n\r]*/bin/lsphp", f"  path                    /usr/local/lsws/lsphp{php_num}/bin/lsphp", clean_content, flags=re.MULTILINE)
         clean_content = re.sub(r"/usr/local/lsws/lsphp\{\{[^}]+\}\}/bin/lsphp", f"/usr/local/lsws/lsphp{php_num}/bin/lsphp", clean_content)
         clean_content = clean_content.replace("{{PHP_VERSION}}", php_num).replace("{{PHP_NUM}}", php_num)
 

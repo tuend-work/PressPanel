@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
         snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh remove %s %s %s",
                  username, domain, webserver);
     }
-    else if (strcmp(action, "set-php") == 0) {
+    else if (strcmp(action, "set-php") == 0 || strcmp(action, "change-php") == 0) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
         const char *php_ver = (argc > 5) ? argv[5] : "8.2";
         const char *hosting_user = (argc > 6) ? argv[6] : username;

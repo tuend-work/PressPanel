@@ -336,7 +336,8 @@ if [ -d "/usr/local/lsws/conf/vhosts" ]; then
         # Xóa bỏ ký tự \r (CR) gây hỏng cú pháp OLS
         sed -i 's/\r$//' "$vh_conf" 2>/dev/null || true
 
-        # Thay thế triệt để placeholder {{PHP_VERSION}} hoặc {{PHP_NUM}} còn sót lại
+        # Thay thế triệt để bất kỳ dòng path nào chứa lsphp và dính ký tự { hoặc }
+        sed -i '/^[[:space:]]*path[[:space:]]\+.*lsphp.*[{}]/c\  path                    /usr/local/lsws/lsphp82/bin/lsphp' "$vh_conf" 2>/dev/null || true
         sed -i 's/{{PHP_VERSION}}/82/g' "$vh_conf" 2>/dev/null || true
         sed -i 's/{{PHP_NUM}}/82/g' "$vh_conf" 2>/dev/null || true
         sed -i -E 's|/usr/local/lsws/lsphp\{\{[^}]+\}\}/bin/lsphp|/usr/local/lsws/lsphp82/bin/lsphp|g' "$vh_conf" 2>/dev/null || true
@@ -357,6 +358,17 @@ if [ -d "/usr/local/lsws/conf/vhosts" ]; then
         chmod 755 "$vh_dir" 2>/dev/null || true
         chmod 644 "$vh_conf" 2>/dev/null || true
         chown -R lsadm:lsadm "$vh_dir" 2>/dev/null || true
+    done
+
+    # Quét cả cấu hình chính httpd_config.conf và các templates của OLS
+    if [ -f "/usr/local/lsws/conf/httpd_config.conf" ]; then
+        sed -i '/^[[:space:]]*path[[:space:]]\+.*lsphp.*[{}]/c\  path                    /usr/local/lsws/lsphp82/bin/lsphp' /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
+        sed -i 's/{{PHP_VERSION}}/82/g' /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
+    fi
+    for tpl_f in /usr/local/lsws/conf/templates/*.conf; do
+        [ -f "$tpl_f" ] || continue
+        sed -i '/^[[:space:]]*path[[:space:]]\+.*lsphp.*[{}]/c\  path                    /usr/local/lsws/lsphp82/bin/lsphp' "$tpl_f" 2>/dev/null || true
+        sed -i 's/{{PHP_VERSION}}/82/g' "$tpl_f" 2>/dev/null || true
     done
 
     # Dọn socket cũ và đảm bảo thư mục runtime có sticky bit 1777

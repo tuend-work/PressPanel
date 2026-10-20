@@ -71,7 +71,7 @@ extprocessor lsphp_{{USERNAME}} {
   persistConn             1
   respBuffer              0
   autoStart               1
-  path                    /usr/local/lsws/lsphp{{PHP_VERSION}}/bin/lsphp
+  path                    /usr/local/lsws/lsphp82/bin/lsphp
   backlog                 100
   instances               1
   runOn                   1

@@ -429,7 +429,7 @@ EOF
         exit 0
         ;;
 
-    set-php)
+    set-php|change-php)
         echo "[+] Chuyen PHP sang $PHP_VER cho $DOMAIN (Webserver: $WEBSERVER)..."
         PHP_NUM=$(echo "$PHP_VER" | tr -d '.')
         ensure_linux_user "$USERNAME"
@@ -764,6 +764,7 @@ EOF_NGX_SUSP
                 # Thay thế triệt để các placeholder {{PHP_VERSION}} hoặc {{PHP_NUM}} còn sót lại để diệt lỗi shell metacharacters / chaining (403)
                 PHP_NUM=$(echo "$PHP_VER" | tr -d '.')
                 [ -z "$PHP_NUM" ] && PHP_NUM="82"
+                sed -i "/^[[:space:]]*path[[:space:]]\+.*lsphp.*[{}]/c\  path                    /usr/local/lsws/lsphp${PHP_NUM}/bin/lsphp" "$VH_CONF" 2>/dev/null || true
                 sed -i "s/{{PHP_VERSION}}/$PHP_NUM/g" "$VH_CONF" 2>/dev/null || true
                 sed -i "s/{{PHP_NUM}}/$PHP_NUM/g" "$VH_CONF" 2>/dev/null || true
                 sed -i -E "s|/usr/local/lsws/lsphp\{\{[^}]+\}\}/bin/lsphp|/usr/local/lsws/lsphp${PHP_NUM}/bin/lsphp|g" "$VH_CONF" 2>/dev/null || true
