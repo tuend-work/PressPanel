@@ -1089,6 +1089,7 @@ class VHostConfigRequest(BaseModel):
 
 
 class VHostSettingsUpdateRequest(BaseModel):
+    php_version: Optional[str] = None
     aliases: Optional[str] = None
     adminEmail: Optional[str] = None
     indexFiles: Optional[str] = None
@@ -1511,6 +1512,12 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
                 pass
 
     php_ver = str(domain["php_version"] or "8.2").strip()
+    if req.php_version and req.php_version in ALLOWED_PHP_VERSIONS and req.php_version != php_ver:
+        db = await get_db_connection()
+        await db.execute("UPDATE domains SET php_version = ? WHERE id = ?", (req.php_version, domain_id))
+        await db.commit()
+        await db.close()
+        php_ver = req.php_version
     php_num = php_ver.replace(".", "")
 
     if not content:
@@ -1635,6 +1642,30 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
 
     clean_content = req.content.replace("\r\n", "\n").replace("\r", "\n")
     php_ver = str(domain["php_version"] or "8.2").strip()
+
+    # Tự động phát hiện nếu người dùng sửa phiên bản PHP trong raw config và lưu vào DB của panel
+    if ws == "ols":
+        m_php = re.search(r"path\s+/usr/local/lsws/lsphp([0-9]{2})/bin/lsphp", clean_content)
+        if m_php:
+            detected_num = m_php.group(1)
+            detected_ver = f"{detected_num[0]}.{detected_num[1]}"
+            if detected_ver in ALLOWED_PHP_VERSIONS and detected_ver != php_ver:
+                db = await get_db_connection()
+                await db.execute("UPDATE domains SET php_version = ? WHERE id = ?", (detected_ver, domain_id))
+                await db.commit()
+                await db.close()
+                php_ver = detected_ver
+    else:
+        m_php = re.search(r"php([0-9]\.[0-9])-fpm", clean_content)
+        if m_php:
+            detected_ver = m_php.group(1)
+            if detected_ver in ALLOWED_PHP_VERSIONS and detected_ver != php_ver:
+                db = await get_db_connection()
+                await db.execute("UPDATE domains SET php_version = ? WHERE id = ?", (detected_ver, domain_id))
+                await db.commit()
+                await db.close()
+                php_ver = detected_ver
+
     php_num = php_ver.replace(".", "")
     if ws == "ols":
         clean_content = re.sub(r"^[ \t]*path[ \t]+/usr/local/lsws/lsphp[^\n\r]*[{][^\n\r]*/bin/lsphp", f"  path                    /usr/local/lsws/lsphp{php_num}/bin/lsphp", clean_content, flags=re.MULTILINE)
