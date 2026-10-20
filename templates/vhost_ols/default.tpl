@@ -34,6 +34,7 @@ X-Content-Type-Options: nosniff
 X-XSS-Protection: 1; mode=block
 Referrer-Policy: strict-origin-when-cross-origin
 Permissions-Policy: geolocation=(), camera=(), microphone=()
+Alt-Svc: h3=":443"; ma=86400
 END_extraHeaders
 }
 
@@ -86,4 +87,13 @@ extprocessor lsphp_{{USERNAME}} {
 
 scripthandler {
   add                     lsapi:lsphp_{{USERNAME}} php
+}
+
+vhssl  {
+  keyFile                 $VH_ROOT/domains/{{DOMAIN}}/ssl/privkey.pem
+  certFile                $VH_ROOT/domains/{{DOMAIN}}/ssl/fullchain.pem
+  certChain               1
+  sslProtocol             24
+  enableQuic              1
+  enableHttp3             1
 }

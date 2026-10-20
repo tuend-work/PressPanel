@@ -381,6 +381,26 @@ if [ -d "/usr/local/lsws/conf/vhosts" ]; then
     if [ -f "/usr/local/lsws/conf/httpd_config.conf" ]; then
         sed -i '/^[[:space:]]*path[[:space:]]\+.*lsphp.*[{}]/c\  path                    /usr/local/lsws/lsphp82/bin/lsphp' /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
         sed -i 's/{{PHP_VERSION}}/82/g' /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
+
+        # Bổ sung listener HTTPS_443 (HTTP/2 & HTTP/3 QUIC) vào OLS nếu chưa có
+        if ! grep -qE "listener[[:space:]]+(HTTPS_443|HTTPS)[[:space:]]*\{" /usr/local/lsws/conf/httpd_config.conf; then
+            cat << 'EOF_OLS_HTTPS' >> /usr/local/lsws/conf/httpd_config.conf
+
+listener HTTPS_443 {
+  address                 *:443
+  secure                  1
+  keyFile                 /etc/ssl/wpc/selfsigned.key
+  certFile                /etc/ssl/wpc/selfsigned.crt
+  certChain               1
+  sslProtocol             24
+  enableQuic              1
+  enableHttp3             1
+}
+EOF_OLS_HTTPS
+        else
+            sed -i "/listener[[:space:]]\+\(HTTPS_443\|HTTPS\)[[:space:]]*{/,/^[[:space:]]*}/ s/enableQuic[[:space:]]\+0/enableQuic              1/" /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
+            sed -i "/listener[[:space:]]\+\(HTTPS_443\|HTTPS\)[[:space:]]*{/,/^[[:space:]]*}/ s/enableHttp3[[:space:]]\+0/enableHttp3             1/" /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
+        fi
     fi
     for tpl_f in /usr/local/lsws/conf/templates/*.conf; do
         [ -f "$tpl_f" ] || continue
@@ -392,6 +412,42 @@ if [ -d "/usr/local/lsws/conf/vhosts" ]; then
     pkill -9 -f "lsphp" 2>/dev/null || true
     rm -rf /tmp/lshttpd/*.sock 2>/dev/null || true
     mkdir -p /tmp/lshttpd && chmod 1777 /tmp/lshttpd 2>/dev/null || true
+fi
+
+# 7.5 Mở cổng tường lửa: 80/tcp, 443/tcp và 443/udp (QUIC/HTTP3)
+echo "[+] Kiểm tra và mở cổng tường lửa: 80/tcp, 443/tcp, 443/udp (QUIC/HTTP3)..."
+if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
+    ufw allow 80/tcp 2>/dev/null || true
+    ufw allow 443/tcp 2>/dev/null || true
+    ufw allow 443/udp 2>/dev/null || true
+elif command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld 2>/dev/null; then
+    firewall-cmd --permanent --add-port=80/tcp 2>/dev/null || true
+    firewall-cmd --permanent --add-port=443/tcp 2>/dev/null || true
+    firewall-cmd --permanent --add-port=443/udp 2>/dev/null || true
+    firewall-cmd --reload 2>/dev/null || true
+fi
+
+# 7.6 Đảm bảo chứng chỉ SSL tự ký mặc định cho máy chủ (hỗ trợ HTTP/2 & HTTP/3)
+mkdir -p /etc/ssl/wpc 2>/dev/null || true
+if [ ! -s "/etc/ssl/wpc/selfsigned.crt" ] || [ ! -s "/etc/ssl/wpc/selfsigned.key" ]; then
+    echo "[+] Khởi tạo chứng chỉ SSL tự ký mặc định cho máy chủ..."
+    S_IP=$(curl -s4 --max-time 2 https://api.ipify.org 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")
+    [ -z "$S_IP" ] && S_IP="127.0.0.1"
+    S_HOST=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "localhost")
+    [ -z "$S_HOST" ] && S_HOST="localhost"
+
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+        -keyout "/etc/ssl/wpc/selfsigned.key" \
+        -out "/etc/ssl/wpc/selfsigned.crt" \
+        -subj "/CN=$S_HOST/O=WPCloud/C=VN" \
+        -addext "subjectAltName=DNS:$S_HOST,DNS:localhost,IP:$S_IP,IP:127.0.0.1" 2>/dev/null || \
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+        -keyout "/etc/ssl/wpc/selfsigned.key" \
+        -out "/etc/ssl/wpc/selfsigned.crt" \
+        -subj "/CN=$S_HOST/O=WPCloud/C=VN" 2>/dev/null || true
+
+    chmod 755 /etc/ssl/wpc 2>/dev/null || true
+    chmod 644 /etc/ssl/wpc/selfsigned.crt /etc/ssl/wpc/selfsigned.key 2>/dev/null || true
 fi
 
 # Restart Webserver để nạp lại danh sách supplementary groups cho nobody & www-data

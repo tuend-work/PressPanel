@@ -131,10 +131,129 @@ EOF_LSPHP
     done
 }
 
+ensure_firewall_ports() {
+    if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
+        ufw allow 80/tcp 2>/dev/null || true
+        ufw allow 443/tcp 2>/dev/null || true
+        ufw allow 443/udp 2>/dev/null || true
+    elif command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld 2>/dev/null; then
+        firewall-cmd --permanent --add-port=80/tcp 2>/dev/null || true
+        firewall-cmd --permanent --add-port=443/tcp 2>/dev/null || true
+        firewall-cmd --permanent --add-port=443/udp 2>/dev/null || true
+        firewall-cmd --reload 2>/dev/null || true
+    fi
+}
+
+ensure_server_default_ssl() {
+    mkdir -p /etc/ssl/wpc 2>/dev/null || true
+    if [ ! -s "/etc/ssl/wpc/selfsigned.crt" ] || [ ! -s "/etc/ssl/wpc/selfsigned.key" ]; then
+        echo "[+] Tao chung chi SSL tu ky mac dinh cho may chu (/etc/ssl/wpc)..."
+        local s_ip
+        s_ip=$(curl -s4 --max-time 2 https://api.ipify.org 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")
+        [ -z "$s_ip" ] && s_ip="127.0.0.1"
+        local s_host
+        s_host=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "localhost")
+        [ -z "$s_host" ] && s_host="localhost"
+
+        openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+            -keyout "/etc/ssl/wpc/selfsigned.key" \
+            -out "/etc/ssl/wpc/selfsigned.crt" \
+            -subj "/CN=$s_host/O=WPCloud/C=VN" \
+            -addext "subjectAltName=DNS:$s_host,DNS:localhost,IP:$s_ip,IP:127.0.0.1" 2>/dev/null || \
+        openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+            -keyout "/etc/ssl/wpc/selfsigned.key" \
+            -out "/etc/ssl/wpc/selfsigned.crt" \
+            -subj "/CN=$s_host/O=WPCloud/C=VN" 2>/dev/null || true
+
+        chmod 755 /etc/ssl/wpc 2>/dev/null || true
+        chmod 644 /etc/ssl/wpc/selfsigned.crt 2>/dev/null || true
+        chmod 644 /etc/ssl/wpc/selfsigned.key 2>/dev/null || true
+    fi
+}
+
+ensure_ssl_certs() {
+    local domain="$1"
+    local username="$2"
+    local domain_dir="/home/$username/domains/$domain"
+    [ ! -d "$domain_dir" ] && domain_dir="/home/$username/httpdocs/$domain"
+    local ssl_dir="$domain_dir/ssl"
+    mkdir -p "$ssl_dir" 2>/dev/null || true
+
+    local fullchain="$ssl_dir/fullchain.pem"
+    local privkey="$ssl_dir/privkey.pem"
+
+    # 1. Kiểm tra xem đã có chứng chỉ Let's Encrypt thật chưa
+    if [ -s "/etc/letsencrypt/live/$domain/fullchain.pem" ] && [ -s "/etc/letsencrypt/live/$domain/privkey.pem" ]; then
+        cp -L "/etc/letsencrypt/live/$domain/fullchain.pem" "$fullchain" 2>/dev/null || true
+        cp -L "/etc/letsencrypt/live/$domain/privkey.pem" "$privkey" 2>/dev/null || true
+    fi
+
+    # 2. Nếu chưa có hoặc file rỗng thì tự động tạo chứng chỉ tự ký (Self-Signed)
+    if [ ! -s "$fullchain" ] || [ ! -s "$privkey" ]; then
+        echo "[+] Tao chung chi SSL tu ky cho domain/IP: $domain..."
+        local san_ext="DNS:$domain,DNS:*.$domain,IP:127.0.0.1"
+        if echo "$domain" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+            san_ext="IP:$domain,IP:127.0.0.1"
+        fi
+
+        openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+            -keyout "$privkey" \
+            -out "$fullchain" \
+            -subj "/CN=$domain/O=WPCloud/C=VN" \
+            -addext "subjectAltName=$san_ext" 2>/dev/null || \
+        openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+            -keyout "$privkey" \
+            -out "$fullchain" \
+            -subj "/CN=$domain/O=WPCloud/C=VN" 2>/dev/null || true
+    fi
+
+    # Phân quyền chuẩn để cả OpenLiteSpeed (nobody) và Nginx (www-data) đều đọc được
+    chmod 755 "$ssl_dir" 2>/dev/null || true
+    chmod 644 "$fullchain" 2>/dev/null || true
+    chmod 644 "$privkey" 2>/dev/null || true
+    if id "$username" &>/dev/null; then
+        chown -R "$username:$username" "$ssl_dir" 2>/dev/null || true
+    fi
+}
+
+setup_ols_https_listener() {
+    local conf="/usr/local/lsws/conf/httpd_config.conf"
+    [ -f "$conf" ] || return 0
+
+    ensure_server_default_ssl
+
+    # Kiểm tra xem listener HTTPS_443 hoặc HTTPS đã tồn tại chưa
+    if ! grep -qE "listener[[:space:]]+(HTTPS_443|HTTPS)[[:space:]]*\{" "$conf"; then
+        echo "[+] Bo sung listener HTTPS_443 (HTTP/2 & HTTP/3 QUIC) vao OpenLiteSpeed..."
+        cat << 'EOF_OLS_HTTPS' >> "$conf"
+
+listener HTTPS_443 {
+  address                 *:443
+  secure                  1
+  keyFile                 /etc/ssl/wpc/selfsigned.key
+  certFile                /etc/ssl/wpc/selfsigned.crt
+  certChain               1
+  sslProtocol             24
+  enableQuic              1
+  enableHttp3             1
+}
+EOF_OLS_HTTPS
+    else
+        # Đảm bảo đã bật enableQuic 1 và enableHttp3 1 trong listener HTTPS
+        sed -i "/listener[[:space:]]\+\(HTTPS_443\|HTTPS\)[[:space:]]*{/,/^[[:space:]]*}/ s/enableQuic[[:space:]]\+0/enableQuic              1/" "$conf" 2>/dev/null || true
+        sed -i "/listener[[:space:]]\+\(HTTPS_443\|HTTPS\)[[:space:]]*{/,/^[[:space:]]*}/ s/enableHttp3[[:space:]]\+0/enableHttp3             1/" "$conf" 2>/dev/null || true
+        if ! grep -A 10 -E "listener[[:space:]]+(HTTPS_443|HTTPS)[[:space:]]*\{" "$conf" | grep -q "enableQuic"; then
+            sed -i "/listener[[:space:]]\+\(HTTPS_443\|HTTPS\)[[:space:]]*{/a \  enableQuic              1\n  enableHttp3             1" "$conf" 2>/dev/null || true
+        fi
+    fi
+    chmod 644 "$conf" 2>/dev/null || true
+}
+
 # 2. Xử lý các hành động
 case "$ACTION" in
     add)
         echo "[+] Tao vhost cho $DOMAIN ($WEBSERVER, PHP $PHP_VER) cua user $USERNAME (Hosting Owner: $HOSTING_USER)..."
+        ensure_firewall_ports
         ensure_linux_user "$USERNAME" "$HOSTING_USER"
 
         # Tạo cây thư mục chuẩn: /home/$USERNAME/domains/$DOMAIN/{public_html, logs, ssl, backups}
@@ -271,6 +390,9 @@ EOF
             chmod 644 "$DOC_ROOT/index.html" 2>/dev/null || true
         fi
 
+        # Tự động chuẩn bị SSL certificate (Let's Encrypt hoặc tự ký)
+        ensure_ssl_certs "$DOMAIN" "$USERNAME"
+
         # Cấu hình OpenLiteSpeed nếu chọn OLS hoặc all
         PHP_NUM=$(echo "$PHP_VER" | tr -d '.')
         if [ "$WEBSERVER" = "ols" ] || [ "$WEBSERVER" = "all" ]; then
@@ -292,6 +414,9 @@ EOF
                     # Đổi port 8088 thành 80 nếu còn tồn tại
                     sed -i 's/address *:8088/address *:80/g' "$OLS_MAIN_CONF" 2>/dev/null || true
                     
+                    # Bổ sung listener HTTPS_443 (HTTP/2 & HTTP/3 QUIC)
+                    setup_ols_https_listener
+
                     # Khai báo virtualhost block trong httpd_config.conf nếu chưa có
                     if ! grep -q "virtualhost $DOMAIN" "$OLS_MAIN_CONF"; then
                         cat <<EOF >> "$OLS_MAIN_CONF"
@@ -314,25 +439,49 @@ EOF
                         fi
                     fi
 
-                    # Map virtualhost vào listener HTTP (port 80)
-                    # Dọn dẹp các dòng map bị chèn nhầm vào errorlog trước đó
+                    # Map virtualhost vào listener HTTP (port 80) và HTTPS (port 443)
                     sed -i '/errorlog logs\/error\.log {/,/}/ { /map[[:space:]]/d }' "$OLS_MAIN_CONF" 2>/dev/null || true
-
-                    # Xóa mapping Example * mặc định cướp toàn bộ traffic
                     sed -i 's/map[[:space:]]\+Example[[:space:]]\+\*/# map Example */g' "$OLS_MAIN_CONF" 2>/dev/null || true
 
-                    # Thêm map vào listener Default hoặc HTTP_80 nếu chưa có
-                    if ! grep -q "map[[:space:]]\+$DOMAIN" "$OLS_MAIN_CONF"; then
-                        # Dùng awk để chèn map an toàn ngay trước dấu ngoặc đóng } của listener HTTP_80 hoặc Default
-                        awk -v d="$DOMAIN" '
+                    map_hosts="$DOMAIN, *.$DOMAIN"
+                    if echo "$DOMAIN" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+                        map_hosts="$DOMAIN"
+                    fi
+
+                    # 1. Map vào listener HTTP_80
+                    has_http_map=$(awk '
+                        /listener[[:space:]]+(Default|HTTP_80|HTTP)[[:space:]]*{/ { in_l=1 }
+                        in_l && /}/ { in_l=0 }
+                        in_l && $1=="map" && $2=="'"$DOMAIN"'" { print "yes" }
+                    ' "$OLS_MAIN_CONF")
+                    if [ "$has_http_map" != "yes" ]; then
+                        awk -v d="$DOMAIN" -v mh="$map_hosts" '
                             /listener[[:space:]]+(Default|HTTP_80|HTTP)[[:space:]]*{/ { in_listener=1 }
                             in_listener && /}/ {
-                                print "    map                      " d " " d ", *." d
+                                print "    map                      " d " " mh
                                 in_listener=0
                             }
                             { print }
                         ' "$OLS_MAIN_CONF" > "$OLS_MAIN_CONF.tmp" && mv "$OLS_MAIN_CONF.tmp" "$OLS_MAIN_CONF"
                     fi
+
+                    # 2. Map vào listener HTTPS_443 (HTTP/2 & HTTP/3 QUIC)
+                    has_https_map=$(awk '
+                        /listener[[:space:]]+(HTTPS_443|HTTPS)[[:space:]]*{/ { in_l=1 }
+                        in_l && /}/ { in_l=0 }
+                        in_l && $1=="map" && $2=="'"$DOMAIN"'" { print "yes" }
+                    ' "$OLS_MAIN_CONF")
+                    if [ "$has_https_map" != "yes" ]; then
+                        awk -v d="$DOMAIN" -v mh="$map_hosts" '
+                            /listener[[:space:]]+(HTTPS_443|HTTPS)[[:space:]]*{/ { in_listener=1 }
+                            in_listener && /}/ {
+                                print "    map                      " d " " mh
+                                in_listener=0
+                            }
+                            { print }
+                        ' "$OLS_MAIN_CONF" > "$OLS_MAIN_CONF.tmp" && mv "$OLS_MAIN_CONF.tmp" "$OLS_MAIN_CONF"
+                    fi
+
                     chmod 644 "$OLS_MAIN_CONF" 2>/dev/null || true
                 fi
 
@@ -377,13 +526,38 @@ EOF
                         done
                     fi
 
+                    SSL_CERT="/home/$USERNAME/domains/$DOMAIN/ssl/fullchain.pem"
+                    SSL_KEY="/home/$USERNAME/domains/$DOMAIN/ssl/privkey.pem"
+                    if [ ! -s "$SSL_CERT" ] || [ ! -s "$SSL_KEY" ]; then
+                        ensure_server_default_ssl
+                        SSL_CERT="/etc/ssl/wpc/selfsigned.crt"
+                        SSL_KEY="/etc/ssl/wpc/selfsigned.key"
+                    fi
+
                     sed -e "s/{{DOMAIN}}/$DOMAIN/g" \
                         -e "s/{{PHP_VERSION}}/$PHP_VER/g" \
                         -e "s/{{USERNAME}}/$USERNAME/g" \
                         -e "s|{{DOCUMENT_ROOT}}|$DOC_ROOT|g" \
                         -e "s|{{PHP_SOCK}}|$PHP_SOCK|g" \
+                        -e "s|{{SSL_CERT}}|$SSL_CERT|g" \
+                        -e "s|{{SSL_KEY}}|$SSL_KEY|g" \
                         "$WPC_DIR/templates/vhost_nginx/default.tpl" > "/etc/nginx/conf.d/$DOMAIN.conf"
-                    nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+
+                    # Kiểm tra tính tương thích QUIC / HTTP3 và HTTP2 với phiên bản Nginx hiện tại
+                    if ! nginx -t 2>/dev/null; then
+                        # Nếu Nginx không có module http_v3 (quic)
+                        sed -i '/quic;/d' "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
+                        sed -i '/http3[[:space:]]\+on;/d' "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
+                        sed -i '/Alt-Svc/d' "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
+                    fi
+                    if ! nginx -t 2>/dev/null; then
+                        # Nếu Nginx cũ không hỗ trợ directive "http2 on;"
+                        sed -i '/http2[[:space:]]\+on;/d' "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
+                        sed -i 's/listen 443 ssl;/listen 443 ssl http2;/g' "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
+                        sed -i 's/listen \[::\]:443 ssl;/listen [::]:443 ssl http2;/g' "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
+                    fi
+
+                    nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true)
             fi
         fi
 
@@ -832,6 +1006,14 @@ EOF_NGX_SUSP
         if command -v certbot &>/dev/null; then
             certbot certonly --webroot -w "$SSL_WEBROOT" -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" || true
         fi
+        # Tự động đồng bộ chứng chỉ Let's Encrypt mới cấp hoặc tạo fallback tự ký
+        ensure_ssl_certs "$DOMAIN" "$USERNAME"
+        if [ "$WEBSERVER" = "ols" ] || [ -d "/usr/local/lsws/conf/vhosts/$DOMAIN" ]; then
+            /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lsws 2>/dev/null || true
+        fi
+        if [ "$WEBSERVER" = "nginx" ] || [ -f "/etc/nginx/conf.d/$DOMAIN.conf" ]; then
+            nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true)
+        fi
         exit 0
         ;;
 
@@ -912,6 +1094,9 @@ EOF_NGX_SUSP
 
     rewrite-all)
         echo "[+] Rewrite toan bo cau hinh webserver: $WEBSERVER..."
+        ensure_firewall_ports
+        ensure_server_default_ssl
+
         if [ "$WEBSERVER" = "ols" ]; then
             # 1. Dọn dẹp và dừng TOÀN BỘ tiến trình / service PHP-FPM riêng của user VÀ hệ thống
             echo "[+] Dang chuyen sang OLS: Tat cac service PHP-FPM nguoi dung va he thong..."
@@ -978,10 +1163,98 @@ EOF_NGX_SUSP
                 sed -i 's/:8088/:80/g' "$OLS_CONF" || true
                 sed -i 's/listener Default {/listener HTTP_80 {/g' "$OLS_CONF" || true
 
+                # Bổ sung listener HTTPS_443 (HTTP/2 & HTTP/3 QUIC) vào OLS
+                setup_ols_https_listener
+
                 # Dọn sạch các dòng map bị chèn nhầm vào errorlog
                 sed -i '/errorlog logs\/error\.log {/,/}/ { /map[[:space:]]/d }' "$OLS_CONF" || true
                 # Vô hiệu hóa map Example * mặc định cướp toàn bộ domain
                 sed -i 's/map[[:space:]]\+Example[[:space:]]\+\*/# map Example */g' "$OLS_CONF" || true
+
+                # Duyệt qua từng vhost OLS để đảm bảo có SSL, vhssl và map vào cả HTTP_80 & HTTPS_443
+                for vh_conf in /usr/local/lsws/conf/vhosts/*/vhconf.conf; do
+                    [ -f "$vh_conf" ] || continue
+                    vh_dom=$(basename "$(dirname "$vh_conf")")
+                    if [ "$vh_dom" = "Example" ] || [ "$vh_dom" = "phpmyadmin" ]; then
+                        continue
+                    fi
+
+                    # Tìm user sở hữu domain này
+                    vh_u=""
+                    for udir in /home/*; do
+                        if [ -d "$udir/domains/$vh_dom" ]; then
+                            vh_u=$(basename "$udir")
+                            break
+                        fi
+                    done
+                    [ -z "$vh_u" ] && vh_u="admin"
+
+                    # Đảm bảo chứng chỉ SSL hợp lệ cho domain
+                    ensure_ssl_certs "$vh_dom" "$vh_u"
+
+                    # Bổ sung block vhssl nếu chưa có
+                    if ! grep -q "vhssl" "$vh_conf"; then
+                        cat << EOF_VHSSL >> "$vh_conf"
+
+vhssl  {
+  keyFile                 \$VH_ROOT/domains/${vh_dom}/ssl/privkey.pem
+  certFile                \$VH_ROOT/domains/${vh_dom}/ssl/fullchain.pem
+  certChain               1
+  sslProtocol             24
+  enableQuic              1
+  enableHttp3             1
+}
+EOF_VHSSL
+                    else
+                        sed -i '/vhssl[[:space:]]*{/,/^[[:space:]]*}/ s/enableQuic[[:space:]]\+0/enableQuic              1/' "$vh_conf" 2>/dev/null || true
+                        sed -i '/vhssl[[:space:]]*{/,/^[[:space:]]*}/ s/enableHttp3[[:space:]]\+0/enableHttp3             1/' "$vh_conf" 2>/dev/null || true
+                    fi
+
+                    # Bổ sung Alt-Svc header vào context / nếu chưa có
+                    if ! grep -q "Alt-Svc" "$vh_conf"; then
+                        if grep -q "context[[:space:]]\+/[[:space:]]*{" "$vh_conf"; then
+                            sed -i '/context[[:space:]]\+\/[[:space:]]*{/a \  extraHeaders            <<<END_EXTRA_HEADERS\nAlt-Svc: h3=":443"; ma=86400\nEND_EXTRA_HEADERS' "$vh_conf" 2>/dev/null || true
+                        fi
+                    fi
+
+                    # Map domain vào HTTP_80 và HTTPS_443
+                    map_h="$vh_dom, *.$vh_dom"
+                    if echo "$vh_dom" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+                        map_h="$vh_dom"
+                    fi
+
+                    has_h80=$(awk '
+                        /listener[[:space:]]+(Default|HTTP_80|HTTP)[[:space:]]*{/ { in_l=1 }
+                        in_l && /}/ { in_l=0 }
+                        in_l && $1=="map" && $2=="'"$vh_dom"'" { print "yes" }
+                    ' "$OLS_CONF")
+                    if [ "$has_h80" != "yes" ]; then
+                        awk -v d="$vh_dom" -v mh="$map_h" '
+                            /listener[[:space:]]+(Default|HTTP_80|HTTP)[[:space:]]*{/ { in_listener=1 }
+                            in_listener && /}/ {
+                                print "    map                      " d " " mh
+                                in_listener=0
+                            }
+                            { print }
+                        ' "$OLS_CONF" > "$OLS_CONF.tmp" && mv "$OLS_CONF.tmp" "$OLS_CONF"
+                    fi
+
+                    has_h443=$(awk '
+                        /listener[[:space:]]+(HTTPS_443|HTTPS)[[:space:]]*{/ { in_l=1 }
+                        in_l && /}/ { in_l=0 }
+                        in_l && $1=="map" && $2=="'"$vh_dom"'" { print "yes" }
+                    ' "$OLS_CONF")
+                    if [ "$has_h443" != "yes" ]; then
+                        awk -v d="$vh_dom" -v mh="$map_h" '
+                            /listener[[:space:]]+(HTTPS_443|HTTPS)[[:space:]]*{/ { in_listener=1 }
+                            in_listener && /}/ {
+                                print "    map                      " d " " mh
+                                in_listener=0
+                            }
+                            { print }
+                        ' "$OLS_CONF" > "$OLS_CONF.tmp" && mv "$OLS_CONF.tmp" "$OLS_CONF"
+                    fi
+                done
                 
                 # Phân quyền 644 để panel có thể đọc trực tiếp
                 chmod 755 /usr/local/lsws/conf 2>/dev/null || true
@@ -1030,6 +1303,11 @@ EOF_NGX_SUSP
                     if [ "$u" != "wpc" ]; then
                         chmod 711 "$udir" 2>/dev/null || true
                         [ -d "$udir/domains" ] && chmod 711 "$udir/domains" 2>/dev/null || true
+                        for ddir in "$udir/domains"/*; do
+                            [ -d "$ddir" ] && chmod 711 "$ddir" 2>/dev/null || true
+                            dname=$(basename "$ddir")
+                            ensure_ssl_certs "$dname" "$u"
+                        done
                     fi
                 fi
             done
@@ -1055,6 +1333,22 @@ EOF_NGX_SUSP
                     fi
                 fi
             done
+
+            # Kiểm tra tính tương thích cấu hình Nginx (QUIC, HTTP3, HTTP2)
+            for n_conf in /etc/nginx/conf.d/*.conf; do
+                [ -f "$n_conf" ] || continue
+                if ! nginx -t 2>/dev/null; then
+                    sed -i '/quic;/d' "$n_conf" 2>/dev/null || true
+                    sed -i '/http3[[:space:]]\+on;/d' "$n_conf" 2>/dev/null || true
+                    sed -i '/Alt-Svc/d' "$n_conf" 2>/dev/null || true
+                fi
+                if ! nginx -t 2>/dev/null; then
+                    sed -i '/http2[[:space:]]\+on;/d' "$n_conf" 2>/dev/null || true
+                    sed -i 's/listen 443 ssl;/listen 443 ssl http2;/g' "$n_conf" 2>/dev/null || true
+                    sed -i 's/listen \[::\]:443 ssl;/listen [::]:443 ssl http2;/g' "$n_conf" 2>/dev/null || true
+                fi
+            done
+
             (systemctl reload openresty 2>/dev/null || systemctl reload nginx 2>/dev/null || systemctl restart openresty 2>/dev/null || systemctl restart nginx 2>/dev/null || true)
         fi
         exit 0

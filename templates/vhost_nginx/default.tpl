@@ -1,8 +1,52 @@
 server {
     listen 80;
+    listen [::]:80;
+    server_name {{DOMAIN}} www.{{DOMAIN}};
+
+    # Cho phép xác thực SSL Certbot ACME Challenge qua HTTP
+    location ^~ /.well-known/acme-challenge/ {
+        root {{DOCUMENT_ROOT}};
+        allow all;
+        default_type "text/plain";
+    }
+
+    # Tự động chuyển hướng sang HTTPS để sử dụng HTTP/2 và HTTP/3
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    # HTTP/2 qua TLS
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    # HTTP/3 qua QUIC (UDP)
+    listen 443 quic;
+    listen [::]:443 quic;
+
     server_name {{DOMAIN}} www.{{DOMAIN}};
     root {{DOCUMENT_ROOT}};
     index index.php index.html index.htm;
+
+    # Bật HTTP/2 và HTTP/3
+    http2 on;
+    http3 on;
+
+    # Quảng bá giao thức HTTP/3 tới trình duyệt web
+    add_header Alt-Svc 'h3=":443"; ma=86400' always;
+    add_header QUIC-Status $http3 always;
+
+    # Chứng chỉ SSL (Tự ký hoặc Let's Encrypt CA)
+    ssl_certificate {{SSL_CERT}};
+    ssl_certificate_key {{SSL_KEY}};
+
+    # Cấu hình TLS 1.2 & TLS 1.3 tối ưu bảo mật và tốc độ
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
 
     access_log /home/{{USERNAME}}/domains/{{DOMAIN}}/logs/access.log;
     error_log /home/{{USERNAME}}/domains/{{DOMAIN}}/logs/error.log;
