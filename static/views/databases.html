@@ -67,15 +67,15 @@
                                 <!-- B. ACTION TOOLBAR (Chỉ hiển thị trên Tab MySQL, phân quyền nghiêm ngặt giữa Admin và Khách) -->
                                 <div v-if="dbTypeTab === 'mysql'" class="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
                                     <div class="flex flex-wrap items-center gap-2">
-                                        <!-- Add DB Button (Solid Green Pill) - Cả Admin và Website User đều được tạo DB theo quota -->
+                                        <!-- Add DB Button - Cả Admin và Website User đều được tạo DB theo quota -->
                                         <button @click="openAddDbModal"
-                                            class="px-3.5 py-1.5 rounded-md bg-[#10b981] hover:bg-[#059669] text-white font-medium text-xs sm:text-sm transition shadow-sm">
+                                            class="px-3 py-1 rounded-md bg-[#10b981] hover:bg-[#059669] text-white font-medium text-xs transition shadow-sm">
                                             <span>Add DB</span>
                                         </button>
 
                                         <!-- phpMyAdmin (Mở giao diện quản trị) - Cả Admin và Website User đều cần -->
                                         <button @click="openPhpMyAdmin"
-                                            class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm"
+                                            class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
                                             title="Mở phpMyAdmin Port 888">
                                             <span>phpMyAdmin</span>
                                         </button>
@@ -84,32 +84,32 @@
                                         <template v-if="currentUser.role === 'admin'">
                                             <!-- Root password -->
                                             <button @click="showRootPasswordModal = true"
-                                                class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm">
+                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
                                                 <span>Root password</span>
                                             </button>
 
                                             <!-- Remote DB -->
                                             <button @click="showRemoteDbModal = true"
-                                                class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm">
+                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
                                                 <span>Remote DB</span>
                                             </button>
 
                                             <!-- Advanced Setup -->
                                             <button @click="showAdvDbModal = true"
-                                                class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm">
+                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
                                                 <span>Advanced Setup</span>
                                             </button>
 
                                             <!-- Sync all -->
                                             <button @click="fetchDatabasesList"
-                                                class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm"
+                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
                                                 title="Đồng bộ danh sách CSDL">
                                                 <span>Sync all</span>
                                             </button>
 
                                             <!-- Get DB from server -->
                                             <button @click="showGetDbModal = true"
-                                                class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm">
+                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
                                                 <span>Get DB from server</span>
                                             </button>
                                         </template>

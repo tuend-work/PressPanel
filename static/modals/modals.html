@@ -81,17 +81,22 @@
                         <button @click="showChangePhpModal = false" class="text-slate-400 hover:text-white hover:bg-slate-800 text-xl leading-none p-1.5 rounded-xl transition">&times;</button>
                     </div>
 
-                    <!-- Tabs Navigation: Phiên bản PHP vs Cấu hình php.ini -->
-                    <div class="flex border-b border-slate-800 mt-3 mb-4 shrink-0">
+                    <!-- Tabs Navigation: Phiên bản PHP vs Cấu hình php.ini vs PHP Extensions -->
+                    <div class="flex border-b border-slate-800 mt-3 mb-4 shrink-0 overflow-x-auto">
                         <button type="button" @click="phpModalTab = 'version'"
                             :class="phpModalTab === 'version' ? 'border-blue-500 text-blue-400 font-bold bg-blue-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
-                            class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5">
+                            class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
                             <span>⚡ Phiên Bản PHP</span>
                         </button>
                         <button type="button" @click="phpModalTab = 'ini'; loadDomainPhpIni(targetPhpDomain)"
                             :class="phpModalTab === 'ini' ? 'border-indigo-500 text-indigo-400 font-bold bg-indigo-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
-                            class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5">
+                            class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
                             <span>⚙️ Cấu Hình php.ini (.user.ini)</span>
+                        </button>
+                        <button type="button" @click="phpModalTab = 'extensions'; loadDomainPhpExtensions(targetPhpDomain)"
+                            :class="phpModalTab === 'extensions' ? 'border-emerald-500 text-emerald-400 font-bold bg-emerald-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
+                            class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
+                            <span>🧩 PHP Extensions</span>
                         </button>
                     </div>
 
@@ -399,6 +404,112 @@
                                     class="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-bold shadow-lg shadow-indigo-500/25 transition flex items-center space-x-1.5 disabled:opacity-50">
                                     <span v-if="savingDomainPhpIni" class="animate-spin">⏳</span>
                                     <span>{{ savingDomainPhpIni ? 'Đang lưu & áp dụng...' : 'Lưu & Áp Dụng php.ini' }}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 3: BẬT TẮT PHP EXTENSIONS CHO TỪNG WEBSITE -->
+                    <div v-if="phpModalTab === 'extensions'" class="space-y-4 text-xs overflow-y-auto pr-1 flex-1">
+                        <!-- Header & Preset Bar -->
+                        <div class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-3 shadow-inner">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    <span class="font-bold text-white text-xs">Môi trường mở rộng:</span>
+                                    <span class="text-slate-300 font-mono text-[11px] bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700">PHP {{ targetPhpDomain?.php_version }} ({{ targetPhpDomain?.webserver === 'ols' ? 'OLS' : 'Nginx' }})</span>
+                                </div>
+                                <span class="text-[11px] text-emerald-400 font-semibold">
+                                    Đã bật {{ (domainPhpExtensions || []).filter(e => e.enabled).length }}/{{ (domainPhpExtensions || []).length }} extension
+                                </span>
+                            </div>
+
+                            <!-- 1-Click Presets -->
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-400 mb-1.5">Cấu hình mẫu nhanh (1-Click Presets):</label>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <button type="button" @click="applyPhpExtPreset('wp_standard')"
+                                        class="p-2 rounded-lg bg-slate-900/90 hover:bg-slate-700 border border-slate-700 text-left transition group">
+                                        <div class="font-bold text-white text-[11px] group-hover:text-emerald-400 flex items-center gap-1">
+                                            <span>🚀 WP Chuẩn</span>
+                                        </div>
+                                        <p class="text-[10px] text-slate-400 mt-0.5 truncate">OPcache, Redis, Imagick...</p>
+                                    </button>
+                                    <button type="button" @click="applyPhpExtPreset('woocommerce')"
+                                        class="p-2 rounded-lg bg-slate-900/90 hover:bg-slate-700 border border-slate-700 text-left transition group">
+                                        <div class="font-bold text-white text-[11px] group-hover:text-amber-400 flex items-center gap-1">
+                                            <span>🛒 WooCommerce</span>
+                                        </div>
+                                        <p class="text-[10px] text-slate-400 mt-0.5 truncate">WP Chuẩn + BCMath, SOAP</p>
+                                    </button>
+                                    <button type="button" @click="applyPhpExtPreset('developer')"
+                                        class="p-2 rounded-lg bg-slate-900/90 hover:bg-slate-700 border border-slate-700 text-left transition group">
+                                        <div class="font-bold text-white text-[11px] group-hover:text-cyan-400 flex items-center gap-1">
+                                            <span>🛠️ Developer</span>
+                                        </div>
+                                        <p class="text-[10px] text-slate-400 mt-0.5 truncate">Bật thêm Xdebug profiling</p>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Loading State -->
+                        <div v-if="loadingDomainPhpExtensions" class="p-8 text-center text-slate-400 text-xs">
+                            <span class="inline-block animate-spin text-lg mb-2">⏳</span>
+                            <p>Đang nạp danh sách PHP Extensions...</p>
+                        </div>
+
+                        <!-- Extension List / Cards -->
+                        <div v-else class="space-y-2">
+                            <div v-for="ext in domainPhpExtensions" :key="ext.id"
+                                class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 hover:border-slate-600 transition flex items-center justify-between gap-3">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-white text-xs font-mono">{{ ext.name }}</span>
+                                        <span class="text-[10px] px-2 py-0.5 rounded font-mono font-semibold"
+                                            :class="{
+                                                'bg-purple-500/15 text-purple-300 border border-purple-500/30': ext.category === 'Performance',
+                                                'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30': ext.category === 'Database & Cache',
+                                                'bg-blue-500/15 text-blue-300 border border-blue-500/30': ext.category === 'Graphics',
+                                                'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30': ext.category === 'Network' || ext.category === 'Localization',
+                                                'bg-amber-500/15 text-amber-300 border border-amber-500/30': ext.category === 'Math' || ext.category === 'System',
+                                                'bg-rose-500/15 text-rose-300 border border-rose-500/30': ext.category === 'Development',
+                                                'bg-slate-700 text-slate-300 border border-slate-600': ext.category === 'Core' || ext.category === 'Security' || ext.category === 'Web Services'
+                                            }">
+                                            {{ ext.category }}
+                                        </span>
+                                        <span v-if="ext.core" class="text-[9px] px-1.5 py-0.5 rounded bg-slate-700/80 text-slate-400 border border-slate-600" title="Core PHP extension">Core</span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-400 mt-1 leading-snug line-clamp-2">
+                                        {{ ext.desc }}
+                                    </p>
+                                </div>
+
+                                <!-- Toggle Switch -->
+                                <button type="button" @click="ext.enabled = !ext.enabled"
+                                    :class="ext.enabled ? 'bg-emerald-600' : 'bg-slate-700'"
+                                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none shadow-inner"
+                                    :title="ext.enabled ? 'Đang bật - Bấm để tắt' : 'Đang tắt - Bấm để bật'">
+                                    <span :class="ext.enabled ? 'translate-x-5 bg-white' : 'translate-x-0 bg-slate-300'"
+                                        class="pointer-events-none inline-block h-5 w-5 transform rounded-full shadow-md ring-0 transition duration-200 ease-in-out"></span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex justify-between items-center pt-3 border-t border-slate-800">
+                            <span class="text-[10px] text-slate-400">
+                                Áp dụng riêng cho website này, không ảnh hưởng web khác.
+                            </span>
+                            <div class="flex space-x-2">
+                                <button type="button" @click="showChangePhpModal = false" :disabled="savingDomainPhpExtensions"
+                                    class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700 transition">
+                                    Đóng
+                                </button>
+                                <button type="button" @click="saveDomainPhpExtensions" :disabled="savingDomainPhpExtensions || loadingDomainPhpExtensions"
+                                    class="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-bold shadow-lg shadow-emerald-500/25 transition flex items-center space-x-1.5 disabled:opacity-50">
+                                    <span v-if="savingDomainPhpExtensions" class="animate-spin">⏳</span>
+                                    <span>{{ savingDomainPhpExtensions ? 'Đang lưu & áp dụng...' : 'Lưu & Áp Dụng Extension' }}</span>
                                 </button>
                             </div>
                         </div>

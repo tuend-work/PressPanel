@@ -37,6 +37,8 @@ ACTION="${1:-help}"
 case "$ACTION" in
     update)
         echo "[+] Bắt đầu cập nhật WPCloud Control Panel lên phiên bản mới nhất từ GitHub..."
+        OLD_VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || cat "/opt/presspanel/VERSION" 2>/dev/null || echo "0.0.0")
+        export WPC_PREV_VER="$OLD_VER"
         TMP_RUNNER=$(mktemp /tmp/wpc_update_runner_XXXXXX.sh 2>/dev/null || echo "/tmp/wpc_update_$$.sh")
         # Ưu tiên tải update.sh mới nhất trực tiếp từ GitHub
         if command -v curl &>/dev/null; then
@@ -48,12 +50,26 @@ case "$ACTION" in
             cp "$INSTALL_DIR/scripts/update.sh" "$TMP_RUNNER" 2>/dev/null || true
         fi
         chmod 700 "$TMP_RUNNER" 2>/dev/null || true
-        sudo bash "$TMP_RUNNER"
+        
+        UPDATE_RES=0
+        sudo WPC_PREV_VER="$OLD_VER" bash "$TMP_RUNNER" || UPDATE_RES=$?
         rm -f "$TMP_RUNNER" 2>/dev/null || true
-        echo "[+] Đang khởi động lại dịch vụ WPCloud Control Panel (wpc.service)..."
-        sudo systemctl daemon-reload 2>/dev/null || true
-        sudo systemctl restart wpc 2>/dev/null || true
-        echo "[+] Hoàn tất! Trạng thái: $(systemctl is-active wpc 2>/dev/null || echo 'active')"
+        
+        NEW_VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "latest")
+        if [ $UPDATE_RES -eq 0 ]; then
+            echo "[+] Đang khởi động lại dịch vụ WPCloud Control Panel (wpc.service)..."
+            sudo systemctl daemon-reload 2>/dev/null || true
+            sudo systemctl restart wpc 2>/dev/null || true
+            echo "[+] Hoàn tất! Trạng thái: $(systemctl is-active wpc 2>/dev/null || echo 'active')"
+            echo "=========================================================="
+            echo "Update thành công từ ver${OLD_VER} lên ver${NEW_VER}"
+            echo "=========================================================="
+        else
+            echo "=========================================================="
+            echo "Update thất bại từ ver${OLD_VER} lên ver${NEW_VER}"
+            echo "=========================================================="
+            exit $UPDATE_RES
+        fi
         ;;
     reinstall)
         sudo bash "$INSTALL_DIR/scripts/reinstall.sh"

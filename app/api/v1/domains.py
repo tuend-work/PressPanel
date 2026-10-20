@@ -1,11 +1,12 @@
 import os
 import re
+import json
 import subprocess
 import shutil
 import time
 import asyncio
 import platform
-from typing import List, Optional
+from typing import List, Optional, Dict
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.api.deps import get_current_user
@@ -990,6 +991,335 @@ async def save_domain_php_ini(
             "display_errors": disp_err,
             "date_timezone": tz
         }
+    }
+
+AVAILABLE_PHP_EXTENSIONS = [
+    {
+        "id": "opcache",
+        "name": "Zend OPcache",
+        "desc": "Tăng tốc thực thi PHP bằng bộ nhớ cache bytecode, giảm tải CPU và tối ưu tốc độ tải trang.",
+        "category": "Performance",
+        "default": True,
+        "core": False,
+        "doc_url": "https://www.php.net/manual/en/book.opcache.php"
+    },
+    {
+        "id": "redis",
+        "name": "Redis Object Cache",
+        "desc": "Hỗ trợ kết nối Redis / Valkey server làm Object Cache, giảm tải truy vấn MySQL WordPress.",
+        "category": "Database & Cache",
+        "default": True,
+        "core": False,
+        "doc_url": "https://github.com/phpredis/phpredis"
+    },
+    {
+        "id": "imagick",
+        "name": "ImageMagick (Imagick)",
+        "desc": "Xử lý đồ họa ảnh chất lượng cao, tối ưu nén ảnh WebP/AVIF cho WordPress Media Library.",
+        "category": "Graphics",
+        "default": True,
+        "core": False,
+        "doc_url": "https://www.php.net/manual/en/book.imagick.php"
+    },
+    {
+        "id": "gd",
+        "name": "GD Library",
+        "desc": "Thư viện đồ họa ảnh cơ bản, hỗ trợ cắt ảnh thumbnails, watermark và mã captcha.",
+        "category": "Graphics",
+        "default": True,
+        "core": True,
+        "doc_url": "https://www.php.net/manual/en/book.image.php"
+    },
+    {
+        "id": "intl",
+        "name": "Intl (Internationalization)",
+        "desc": "Hỗ trợ bản địa hóa, đa ngôn ngữ, định dạng tiền tệ và số học cho WooCommerce / WPML.",
+        "category": "Localization",
+        "default": True,
+        "core": False,
+        "doc_url": "https://www.php.net/manual/en/book.intl.php"
+    },
+    {
+        "id": "zip",
+        "name": "Zip Archive",
+        "desc": "Nén và giải nén tệp zip khi cài đặt, cập nhật Plugin / Theme WordPress và xuất backup.",
+        "category": "System",
+        "default": True,
+        "core": False,
+        "doc_url": "https://www.php.net/manual/en/book.zip.php"
+    },
+    {
+        "id": "curl",
+        "name": "cURL Client",
+        "desc": "Truyền nhận dữ liệu HTTP/HTTPS, WordPress REST API, Webhooks thanh toán và WP-Cron.",
+        "category": "Network",
+        "default": True,
+        "core": True,
+        "doc_url": "https://www.php.net/manual/en/book.curl.php"
+    },
+    {
+        "id": "mbstring",
+        "name": "Mbstring",
+        "desc": "Xử lý chuỗi ký tự UTF-8 đa byte, tiếng Việt có dấu và các bộ mã quốc tế không lỗi font.",
+        "category": "Core",
+        "default": True,
+        "core": True,
+        "doc_url": "https://www.php.net/manual/en/book.mbstring.php"
+    },
+    {
+        "id": "exif",
+        "name": "EXIF Data",
+        "desc": "Đọc siêu dữ liệu ảnh chụp từ máy ảnh / smartphone (thời gian chụp, camera, vị trí GPS).",
+        "category": "Graphics",
+        "default": True,
+        "core": False,
+        "doc_url": "https://www.php.net/manual/en/book.exif.php"
+    },
+    {
+        "id": "bcmath",
+        "name": "BCMath",
+        "desc": "Tính toán số học với độ chính xác cao, bắt buộc cho các cổng thanh toán và WooCommerce.",
+        "category": "Math",
+        "default": True,
+        "core": False,
+        "doc_url": "https://www.php.net/manual/en/book.bc.php"
+    },
+    {
+        "id": "fileinfo",
+        "name": "Fileinfo",
+        "desc": "Nhận diện định dạng tệp tải lên qua Magic Byte an toàn, bảo vệ chống upload shell độc hại.",
+        "category": "Security",
+        "default": True,
+        "core": True,
+        "doc_url": "https://www.php.net/manual/en/book.fileinfo.php"
+    },
+    {
+        "id": "sodium",
+        "name": "Sodium (Crypto)",
+        "desc": "Thư viện mật mã học hiện đại trong PHP core (mã hóa mật khẩu, token bảo mật, chữ ký số).",
+        "category": "Security",
+        "default": True,
+        "core": False,
+        "doc_url": "https://www.php.net/manual/en/book.sodium.php"
+    },
+    {
+        "id": "soap",
+        "name": "SOAP Web Services",
+        "desc": "Giao thức XML kết nối các dịch vụ web ngân hàng, phần mềm kế toán ERP, hóa đơn điện tử.",
+        "category": "Web Services",
+        "default": False,
+        "core": False,
+        "doc_url": "https://www.php.net/manual/en/book.soap.php"
+    },
+    {
+        "id": "memcached",
+        "name": "Memcached",
+        "desc": "Bộ nhớ đệm đối tượng Memcached phân tán hiệu năng cao.",
+        "category": "Database & Cache",
+        "default": False,
+        "core": False,
+        "doc_url": "https://www.php.net/manual/en/book.memcached.php"
+    },
+    {
+        "id": "xdebug",
+        "name": "Xdebug (Dev Only)",
+        "desc": "Bộ công cụ gỡ lỗi mã nguồn PHP và profiling hiệu năng (khuyên tắt trên Production).",
+        "category": "Development",
+        "default": False,
+        "core": False,
+        "doc_url": "https://xdebug.org/"
+    }
+]
+
+class DomainPhpExtensionsUpdate(BaseModel):
+    extensions: Dict[str, bool]
+
+@router.get("/{domain_id}/php-extensions")
+async def get_domain_php_extensions(
+    domain_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Lấy danh sách các PHP extension và trạng thái bật/tắt của từng website"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, d.php_extensions, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    doc_root = f"/home/{isolated_user}/domains/{clean_domain}/public_html"
+    if not os.path.exists(doc_root) and os.path.exists(f"/home/{isolated_user}/httpdocs/{clean_domain}"):
+        doc_root = f"/home/{isolated_user}/httpdocs/{clean_domain}"
+    ini_path = os.path.join(doc_root, ".user.ini")
+
+    # Đọc cấu hình đã lưu trong DB nếu có
+    saved_exts = {}
+    if domain["php_extensions"]:
+        try:
+            saved_exts = json.loads(domain["php_extensions"])
+        except Exception:
+            saved_exts = {}
+
+    # Nếu chưa có trong DB, đọc từ .user.ini
+    if not saved_exts and os.path.exists(ini_path):
+        try:
+            with open(ini_path, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    line_s = line.strip()
+                    if line_s.startswith("opcache.enable"):
+                        saved_exts["opcache"] = ("1" in line_s or "On" in line_s)
+                    elif line_s.startswith("xdebug.mode"):
+                        saved_exts["xdebug"] = ("off" not in line_s.lower())
+        except Exception:
+            pass
+
+    # Build response list
+    result_list = []
+    for item in AVAILABLE_PHP_EXTENSIONS:
+        ext_id = item["id"]
+        is_enabled = saved_exts.get(ext_id, item["default"])
+        result_list.append({
+            **item,
+            "enabled": bool(is_enabled)
+        })
+
+    return {
+        "domain_id": domain_id,
+        "domain_name": clean_domain,
+        "php_version": domain["php_version"],
+        "webserver": domain["webserver"],
+        "extensions": result_list
+    }
+
+@router.post("/{domain_id}/php-extensions")
+async def save_domain_php_extensions(
+    domain_id: int,
+    req: DomainPhpExtensionsUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Lưu và áp dụng bật/tắt PHP extensions cho từng website"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+
+    if not domain:
+        await db.close()
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            await db.close()
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    # 1. Lưu vào Database
+    ext_json = json.dumps(req.extensions, ensure_ascii=False)
+    await db.execute("UPDATE domains SET php_extensions = ? WHERE id = ?", (ext_json, domain_id))
+    await db.commit()
+    await db.close()
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    active_ws = domain["webserver"] or "ols"
+
+    doc_root = f"/home/{isolated_user}/domains/{clean_domain}/public_html"
+    if not os.path.exists(doc_root) and os.path.exists(f"/home/{isolated_user}/httpdocs/{clean_domain}"):
+        doc_root = f"/home/{isolated_user}/httpdocs/{clean_domain}"
+
+    ini_path = os.path.join(doc_root, ".user.ini")
+
+    # 2. Đọc nội dung .user.ini hiện tại và cập nhật directives liên quan đến extension
+    existing_content = ""
+    if os.path.exists(ini_path):
+        try:
+            with open(ini_path, "r", encoding="utf-8", errors="ignore") as f:
+                existing_content = f.read()
+        except Exception:
+            existing_content = ""
+
+    # Loại bỏ block extension cũ nếu có
+    clean_lines = []
+    in_ext_block = False
+    for line in existing_content.splitlines():
+        if "; --- PHP EXTENSIONS CONFIGURATION ---" in line:
+            in_ext_block = True
+            continue
+        if in_ext_block:
+            if line.startswith(";") and "--- END PHP EXTENSIONS ---" in line:
+                in_ext_block = False
+            continue
+        line_s = line.strip()
+        if line_s.startswith("opcache.enable") or line_s.startswith("xdebug.mode"):
+            continue
+        clean_lines.append(line)
+
+    ext_lines = [
+        "",
+        "; --- PHP EXTENSIONS CONFIGURATION ---",
+        f"; Managed by PressPanel for {clean_domain}"
+    ]
+
+    opcache_on = req.extensions.get("opcache", True)
+    ext_lines.append(f"opcache.enable = {1 if opcache_on else 0}")
+
+    xdebug_on = req.extensions.get("xdebug", False)
+    ext_lines.append(f"xdebug.mode = {'develop,debug' if xdebug_on else 'off'}")
+
+    redis_on = req.extensions.get("redis", True)
+    if redis_on:
+        ext_lines.append("redis.session.locking_enabled = 1")
+
+    ext_lines.append("; --- END PHP EXTENSIONS ---")
+
+    new_ini_content = "\n".join(clean_lines).rstrip() + "\n" + "\n".join(ext_lines) + "\n"
+
+    tmp_ini = f"/tmp/wpc_phpini_{clean_domain}.ini"
+    try:
+        with open(tmp_ini, "w", encoding="utf-8") as f:
+            f.write(new_ini_content)
+        os.chmod(tmp_ini, 0o644)
+    except Exception:
+        pass
+
+    try:
+        os.makedirs(doc_root, exist_ok=True)
+        with open(ini_path, "w", encoding="utf-8") as f:
+            f.write(new_ini_content)
+    except Exception:
+        pass
+
+    # 3. Kích hoạt Gatekeeper apply-php-ini để đồng bộ vhconf.conf và reload worker
+    res = await run_gatekeeper("vhost", "apply-php-ini", isolated_user, clean_domain, active_ws)
+    if res.get("status") == "error":
+        try:
+            import subprocess
+            subprocess.run(
+                ["sudo", "/opt/wpc/scripts/vhost_manager.sh", "apply-php-ini", isolated_user, clean_domain, active_ws],
+                check=False
+            )
+        except Exception:
+            pass
+
+    return {
+        "status": "success",
+        "message": f"Cấu hình PHP Extensions cho website {clean_domain} đã được lưu và áp dụng thành công!",
+        "extensions": req.extensions
     }
 
 class DomainToggleSshRequest(BaseModel):

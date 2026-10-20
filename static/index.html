@@ -834,6 +834,9 @@
                 });
                 const loadingDomainPhpIni = ref(false);
                 const savingDomainPhpIni = ref(false);
+                const domainPhpExtensions = ref([]);
+                const loadingDomainPhpExtensions = ref(false);
+                const savingDomainPhpExtensions = ref(false);
                 const allPhpVersions = ref([
                     { ver: '8.5', label: 'PHP 8.5 (Bản mới nhất)' },
                     { ver: '8.4', label: 'PHP 8.4' },
@@ -2562,6 +2565,7 @@
                     .finally(() => { loadingAvailablePhp.value = false; });
 
                     loadDomainPhpIni(domain);
+                    loadDomainPhpExtensions(domain);
                 };
 
                 const loadDomainPhpIni = async (domain) => {
@@ -2650,6 +2654,78 @@
                         domainPhpIni.value.max_input_time = '600';
                         domainPhpIni.value.max_input_vars = '10000';
                         domainPhpIni.value.display_errors = 'Off';
+                    }
+                };
+
+                const loadDomainPhpExtensions = async (domain) => {
+                    const dom = domain || targetPhpDomain.value;
+                    if (!dom) return;
+                    loadingDomainPhpExtensions.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${dom.id}/php-extensions`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            domainPhpExtensions.value = data.extensions || [];
+                        }
+                    } catch (e) {
+                        console.error('Lỗi nạp PHP extensions:', e);
+                    } finally {
+                        loadingDomainPhpExtensions.value = false;
+                    }
+                };
+
+                const saveDomainPhpExtensions = async () => {
+                    if (!targetPhpDomain.value) return;
+                    savingDomainPhpExtensions.value = true;
+                    try {
+                        const payload = {};
+                        (domainPhpExtensions.value || []).forEach(ext => {
+                            payload[ext.id] = !!ext.enabled;
+                        });
+
+                        const res = await fetch(`/api/v1/domains/${targetPhpDomain.value.id}/php-extensions`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ extensions: payload })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Đã lưu và áp dụng cấu hình PHP Extensions thành công!');
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình PHP extensions'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        savingDomainPhpExtensions.value = false;
+                    }
+                };
+
+                const applyPhpExtPreset = (preset) => {
+                    if (!domainPhpExtensions.value || domainPhpExtensions.value.length === 0) return;
+
+                    if (preset === 'wp_standard') {
+                        const standardOn = ['opcache', 'redis', 'imagick', 'gd', 'intl', 'zip', 'curl', 'mbstring', 'exif', 'bcmath', 'fileinfo', 'sodium'];
+                        domainPhpExtensions.value.forEach(ext => {
+                            ext.enabled = standardOn.includes(ext.id);
+                        });
+                    } else if (preset === 'woocommerce') {
+                        const wooOn = ['opcache', 'redis', 'imagick', 'gd', 'intl', 'zip', 'curl', 'mbstring', 'exif', 'bcmath', 'fileinfo', 'sodium', 'soap'];
+                        domainPhpExtensions.value.forEach(ext => {
+                            ext.enabled = wooOn.includes(ext.id);
+                        });
+                    } else if (preset === 'developer') {
+                        domainPhpExtensions.value.forEach(ext => {
+                            if (ext.id === 'xdebug') ext.enabled = true;
+                            else if (['opcache', 'redis', 'imagick', 'gd', 'intl', 'zip', 'curl', 'mbstring', 'exif', 'bcmath', 'fileinfo', 'sodium'].includes(ext.id)) {
+                                ext.enabled = true;
+                            }
+                        });
                     }
                 };
 
@@ -5414,6 +5490,7 @@
                     fetchDomainVhostConfig, saveDomainVhostConfig, rebuildDomainVhost,
                     openChangePhpModal, confirmChangePhp,
                     phpModalTab, domainPhpIni, loadingDomainPhpIni, savingDomainPhpIni, applyPhpPreset, loadDomainPhpIni, saveDomainPhpIni,
+                    domainPhpExtensions, loadingDomainPhpExtensions, savingDomainPhpExtensions, loadDomainPhpExtensions, saveDomainPhpExtensions, applyPhpExtPreset,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain, handleToggleDomainStatus,
                     showEditDomainModal, selectedEditDomain, editDomainForm, savingDomainEdit, openEditDomainModal, handleSaveDomainEdit,
                     showDomainChangePlanModal, selectedDomainForPlan, targetDomainPlanId, changingDomainPlan, selectedDomainPlanPreview, openChangeDomainPlanModal, confirmChangeDomainPlan,

@@ -119,6 +119,21 @@ case "$ACTION" in
 <?php
 declare(strict_types=1);
 
+// Đảm bảo session save path và upload tmp dir luôn có quyền ghi tránh lỗi HTTP 500
+\$tmpDir = __DIR__ . '/tmp';
+if (!is_dir(\$tmpDir)) {
+    @mkdir(\$tmpDir, 0777, true);
+}
+@chmod(\$tmpDir, 0777);
+@ini_set('session.save_path', \$tmpDir);
+@ini_set('upload_tmp_dir', \$tmpDir);
+@ini_set('display_errors', '0');
+@ini_set('log_errors', '1');
+if (!is_dir(__DIR__ . '/logs')) {
+    @mkdir(__DIR__ . '/logs', 0755, true);
+}
+@ini_set('error_log', __DIR__ . '/logs/php_error.log');
+
 \$cfg['blowfish_secret'] = '$BLOWFISH';
 
 \$i = 0;
@@ -133,7 +148,7 @@ declare(strict_types=1);
 
 \$cfg['UploadDir'] = '';
 \$cfg['SaveDir'] = '';
-\$cfg['TempDir'] = '$TARGET_DIR/tmp';
+\$cfg['TempDir'] = \$tmpDir;
 \$cfg['SendErrorReports'] = 'never';
 \$cfg['ShowPhpInfo'] = true;
 \$cfg['MaxRows'] = 50;
@@ -154,7 +169,7 @@ EOF
         # 3. Phân quyền toàn diện và gỡ bỏ các file .htaccess chặn truy cập
         rm -f "$TARGET_DIR/.htaccess" 2>/dev/null || true
         mkdir -p "$TARGET_DIR/tmp" "$TARGET_DIR/logs"
-        chmod 777 "$TARGET_DIR/tmp" 2>/dev/null || true
+        chmod 1777 "$TARGET_DIR/tmp" 2>/dev/null || chmod 777 "$TARGET_DIR/tmp" 2>/dev/null || true
         chmod 755 "$TARGET_DIR/logs" 2>/dev/null || true
         chmod 644 "$TARGET_DIR/config.inc.php" "$TARGET_DIR/index.php" 2>/dev/null || true
 
@@ -169,7 +184,7 @@ EOF
 
         find "$TARGET_DIR" -type d -exec chmod 755 {} + 2>/dev/null || true
         find "$TARGET_DIR" -type f -exec chmod 644 {} + 2>/dev/null || true
-        chmod 777 "$TARGET_DIR/tmp" 2>/dev/null || true
+        chmod 1777 "$TARGET_DIR/tmp" 2>/dev/null || chmod 777 "$TARGET_DIR/tmp" 2>/dev/null || true
         chmod -R a+rX "$TARGET_DIR" 2>/dev/null || true
 
         if [ -d "/usr/local/lsws" ]; then
@@ -182,9 +197,12 @@ EOF
         ln -snf "$TARGET_DIR" "$TARGET_DIR/phpmyadmin" 2>/dev/null || true
         ln -snf "$TARGET_DIR" "$TARGET_DIR/phpMyAdmin" 2>/dev/null || true
 
-        # Cài đặt bổ sung các PHP module cần thiết cho phpMyAdmin
+        # Cài đặt bổ sung các PHP module cần thiết cho phpMyAdmin trên mọi phiên bản LSPHP & chuẩn PHP
         if command -v apt-get &>/dev/null; then
-            apt-get install -y lsphp82-mysql lsphp82-curl lsphp82-opcache lsphp82-mbstring lsphp82-xml php-mbstring php-xml php-mysql 2>/dev/null || true
+            for v in 84 83 82 81 80 74; do
+                apt-get install -y "lsphp$v-mysql" "lsphp$v-curl" "lsphp$v-opcache" "lsphp$v-mbstring" "lsphp$v-xml" "lsphp$v-zip" "lsphp$v-intl" "lsphp$v-gd" 2>/dev/null || true
+            done
+            apt-get install -y php-mysql php-curl php-mbstring php-xml php-zip php-intl php-gd 2>/dev/null || true
         fi
 
         # 4. Mở cổng tường lửa nếu đang bật (UFW hoặc Firewalld)
@@ -196,55 +214,28 @@ EOF
             firewall-cmd --reload 2>/dev/null || true
         fi
 
-        # 5. Cấu hình Vhost Port 888 trên Nginx
-        if [ -d "/etc/nginx/conf.d" ]; then
-            ACTIVE_PHP=$(detect_php_version)
-            PHP_FPM_SOCK="/run/php/php${ACTIVE_PHP}-fpm.sock"
-            if [ ! -e "$PHP_FPM_SOCK" ]; then
-                PHP_FPM_SOCK=$(ls /run/php/php*-fpm.sock /var/run/php/php*-fpm.sock 2>/dev/null | head -n 1 || echo "/run/php/php8.2-fpm.sock")
+        # 5. Cấu hình Web Server cho Port 888 (ưu tiên OpenLiteSpeed nếu có)
+        OLS_MAIN_CONF="/usr/local/lsws/conf/httpd_config.conf"
+        if [ -d "/usr/local/lsws" ] && [ -f "$OLS_MAIN_CONF" ]; then
+            # Tránh Nginx chiếm cổng 888 gây xung đột cổng hoặc lỗi 500/502
+            if [ -f "/etc/nginx/conf.d/00_phpmyadmin.conf" ]; then
+                rm -f "/etc/nginx/conf.d/00_phpmyadmin.conf" 2>/dev/null || true
+                if command -v nginx &>/dev/null; then
+                    nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+                fi
             fi
 
-            cat <<EOF > "/etc/nginx/conf.d/00_phpmyadmin.conf"
-server {
-    listen $PMA_PORT default_server;
-    server_name localhost 127.0.0.1 _;
-    root $TARGET_DIR;
-    index index.php index.html index.htm;
-
-    client_max_body_size 256M;
-
-    location / {
-        try_files \$uri \$uri/ /index.php?\$args;
-    }
-
-    location ~ \.php$ {
-        try_files \$uri =404;
-        fastcgi_split_path_info ^(.+\.php)(/.+)$;
-        fastcgi_pass unix:$PHP_FPM_SOCK;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-        include fastcgi_params;
-        fastcgi_read_timeout 600;
-        fastcgi_buffer_size 128k;
-        fastcgi_buffers 256 16k;
-    }
-
-    location ~ /\.ht {
-        deny all;
-    }
-}
-EOF
-            nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true)
-        fi
-
-        # 6. Cấu hình Vhost Port 888 trên OpenLiteSpeed
-        OLS_MAIN_CONF="/usr/local/lsws/conf/httpd_config.conf"
-        if [ -f "$OLS_MAIN_CONF" ]; then
             OLS_LSPHP=$(detect_ols_lsphp)
-            echo "[+] Cấu hình OpenLiteSpeed cho phpMyAdmin (LSPHP: $OLS_LSPHP)..."
+            OLS_LSPHP_BIN="/usr/local/lsws/$OLS_LSPHP/bin/lsphp"
+            if [ ! -x "$OLS_LSPHP_BIN" ]; then
+                OLS_LSPHP_BIN=$(find /usr/local/lsws/ -name "lsphp" -type f -executable 2>/dev/null | head -n 1 || echo "/usr/local/lsws/lsphp82/bin/lsphp")
+            fi
+            echo "[+] Cấu hình OpenLiteSpeed cho phpMyAdmin (LSPHP: $OLS_LSPHP, Bin: $OLS_LSPHP_BIN)..."
 
             mkdir -p "/usr/local/lsws/conf/vhosts/phpmyadmin"
             mkdir -p "/usr/local/lsws/logs"
+            mkdir -p "/tmp/lshttpd"
+            chmod 1777 /tmp/lshttpd 2>/dev/null || true
             touch "/usr/local/lsws/logs/pma_error.log" "/usr/local/lsws/logs/pma_access.log" 2>/dev/null || true
             chmod 666 "/usr/local/lsws/logs/pma_error.log" "/usr/local/lsws/logs/pma_access.log" 2>/dev/null || true
 
@@ -272,8 +263,37 @@ accesslog \$SERVER_ROOT/logs/pma_access.log {
   keepDays                30
 }
 
+extprocessor pma_lsphp {
+  type                    lsapi
+  address                 uds://tmp/lshttpd/pma_lsphp.sock
+  maxConns                20
+  env                     PHP_LSAPI_CHILDREN=20
+  initTimeout             60
+  retryTimeout            0
+  persistConn             1
+  respBuffer              0
+  autoStart               1
+  path                    $OLS_LSPHP_BIN
+  backlog                 100
+  instances               1
+  priority                0
+  memSoftLimit            1024M
+  memHardLimit            1024M
+  procSoftLimit           200
+  procHardLimit           200
+}
+
 scripthandler {
-  add                     lsapi:$OLS_LSPHP php
+  add                     lsapi:pma_lsphp php
+}
+
+phpIniOverride {
+  php_value session.save_path "$TARGET_DIR/tmp"
+  php_value upload_tmp_dir "$TARGET_DIR/tmp"
+  php_value memory_limit "512M"
+  php_value upload_max_filesize "256M"
+  php_value post_max_size "256M"
+  php_value max_execution_time 300
 }
 EOF
             chown -R lsadm:lsadm "/usr/local/lsws/conf/vhosts/phpmyadmin" 2>/dev/null || true
@@ -283,32 +303,6 @@ EOF
             # Làm sạch các khai báo virtualhost phpmyadmin và listener PMA_888 cũ nếu đã có
             sed -i '/virtualhost[[:space:]]\+phpmyadmin[[:space:]]*{/,/^[[:space:]]*}/d' "$OLS_MAIN_CONF" 2>/dev/null || true
             sed -i '/listener[[:space:]]\+PMA_888[[:space:]]*{/,/^[[:space:]]*}/d' "$OLS_MAIN_CONF" 2>/dev/null || true
-
-            # Đảm bảo extprocessor cho OLS_LSPHP tồn tại trong httpd_config.conf
-            if ! grep -q "extprocessor[[:space:]]\+$OLS_LSPHP" "$OLS_MAIN_CONF"; then
-                cat <<EOF >> "$OLS_MAIN_CONF"
-
-extprocessor $OLS_LSPHP {
-  type                    lsapi
-  address                 uds://tmp/lshttpd/$OLS_LSPHP.sock
-  maxConns                35
-  env                     PHP_LSAPI_CHILDREN=35
-  initTimeout             60
-  retryTimeout            0
-  persistConn             1
-  respBuffer              0
-  autoStart               1
-  path                    /usr/local/lsws/$OLS_LSPHP/bin/lsphp
-  backlog                 100
-  instances               1
-  priority                0
-  memSoftLimit            2047M
-  memHardLimit            2047M
-  procSoftLimit           400
-  procHardLimit           400
-}
-EOF
-            fi
 
             # Bổ sung virtualhost và listener chuẩn vào httpd_config.conf
             cat <<EOF >> "$OLS_MAIN_CONF"
@@ -329,8 +323,50 @@ listener PMA_888 {
 EOF
             chmod 644 "$OLS_MAIN_CONF" 2>/dev/null || true
 
-            # Khởi động lại OpenLiteSpeed
+            # Xoá socket cũ và restart OpenLiteSpeed
+            rm -f "/tmp/lshttpd/pma_lsphp.sock" 2>/dev/null || true
             /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lshttpd 2>/dev/null || systemctl restart lsws 2>/dev/null || true
+
+        elif [ -d "/etc/nginx/conf.d" ]; then
+            # Cấu hình trên Nginx độc lập
+            ACTIVE_PHP=$(detect_php_version)
+            PHP_FPM_SOCK="/run/php/php${ACTIVE_PHP}-fpm.sock"
+            if [ ! -e "$PHP_FPM_SOCK" ]; then
+                PHP_FPM_SOCK=$(ls /run/php/php*-fpm.sock /var/run/php/php*-fpm.sock 2>/dev/null | head -n 1 || echo "/run/php/php8.2-fpm.sock")
+            fi
+
+            cat <<EOF > "/etc/nginx/conf.d/00_phpmyadmin.conf"
+server {
+    listen $PMA_PORT default_server;
+    server_name localhost 127.0.0.1 _;
+    root $TARGET_DIR;
+    index index.php index.html index.htm;
+
+    client_max_body_size 256M;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$args;
+    }
+
+    location ~ \.php$ {
+        try_files \$uri =404;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_pass unix:$PHP_FPM_SOCK;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        fastcgi_param PHP_VALUE "session.save_path=$TARGET_DIR/tmp\nupload_tmp_dir=$TARGET_DIR/tmp";
+        include fastcgi_params;
+        fastcgi_read_timeout 600;
+        fastcgi_buffer_size 128k;
+        fastcgi_buffers 256 16k;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}
+EOF
+            nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true)
         fi
 
         # 7. Kiểm tra trạng thái HTTP cổng 888

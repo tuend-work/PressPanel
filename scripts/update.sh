@@ -29,6 +29,19 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+OLD_VER="${WPC_PREV_VER:-$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || cat "/opt/presspanel/VERSION" 2>/dev/null || echo "0.0.0")}"
+export WPC_PREV_VER="$OLD_VER"
+
+on_update_error() {
+    local err_code=$?
+    local cur_ver=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "unknown")
+    echo "=========================================================="
+    echo "Update thất bại từ ver${OLD_VER} lên ver${cur_ver}"
+    echo "=========================================================="
+    exit $err_code
+}
+trap on_update_error ERR
+
 # Tự động di chuyển / migration nếu máy chủ hiện tại đang chạy tại /opt/presspanel cũ
 if [ -d "/opt/presspanel" ] && [ ! -L "/opt/presspanel" ] && [ ! -d "/opt/wpc" ]; then
     echo "[+] Di chuyển thư mục từ /opt/presspanel sang /opt/wpc..."
@@ -486,4 +499,7 @@ echo "[+] Đang khởi động lại dịch vụ WPCloud Control Panel (wpc.serv
 systemctl daemon-reload 2>/dev/null || true
 systemctl restart wpc 2>/dev/null || true
 echo "[+] Dịch vụ WPCloud đã được khởi động lại: $(systemctl is-active wpc 2>/dev/null || echo 'active')"
+echo "=========================================================="
+echo "Update thành công từ ver${OLD_VER} lên ver${NEW_VER}"
+echo "=========================================================="
 exit 0

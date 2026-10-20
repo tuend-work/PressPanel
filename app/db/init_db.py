@@ -208,6 +208,10 @@ async def init_database():
         except Exception:
             pass
         try:
+            await db.execute("ALTER TABLE domains ADD COLUMN php_extensions TEXT DEFAULT NULL")
+        except Exception:
+            pass
+        try:
             # Website Plan: Mỗi gói là 1 web duy nhất
             await db.execute("UPDATE packages SET max_domains = 1 WHERE plan_type = 'website'")
         except Exception:

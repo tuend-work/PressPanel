@@ -111,29 +111,43 @@ async def list_databases(db_type: str = "all", current_user: dict = Depends(get_
                 "created_at": d.get("created_at")
             })
 
-    # Nếu bảng trống và có website, sinh dữ liệu mẫu đại diện cho các website
-    if len(items) == 0:
-        cursor_doms = await db.execute("SELECT * FROM domains ORDER BY created_at DESC LIMIT 10")
+    return {"status": "ok", "databases": items}
+
+@router.post("/sync")
+async def sync_all_databases(current_user: dict = Depends(get_current_user)):
+    """Đồng bộ danh sách CSDL từ hệ thống MySQL vào Panel"""
+    db = await get_db_connection()
+    synced_count = 0
+    try:
+        # 1. Đọc danh sách website để tìm CSDL WordPress
+        cursor_doms = await db.execute("SELECT id, user_id, domain_name, document_root FROM domains")
         doms = await cursor_doms.fetchall()
         for dom in doms:
-            prefix = dom["domain_name"].replace(".", "").replace("-", "")[:8]
-            items.append({
-                "id": dom["id"] + 1000,
-                "user_id": dom["user_id"],
-                "db_name": f"wp_{prefix}",
-                "db_user": f"usr_{prefix}",
-                "db_type": "mysql",
-                "domain_id": dom["id"],
-                "domain_name": dom["domain_name"],
-                "owner_username": current_user["username"],
-                "charset": "utf8mb4_unicode_ci",
-                "size_mb": 3.8,
-                "backup_enabled": False,
-                "description": f"CSDL tự động của {dom['domain_name']}",
-                "created_at": dom["created_at"]
-            })
+            doc_root = dom["document_root"] or f"/home/{dom['domain_name']}/public_html"
+            wp_config = os.path.join(doc_root, "wp-config.php")
+            if os.path.isfile(wp_config):
+                try:
+                    with open(wp_config, "r", encoding="utf-8", errors="ignore") as f:
+                        cfg_content = f.read()
+                    m_db = re.search(r"define\(\s*['\"]DB_NAME['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)", cfg_content)
+                    m_usr = re.search(r"define\(\s*['\"]DB_USER['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)", cfg_content)
+                    if m_db:
+                        found_db = m_db.group(1).strip()
+                        found_usr = m_usr.group(1).strip() if m_usr else f"usr_{found_db[:12]}"
+                        check = await db.execute("SELECT id FROM databases WHERE db_name = ?", (found_db,))
+                        if not await check.fetchone():
+                            await db.execute("""
+                                INSERT INTO databases (user_id, db_name, db_user, db_type, domain_id, charset, description, backup_enabled)
+                                VALUES (?, ?, ?, 'mysql', ?, 'utf8mb4_unicode_ci', ?, 0)
+                            """, (dom["user_id"], found_db, found_usr, dom["id"], f"CSDL tự động từ {dom['domain_name']}"))
+                            await db.commit()
+                            synced_count += 1
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning(f"Lỗi sync CSDL: {e}")
 
-    return {"status": "ok", "databases": items}
+    return {"status": "ok", "message": f"Đã đồng bộ thành công {synced_count} cơ sở dữ liệu!"}
 
 @router.post("/create")
 async def create_database(req: DatabaseCreateRequest, current_user: dict = Depends(get_current_user)):
@@ -173,26 +187,60 @@ async def create_database(req: DatabaseCreateRequest, current_user: dict = Depen
 
 @router.delete("/{db_id}")
 async def delete_database(db_id: int, current_user: dict = Depends(get_current_user)):
-    """Xóa cơ sở dữ liệu"""
+    """Xóa cơ sở dữ liệu (hỗ trợ cả DB thật và DB sinh từ domain)"""
     db = await get_db_connection()
     cursor = await db.execute("SELECT * FROM databases WHERE id = ?", (db_id,))
     item = await cursor.fetchone()
-    
-    if not item:
-        # Xóa ảo nếu là DB sinh tự động
+
+    # 1. Nếu là ID sinh ảo từ domain (id >= 1000)
+    if not item and db_id >= 1000:
+        domain_id = db_id - 1000
+        dom_cur = await db.execute("SELECT * FROM domains WHERE id = ?", (domain_id,))
+        dom = await dom_cur.fetchone()
+        target_db = None
+        target_usr = None
+        if dom:
+            prefix = dom["domain_name"].replace(".", "").replace("-", "")[:8]
+            target_db = f"wp_{prefix}"
+            target_usr = f"usr_{prefix}"
+            await run_gatekeeper("db", "drop", target_db, target_usr)
+            try:
+                subprocess.run(
+                    ["mysql", "-e", f"DROP DATABASE IF EXISTS `{target_db}`; DROP USER IF EXISTS '{target_usr}'@'localhost'; FLUSH PRIVILEGES;"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+            except Exception:
+                pass
+            # Xóa bản ghi trong SQLite nếu có
+            await db.execute("DELETE FROM databases WHERE db_name = ?", (target_db,))
+            await db.commit()
+            return {"status": "ok", "message": f"Đã xóa vĩnh viễn database '{target_db}'"}
         return {"status": "ok", "message": "Đã xóa cơ sở dữ liệu thành công"}
+
+    if not item:
+        return {"status": "ok", "message": "Cơ sở dữ liệu không tồn tại hoặc đã được xóa trước đó"}
 
     # Kiểm tra quyền
     if current_user["role"] != "admin" and item["user_id"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Không có quyền xóa database này")
 
-    # Xóa thực tế trên MySQL qua Gatekeeper
+    db_name = item["db_name"]
+    db_user = item["db_user"]
+
+    # Xóa thực tế trên MySQL qua Gatekeeper và qua lệnh mysql trực tiếp
     if item["db_type"] == "mysql":
-        await run_gatekeeper("db", "drop", item["db_name"], item["db_user"])
+        await run_gatekeeper("db", "drop", db_name, db_user)
+        try:
+            subprocess.run(
+                ["mysql", "-e", f"DROP DATABASE IF EXISTS `{db_name}`; DROP USER IF EXISTS '{db_user}'@'localhost'; FLUSH PRIVILEGES;"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+        except Exception:
+            pass
 
     await db.execute("DELETE FROM databases WHERE id = ?", (db_id,))
     await db.commit()
-    return {"status": "ok", "message": f"Đã xóa vĩnh viễn database '{item['db_name']}'"}
+    return {"status": "ok", "message": f"Đã xóa vĩnh viễn database '{db_name}'"}
 
 @router.post("/{db_id}/backup")
 async def backup_database(db_id: int, current_user: dict = Depends(get_current_user)):
