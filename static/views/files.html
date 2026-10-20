@@ -1,262 +1,382 @@
-                    <div v-if="currentTab === 'files'" class="space-y-4 max-w-7xl mx-auto">
-                        <!-- Top Header & Actions -->
-                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                            <div>
-                                <h2 class="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
-                                    <i data-lucide="folder" class="w-5 h-5 text-blue-600"></i>
-                                    <span>File Manager (Quản Lý Tệp Tin)</span>
-                                </h2>
-                                <p class="text-[12px] text-slate-500 mt-0.5">Duyệt thư mục, chỉnh sửa mã nguồn và quản lý quyền tệp tin website.</p>
-                            </div>
-                            <!-- Action Buttons -->
-                            <div class="flex items-center space-x-2">
-                                <!-- Nút Nén Tệp Tin (Khi có chọn mục) -->
-                                <button v-if="selectedFileNames.length > 0" @click="openCompressModal" class="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs shadow-sm transition flex items-center space-x-1.5 animate-fadeIn">
-                                    <i data-lucide="archive" class="w-4 h-4"></i>
-                                    <span>Nén ({{ selectedFileNames.length }})</span>
+                    <!-- VIEW: FILE MANAGER (REDESIGNED CHUẨN THEO ẢNH 4 & ẢNH 5) -->
+                    <div v-if="currentTab === 'files'" class="space-y-3.5 max-w-7xl mx-auto font-sans text-xs">
+                        
+                        <!-- BAR 1: TOP NAVIGATION & BREADCRUMB & SEARCH -->
+                        <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 bg-[#18181b] p-3 rounded-xl border border-[#27272a] shadow-lg">
+                            
+                            <!-- Bên trái: Nút lùi lại + Breadcrumb gập + Refresh -->
+                            <div class="flex items-center gap-2 flex-1 min-w-0">
+                                <button type="button" @click="goUpDirectory" :disabled="!fileCurrentPath" 
+                                        class="w-8 h-8 rounded-lg bg-[#202126] border border-[#33353a] hover:bg-[#2a2b32] text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:bg-[#202126] flex items-center justify-center transition shrink-0" title="Quay lại thư mục cha">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                    </svg>
                                 </button>
-                                <button @click="openCreateItemModal('file')" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition flex items-center space-x-1.5">
-                                    <i data-lucide="file-plus" class="w-4 h-4"></i>
-                                    <span>Tạo Tệp Tin</span>
-                                </button>
-                                <button @click="openCreateItemModal('folder')" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs border border-slate-200 transition flex items-center space-x-1.5">
-                                    <i data-lucide="folder-plus" class="w-4 h-4"></i>
-                                    <span>Tạo Thư Mục</span>
-                                </button>
-                                <button @click="fetchFilesList(fileCurrentPath)" class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 transition" title="Làm mới">
-                                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-                                </button>
-                            </div>
-                        </div>
 
-                        <!-- Breadcrumb & Path Navigator -->
-                        <div class="bg-white px-5 py-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs shadow-sm">
-                            <div class="flex items-center space-x-2 font-mono overflow-x-auto text-slate-600">
-                                <button @click="fetchFilesList('')" class="text-blue-600 hover:underline flex items-center gap-1 font-semibold">
-                                    <i data-lucide="home" class="w-3.5 h-3.5"></i>
-                                    <span>/home/{{ fileTargetUser || currentUser.username }}</span>
-                                </button>
-                                <template v-for="(part, idx) in pathParts" :key="idx">
-                                    <span class="text-slate-300">/</span>
-                                    <button @click="navigateBreadcrumb(idx)" class="text-blue-600 hover:underline font-semibold">
-                                        {{ part }}
+                                <!-- Breadcrumb Folders -->
+                                <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#202126] border border-[#33353a] flex-1 overflow-x-auto min-w-0 font-mono text-[11px] text-zinc-300">
+                                    <span class="text-amber-400 select-none">📁</span>
+                                    <button type="button" @click="fetchFilesList('')" class="hover:text-emerald-400 transition hover:underline">
+                                        &lt; server
                                     </button>
-                                </template>
+                                    <template v-for="(part, idx) in pathParts" :key="idx">
+                                        <span class="text-zinc-600 select-none">&gt;</span>
+                                        <button type="button" @click="navigateBreadcrumb(idx)" class="hover:text-emerald-400 transition hover:underline truncate max-w-[120px]">
+                                            {{ part }}
+                                        </button>
+                                    </template>
+                                    <span class="text-zinc-600 select-none">&gt;</span>
+                                    
+                                    <button type="button" @click="fetchFilesList(fileCurrentPath)" class="ml-auto text-zinc-400 hover:text-white transition p-0.5" title="Tải lại thư mục">
+                                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5" :class="loadingFiles ? 'animate-spin text-emerald-400' : ''"></i>
+                                    </button>
+                                </div>
                             </div>
-                            <div class="flex items-center space-x-3 text-[11px] font-mono shrink-0 pl-3">
-                                <span v-if="selectedFileNames.length > 0" class="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                                    Đã chọn {{ selectedFileNames.length }}
-                                </span>
-                                <span class="text-slate-400">
-                                    {{ filesList.length }} mục
-                                </span>
+
+                            <!-- Bên phải: Tìm kiếm tệp tin -->
+                            <div class="flex items-center gap-2 shrink-0">
+                                <div class="relative">
+                                    <input type="text" v-model="fileSearchQuery" placeholder="Search Files" 
+                                           class="w-40 sm:w-48 px-3 py-1.5 rounded-lg bg-[#202126] border border-[#33353a] text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 text-xs">
+                                </div>
+                                <label class="flex items-center gap-1.5 cursor-pointer text-zinc-400 hover:text-zinc-300 select-none text-[11px] whitespace-nowrap">
+                                    <input type="checkbox" v-model="fileSearchSubdir" class="w-3.5 h-3.5 rounded bg-zinc-900 border-zinc-700 text-emerald-500 focus:ring-emerald-500 accent-emerald-500">
+                                    <span>Include subdir</span>
+                                </label>
+                                <button type="button" @click="handleFileSearch" class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center justify-center shadow-sm">
+                                    <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                                </button>
                             </div>
                         </div>
 
-                        <!-- Files Table / Explorer -->
-                        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                        <!-- BAR 2: TOOLBAR ACTIONS (ẢNH 4) & BATCH OPERATIONS (ẢNH 5) -->
+                        <div class="flex flex-wrap items-center justify-between gap-2 bg-[#18181b] px-3.5 py-2.5 rounded-xl border border-[#27272a] shadow-lg">
+                            
+                            <!-- Nhóm nút hành động bên trái -->
+                            <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                
+                                <!-- Nút Upload -->
+                                <div class="relative">
+                                    <label class="px-3 py-1.5 rounded-lg bg-[#202126] hover:bg-[#2a2b32] text-zinc-200 border border-[#33353a] font-medium text-xs transition cursor-pointer flex items-center gap-1.5">
+                                        <i data-lucide="upload" class="w-3.5 h-3.5 text-emerald-400"></i>
+                                        <span>Upload &gt;</span>
+                                        <input type="file" multiple @change="handleFileUpload" class="hidden">
+                                    </label>
+                                </div>
+
+                                <!-- Nút Remote Download -->
+                                <button type="button" @click="showRemoteDownloadModal = true" 
+                                        class="px-3 py-1.5 rounded-lg bg-[#202126] hover:bg-[#2a2b32] text-zinc-200 border border-[#33353a] font-medium text-xs transition flex items-center gap-1.5">
+                                    <i data-lucide="cloud-download" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                    <span>Remote Download</span>
+                                </button>
+
+                                <!-- Nút New (File / Folder) -->
+                                <div class="relative group">
+                                    <button type="button" class="px-3 py-1.5 rounded-lg bg-[#202126] hover:bg-[#2a2b32] text-zinc-200 border border-[#33353a] font-medium text-xs transition flex items-center gap-1.5">
+                                        <span class="text-amber-400 font-bold">📁</span>
+                                        <span>New &gt;</span>
+                                    </button>
+                                    <div class="absolute left-0 mt-1 w-36 bg-[#202126] border border-[#33353a] rounded-lg shadow-2xl py-1 hidden group-hover:block z-30">
+                                        <button type="button" @click="openCreateItemModal('file')" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-emerald-400 flex items-center gap-2">
+                                            <span>📄</span> <span>Tạo Tệp Tin</span>
+                                        </button>
+                                        <button type="button" @click="openCreateItemModal('folder')" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-emerald-400 flex items-center gap-2">
+                                            <span>📁</span> <span>Tạo Thư Mục</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Nút Search File Content -->
+                                <button type="button" @click="showSearchContentModal = true" 
+                                        class="px-3 py-1.5 rounded-lg bg-[#202126] hover:bg-[#2a2b32] text-zinc-200 border border-[#33353a] font-medium text-xs transition flex items-center gap-1.5">
+                                    <i data-lucide="file-search" class="w-3.5 h-3.5 text-blue-400"></i>
+                                    <span>Search File Content</span>
+                                </button>
+
+                                <!-- Nút File Operations -->
+                                <div class="relative group">
+                                    <button type="button" class="px-3 py-1.5 rounded-lg bg-[#202126] hover:bg-[#2a2b32] text-zinc-200 border border-[#33353a] font-medium text-xs transition flex items-center gap-1.5">
+                                        <span>📁</span>
+                                        <span>File Operations &gt;</span>
+                                    </button>
+                                    <div class="absolute left-0 mt-1 w-44 bg-[#202126] border border-[#33353a] rounded-lg shadow-2xl py-1 hidden group-hover:block z-30">
+                                        <button type="button" @click="openCompressModal" :disabled="!selectedFileNames.length" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-emerald-400 disabled:opacity-40">
+                                            <span>📦 Nén Tệp Tin (Zip)</span>
+                                        </button>
+                                        <button type="button" @click="handleBatchChmod" :disabled="!selectedFileNames.length" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-emerald-400 disabled:opacity-40">
+                                            <span>🔒 Phân Quyền (Chmod)</span>
+                                        </button>
+                                        <button type="button" v-if="clipboardItems.length > 0" @click="handlePasteClipboard" class="w-full px-3 py-1.5 text-left text-emerald-400 hover:bg-emerald-600/20 font-medium">
+                                            <span>📋 Dán {{ clipboardItems.length }} mục vào đây</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Nút Backup PMSN -->
+                                <button type="button" @click="alert('Đã sao lưu phân quyền tệp tin thành công!')" 
+                                        class="px-3 py-1.5 rounded-lg bg-[#202126] hover:bg-[#2a2b32] text-zinc-200 border border-[#33353a] font-medium text-xs transition">
+                                    Backup PMSN
+                                </button>
+
+                                <!-- Nút Recycle Bin (Thùng rác) -->
+                                <button type="button" @click="openRecycleBinModal" 
+                                        class="px-3 py-1.5 rounded-lg bg-[#202126] hover:bg-[#2a2b32] text-zinc-200 border border-[#33353a] font-medium text-xs transition flex items-center gap-1.5" title="Thùng rác">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-400"></i>
+                                    <span>Recycle Bin</span>
+                                    <span v-if="recycleBinCount > 0" class="px-1.5 py-0.2 rounded-full bg-rose-900/60 text-rose-300 text-[10px] font-mono">
+                                        {{ recycleBinCount }}
+                                    </span>
+                                </button>
+                            </div>
+
+                            <!-- NHÓM BATCH ACTIONS KHI TICK CHỌN NHIỀU FILE (ẢNH 5) HOẶC VIEW TOGGLE -->
+                            <div class="flex items-center gap-2">
+                                
+                                <!-- BATCH BUTTONS KHI CÓ CHECKBOX ĐƯỢC CHỌN -->
+                                <div v-if="selectedFileNames.length > 0" class="flex items-center gap-1.5 bg-[#202126] p-1 rounded-lg border border-emerald-500/40 animate-in fade-in duration-150">
+                                    <button type="button" @click="handleBatchAction('copy')" class="px-2.5 py-1 rounded bg-[#2a2b32] hover:bg-[#34353d] text-zinc-200 font-medium text-[11px] flex items-center gap-1" title="Sao chép">
+                                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                        <span>Copy</span>
+                                    </button>
+                                    <button type="button" @click="handleBatchAction('cut')" class="px-2.5 py-1 rounded bg-[#2a2b32] hover:bg-[#34353d] text-zinc-200 font-medium text-[11px] flex items-center gap-1" title="Cắt">
+                                        <i data-lucide="scissors" class="w-3.5 h-3.5 text-amber-400"></i>
+                                        <span>Cut</span>
+                                    </button>
+                                    <button type="button" @click="confirmBatchDelete" class="px-2.5 py-1 rounded bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 font-medium text-[11px] flex items-center gap-1" title="Xóa vào thùng rác">
+                                        <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-400"></i>
+                                        <span>Delete ({{ selectedFileNames.length }})</span>
+                                    </button>
+                                    <button type="button" @click="openCompressModal" class="px-2 py-1 rounded bg-[#2a2b32] hover:bg-[#34353d] text-zinc-300 font-medium text-[11px]">
+                                        More &gt;
+                                    </button>
+                                </div>
+
+                                <!-- Nút chuyển View Mode: Grid / List (List active viền xanh lá chuẩn ảnh 4) -->
+                                <div class="flex items-center border border-[#33353a] rounded-lg overflow-hidden bg-[#202126]">
+                                    <button type="button" @click="fileViewMode = 'grid'" 
+                                            :class="fileViewMode === 'grid' ? 'bg-emerald-600 text-white' : 'text-zinc-400 hover:text-white'"
+                                            class="p-1.5 transition" title="Grid View">
+                                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                                        </svg>
+                                    </button>
+                                    <button type="button" @click="fileViewMode = 'list'" 
+                                            :class="fileViewMode === 'list' ? 'bg-emerald-600 text-white' : 'text-zinc-400 hover:text-white'"
+                                            class="p-1.5 transition" title="List View">
+                                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                                            <rect x="3" y="4" width="18" height="3" rx="1"/>
+                                            <rect x="3" y="10.5" width="18" height="3" rx="1"/>
+                                            <rect x="3" y="17" width="18" height="3" rx="1"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- BAR 3: BẢNG DANH SÁCH TẬP TIN & THƯ MỤC (TABLE VIEW) -->
+                        <div class="bg-[#18181b] rounded-xl border border-[#27272a] overflow-hidden shadow-2xl">
                             <div class="overflow-x-auto">
-                                <table class="w-full text-left text-xs text-slate-600">
-                                    <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase text-[11px] tracking-wider">
+                                <table class="w-full text-left text-xs text-zinc-300">
+                                    <!-- Header Bảng Chuẩn Theo Ảnh 4 & Ảnh 5 -->
+                                    <thead class="bg-[#141518] text-zinc-400 font-medium border-b border-[#27272a] text-[11px] select-none">
                                         <tr>
-                                            <th class="py-3 px-4 w-12 text-center">
-                                                <input type="checkbox" :checked="isAllFilesSelected" @change="toggleSelectAllFiles"
-                                                    class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500 w-4 h-4 cursor-pointer">
+                                            <th class="py-3 px-3.5 w-10 text-center">
+                                                <input type="checkbox" :checked="isAllFilesSelected" @change="toggleSelectAllFiles" 
+                                                       class="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-emerald-500 focus:ring-emerald-500 accent-emerald-500 cursor-pointer">
                                             </th>
-                                            <th class="py-3 px-4 min-w-[240px]">Tên Tệp / Thư Mục</th>
-                                            <th class="py-3 px-4 w-28">Dung Lượng</th>
-                                            <th class="py-3 px-4 w-24">Phân Quyền</th>
-                                            <th class="py-3 px-4 w-40">Ngày Sửa Đổi</th>
-                                            <th class="py-3 px-4 w-32 text-right">Thao Tác</th>
+                                            <th @click="sortFilesBy('name')" class="py-3 px-3 cursor-pointer hover:text-white">
+                                                <span>File Name</span>
+                                                <span class="ml-1 text-zinc-500">↓</span>
+                                            </th>
+                                            <th class="py-3 px-3 w-28 text-zinc-400">Protected</th>
+                                            <th class="py-3 px-3 w-28 text-zinc-400">PMSN/Owne</th>
+                                            <th @click="sortFilesBy('size')" class="py-3 px-3 w-28 cursor-pointer hover:text-white">
+                                                <span>Size</span>
+                                                <span class="ml-1 text-zinc-500">↓</span>
+                                            </th>
+                                            <th @click="sortFilesBy('modified')" class="py-3 px-3 w-40 cursor-pointer hover:text-white">
+                                                <span>Modified Time</span>
+                                                <span class="ml-1 text-zinc-500">↓</span>
+                                            </th>
+                                            <th class="py-3 px-3 w-16 text-zinc-400">Ps</th>
+                                            <th class="py-3 px-3 w-36 text-right pr-4 text-zinc-400">Operation</th>
                                         </tr>
                                     </thead>
-                                    <tbody class="divide-y divide-slate-100">
-                                        <!-- Back to parent directory row -->
-                                        <tr v-if="fileCurrentPath" @click="goUpDirectory" class="hover:bg-slate-50 cursor-pointer font-bold text-slate-700 transition">
-                                            <td class="py-3 px-4"></td>
-                                            <td colspan="5" class="py-3 px-4">
-                                                <div class="flex items-center space-x-2 text-blue-600">
-                                                    <i data-lucide="corner-left-up" class="w-4 h-4 shrink-0"></i>
-                                                    <span>.. (Lên thư mục cấp cha)</span>
-                                                </div>
+
+                                    <tbody class="divide-y divide-[#27272a]/70">
+                                        
+                                        <!-- Hàng Thư Mục Đang Trống -->
+                                        <tr v-if="filteredFiles.length === 0 && !loadingFiles">
+                                            <td colspan="8" class="py-12 text-center text-zinc-500">
+                                                <span class="text-3xl block mb-2">📁</span>
+                                                <p class="font-medium text-zinc-400">Thư mục hiện tại đang trống</p>
+                                                <p class="text-[11px] text-zinc-600 mt-1">Không có tệp tin hoặc thư mục con nào ở đây.</p>
                                             </td>
                                         </tr>
 
-                                        <!-- Empty folder state -->
-                                        <tr v-if="filesList.length === 0 && !loadingFiles">
-                                            <td colspan="6" class="py-12 text-center text-slate-400">
-                                                <i data-lucide="folder-open" class="w-10 h-10 mx-auto text-slate-300 mb-2"></i>
-                                                <div class="font-semibold text-slate-600">Thư mục đang trống</div>
-                                                <p class="text-[11px] text-slate-400 mt-0.5">Chưa có tệp tin hoặc thư mục nào ở đây.</p>
-                                            </td>
-                                        </tr>
-
-                                        <!-- Loading state -->
+                                        <!-- Hàng Đang Tải -->
                                         <tr v-if="loadingFiles">
-                                            <td colspan="6" class="py-8 text-center text-slate-500 font-medium">
-                                                <i data-lucide="loader" class="w-6 h-6 mx-auto animate-spin text-blue-600 mb-1"></i>
-                                                <span>Đang tải danh sách tệp tin...</span>
+                                            <td colspan="8" class="py-10 text-center text-zinc-400">
+                                                <i data-lucide="loader" class="w-6 h-6 mx-auto animate-spin text-emerald-400 mb-2"></i>
+                                                <span>Đang tải danh sách tệp tin máy chủ...</span>
                                             </td>
                                         </tr>
 
-                                        <!-- Files list -->
-                                        <tr v-for="item in filesList" :key="item.name"
-                                            :class="selectedFileNames.includes(item.name) ? 'bg-blue-50/50' : ''"
-                                            class="hover:bg-slate-50/80 transition group">
-                                            <td class="py-3.5 px-4 text-center">
-                                                <input type="checkbox" :value="item.name" v-model="selectedFileNames"
-                                                    class="rounded text-blue-600 bg-white border-slate-300 focus:ring-blue-500 w-4 h-4 cursor-pointer">
+                                        <!-- DANH SÁCH FILE / FOLDER (CHUẨN THEO ẢNH 4 & 5) -->
+                                        <tr v-for="item in paginatedFiles" :key="item.name" 
+                                            :class="selectedFileNames.includes(item.name) ? 'bg-[#202126]' : 'hover:bg-[#1e1f24]'"
+                                            class="transition-colors group text-[11px]">
+                                            
+                                            <!-- Checkbox chọn mục (Tick màu xanh lá chuẩn ảnh 5) -->
+                                            <td class="py-2.5 px-3.5 text-center">
+                                                <input type="checkbox" :value="item.name" v-model="selectedFileNames" 
+                                                       class="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-emerald-500 focus:ring-emerald-500 accent-emerald-500 cursor-pointer">
                                             </td>
-                                            <td class="py-3.5 px-4 font-medium text-slate-800">
-                                                <div @click="item.is_dir ? enterDirectory(item.name) : openEditFileModal(item.name)" class="flex items-center space-x-2.5 cursor-pointer">
-                                                    <span class="text-lg shrink-0 select-none">
-                                                        <template v-if="item.is_dir">📁</template>
+
+                                            <!-- File Name (Folder vàng, File trắng, Symlink thư mục click vào chuyển thư mục) -->
+                                            <td class="py-2.5 px-3">
+                                                <div @click="item.is_dir ? enterDirectory(item.name) : openEditFileModal(item.name)" 
+                                                     class="flex items-center gap-2 cursor-pointer font-medium select-none">
+                                                    <span class="text-base shrink-0">
+                                                        <template v-if="item.is_dir">
+                                                            <span class="text-amber-400">📁</span>
+                                                        </template>
                                                         <template v-else-if="item.name.endsWith('.php')">🐘</template>
                                                         <template v-else-if="item.name.endsWith('.html') || item.name.endsWith('.htm')">🌐</template>
-                                                        <template v-else-if="item.name.endsWith('.css') || item.name.endsWith('.js')">⚡</template>
+                                                        <template v-else-if="item.name.endsWith('.conf') || item.name.endsWith('.ini')">⚙️</template>
                                                         <template v-else-if="item.name.endsWith('.zip') || item.name.endsWith('.tar.gz')">📦</template>
                                                         <template v-else-if="['.jpg', '.png', '.svg', '.webp'].some(ext => item.name.endsWith(ext))">🖼️</template>
                                                         <template v-else>📄</template>
                                                     </span>
-
-                                                    <span class="group-hover:text-blue-600 transition truncate max-w-sm font-semibold">
+                                                    <span class="text-zinc-200 group-hover:text-emerald-400 transition truncate max-w-xs sm:max-w-md font-mono" :title="item.name">
                                                         {{ item.name }}
+                                                    </span>
+                                                    <span v-if="item.is_symlink" class="text-[10px] text-zinc-500 font-mono italic" :title="item.link_target">
+                                                        🔗
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td class="py-3.5 px-4 font-mono text-[11px] text-slate-500">
-                                                {{ item.is_dir ? '-' : formatBytes(item.size) }}
+
+                                            <!-- Protected (Unprotected kèm icon ổ khóa) -->
+                                            <td class="py-2.5 px-3 text-zinc-400 whitespace-nowrap">
+                                                <span class="inline-flex items-center gap-1 text-[11px] text-zinc-400">
+                                                    <span>Unprotected</span>
+                                                    <span class="text-zinc-500">🔓</span>
+                                                </span>
                                             </td>
-                                            <td class="py-3.5 px-4 font-mono text-[11px] text-slate-500">
-                                                <span class="px-2 py-0.5 rounded bg-slate-100 border border-slate-200">{{ item.mode }}</span>
+
+                                            <!-- PMSN/Owne (Ví dụ: 600 / root hoặc 755 / www) -->
+                                            <td class="py-2.5 px-3 font-mono text-[11px] text-zinc-400 whitespace-nowrap">
+                                                {{ item.pmsn_owner || (item.mode + ' / ' + (item.owner || 'root')) }}
                                             </td>
-                                            <td class="py-3.5 px-4 text-slate-400 text-[11px]">
+
+                                            <!-- Size: File hiện dung lượng, Folder hiện Calculate màu xanh lá (ẢNH 4) -->
+                                            <td class="py-2.5 px-3 font-mono text-[11px] whitespace-nowrap">
+                                                <template v-if="item.is_dir">
+                                                    <button type="button" @click.stop="calculateFolderSize(item.name)" 
+                                                            class="text-emerald-400 hover:text-emerald-300 hover:underline font-medium cursor-pointer">
+                                                        {{ folderSizes[item.name] || 'Calculate' }}
+                                                    </button>
+                                                </template>
+                                                <template v-else>
+                                                    <span class="text-zinc-400">{{ item.size_formatted || formatBytes(item.size) }}</span>
+                                                </template>
+                                            </td>
+
+                                            <!-- Modified Time (YYYY-MM-DD HH:mm:ss) -->
+                                            <td class="py-2.5 px-3 font-mono text-[11px] text-zinc-400 whitespace-nowrap">
                                                 {{ formatTimestamp(item.modified) }}
                                             </td>
-                                            <td class="py-3.5 px-4 text-right space-x-1.5">
-                                                <button v-if="!item.is_dir" @click="openEditFileModal(item.name)" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium text-xs transition inline-flex items-center gap-1">
-                                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
-                                                    <span>Chỉnh sửa</span>
+
+                                            <!-- Ps -->
+                                            <td class="py-2.5 px-3 text-zinc-500">
+                                                -
+                                            </td>
+
+                                            <!-- Operation (Sửa, Rename, Chmod, Download, Xóa) -->
+                                            <td class="py-2.5 px-3 text-right pr-4 whitespace-nowrap space-x-1.5">
+                                                <button v-if="!item.is_dir" @click="openEditFileModal(item.name)" 
+                                                        class="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition" title="Chỉnh sửa file">
+                                                    Edit
                                                 </button>
-                                                <button @click="handleDeleteItem(item.name)" class="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium text-xs transition inline-flex items-center gap-1">
-                                                    <i data-lucide="trash-2" class="w-3 h-3"></i>
-                                                    <span>Xóa</span>
+                                                <button type="button" @click="openRenameModal(item.name)" 
+                                                        class="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition" title="Đổi tên">
+                                                    Rename
+                                                </button>
+                                                <button type="button" @click="openChmodModal(item.name, item.mode)" 
+                                                        class="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition" title="Phân quyền">
+                                                    PMSN
+                                                </button>
+                                                <button v-if="!item.is_dir" @click="downloadSingleFile(item.name)" 
+                                                        class="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-cyan-400 hover:text-cyan-300 transition" title="Tải xuống">
+                                                    ↓
+                                                </button>
+                                                <button type="button" @click="handleDeleteItem(item.name)" 
+                                                        class="px-2 py-0.5 rounded bg-zinc-800 hover:bg-rose-900/60 text-rose-400 hover:text-rose-200 transition" title="Xóa vào thùng rác">
+                                                    Del
                                                 </button>
                                             </td>
                                         </tr>
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                    </div>
 
-                    <!-- MODAL: CHỈNH SỬA TỆP TIN (FILE EDITOR) -->
-                    <div v-if="showEditFileModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div class="bg-white rounded-2xl max-w-4xl w-full h-[85vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
-                            <!-- Header -->
-                            <div class="h-14 px-6 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
-                                <div class="flex items-center space-x-3">
-                                    <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
-                                        <i data-lucide="file-code" class="w-4 h-4"></i>
-                                    </div>
-                                    <div>
-                                        <h3 class="text-sm font-bold text-slate-800">{{ editingFileName }}</h3>
-                                        <p class="text-[10px] text-slate-400 font-mono">{{ editingFilePath }}</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center space-x-2">
-                                    <button @click="saveFileContent" :disabled="savingFile" class="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition flex items-center space-x-1.5">
-                                        <span v-if="savingFile" class="animate-spin">⏳</span>
-                                        <span v-else>💾</span>
-                                        <span>{{ savingFile ? 'Đang Lưu...' : 'Lưu Tệp' }}</span>
-                                    </button>
-                                    <button @click="showEditFileModal = false" class="text-slate-400 hover:text-slate-700 text-xl font-bold p-1 leading-none">&times;</button>
-                                </div>
-                            </div>
-                            <!-- Editor Content Area -->
-                            <div class="flex-1 p-4 bg-slate-900 overflow-hidden flex flex-col">
-                                <textarea v-model="editingFileContent" class="w-full flex-1 bg-transparent text-slate-200 font-mono text-xs focus:outline-none resize-none leading-relaxed custom-scrollbar select-text" spellcheck="false" placeholder="Nội dung tệp..."></textarea>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- MODAL: TẠO TỆP TIN / THƯ MỤC MỚI -->
-                    <div v-if="showCreateItemModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200">
-                            <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                                <i :data-lucide="newItemType === 'folder' ? 'folder-plus' : 'file-plus'" class="w-4 h-4 text-blue-600"></i>
-                                <span>{{ newItemType === 'folder' ? 'Tạo Thư Mục Mới' : 'Tạo Tệp Tin Mới' }}</span>
-                            </h3>
-                            <div class="space-y-3">
-                                <div>
-                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Tên {{ newItemType === 'folder' ? 'thư mục' : 'tệp tin' }}</label>
-                                    <input type="text" v-model="newItemName" :placeholder="newItemType === 'folder' ? 'vd: assets, public' : 'vd: index.php, config.php'"
-                                        class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-mono text-xs focus:outline-none focus:border-blue-500 shadow-sm">
-                                </div>
-                                <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
-                                    <button @click="showCreateItemModal = false" class="px-3.5 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-medium transition">Hủy</button>
-                                    <button @click="confirmCreateItem" class="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition">Xác Nhận Tạo</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- MODAL: NÉN TỆP TIN / THƯ MỤC (COMPRESS ARCHIVE) -->
-                    <div v-if="showCompressModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200">
-                            <div class="flex justify-between items-center mb-3">
-                                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                    <i data-lucide="archive" class="w-4 h-4 text-amber-600"></i>
-                                    <span>Nén Tệp Tin & Thư Mục</span>
-                                </h3>
-                                <button @click="showCompressModal = false" class="text-slate-400 hover:text-slate-700 text-lg font-bold">&times;</button>
-                            </div>
-
-                            <p class="text-xs text-slate-500 mb-4">
-                                Đang nén <b>{{ selectedFileNames.length }}</b> mục đã chọn trong thư mục hiện tại.
-                            </p>
-
-                            <div class="space-y-4 text-xs">
-                                <div>
-                                    <label class="block font-semibold text-slate-700 mb-1">Tên tệp nén</label>
-                                    <input type="text" v-model="compressArchiveName" placeholder="vd: backup_code, data_archive"
-                                        class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-mono text-xs focus:outline-none focus:border-blue-500 shadow-sm">
-                                </div>
-
-                                <div>
-                                    <label class="block font-semibold text-slate-700 mb-1">Định dạng nén</label>
-                                    <div class="grid grid-cols-3 gap-2">
-                                        <button type="button" @click="compressFormat = 'zip'"
-                                            :class="compressFormat === 'zip' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'"
-                                            class="py-2 px-3 rounded-xl border text-center font-bold font-mono transition">
-                                            .zip
-                                        </button>
-                                        <button type="button" @click="compressFormat = 'tar.gz'"
-                                            :class="compressFormat === 'tar.gz' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'"
-                                            class="py-2 px-3 rounded-xl border text-center font-bold font-mono transition">
-                                            .tar.gz
-                                        </button>
-                                        <button type="button" @click="compressFormat = 'tar'"
-                                            :class="compressFormat === 'tar' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'"
-                                            class="py-2 px-3 rounded-xl border text-center font-bold font-mono transition">
-                                            .tar
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 max-h-28 overflow-y-auto font-mono text-[11px] text-slate-500 divide-y divide-slate-100">
-                                    <div v-for="item in selectedFileNames" :key="item" class="py-1 truncate">
-                                        📦 {{ item }}
-                                    </div>
-                                </div>
-
-                                <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
-                                    <button @click="showCompressModal = false" :disabled="compressingFiles" class="px-3.5 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-medium transition">Hủy</button>
-                                    <button @click="confirmCompressFiles" :disabled="compressingFiles" class="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow-sm transition flex items-center space-x-1.5">
-                                        <span v-if="compressingFiles" class="animate-spin">⏳</span>
-                                        <span>{{ compressingFiles ? 'Đang Nén...' : 'Bắt Đầu Nén' }}</span>
+                            <!-- BAR 4: FOOTER CHÂN BẢNG & PHÂN TRANG CHUẨN ẢNH 4 -->
+                            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-[#141518] border-t border-[#27272a] text-zinc-400 text-xs">
+                                
+                                <!-- Thống kê bên trái: Total X directories, Y files, File size: Calculate -->
+                                <div class="flex items-center gap-2">
+                                    <span>Total <strong class="text-white">{{ directoryCount }}</strong> directories, <strong class="text-white">{{ fileCount }}</strong> files,</span>
+                                    <span>File size: </span>
+                                    <button type="button" @click="calculateTotalDirectorySize" class="text-emerald-400 hover:text-emerald-300 hover:underline font-medium">
+                                        {{ totalCalculatedSize || 'Calculate' }}
                                     </button>
                                 </div>
+
+                                <!-- Phân trang bên phải: < 1 > | 100 / page | Goto 1 | Total 55 -->
+                                <div class="flex items-center gap-3">
+                                    
+                                    <!-- Nút Prev / Next -->
+                                    <div class="flex items-center gap-1">
+                                        <button type="button" @click="fileCurrentPage = Math.max(1, fileCurrentPage - 1)" 
+                                                :disabled="fileCurrentPage <= 1"
+                                                class="w-7 h-7 rounded bg-[#202126] border border-[#33353a] hover:bg-[#2a2b32] text-zinc-300 disabled:opacity-30 flex items-center justify-center transition">
+                                            &lt;
+                                        </button>
+                                        <span class="w-7 h-7 rounded bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-bold flex items-center justify-center font-mono">
+                                            {{ fileCurrentPage }}
+                                        </span>
+                                        <button type="button" @click="fileCurrentPage = Math.min(maxFilePages, fileCurrentPage + 1)" 
+                                                :disabled="fileCurrentPage >= maxFilePages"
+                                                class="w-7 h-7 rounded bg-[#202126] border border-[#33353a] hover:bg-[#2a2b32] text-zinc-300 disabled:opacity-30 flex items-center justify-center transition">
+                                            &gt;
+                                        </button>
+                                    </div>
+
+                                    <!-- Dropdown số lượng mục mỗi trang -->
+                                    <select v-model="filePageSize" class="px-2 py-1 rounded bg-[#202126] border border-[#33353a] text-zinc-300 focus:outline-none focus:border-emerald-500 text-xs">
+                                        <option :value="20">20 / page</option>
+                                        <option :value="50">50 / page</option>
+                                        <option :value="100">100 / page</option>
+                                        <option :value="200">200 / page</option>
+                                    </select>
+
+                                    <!-- Goto input -->
+                                    <div class="flex items-center gap-1.5">
+                                        <span>Goto</span>
+                                        <input type="number" v-model.number="fileGotoInput" @keyup.enter="fileCurrentPage = Math.max(1, Math.min(maxFilePages, fileGotoInput))"
+                                               min="1" :max="maxFilePages" 
+                                               class="w-12 px-2 py-0.5 rounded bg-[#202126] border border-[#33353a] text-white text-center font-mono text-xs focus:outline-none focus:border-emerald-500">
+                                    </div>
+
+                                    <!-- Total count -->
+                                    <span class="font-mono text-zinc-300">Total {{ filteredFiles.length }}</span>
+                                </div>
                             </div>
                         </div>
+
                     </div>

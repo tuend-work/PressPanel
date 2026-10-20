@@ -345,7 +345,9 @@ def get_app_service_candidates(app_id: str) -> List[str]:
     """Trả về danh sách service candidates cho một app_id (bao gồm cả dynamic PHP)"""
     if app_id in APP_SERVICE_CANDIDATES:
         return APP_SERVICE_CANDIDATES[app_id]
-    if app_id.startswith("php") and len(app_id) >= 5:
+    if app_id == "phpmyadmin":
+        return ["lsws", "lshttpd", "nginx", "openresty"]
+    if app_id.startswith("php") and len(app_id) >= 5 and app_id[3].isdigit():
         ver = f"{app_id[3]}.{app_id[4]}"
         clean_ver = app_id[3:5]
         return [f"php{ver}-fpm", f"php{clean_ver}-php-fpm", "php-fpm"]
@@ -531,8 +533,27 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
         except Exception:
             pass
 
-    # 3. Đặc thù PHP: Trên OpenLiteSpeed, LSPHP chạy on-demand qua suEXEC chứ không chạy PHP-FPM service
-    if app.get("category") == "php" and installed:
+    # 3. Đặc thù phpMyAdmin: Chạy vhost Port 888 qua Web Server (OLS / Nginx)
+    if app["id"] == "phpmyadmin":
+        active_service = "webserver (Port 888)"
+        if installed:
+            running = False
+            for ws in ["lsws", "lshttpd", "nginx", "openresty"]:
+                try:
+                    r = subprocess.run(["systemctl", "is-active", "--quiet", ws], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    if r.returncode == 0:
+                        active_service = f"{ws} (Port 888)"
+                        running = True
+                        break
+                except Exception:
+                    pass
+            if not running and os.name == "nt":
+                running = True
+                active_service = "localhost:888"
+        app = {**app, "service": active_service}
+
+    # 4. Đặc thù PHP: Trên OpenLiteSpeed, LSPHP chạy on-demand qua suEXEC chứ không chạy PHP-FPM service
+    elif app.get("category") == "php" and installed:
         if not running and os.name != "nt":
             ver_clean = app.get("default_version", "").replace(".", "")
             lsphp_bin = f"/usr/local/lsws/lsphp{ver_clean}/bin/lsphp"
@@ -711,6 +732,20 @@ async def app_action(
 
     # 3. HÀNH ĐỘNG ĐIỀU KHIỂN DỊCH VỤ (START / STOP / RESTART / RELOAD)
     if req.action in ["start", "stop", "restart", "reload"]:
+        if req.app_id == "phpmyadmin":
+            script_pma = f"{WPC_BASE}/scripts/apps/phpmyadmin.sh"
+            if os.path.exists(script_pma):
+                try:
+                    subprocess.run(["bash", script_pma, "install"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+                except Exception:
+                    pass
+            for ws in ["lsws", "lshttpd", "nginx"]:
+                try:
+                    subprocess.run(["sudo", "systemctl", "reload", ws], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+                except Exception:
+                    pass
+            return {"status": "ok", "message": f"Đã {req.action} và nạp lại cấu hình phpMyAdmin (Port 888) thành công!"}
+
         srv = resolve_app_service(req.app_id)
         candidates = get_app_service_candidates(req.app_id)
         if not srv and not candidates and not app.get("service"):

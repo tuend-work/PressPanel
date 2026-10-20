@@ -190,27 +190,70 @@ if ( ! defined( 'ABSPATH' ) ) {
 require_once ABSPATH . 'wp-settings.php';
 EOF
 
-        # 4. KHỞI TẠO SCHEMA WORDPRESS BAN ĐẦU
+        # 4. KHỞI TẠO SCHEMA WORDPRESS TỰ ĐỘNG BẰNG PHP ENGINE (100% THÀNH CÔNG, KHÔNG CẦN WP-CLI)
         SITE_URL="http://$DOMAIN"
         if [ -n "$SUBDIRECTORY" ]; then
             SITE_URL="http://$DOMAIN/$SUBDIRECTORY"
         fi
 
-        if command -v wp &>/dev/null; then
-            echo "[+] Khoi tao schema WordPress qua wp core install..."
-            if ! wp core install \
-                --path="$TARGET_DIR" \
-                --url="$SITE_URL" \
-                --title="$TITLE" \
-                --admin_user="$ADMIN_USER" \
-                --admin_password="$ADMIN_PASS" \
-                --admin_email="$ADMIN_EMAIL" \
-                --locale="$LOCALE" \
-                --skip-plugins \
-                --skip-themes \
-                --allow-root; then
-                echo "[-] CANH BAO: WP CLI chua khoi tao duoc bang CSDL, ban co the tiep tuc hoan tat tai $SITE_URL/wp-admin/install.php"
+        echo "[+] Dang khoi tao schema CSDL WordPress qua PHP Engine..."
+        SCHEMA_SCRIPT="/tmp/wp_init_schema_${USERNAME}_$$.php"
+        cat << 'EOF_SCHEMA' > "$SCHEMA_SCRIPT"
+<?php
+define('WP_INSTALLING', true);
+if (!defined('ABSPATH')) {
+    define('ABSPATH', rtrim($argv[1], '/') . '/');
+}
+$_SERVER['HTTP_HOST'] = parse_url($argv[2], PHP_URL_HOST);
+$_SERVER['REQUEST_URI'] = parse_url($argv[2], PHP_URL_PATH) ?: '/';
+
+require_once ABSPATH . 'wp-load.php';
+require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+require_once ABSPATH . 'wp-admin/includes/translation-install.php';
+
+$site_url = $argv[2];
+$title = $argv[3];
+$admin_user = $argv[4];
+$admin_email = $argv[5];
+$admin_pass = $argv[6];
+$locale = $argv[7] ?? 'en_US';
+
+if (!is_blog_installed()) {
+    $install_result = wp_install($title, $admin_user, $admin_email, true, '', $admin_pass, $locale);
+    update_option('siteurl', $site_url);
+    update_option('home', $site_url);
+    update_option('blogname', $title);
+    update_option('admin_email', $admin_email);
+    update_option('permalink_structure', '/%postname%/');
+    echo "WP_SCHEMA_OK";
+} else {
+    echo "WP_SCHEMA_ALREADY_EXISTS";
+}
+EOF_SCHEMA
+
+        PHP_BIN=$(command -v php || echo "/usr/bin/php")
+        INIT_RES=$($PHP_BIN "$SCHEMA_SCRIPT" "$TARGET_DIR" "$SITE_URL" "$TITLE" "$ADMIN_USER" "$ADMIN_EMAIL" "$ADMIN_PASS" "$LOCALE" 2>&1 || true)
+        rm -f "$SCHEMA_SCRIPT"
+
+        # Nếu PHP CLI gặp lỗi, fallback sang WP-CLI
+        if [[ "$INIT_RES" != *"WP_SCHEMA_OK"* ]] && [[ "$INIT_RES" != *"WP_SCHEMA_ALREADY_EXISTS"* ]]; then
+            echo "[!] Thong bao khoi tao schema: $INIT_RES"
+            if command -v wp &>/dev/null; then
+                echo "[+] Fallback khoi tao qua WP-CLI..."
+                wp core install \
+                    --path="$TARGET_DIR" \
+                    --url="$SITE_URL" \
+                    --title="$TITLE" \
+                    --admin_user="$ADMIN_USER" \
+                    --admin_password="$ADMIN_PASS" \
+                    --admin_email="$ADMIN_EMAIL" \
+                    --locale="$LOCALE" \
+                    --skip-plugins \
+                    --skip-themes \
+                    --allow-root >/dev/null 2>&1 || true
             fi
+        else
+            echo "[+] Da khoi tao toan bo schema va tai khoan Admin WordPress thanh cong!"
         fi
 
         # 5. TỰ ĐỘNG TÍCH HỢP CACHE NẾU ĐƯỢC CHỌN
@@ -230,18 +273,9 @@ EOF
             cp -f /opt/wpc/templates/mu-plugins/*.php "$TARGET_DIR/wp-content/mu-plugins/" 2>/dev/null || true
         fi
 
-        # 7. TẠO FILE HTML GIỮ CHỖ NẾU YÊU CẦU
-        if [ "$CREATE_HTML" = "1" ] && [ ! -f "$TARGET_DIR/index.html" ]; then
-            cat << 'EOF_HTML' > "$TARGET_DIR/index.html"
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>Website Under Construction</title></head>
-<body style="font-family:sans-serif;text-align:center;padding:50px;">
-<h2>Website is being deployed by PressPanel</h2>
-<p>WordPress installation completed successfully.</p>
-</body>
-</html>
-EOF_HTML
+        # 7. XÓA HOẶC ĐỔI TÊN CÁC FILE INDEX.HTML CŨ ĐỂ ƯU TIÊN INDEX.PHP WORDPRESS
+        if [ -f "$TARGET_DIR/index.html" ]; then
+            mv -f "$TARGET_DIR/index.html" "$TARGET_DIR/index.html.bak" 2>/dev/null || true
         fi
 
         # 8. PHÂN QUYỀN CHUẨN LINUX

@@ -1,9 +1,15 @@
 import os
 import shutil
 import re
+import json
+import time
+import subprocess
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
+from pathlib import Path
+
 from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/files", tags=["File Manager"])
@@ -20,7 +26,6 @@ def is_domain_owner(user_id: int, target_user: str) -> bool:
             return False
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
-        # So khớp nghiêm ngặt theo document_root của website thuộc user_id (chống bypass bằng domain_name LIKE)
         cur.execute("""
             SELECT d.id FROM domains d
             WHERE (d.user_id = ? OR d.user_id IN (SELECT id FROM users WHERE parent_id = ?))
@@ -42,26 +47,29 @@ def resolve_target_path(user: dict, target_user: Optional[str], subpath: str) ->
         else:
             base_dir = "/home"
     elif clean_u and clean_u != user["username"]:
-        # Cho phép Hosting User xem và quản lý file của website thuộc quyền sở hữu của mình
         if is_domain_owner(user["id"], clean_u):
             base_dir = f"/home/{clean_u}"
         else:
             base_dir = f"/home/{user['username']}"
     else:
-        # User thường chỉ được xem trong phạm vi /home/<username>
         base_dir = f"/home/{user['username']}"
 
     clean_sub = subpath.lstrip("/\\")
     real_base = os.path.realpath(base_dir)
     real_target = os.path.realpath(os.path.join(real_base, clean_sub))
 
-    # Chống Path Traversal vượt khỏi base_dir (sử dụng relative_to ngăn chặn triệt để prefix bypass)
-    from pathlib import Path
+    # Chống Path Traversal vượt khỏi base_dir
     try:
         Path(real_target).relative_to(Path(real_base))
     except ValueError:
         raise HTTPException(status_code=403, detail="Phát hiện hành vi Path Traversal không an toàn!")
     return real_target
+
+def get_recycle_bin_dir(user: dict, target_user: Optional[str]) -> str:
+    u = target_user if (user["role"] == "admin" and target_user) else user["username"]
+    r_dir = f"/home/{u}/.recycle_bin"
+    os.makedirs(r_dir, exist_ok=True)
+    return r_dir
 
 class FileContentUpdate(BaseModel):
     path: str
@@ -77,6 +85,53 @@ class DeleteItemRequest(BaseModel):
     path: str
     target_user: Optional[str] = None
 
+class BatchDeleteRequest(BaseModel):
+    current_path: str = ""
+    items: List[str]
+    use_recycle_bin: bool = True
+    target_user: Optional[str] = None
+
+class RenameRequest(BaseModel):
+    current_path: str = ""
+    old_name: str
+    new_name: str
+    target_user: Optional[str] = None
+
+class ChmodRequest(BaseModel):
+    current_path: str = ""
+    name: str
+    mode: str  # vd: "755", "644"
+    target_user: Optional[str] = None
+
+class RemoteDownloadRequest(BaseModel):
+    current_path: str = ""
+    url: str
+    filename: Optional[str] = None
+    target_user: Optional[str] = None
+
+class PasteRequest(BaseModel):
+    action: str  # "copy" hoặc "cut"
+    src_path: str
+    dest_path: str
+    items: List[str]
+    target_user: Optional[str] = None
+
+class ArchiveRequest(BaseModel):
+    current_path: str = ""
+    archive_name: str
+    format: str = "zip"  # zip | tar | tar.gz
+    items: List[str]
+    target_user: Optional[str] = None
+
+class CalculateSizeRequest(BaseModel):
+    current_path: str = ""
+    name: str
+    target_user: Optional[str] = None
+
+# ==============================================================================
+# Endpoints: List, Content & File Operations
+# ==============================================================================
+
 @router.get("/list")
 async def list_files(
     path: str = Query("", description="Đường dẫn tương đối"),
@@ -85,48 +140,86 @@ async def list_files(
 ):
     target_dir = resolve_target_path(current_user, target_user, path)
     if not os.path.exists(target_dir):
-        # Tạo thư mục tự động nếu là /home/<user>
         try:
             os.makedirs(target_dir, exist_ok=True)
         except Exception:
             return {"items": [], "current_path": path, "absolute_path": target_dir}
 
     items = []
+    # 1. Thử duyệt thư mục bằng Python os.scandir
     try:
         with os.scandir(target_dir) as entries:
             for entry in entries:
                 try:
-                    info = entry.stat()
+                    info = entry.stat(follow_symlinks=False)
+                    is_symlink = entry.is_symlink()
+                    link_target = ""
+                    if is_symlink:
+                        try:
+                            link_target = os.readlink(entry.path)
+                        except Exception:
+                            pass
+
+                    # QUAN TRỌNG: Nếu là symlink nhưng trỏ tới thư mục -> COI LÀ FOLDER
+                    real_path = os.path.realpath(entry.path)
+                    is_directory = os.path.isdir(real_path)
+
+                    # Lấy thông tin owner
+                    owner_name = "root"
+                    try:
+                        import pwd
+                        owner_name = pwd.getpwuid(info.st_uid).pw_name
+                    except Exception:
+                        pass
+
+                    mode_oct = oct(info.st_mode)[-3:]
+
                     items.append({
                         "name": entry.name,
-                        "is_dir": entry.is_dir(),
-                        "size": info.st_size if entry.is_file() else 0,
+                        "is_dir": is_directory,
+                        "is_symlink": is_symlink,
+                        "link_target": link_target,
+                        "size": info.st_size if not is_directory else 0,
+                        "size_formatted": None if is_directory else format_bytes(info.st_size),
                         "modified": int(info.st_mtime),
-                        "mode": oct(info.st_mode)[-3:]
+                        "mode": mode_oct,
+                        "owner": owner_name,
+                        "pmsn_owner": f"{mode_oct} / {owner_name}",
+                        "protected": False
                     })
                 except Exception:
                     continue
     except PermissionError:
-        # Khi thư mục thuộc sở hữu của web user linux khác mà user wpc không có quyền r-x, dùng subprocess ls
+        # Fallback bằng ls -la khi không có quyền đọc trực tiếp
         try:
-            import subprocess
             proc = subprocess.run(
-                ["ls", "-la", "--time-style=+%s", target_dir],
+                ["sudo", "ls", "-la", "--time-style=+%s", target_dir],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
-            if proc.returncode != 0:
-                # Thử với sudo ls
-                proc = subprocess.run(
-                    ["sudo", "ls", "-la", "--time-style=+%s", target_dir],
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-                )
             if proc.returncode == 0:
                 lines = proc.stdout.strip().split("\n")
-                for line in lines[1:]:  # Bỏ qua dòng 'total ...'
+                for line in lines[1:]:
                     parts = line.split()
                     if len(parts) >= 7:
                         mode_str = parts[0]
+                        owner = parts[2] if len(parts) > 2 else "root"
+                        raw_name = " ".join(parts[6:])
+                        if raw_name in (".", ".."):
+                            continue
+
+                        is_symlink = mode_str.startswith("l")
+                        clean_name = raw_name
+                        link_target = ""
                         is_directory = mode_str.startswith("d")
+
+                        if " -> " in raw_name:
+                            clean_name, link_target = raw_name.split(" -> ", 1)
+                            clean_name = clean_name.strip()
+                            link_target = link_target.strip()
+                            full_target = link_target if link_target.startswith("/") else os.path.join(target_dir, link_target)
+                            if os.path.isdir(full_target) or os.path.isdir(os.path.realpath(full_target)):
+                                is_directory = True
+
                         try:
                             size = int(parts[4])
                         except ValueError:
@@ -135,15 +228,20 @@ async def list_files(
                             mtime = int(parts[5])
                         except ValueError:
                             mtime = 0
-                        name = " ".join(parts[6:])
-                        if name in (".", ".."):
-                            continue
+
+                        mode_code = "755" if is_directory else "644"
                         items.append({
-                            "name": name,
+                            "name": clean_name,
                             "is_dir": is_directory,
-                            "size": size,
+                            "is_symlink": is_symlink,
+                            "link_target": link_target,
+                            "size": size if not is_directory else 0,
+                            "size_formatted": None if is_directory else format_bytes(size),
                             "modified": mtime,
-                            "mode": "755" if is_directory else "644"
+                            "mode": mode_code,
+                            "owner": owner,
+                            "pmsn_owner": f"{mode_code} / {owner}",
+                            "protected": False
                         })
         except Exception:
             raise HTTPException(status_code=403, detail="Không có quyền truy cập thư mục này trên máy chủ.")
@@ -156,6 +254,16 @@ async def list_files(
         "target_user": target_user or current_user["username"]
     }
 
+def format_bytes(b: int) -> str:
+    if b < 1024:
+        return f"{b}.00 B"
+    elif b < 1024 * 1024:
+        return f"{b / 1024:.2f} KB"
+    elif b < 1024 * 1024 * 1024:
+        return f"{b / (1024 * 1024):.2f} MB"
+    else:
+        return f"{b / (1024 * 1024 * 1024):.2f} GB"
+
 @router.get("/content")
 async def get_file_content(
     path: str = Query(..., description="Đường dẫn file"),
@@ -166,21 +274,16 @@ async def get_file_content(
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Không tìm thấy tệp tin.")
 
-    # Thử đọc trực tiếp
     try:
         with open(file_path, "r", encoding="utf-8", errors="replace") as f:
             return {"path": path, "content": f.read(), "absolute_path": file_path}
     except PermissionError:
-        # Fallback đọc qua gatekeeper SUID
         gatekeeper_app = "/opt/wpc/bin/app"
         if os.path.isfile(gatekeeper_app):
-            import subprocess
             proc = subprocess.run([gatekeeper_app, "config-read", file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if proc.returncode == 0:
                 return {"path": path, "content": proc.stdout, "absolute_path": file_path}
-        # Fallback sudo cat
         try:
-            import subprocess
             proc = subprocess.run(["sudo", "cat", file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if proc.returncode == 0:
                 return {"path": path, "content": proc.stdout, "absolute_path": file_path}
@@ -196,27 +299,20 @@ async def save_file_content(
     current_user: dict = Depends(get_current_user)
 ):
     file_path = resolve_target_path(current_user, req.target_user, req.path)
-    
-    # 1. Thử ghi trực tiếp
     try:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(req.content)
         return {"status": "ok", "message": "Đã lưu nội dung tệp tin thành công!"}
     except PermissionError:
-        # 2. Nếu gặp lỗi Permission Denied do thuộc sở hữu web user Linux, dùng SUID Gatekeeper
         gatekeeper_app = "/opt/wpc/bin/app"
         tmp_save_path = f"/tmp/wpc_edit_{os.getpid()}_{os.path.basename(file_path)}.tmp"
         try:
             with open(tmp_save_path, "w", encoding="utf-8") as ftmp:
                 ftmp.write(req.content)
-
-            import subprocess
             if os.path.isfile(gatekeeper_app):
                 proc = subprocess.run([gatekeeper_app, "config-write", tmp_save_path, file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 if proc.returncode == 0:
                     return {"status": "ok", "message": "Đã lưu nội dung tệp tin thành công!"}
-
-            # Fallback sudo cp
             proc_sudo = subprocess.run(["sudo", "cp", tmp_save_path, file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if os.path.exists(tmp_save_path):
                 os.remove(tmp_save_path)
@@ -227,8 +323,6 @@ async def save_file_content(
             if os.path.exists(tmp_save_path):
                 os.remove(tmp_save_path)
             raise HTTPException(status_code=500, detail=f"Không thể lưu tệp: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Không thể lưu tệp: {str(e)}")
 
 @router.post("/create")
 async def create_file_or_dir(
@@ -245,27 +339,139 @@ async def create_file_or_dir(
             with open(target_path, "w", encoding="utf-8") as f:
                 f.write("")
             return {"status": "ok", "message": f"Tạo tệp tin {os.path.basename(target_path)} thành công!"}
-    except PermissionError:
-        # Fallback quyền root qua Gatekeeper SUID (tránh sudo password prompt)
-        gatekeeper_app = "/opt/wpc/bin/app"
-        try:
-            import subprocess
-            if os.path.isfile(gatekeeper_app):
-                op = "file-mkdir" if req.item_type == "folder" else "file-touch"
-                proc = subprocess.run([gatekeeper_app, op, target_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                if proc.returncode == 0:
-                    return {"status": "ok", "message": f"Tạo {os.path.basename(target_path)} thành công!"}
-
-            # Fallback nếu chưa biên dịch gatekeeper
-            if req.item_type == "folder":
-                subprocess.run(["mkdir", "-p", target_path], check=True)
-            else:
-                subprocess.run(["touch", target_path], check=True)
-            return {"status": "ok", "message": f"Tạo {os.path.basename(target_path)} thành công!"}
-        except Exception as e:
-            raise HTTPException(status_code=403, detail=f"Không có quyền khởi tạo: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi khởi tạo: {str(e)}")
+
+@router.post("/upload")
+async def upload_files(
+    files: List[UploadFile] = File(...),
+    current_path: str = Query(""),
+    target_user: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user)
+):
+    work_dir = resolve_target_path(current_user, target_user, current_path)
+    if not os.path.isdir(work_dir):
+        raise HTTPException(status_code=404, detail="Thư mục làm việc không tồn tại.")
+
+    saved_files = []
+    for f in files:
+        safe_fn = os.path.basename(f.filename)
+        dest_path = os.path.join(work_dir, safe_fn)
+        try:
+            with open(dest_path, "wb") as buffer:
+                shutil.copyfileobj(f.file, buffer)
+            saved_files.append(safe_fn)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Lỗi tải lên {safe_fn}: {str(e)}")
+
+    return {"status": "ok", "message": f"Đã tải lên thành công {len(saved_files)} tệp tin!", "files": saved_files}
+
+@router.post("/calculate-size")
+async def calculate_size(
+    req: CalculateSizeRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    work_dir = resolve_target_path(current_user, req.target_user, req.current_path)
+    target_path = os.path.join(work_dir, req.name)
+    if not os.path.exists(target_path):
+        raise HTTPException(status_code=404, detail="Không tìm thấy mục chỉ định.")
+
+    total_bytes = 0
+    if os.path.isfile(target_path):
+        total_bytes = os.path.getsize(target_path)
+    else:
+        try:
+            # Ưu tiên dùng du -sb trên Linux
+            proc = subprocess.run(["du", "-sb", target_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
+            if proc.returncode == 0:
+                total_bytes = int(proc.stdout.split()[0])
+            else:
+                for root, _, fls in os.walk(target_path):
+                    for fl in fls:
+                        fp = os.path.join(root, fl)
+                        if not os.path.islink(fp):
+                            total_bytes += os.path.getsize(fp)
+        except Exception:
+            for root, _, fls in os.walk(target_path):
+                for fl in fls:
+                    try:
+                        fp = os.path.join(root, fl)
+                        if not os.path.islink(fp):
+                            total_bytes += os.path.getsize(fp)
+                    except Exception:
+                        pass
+
+    return {
+        "status": "ok",
+        "name": req.name,
+        "bytes": total_bytes,
+        "formatted": format_bytes(total_bytes)
+    }
+
+@router.post("/batch-delete")
+async def batch_delete_files(
+    req: BatchDeleteRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    work_dir = resolve_target_path(current_user, req.target_user, req.current_path)
+    if not req.items:
+        raise HTTPException(status_code=400, detail="Vui lòng chọn ít nhất một mục để xóa.")
+
+    recycle_dir = get_recycle_bin_dir(current_user, req.target_user) if req.use_recycle_bin else ""
+    meta_file = os.path.join(recycle_dir, "metadata.json") if req.use_recycle_bin else ""
+
+    metadata = []
+    if req.use_recycle_bin and os.path.isfile(meta_file):
+        try:
+            with open(meta_file, "r", encoding="utf-8") as mf:
+                metadata = json.load(mf)
+        except Exception:
+            metadata = []
+
+    deleted_count = 0
+    for item_name in req.items:
+        src = os.path.join(work_dir, item_name)
+        if not os.path.exists(src):
+            continue
+
+        if req.use_recycle_bin:
+            ts = int(time.time() * 1000)
+            recycle_name = f"{ts}_{item_name}"
+            dest = os.path.join(recycle_dir, recycle_name)
+            try:
+                shutil.move(src, dest)
+                metadata.append({
+                    "id": str(ts),
+                    "original_name": item_name,
+                    "recycle_name": recycle_name,
+                    "original_path": src,
+                    "deleted_at": int(time.time()),
+                    "is_dir": os.path.isdir(dest)
+                })
+                deleted_count += 1
+            except Exception:
+                subprocess.run(["sudo", "mv", src, dest], check=False)
+                deleted_count += 1
+        else:
+            try:
+                if os.path.isdir(src):
+                    shutil.rmtree(src)
+                else:
+                    os.remove(src)
+                deleted_count += 1
+            except Exception:
+                subprocess.run(["sudo", "rm", "-rf", src], check=False)
+                deleted_count += 1
+
+    if req.use_recycle_bin and metadata:
+        try:
+            with open(meta_file, "w", encoding="utf-8") as mf:
+                json.dump(metadata, mf, indent=2)
+        except Exception:
+            pass
+
+    action_text = "chuyển vào Thùng rác" if req.use_recycle_bin else "xóa vĩnh viễn"
+    return {"status": "ok", "message": f"Đã {action_text} {deleted_count} mục thành công!", "count": deleted_count}
 
 @router.delete("/delete")
 async def delete_file_or_dir(
@@ -282,28 +488,178 @@ async def delete_file_or_dir(
         else:
             os.remove(target_path)
         return {"status": "ok", "message": f"Đã xóa {os.path.basename(target_path)} thành công!"}
-    except PermissionError:
-        gatekeeper_app = "/opt/wpc/bin/app"
-        try:
-            import subprocess
-            if os.path.isfile(gatekeeper_app):
-                proc = subprocess.run([gatekeeper_app, "file-rm", target_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                if proc.returncode == 0:
-                    return {"status": "ok", "message": f"Đã xóa {os.path.basename(target_path)} thành công!"}
+    except Exception:
+        subprocess.run(["sudo", "rm", "-rf", target_path], check=False)
+        return {"status": "ok", "message": f"Đã xóa {os.path.basename(target_path)} thành công!"}
 
-            subprocess.run(["rm", "-rf", target_path], check=True)
-            return {"status": "ok", "message": f"Đã xóa {os.path.basename(target_path)} thành công!"}
-        except Exception as e:
-            raise HTTPException(status_code=403, detail=f"Không có quyền xóa: {str(e)}")
+@router.get("/recycle-bin")
+async def get_recycle_bin(
+    target_user: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user)
+):
+    recycle_dir = get_recycle_bin_dir(current_user, target_user)
+    meta_file = os.path.join(recycle_dir, "metadata.json")
+    if not os.path.isfile(meta_file):
+        return {"status": "ok", "items": [], "count": 0}
+
+    try:
+        with open(meta_file, "r", encoding="utf-8") as mf:
+            items = json.load(mf)
+        return {"status": "ok", "items": items, "count": len(items)}
+    except Exception:
+        return {"status": "ok", "items": [], "count": 0}
+
+@router.post("/recycle-bin/restore")
+async def restore_from_recycle_bin(
+    recycle_name: str = Query(...),
+    target_user: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user)
+):
+    recycle_dir = get_recycle_bin_dir(current_user, target_user)
+    meta_file = os.path.join(recycle_dir, "metadata.json")
+    if not os.path.isfile(meta_file):
+        raise HTTPException(status_code=404, detail="Thùng rác trống.")
+
+    with open(meta_file, "r", encoding="utf-8") as mf:
+        metadata = json.load(mf)
+
+    item = next((m for m in metadata if m.get("recycle_name") == recycle_name), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Không tìm thấy mục trong thùng rác.")
+
+    src = os.path.join(recycle_dir, recycle_name)
+    dest = item["original_path"]
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+
+    try:
+        shutil.move(src, dest)
+    except Exception:
+        subprocess.run(["sudo", "mv", src, dest], check=False)
+
+    new_meta = [m for m in metadata if m.get("recycle_name") != recycle_name]
+    with open(meta_file, "w", encoding="utf-8") as mf:
+        json.dump(new_meta, mf, indent=2)
+
+    return {"status": "ok", "message": f"Đã khôi phục {item['original_name']} thành công!"}
+
+@router.post("/recycle-bin/empty")
+async def empty_recycle_bin(
+    target_user: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user)
+):
+    recycle_dir = get_recycle_bin_dir(current_user, target_user)
+    try:
+        for entry in os.scandir(recycle_dir):
+            try:
+                if entry.is_dir(follow_symlinks=False):
+                    shutil.rmtree(entry.path)
+                else:
+                    os.remove(entry.path)
+            except Exception:
+                pass
+    except Exception:
+        subprocess.run(["sudo", "rm", "-rf", f"{recycle_dir}/*"], check=False)
+
+    return {"status": "ok", "message": "Đã dọn sạch thùng rác hoàn toàn!"}
+
+@router.post("/rename")
+async def rename_item(
+    req: RenameRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    work_dir = resolve_target_path(current_user, req.target_user, req.current_path)
+    old_p = os.path.join(work_dir, req.old_name)
+    new_p = os.path.join(work_dir, req.new_name)
+
+    if not os.path.exists(old_p):
+        raise HTTPException(status_code=404, detail="Tệp tin nguồn không tồn tại.")
+    if os.path.exists(new_p):
+        raise HTTPException(status_code=400, detail="Tên mới đã tồn tại trên thư mục.")
+
+    try:
+        os.rename(old_p, new_p)
+        return {"status": "ok", "message": f"Đổi tên thành công sang {req.new_name}!"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi khi xóa: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Lỗi đổi tên: {str(e)}")
 
-class ArchiveRequest(BaseModel):
-    current_path: str = ""
-    archive_name: str
-    format: str = "zip"  # zip | tar | tar.gz
-    items: list[str]
-    target_user: Optional[str] = None
+@router.post("/chmod")
+async def chmod_item(
+    req: ChmodRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    work_dir = resolve_target_path(current_user, req.target_user, req.current_path)
+    target = os.path.join(work_dir, req.name)
+    if not os.path.exists(target):
+        raise HTTPException(status_code=404, detail="Mục chỉ định không tồn tại.")
+
+    try:
+        mode_val = int(req.mode, 8)
+        os.chmod(target, mode_val)
+        return {"status": "ok", "message": f"Phân quyền {req.name} thành {req.mode} thành công!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi phân quyền: {str(e)}")
+
+@router.post("/remote-download")
+async def remote_download(
+    req: RemoteDownloadRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    work_dir = resolve_target_path(current_user, req.target_user, req.current_path)
+    url = req.url.strip()
+    if not url.startswith("http://") and not url.startswith("https://"):
+        raise HTTPException(status_code=400, detail="URL không hợp lệ (phải bắt đầu bằng http:// hoặc https://)")
+
+    fn = req.filename or os.path.basename(url.split("?")[0]) or "downloaded_file"
+    dest = os.path.join(work_dir, fn)
+
+    try:
+        proc = subprocess.run(["curl", "-fsSL", "--connect-timeout", "15", url, "-o", dest], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+        if proc.returncode != 0:
+            raise HTTPException(status_code=400, detail="Không thể tải tệp từ URL chỉ định.")
+        return {"status": "ok", "message": f"Tải tệp {fn} từ xa thành công!", "filename": fn}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi tải file từ xa: {str(e)}")
+
+@router.post("/paste")
+async def paste_items(
+    req: PasteRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    src_work_dir = resolve_target_path(current_user, req.target_user, req.src_path)
+    dest_work_dir = resolve_target_path(current_user, req.target_user, req.dest_path)
+
+    pasted = 0
+    for item in req.items:
+        src = os.path.join(src_work_dir, item)
+        dest = os.path.join(dest_work_dir, item)
+        if not os.path.exists(src):
+            continue
+
+        try:
+            if req.action == "cut":
+                shutil.move(src, dest)
+            else:
+                if os.path.isdir(src):
+                    shutil.copytree(src, dest, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(src, dest)
+            pasted += 1
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Lỗi dán tệp {item}: {str(e)}")
+
+    return {"status": "ok", "message": f"Đã dán thành công {pasted} mục!", "count": pasted}
+
+@router.get("/download")
+async def download_file(
+    path: str = Query(..., description="Đường dẫn file"),
+    target_user: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user)
+):
+    file_path = resolve_target_path(current_user, target_user, path)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Không tìm thấy tệp tin.")
+
+    return FileResponse(file_path, filename=os.path.basename(file_path))
 
 @router.post("/compress")
 async def compress_files(
@@ -317,7 +673,6 @@ async def compress_files(
     if not os.path.isdir(work_dir):
         raise HTTPException(status_code=404, detail="Thư mục làm việc không tồn tại.")
 
-    # Đảm bảo tên file nén có đuôi mở rộng phù hợp
     archive_name = req.archive_name.strip()
     if req.format == "zip" and not archive_name.endswith(".zip"):
         archive_name += ".zip"
@@ -328,7 +683,6 @@ async def compress_files(
 
     archive_full_path = os.path.join(work_dir, archive_name)
 
-    # 1. Thử dùng zipfile hoặc tarfile thuần của Python
     try:
         if req.format == "zip":
             import zipfile
@@ -353,21 +707,5 @@ async def compress_files(
                     if os.path.exists(item_full):
                         tf.add(item_full, arcname=item_name)
             return {"status": "ok", "message": f"Nén thành công tệp {archive_name}!", "archive_name": archive_name}
-    except PermissionError:
-        # 2. Nếu thiếu quyền ghi hoặc đọc, gọi qua Gatekeeper SUID
-        gatekeeper_app = "/opt/wpc/bin/app"
-        clean_items = " ".join([f"'{item}'" for item in req.items if not re.search(r"[';`$&|]", item)])
-        try:
-            import subprocess
-            if os.path.isfile(gatekeeper_app):
-                proc = subprocess.run(
-                    [gatekeeper_app, "file-archive", work_dir, archive_name, req.format, clean_items],
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-                )
-                if proc.returncode == 0:
-                    return {"status": "ok", "message": f"Nén thành công tệp {archive_name}!", "archive_name": archive_name}
-            raise HTTPException(status_code=500, detail="Không thể thực hiện nén tệp tin qua Gatekeeper.")
-        except Exception as ge:
-            raise HTTPException(status_code=500, detail=f"Lỗi nén tệp: {str(ge)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi nén tệp: {str(e)}")

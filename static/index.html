@@ -2942,21 +2942,519 @@
                 const newItemType = ref('file'); // 'file' | 'folder'
                 const newItemName = ref('');
                 
+                // File Manager Layout & Pagination States (Theo chuẩn ảnh 4 & 5)
+                const fileViewMode = ref('list'); // 'list' | 'grid'
+                const fileSearchQuery = ref('');
+                const fileSearchSubdir = ref(false);
+                const filePageSize = ref(100);
+                const fileCurrentPage = ref(1);
+                const fileGotoInput = ref(1);
+                const fileSortKey = ref('name'); // 'name' | 'size' | 'modified'
+                const fileSortOrder = ref('asc'); // 'asc' | 'desc'
+
+                // Folder Size Calculation
+                const folderSizes = ref({});
+                const totalCalculatedSize = ref('');
+
+                // Recycle Bin States
+                const showRecycleBinModal = ref(false);
+                const recycleBinItems = ref([]);
+                const recycleBinCount = ref(0);
+                const loadingRecycleBin = ref(false);
+
+                // Remote Download States
+                const showRemoteDownloadModal = ref(false);
+                const remoteDownloadUrl = ref('');
+                const remoteDownloadName = ref('');
+                const downloadingRemote = ref(false);
+
+                // Rename States
+                const showRenameModal = ref(false);
+                const renameOldName = ref('');
+                const renameNewName = ref('');
+
+                // Chmod States
+                const showChmodModal = ref(false);
+                const chmodTargetName = ref('');
+                const chmodMode = ref('755');
+
+                // Search File Content
+                const showSearchContentModal = ref(false);
+
+                // Clipboard States (Copy / Cut / Paste)
+                const clipboardAction = ref(''); // 'copy' | 'cut'
+                const clipboardSrcPath = ref('');
+                const clipboardItems = ref([]);
+
                 // Compress Archive State
                 const showCompressModal = ref(false);
                 const compressArchiveName = ref('');
                 const compressFormat = ref('zip'); // 'zip' | 'tar.gz' | 'tar'
                 const compressingFiles = ref(false);
 
+                // Computed: Danh sách tệp đã lọc & sắp xếp
+                const filteredFiles = computed(() => {
+                    let list = [...filesList.value];
+                    if (fileSearchQuery.value && fileSearchQuery.value.trim()) {
+                        const q = fileSearchQuery.value.trim().toLowerCase();
+                        list = list.filter(item => item.name.toLowerCase().includes(q));
+                    }
+                    list.sort((a, b) => {
+                        if (a.is_dir && !b.is_dir) return -1;
+                        if (!a.is_dir && b.is_dir) return 1;
+
+                        let valA = a[fileSortKey.value];
+                        let valB = b[fileSortKey.value];
+                        if (fileSortKey.value === 'name') {
+                            valA = (a.name || '').toLowerCase();
+                            valB = (b.name || '').toLowerCase();
+                        }
+                        if (valA < valB) return fileSortOrder.value === 'asc' ? -1 : 1;
+                        if (valA > valB) return fileSortOrder.value === 'asc' ? 1 : -1;
+                        return 0;
+                    });
+                    return list;
+                });
+
+                // Computed: Phân trang
+                const paginatedFiles = computed(() => {
+                    const start = (fileCurrentPage.value - 1) * filePageSize.value;
+                    return filteredFiles.value.slice(start, start + filePageSize.value);
+                });
+
+                const maxFilePages = computed(() => {
+                    return Math.max(1, Math.ceil(filteredFiles.value.length / filePageSize.value));
+                });
+
+                const directoryCount = computed(() => {
+                    return filteredFiles.value.filter(f => f.is_dir).length;
+                });
+
+                const fileCount = computed(() => {
+                    return filteredFiles.value.filter(f => !f.is_dir).length;
+                });
+
                 const isAllFilesSelected = computed(() => {
-                    return filesList.value.length > 0 && selectedFileNames.value.length === filesList.value.length;
+                    return paginatedFiles.value.length > 0 && paginatedFiles.value.every(f => selectedFileNames.value.includes(f.name));
                 });
 
                 const toggleSelectAllFiles = () => {
                     if (isAllFilesSelected.value) {
-                        selectedFileNames.value = [];
+                        const pageNames = paginatedFiles.value.map(f => f.name);
+                        selectedFileNames.value = selectedFileNames.value.filter(n => !pageNames.includes(n));
                     } else {
-                        selectedFileNames.value = filesList.value.map(f => f.name);
+                        const pageNames = paginatedFiles.value.map(f => f.name);
+                        selectedFileNames.value = Array.from(new Set([...selectedFileNames.value, ...pageNames]));
+                    }
+                };
+
+                const sortFilesBy = (key) => {
+                    if (fileSortKey.value === key) {
+                        fileSortOrder.value = fileSortOrder.value === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        fileSortKey.value = key;
+                        fileSortOrder.value = 'asc';
+                    }
+                };
+
+                const handleFileSearch = () => {
+                    fileCurrentPage.value = 1;
+                };
+
+                const calculateFolderSize = async (folderName) => {
+                    folderSizes.value[folderName] = 'Calculating...';
+                    try {
+                        const res = await fetch('/api/v1/files/calculate-size', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                current_path: fileCurrentPath.value,
+                                name: folderName,
+                                target_user: fileTargetUser.value || undefined
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            folderSizes.value[folderName] = data.formatted;
+                        } else {
+                            folderSizes.value[folderName] = 'Error';
+                        }
+                    } catch (e) {
+                        folderSizes.value[folderName] = 'Error';
+                    }
+                };
+
+                const calculateTotalDirectorySize = async () => {
+                    totalCalculatedSize.value = 'Calculating...';
+                    let knownBytes = 0;
+                    filesList.value.forEach(f => {
+                        if (!f.is_dir) knownBytes += (f.size || 0);
+                    });
+                    try {
+                        const curParts = fileCurrentPath.value ? fileCurrentPath.value.split('/') : [];
+                        const parentP = curParts.length > 1 ? curParts.slice(0, -1).join('/') : '';
+                        const curName = curParts.length > 0 ? curParts[curParts.length - 1] : '.';
+                        const res = await fetch('/api/v1/files/calculate-size', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                current_path: parentP,
+                                name: curName,
+                                target_user: fileTargetUser.value || undefined
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            totalCalculatedSize.value = data.formatted;
+                        } else {
+                            totalCalculatedSize.value = formatBytes(knownBytes);
+                        }
+                    } catch (e) {
+                        totalCalculatedSize.value = formatBytes(knownBytes);
+                    }
+                };
+
+                const handleFileUpload = async (event) => {
+                    const files = event.target.files;
+                    if (!files || files.length === 0) return;
+                    const formData = new FormData();
+                    for (let i = 0; i < files.length; i++) {
+                        formData.append('files', files[i]);
+                    }
+                    const targetUserParam = fileTargetUser.value ? `&target_user=${encodeURIComponent(fileTargetUser.value)}` : '';
+                    try {
+                        const res = await fetch(`/api/v1/files/upload?current_path=${encodeURIComponent(fileCurrentPath.value)}${targetUserParam}`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: formData
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Tải lên tệp tin thành công!');
+                            fetchFilesList(fileCurrentPath.value);
+                        } else {
+                            alert('Lỗi tải lên: ' + (data.detail || 'Không thể tải lên tệp'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối tải lên: ' + e.message);
+                    } finally {
+                        event.target.value = '';
+                    }
+                };
+
+                const handleBatchAction = (action) => {
+                    if (selectedFileNames.value.length === 0) {
+                        alert('Vui lòng chọn ít nhất một tệp hoặc thư mục!');
+                        return;
+                    }
+                    clipboardAction.value = action;
+                    clipboardSrcPath.value = fileCurrentPath.value;
+                    clipboardItems.value = [...selectedFileNames.value];
+                    alert(`Đã ${action === 'copy' ? 'sao chép (Copy)' : 'cắt (Cut)'} ${clipboardItems.value.length} mục vào bộ nhớ tạm! Chuyển đến thư mục muốn dán rồi bấm "File Operations > Dán".`);
+                };
+
+                const handlePasteClipboard = async () => {
+                    if (clipboardItems.value.length === 0) {
+                        alert('Bộ nhớ tạm đang trống!');
+                        return;
+                    }
+                    try {
+                        const res = await fetch('/api/v1/files/paste', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                action: clipboardAction.value || 'copy',
+                                src_path: clipboardSrcPath.value,
+                                dest_path: fileCurrentPath.value,
+                                items: clipboardItems.value,
+                                target_user: fileTargetUser.value || undefined
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Dán mục thành công!');
+                            if (clipboardAction.value === 'cut') {
+                                clipboardAction.value = '';
+                                clipboardItems.value = [];
+                                clipboardSrcPath.value = '';
+                            }
+                            fetchFilesList(fileCurrentPath.value);
+                        } else {
+                            alert('Lỗi khi dán mục: ' + (data.detail || 'Thất bại'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
+                const confirmBatchDelete = async () => {
+                    if (selectedFileNames.value.length === 0) {
+                        alert('Vui lòng chọn ít nhất một mục để xóa!');
+                        return;
+                    }
+                    if (!confirm(`Bạn có chắc chắn muốn chuyển ${selectedFileNames.value.length} mục đã chọn vào Thùng rác (Recycle Bin)?`)) {
+                        return;
+                    }
+                    try {
+                        const res = await fetch('/api/v1/files/batch-delete', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                current_path: fileCurrentPath.value,
+                                items: selectedFileNames.value,
+                                use_recycle_bin: true,
+                                target_user: fileTargetUser.value || undefined
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            selectedFileNames.value = [];
+                            fetchFilesList(fileCurrentPath.value);
+                            fetchRecycleBinCount();
+                            alert(data.message || 'Đã chuyển vào Thùng rác thành công!');
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể xóa'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
+                const fetchRecycleBinCount = async () => {
+                    try {
+                        const targetUserParam = fileTargetUser.value ? `?target_user=${encodeURIComponent(fileTargetUser.value)}` : '';
+                        const res = await fetch(`/api/v1/files/recycle-bin${targetUserParam}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            recycleBinCount.value = data.count || 0;
+                        }
+                    } catch (e) {}
+                };
+
+                const fetchRecycleBinList = async () => {
+                    loadingRecycleBin.value = true;
+                    try {
+                        const targetUserParam = fileTargetUser.value ? `?target_user=${encodeURIComponent(fileTargetUser.value)}` : '';
+                        const res = await fetch(`/api/v1/files/recycle-bin${targetUserParam}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            recycleBinItems.value = data.items || [];
+                            recycleBinCount.value = data.count || 0;
+                        } else {
+                            recycleBinItems.value = [];
+                        }
+                    } catch (e) {
+                        recycleBinItems.value = [];
+                    } finally {
+                        loadingRecycleBin.value = false;
+                    }
+                };
+
+                const openRecycleBinModal = () => {
+                    showRecycleBinModal.value = true;
+                    fetchRecycleBinList();
+                };
+
+                const restoreRecycleItem = async (recycleName) => {
+                    try {
+                        const targetUserParam = fileTargetUser.value ? `&target_user=${encodeURIComponent(fileTargetUser.value)}` : '';
+                        const res = await fetch(`/api/v1/files/recycle-bin/restore?recycle_name=${encodeURIComponent(recycleName)}${targetUserParam}`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            fetchRecycleBinList();
+                            fetchFilesList(fileCurrentPath.value);
+                            alert(data.message || 'Khôi phục mục thành công!');
+                        } else {
+                            alert('Lỗi khôi phục: ' + (data.detail || 'Thất bại'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi: ' + e.message);
+                    }
+                };
+
+                const emptyRecycleBinAction = async () => {
+                    if (!confirm('Bạn có chắc chắn muốn dọn sạch thùng rác vĩnh viễn? Dữ liệu không thể phục hồi!')) {
+                        return;
+                    }
+                    try {
+                        const targetUserParam = fileTargetUser.value ? `?target_user=${encodeURIComponent(fileTargetUser.value)}` : '';
+                        const res = await fetch(`/api/v1/files/recycle-bin/empty${targetUserParam}`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            fetchRecycleBinList();
+                            alert(data.message || 'Đã dọn sạch thùng rác!');
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Thất bại'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi: ' + e.message);
+                    }
+                };
+
+                const openRenameModal = (name) => {
+                    renameOldName.value = name;
+                    renameNewName.value = name;
+                    showRenameModal.value = true;
+                };
+
+                const confirmRename = async () => {
+                    if (!renameNewName.value.trim()) {
+                        alert('Vui lòng nhập tên mới!');
+                        return;
+                    }
+                    try {
+                        const res = await fetch('/api/v1/files/rename', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                current_path: fileCurrentPath.value,
+                                old_name: renameOldName.value,
+                                new_name: renameNewName.value.trim(),
+                                target_user: fileTargetUser.value || undefined
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showRenameModal.value = false;
+                            fetchFilesList(fileCurrentPath.value);
+                        } else {
+                            alert('Lỗi đổi tên: ' + (data.detail || 'Không thể đổi tên'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
+                const openChmodModal = (name, currentMode = '755') => {
+                    chmodTargetName.value = name;
+                    chmodMode.value = currentMode || '755';
+                    showChmodModal.value = true;
+                };
+
+                const handleBatchChmod = () => {
+                    if (selectedFileNames.value.length === 0) {
+                        alert('Vui lòng chọn ít nhất một mục!');
+                        return;
+                    }
+                    openChmodModal(selectedFileNames.value.join(', '), '755');
+                };
+
+                const confirmChmod = async () => {
+                    if (!chmodMode.value.trim()) {
+                        alert('Vui lòng nhập mã phân quyền!');
+                        return;
+                    }
+                    const targets = chmodTargetName.value.split(',').map(s => s.trim()).filter(Boolean);
+                    try {
+                        for (const item of targets) {
+                            await fetch('/api/v1/files/chmod', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token.value}`
+                                },
+                                body: JSON.stringify({
+                                    current_path: fileCurrentPath.value,
+                                    name: item,
+                                    mode: chmodMode.value.trim(),
+                                    target_user: fileTargetUser.value || undefined
+                                })
+                            });
+                        }
+                        showChmodModal.value = false;
+                        fetchFilesList(fileCurrentPath.value);
+                        alert('Áp dụng phân quyền thành công!');
+                    } catch (e) {
+                        alert('Lỗi phân quyền: ' + e.message);
+                    }
+                };
+
+                const handleRemoteDownload = async () => {
+                    if (!remoteDownloadUrl.value.trim()) {
+                        alert('Vui lòng nhập đường dẫn URL!');
+                        return;
+                    }
+                    downloadingRemote.value = true;
+                    try {
+                        const res = await fetch('/api/v1/files/remote-download', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                current_path: fileCurrentPath.value,
+                                url: remoteDownloadUrl.value.trim(),
+                                filename: remoteDownloadName.value.trim() || undefined,
+                                target_user: fileTargetUser.value || undefined
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showRemoteDownloadModal.value = false;
+                            remoteDownloadUrl.value = '';
+                            remoteDownloadName.value = '';
+                            fetchFilesList(fileCurrentPath.value);
+                            alert(data.message || 'Tải tệp từ xa thành công!');
+                        } else {
+                            alert('Lỗi tải từ xa: ' + (data.detail || 'Không thể tải'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        downloadingRemote.value = false;
+                    }
+                };
+
+                const downloadSingleFile = async (fileName) => {
+                    const filePath = fileCurrentPath.value ? `${fileCurrentPath.value}/${fileName}` : fileName;
+                    const targetUserParam = fileTargetUser.value ? `&target_user=${encodeURIComponent(fileTargetUser.value)}` : '';
+                    try {
+                        const res = await fetch(`/api/v1/files/download?path=${encodeURIComponent(filePath)}${targetUserParam}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (!res.ok) {
+                            alert('Lỗi tải tệp: Không thể tải xuống');
+                            return;
+                        }
+                        const blob = await res.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = fileName;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        window.URL.revokeObjectURL(url);
+                    } catch (e) {
+                        alert('Lỗi: ' + e.message);
                     }
                 };
 
@@ -3019,6 +3517,7 @@
                 const fetchFilesList = async (subpath = '') => {
                     loadingFiles.value = true;
                     fileCurrentPath.value = subpath;
+                    selectedFileNames.value = [];
                     try {
                         const targetUserParam = fileTargetUser.value ? `&target_user=${encodeURIComponent(fileTargetUser.value)}` : '';
                         const res = await fetch(`/api/v1/files/list?path=${encodeURIComponent(subpath)}${targetUserParam}`, {
@@ -3035,6 +3534,7 @@
                         filesList.value = [];
                     } finally {
                         loadingFiles.value = false;
+                        fetchRecycleBinCount();
                         refreshLucideIcons();
                     }
                 };
@@ -4346,10 +4846,20 @@
                 };
 
                 const openWpInstallModal = (presetDomain = '') => {
+                    if (!installedPhpVersions.value || installedPhpVersions.value.length === 0) {
+                        fetchInstalledPhpList();
+                    }
                     const randomHex = Math.random().toString(16).substring(2, 8);
                     const firstDom = (domains.value && domains.value.length) ? domains.value[0].domain_name : '';
                     const domVal = presetDomain || firstDom || '';
                     const foundDom = domains.value.find(d => d.domain_name === domVal);
+
+                    // Lấy phiên bản PHP đầu tiên đã cài đặt trên server (ưu tiên 8.2 nếu có)
+                    let defaultPhp = 'PHP-82';
+                    if (installedPhpVersions.value && installedPhpVersions.value.length > 0) {
+                        const match82 = installedPhpVersions.value.find(p => p.ver === '8.2');
+                        defaultPhp = 'PHP-' + (match82 ? match82.ver : installedPhpVersions.value[0].ver).replace('.', '');
+                    }
 
                     // Sinh ngẫu nhiên đúng định dạng trong ảnh: 6e#Zxh*b@P@sWff3
                     const strongChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^*';
@@ -4368,7 +4878,7 @@
                         apply_ssl: true,
                         site_title: '',
                         language: 'en_US',
-                        php_version: 'PHP-84',
+                        php_version: defaultPhp,
                         wp_version: '7.1.3',
                         admin_user: randomHex,
                         admin_pass: randPass,
@@ -4379,7 +4889,7 @@
                         db_pass: randDbPass,
                         db_prefix: randTablePrefix,
                         enable_cache: true,
-                        create_html: true,
+                        create_html: false,
                         batch_domains_text: ''
                     };
                     showWpInstallModal.value = true;
@@ -4698,6 +5208,15 @@
                     fetchSystemStatus, restartPanel, refreshLucideIcons,
                     filesList, fileCurrentPath, fileTargetUser, loadingFiles, pathParts,
                     selectedFileNames, isAllFilesSelected, toggleSelectAllFiles,
+                    fileViewMode, fileSearchQuery, fileSearchSubdir, filePageSize, fileCurrentPage, fileGotoInput,
+                    fileSortKey, fileSortOrder, filteredFiles, paginatedFiles, maxFilePages, directoryCount, fileCount,
+                    sortFilesBy, handleFileSearch, calculateFolderSize, calculateTotalDirectorySize, folderSizes, totalCalculatedSize,
+                    handleFileUpload, handleBatchAction, handlePasteClipboard, confirmBatchDelete, handleBatchChmod,
+                    showRecycleBinModal, recycleBinItems, recycleBinCount, loadingRecycleBin, fetchRecycleBinCount, fetchRecycleBinList, openRecycleBinModal, restoreRecycleItem, emptyRecycleBinAction,
+                    showRemoteDownloadModal, remoteDownloadUrl, remoteDownloadName, downloadingRemote, handleRemoteDownload,
+                    showRenameModal, renameOldName, renameNewName, openRenameModal, confirmRename,
+                    showChmodModal, chmodTargetName, chmodMode, openChmodModal, confirmChmod,
+                    showSearchContentModal, clipboardAction, clipboardSrcPath, clipboardItems, downloadSingleFile,
                     showCompressModal, compressArchiveName, compressFormat, compressingFiles,
                     openCompressModal, confirmCompressFiles,
                     showEditFileModal, editingFileName, editingFilePath, editingFileContent, savingFile,
