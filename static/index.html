@@ -397,25 +397,94 @@
             <div class="flex-1 flex flex-col min-w-0 transition-colors duration-200" :class="isDarkMode ? 'bg-[#0c1017]' : 'bg-[#f3f6fa]'">
 
                 <!-- Topbar Header WPCloud Style (Hỗ trợ Dark & Light Mode) -->
-                <header class="h-16 px-6 flex items-center justify-between shrink-0 shadow-sm z-10 transition-colors duration-200"
+                <header class="h-16 px-4 sm:px-6 flex items-center justify-between shrink-0 shadow-sm z-10 transition-colors duration-200"
                     :class="isDarkMode ? 'bg-[#111722] border-b border-[#1e2736]' : 'bg-white border-b border-slate-200/80'">
                     <!-- Left: Hamburger toggle & Rounded Search Input -->
-                    <div class="flex items-center space-x-4 flex-1 max-w-xl">
+                    <div class="flex items-center space-x-3 shrink-0">
                         <button class="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition md:hidden">
                             <i data-lucide="menu" class="w-5 h-5"></i>
                         </button>
-                        <div class="relative w-full max-w-md">
+                        <div class="relative w-36 md:w-44 lg:w-56 hidden sm:block">
                             <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                                 <i data-lucide="search" class="w-4 h-4"></i>
                             </span>
-                            <input type="text" placeholder="Tìm kiếm domain, server, khách hàng..."
-                                class="w-full pl-9 pr-4 py-2 rounded-full text-xs transition shadow-sm focus:outline-none"
+                            <input type="text" placeholder="Tìm kiếm nhanh..."
+                                class="w-full pl-9 pr-4 py-1.5 rounded-full text-xs transition shadow-sm focus:outline-none"
                                 :class="isDarkMode ? 'bg-[#0b1017] border border-[#222d3d] text-slate-200 placeholder-slate-500 focus:border-blue-500 focus:bg-[#111722]' : 'bg-slate-50 border border-slate-200/80 text-slate-700 placeholder-slate-400 focus:border-blue-500 focus:bg-white'">
                         </div>
                     </div>
 
+                    <!-- Center: CỤM WIDGET TÀI NGUYÊN (CPU, RAM, DISK) CHO ADMIN / HOSTING USER / WEB USER -->
+                    <div class="flex items-center space-x-4 sm:space-x-6 md:space-x-7 px-3 sm:px-4 py-1 rounded-2xl transition border cursor-default select-none shadow-sm"
+                         :class="isDarkMode ? 'bg-[#0a0f18]/90 border-slate-800/90 hover:border-slate-700' : 'bg-slate-50 border-slate-200/90 hover:border-slate-300'"
+                         :title="headerResourceStats.roleTitle">
+                        
+                        <!-- 1. CPU Gauge -->
+                        <div class="flex flex-col items-center min-w-[54px] sm:min-w-[62px]">
+                            <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400 dark:text-slate-400 leading-none mb-1">CPU</span>
+                            <div class="relative w-8 h-8 flex items-center justify-center">
+                                <svg class="w-8 h-8 -rotate-90 transform" viewBox="0 0 36 36">
+                                    <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#1d2636]" stroke-width="4.2" />
+                                    <circle cx="18" cy="18" r="15.9155" fill="none"
+                                        class="transition-all duration-700"
+                                        :class="headerResourceStats.cpu.percent >= 85 ? 'stroke-rose-400' : 'stroke-amber-400'"
+                                        stroke-width="4.2" stroke-linecap="round"
+                                        :stroke-dasharray="Math.min(100, Math.max(0, headerResourceStats.cpu.percent)) + ', 100'" />
+                                </svg>
+                                <span class="absolute text-[9px] font-extrabold font-mono leading-none"
+                                    :class="headerResourceStats.cpu.percent >= 85 ? 'text-rose-400' : 'text-amber-400'">
+                                    {{ headerResourceStats.cpu.label }}
+                                </span>
+                            </div>
+                            <span class="text-[9px] font-mono font-semibold text-sky-400 dark:text-sky-300 leading-none mt-1 tracking-tight">
+                                {{ headerResourceStats.cpu.sub }}
+                            </span>
+                        </div>
+
+                        <!-- 2. RAM Gauge -->
+                        <div class="flex flex-col items-center min-w-[58px] sm:min-w-[66px]">
+                            <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400 dark:text-slate-400 leading-none mb-1">RAM</span>
+                            <div class="relative w-8 h-8 flex items-center justify-center">
+                                <svg class="w-8 h-8 -rotate-90 transform" viewBox="0 0 36 36">
+                                    <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#1d2636]" stroke-width="4.2" />
+                                    <circle cx="18" cy="18" r="15.9155" fill="none"
+                                        class="stroke-violet-400 transition-all duration-700"
+                                        stroke-width="4.2" stroke-linecap="round"
+                                        :stroke-dasharray="Math.min(100, Math.max(0, headerResourceStats.ram.percent)) + ', 100'" />
+                                </svg>
+                                <span class="absolute text-[9px] font-extrabold font-mono leading-none text-violet-400">
+                                    {{ headerResourceStats.ram.label }}
+                                </span>
+                            </div>
+                            <span class="text-[9px] font-mono font-semibold text-sky-400 dark:text-sky-300 leading-none mt-1 tracking-tight">
+                                {{ headerResourceStats.ram.sub }}
+                            </span>
+                        </div>
+
+                        <!-- 3. Disk Gauge -->
+                        <div class="flex flex-col items-center min-w-[54px] sm:min-w-[62px]">
+                            <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400 dark:text-slate-400 leading-none mb-1">Disk</span>
+                            <div class="relative w-8 h-8 flex items-center justify-center">
+                                <svg class="w-8 h-8 -rotate-90 transform" viewBox="0 0 36 36">
+                                    <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#1d2636]" stroke-width="4.2" />
+                                    <circle cx="18" cy="18" r="15.9155" fill="none"
+                                        class="stroke-emerald-400 transition-all duration-700"
+                                        stroke-width="4.2" stroke-linecap="round"
+                                        :stroke-dasharray="Math.min(100, Math.max(0, headerResourceStats.disk.percent)) + ', 100'" />
+                                </svg>
+                                <span class="absolute text-[9px] font-extrabold font-mono leading-none text-emerald-400">
+                                    {{ headerResourceStats.disk.label }}
+                                </span>
+                            </div>
+                            <span class="text-[9px] font-mono font-semibold text-sky-400 dark:text-sky-300 leading-none mt-1 tracking-tight">
+                                {{ headerResourceStats.disk.sub }}
+                            </span>
+                        </div>
+
+                    </div>
+
                     <!-- Right Controls (Notification Bell, Theme Switcher, Avatar & Username) -->
-                    <div class="flex items-center space-x-3 sm:space-x-4">
+                    <div class="flex items-center space-x-2 sm:space-x-3 shrink-0">
                         <!-- Tasks Box Button (Chuông thông báo) -->
                         <button @click="openMessageBox('tasks')" title="Tiến trình đang chạy & Thông báo"
                             class="relative p-2 rounded-full transition"
@@ -1303,6 +1372,84 @@
                         database: { all: 1 },
                         security: { risk_count: 0, status: 'Protected', last_scan: '2026/10/15 21:09:23' }
                     }
+                });
+
+                // Thống kê tài nguyên CPU / RAM / Disk hiển thị trên Header (cho Admin, Hosting User, Web User)
+                const headerResourceStats = computed(() => {
+                    // 1. Đối với Hosting User hoặc Web User (Scope User)
+                    if (sysStats.value?.is_user_scope || isHostingUser.value || isWebUser.value) {
+                        const dom = (domains.value && domains.value.length > 0) ? domains.value[0] : null;
+
+                        // CPU
+                        const cpuCur = Number(sysStats.value?.user_cpu?.current_pct ?? (dom?.cpu_usage_pct || 0)) || 0;
+                        const cpuLimit = Number(sysStats.value?.user_cpu?.limit_pct ?? (currentUser.value?.cpu_pct || dom?.cpu_pct || 100)) || 100;
+                        const cpuPctRatio = cpuLimit > 0 ? Math.min(100, Math.max(0, Math.round((cpuCur / cpuLimit) * 100))) : 0;
+
+                        // RAM
+                        const ramUsedMb = Number(sysStats.value?.user_ram?.used_mb ?? (dom?.mem_usage_mb || 0)) || 0;
+                        const ramTotalMb = Number(sysStats.value?.user_ram?.total_mb ?? (currentUser.value?.mem_mb || dom?.mem_mb || 1024)) || 1024;
+                        const ramPctRatio = ramTotalMb > 0 ? Math.min(100, Math.max(0, Math.round((ramUsedMb / ramTotalMb) * 100))) : 0;
+
+                        // Disk
+                        const diskUsedMb = Number(sysStats.value?.user_disk?.used_mb ?? (dom?.disk_usage_mb || 0)) || 0;
+                        const diskTotalMb = Number(sysStats.value?.user_disk?.total_mb ?? (currentUser.value?.disk_mb || dom?.disk_mb || 5120)) || 5120;
+                        const diskPctRatio = diskTotalMb > 0 ? Math.min(100, Math.max(0, Math.round((diskUsedMb / diskTotalMb) * 100))) : 0;
+
+                        const roleName = isWebUser.value ? 'Web User' : 'Hosting User';
+                        return {
+                            scope: isWebUser.value ? 'web' : 'user',
+                            roleTitle: `Tài nguyên ${roleName} (${currentUser.value?.username || ''})\nCPU: ${cpuCur.toFixed(0)}/${cpuLimit}% (${cpuPctRatio}%)\nRAM: ${Math.round(ramUsedMb)}M/${Math.round(ramTotalMb)}M (${ramPctRatio}%)\nDisk: ${(diskUsedMb/1024).toFixed(1)}G/${(diskTotalMb/1024).toFixed(0)}G (${diskPctRatio}%)`,
+                            cpu: {
+                                percent: cpuPctRatio,
+                                label: `${cpuPctRatio}%`,
+                                sub: `${Math.round(cpuCur)}/${cpuLimit}%`
+                            },
+                            ram: {
+                                percent: ramPctRatio,
+                                label: `${ramPctRatio}%`,
+                                sub: `${Math.round(ramUsedMb)}M/${Math.round(ramTotalMb)}M`
+                            },
+                            disk: {
+                                percent: diskPctRatio,
+                                label: `${diskPctRatio}%`,
+                                sub: `${(diskUsedMb/1024).toFixed(1)}G/${(diskTotalMb/1024).toFixed(0)}G`
+                            }
+                        };
+                    }
+
+                    // 2. Đối với Quản Trị Viên (Admin - Scope Server VPS)
+                    const cpuCur = Number(sysStats.value?.cpu?.percent ?? 0) || 0;
+                    const cpuCores = Number(sysStats.value?.cpu_cores || 1) || 1;
+                    const cpuMaxPct = cpuCores * 100;
+                    const cpuPct = Math.min(100, Math.max(0, Math.round(cpuCur)));
+
+                    const ramUsedGb = parseFloat(sysStats.value?.ram?.used_gb || 0) || 0;
+                    const ramTotalGb = parseFloat(sysStats.value?.ram?.total_gb || 0) || 1;
+                    const ramPct = Math.min(100, Math.max(0, Math.round(sysStats.value?.ram?.percent || 0)));
+
+                    const diskUsedGb = parseFloat(sysStats.value?.disk?.used_gb || 0) || 0;
+                    const diskTotalGb = parseFloat(sysStats.value?.disk?.total_gb || 0) || 1;
+                    const diskPct = Math.min(100, Math.max(0, Math.round(sysStats.value?.disk?.percent || 0)));
+
+                    return {
+                        scope: 'admin',
+                        roleTitle: `Tài nguyên Server VPS (Admin)\nCPU: ${cpuCur.toFixed(1)}% (${cpuCores} Cores)\nRAM: ${ramUsedGb.toFixed(1)}G/${ramTotalGb.toFixed(0)}G (${ramPct}%)\nDisk: ${diskUsedGb.toFixed(1)}G/${diskTotalGb.toFixed(0)}G (${diskPct}%)`,
+                        cpu: {
+                            percent: cpuPct,
+                            label: `${cpuPct}%`,
+                            sub: `${Math.round(cpuCur)}/${cpuMaxPct}%`
+                        },
+                        ram: {
+                            percent: ramPct,
+                            label: `${ramPct}%`,
+                            sub: `${ramUsedGb.toFixed(1)}G/${ramTotalGb.toFixed(0)}G`
+                        },
+                        disk: {
+                            percent: diskPct,
+                            label: `${diskPct}%`,
+                            sub: `${diskUsedGb.toFixed(1)}G/${diskTotalGb.toFixed(0)}G`
+                        }
+                    };
                 });
 
                 // Mảng điểm dữ liệu cho biểu đồ Realtime Traffic Spline
@@ -3735,9 +3882,8 @@
                     // Tự động làm mới số liệu và kiểm tra task chạy ngầm mỗi 3 giây
                     timer = setInterval(() => {
                         if (token.value) {
-                            if (currentTab.value === 'dashboard') {
-                                fetchSystemStatus();
-                            } else if (currentTab.value === 'domains') {
+                            fetchSystemStatus(); // Cập nhật live tài nguyên CPU, RAM, Disk trên Header
+                            if (currentTab.value === 'domains') {
                                 fetchDomains();
                             }
                             fetchTasks();
@@ -3767,7 +3913,7 @@
                     selectedTaskId, selectedTaskLog, fetchTasks, viewTaskLog,
                     refreshSelectedLog, openMessageBox, currentFormattedDate,
                     loginForm, loginError, loggingIn, newDomain, tabTitle, activeSystemWebserver,
-                    sysStats, trafficHistory, timeLabels, downstreamCurvePath,
+                    sysStats, headerResourceStats, trafficHistory, timeLabels, downstreamCurvePath,
                     upstreamCurvePath, downstreamAreaPath, upstreamAreaPath,
                     appsList, appsCategory, installingAppId, installedAppsCount, filteredApps,
                     getApp, fetchAppsList, handleAppAction, openPhpMyAdmin, appVersions,
