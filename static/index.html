@@ -4148,6 +4148,114 @@
                     redisStats.value.memory_used = '1.2 MB';
                 };
 
+                // ==========================================
+                // REDIS / VALKEY OBJECT CACHE SOCKET PER USER (WEBSITE USER)
+                // ==========================================
+                const userRedis = ref({
+                    installed: true,
+                    running: false,
+                    engine: 'valkey',
+                    socket_path: '',
+                    memory_used: '0 B',
+                    memory_peak: '0 B',
+                    maxmemory_mb: 64,
+                    total_keys: 0,
+                    hit_rate: '100%',
+                    clients: 0,
+                    uptime: '0s',
+                    loading: false
+                });
+                const selectedDomainForRedis = ref('');
+                const applyingRedisWp = ref(false);
+
+                const fetchUserRedisStatus = async () => {
+                    if (!token.value) return;
+                    try {
+                        const res = await fetch('/api/v1/databases/redis-user/status', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            userRedis.value = { ...userRedis.value, ...data, loading: false };
+                            if (domains.value && domains.value.length && !selectedDomainForRedis.value) {
+                                selectedDomainForRedis.value = domains.value[0].domain_name;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải trạng thái Redis User Socket:', e);
+                    }
+                };
+
+                const handleUserRedisAction = async (action) => {
+                    userRedis.value.loading = true;
+                    try {
+                        const res = await fetch('/api/v1/databases/redis-user/action', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                action,
+                                maxmemory_mb: userRedis.value.maxmemory_mb
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Thao tác thành công!');
+                            fetchUserRedisStatus();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể thực hiện'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        userRedis.value.loading = false;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const handleUserRedisMemory = async (memMb) => {
+                    try {
+                        const res = await fetch('/api/v1/databases/redis-user/memory', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ maxmemory_mb: memMb })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            fetchUserRedisStatus();
+                        }
+                    } catch (e) {}
+                };
+
+                const handleUserRedisApplyWp = async (domainName) => {
+                    applyingRedisWp.value = true;
+                    try {
+                        const res = await fetch('/api/v1/databases/redis-user/apply-wp', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ domain_name: domainName || undefined })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Đã cấu hình Redis Socket vào wp-config.php thành công!');
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể cấu hình'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        applyingRedisWp.value = false;
+                    }
+                };
+
                 const panelVersion = ref('0.5.74');
                 const showUpdateModal = ref(false);
                 const isUpdating = ref(false);
@@ -5125,6 +5233,13 @@
                     refreshLucideIcons();
                 });
 
+                watch(dbTypeTab, (newTab) => {
+                    if (newTab === 'redis' && (isWebUser.value || currentUser.value?.role === 'user')) {
+                        fetchUserRedisStatus();
+                    }
+                    refreshLucideIcons();
+                });
+
                 const onHashChange = () => {
                     const newTab = getTabFromHash();
                     if (currentTab.value !== newTab) {
@@ -5153,6 +5268,9 @@
                         fetchDatabasesList();
                         fetchInstalledPhpList();
                         fetchWpInstances();
+                        if (isWebUser.value || currentUser.value?.role === 'user') {
+                            fetchUserRedisStatus();
+                        }
                         if (currentUser.value?.role === 'admin') {
                             fetchPanelVersion();
                         }
@@ -5250,6 +5368,7 @@
                     showRootPasswordModal, updatingRootPassword, rootPasswordForm, handleUpdateRootPassword,
                     showRemoteDbModal, savingRemoteDb, remoteDbForm, handleSaveRemoteAccess,
                     showAdvDbModal, advDbForm, showGetDbModal, getDbForm, redisStats, handleFlushRedis,
+                    userRedis, selectedDomainForRedis, applyingRedisWp, fetchUserRedisStatus, handleUserRedisAction, handleUserRedisMemory, handleUserRedisApplyWp,
                     generateRandomPassword, copyToClipboard,
                     dbStoreApps, getCurrentDbApp, getCurrentDbPortAndStatus,
                     openPgAdmin, openMongoExpress, openRedisCommander,

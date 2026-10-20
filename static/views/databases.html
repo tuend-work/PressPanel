@@ -349,56 +349,229 @@
 
                                 <!-- 4. TAB REDIS (In-Memory Object Cache) -->
                                 <div v-if="dbTypeTab === 'redis'" class="space-y-4">
-                                    <!-- Service Controller Widget -->
-                                    <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                                        <div class="flex items-center space-x-3">
-                                            <div class="w-10 h-10 rounded-xl bg-rose-950/80 border border-rose-800/80 text-rose-400 flex items-center justify-center text-xl font-bold">
-                                                🔴
+                                    
+                                    <!-- ======================================================== -->
+                                    <!-- A. DÀNH CHO WEBSITE USER: REDIS / VALKEY SOCKET PER USER -->
+                                    <!-- ======================================================== -->
+                                    <template v-if="isWebUser || currentUser.role === 'user'">
+                                        <!-- Header & Controller Widget cho Website User -->
+                                        <div class="p-5 rounded-2xl bg-[#18181b] border border-[#27272a] shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-xs">
+                                            <div class="flex items-start sm:items-center space-x-3.5">
+                                                <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500/20 to-orange-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center text-2xl font-bold shadow-inner shrink-0">
+                                                    🔴
+                                                </div>
+                                                <div>
+                                                    <div class="flex items-center gap-2.5 flex-wrap">
+                                                        <h3 class="font-bold text-white text-base">Redis / Valkey Socket Per User</h3>
+                                                        <span :class="userRedis.running ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-zinc-800 text-zinc-400 border-zinc-700'"
+                                                              class="px-2.5 py-0.5 rounded-full border text-[11px] font-semibold flex items-center gap-1.5 font-mono">
+                                                            <span class="w-2 h-2 rounded-full" :class="userRedis.running ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-500'"></span>
+                                                            {{ userRedis.running ? 'Running (Đang Chạy)' : 'Stopped (Đang Tắt)' }}
+                                                        </span>
+                                                        <span class="px-2 py-0.5 rounded bg-zinc-800/80 text-zinc-400 border border-zinc-700/60 text-[10px] uppercase font-mono tracking-wider">
+                                                            Engine: {{ userRedis.engine || 'valkey' }}
+                                                        </span>
+                                                    </div>
+                                                    <div class="text-zinc-400 text-xs mt-1">
+                                                        <span v-if="userRedis.running">
+                                                            Unix Socket: <code class="text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded font-mono border border-emerald-900/60">{{ userRedis.socket_path || ('/home/' + currentUser.username + '/.redis/redis.sock') }}</code>
+                                                        </span>
+                                                        <span v-else>
+                                                            Socket riêng biệt cách ly 100% RAM cho tài khoản của bạn, tăng tốc WordPress vượt trội và bảo mật tuyệt đối.
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <div class="font-bold text-white text-sm">Redis In-Memory Object Cache</div>
-                                                <div class="text-slate-400 text-xs">Dịch vụ: redis-server.service • Port 6379 • Tối ưu WordPress Object Cache</div>
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center space-x-2">
-                                            <button @click="handleFlushRedis" class="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-sm transition">
-                                                ⚡ Xóa Cache (FLUSHALL)
-                                            </button>
-                                            <button @click="openRedisCommander" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 font-semibold">
-                                                🔴 Redis Manager
-                                            </button>
-                                            <button @click="handleAppAction('redis', 'restart')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">Khởi động lại</button>
-                                            <button @click="handleAppAction('redis', getApp('redis').running ? 'stop' : 'start')"
-                                                :class="getApp('redis').running ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-emerald-950 text-emerald-300 border-emerald-800'"
-                                                class="px-3 py-1.5 rounded-xl border font-semibold">
-                                                {{ getApp('redis').running ? 'Dừng' : 'Bật' }}
-                                            </button>
-                                        </div>
-                                    </div>
 
-                                    <!-- Realtime Redis Metric Cards -->
-                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                        <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-200">
-                                            <div class="text-xs text-rose-400 font-semibold">Bộ Nhớ RAM Đang Dùng</div>
-                                            <div class="text-2xl font-black font-mono text-rose-500 mt-1">{{ redisStats.memory_used }}</div>
-                                            <div class="text-[11px] text-slate-500 mt-0.5">Peak: {{ redisStats.memory_peak }}</div>
+                                            <!-- Các nút hành động bên phải -->
+                                            <div class="flex items-center flex-wrap gap-2 w-full md:w-auto justify-end">
+                                                <!-- Dropdown chọn dung lượng RAM -->
+                                                <div class="flex items-center gap-1.5 bg-[#202126] px-2.5 py-1.5 rounded-xl border border-[#33353a]">
+                                                    <span class="text-zinc-400 text-[11px]">RAM:</span>
+                                                    <select v-model.number="userRedis.maxmemory_mb" @change="handleUserRedisMemory(userRedis.maxmemory_mb)" 
+                                                            :disabled="userRedis.loading"
+                                                            class="bg-transparent text-emerald-400 font-bold focus:outline-none cursor-pointer text-xs">
+                                                        <option :value="32" class="bg-zinc-900 text-white">32 MB</option>
+                                                        <option :value="64" class="bg-zinc-900 text-white">64 MB (Chuẩn)</option>
+                                                        <option :value="128" class="bg-zinc-900 text-white">128 MB (Khuyên dùng)</option>
+                                                        <option :value="256" class="bg-zinc-900 text-white">256 MB (Website lớn)</option>
+                                                        <option :value="512" class="bg-zinc-900 text-white">512 MB (Cực mạnh)</option>
+                                                    </select>
+                                                </div>
+
+                                                <!-- Nút Bật / Dừng -->
+                                                <button v-if="!userRedis.running" @click="handleUserRedisAction('start')" :disabled="userRedis.loading"
+                                                        class="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/40 flex items-center gap-1.5 transition disabled:opacity-50">
+                                                    <i v-if="userRedis.loading" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
+                                                    <span>⚡ Bật Socket Riêng</span>
+                                                </button>
+                                                <template v-else>
+                                                    <button @click="handleUserRedisAction('flush')" :disabled="userRedis.loading"
+                                                            class="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5"
+                                                            title="Xóa sạch cache trong socket riêng của bạn">
+                                                        <span>🧹 Xóa Cache (FLUSHDB)</span>
+                                                    </button>
+                                                    <button @click="handleUserRedisAction('restart')" :disabled="userRedis.loading"
+                                                            class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 font-medium text-xs transition">
+                                                        Khởi động lại
+                                                    </button>
+                                                    <button @click="handleUserRedisAction('stop')" :disabled="userRedis.loading"
+                                                            class="px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/80 font-semibold text-xs transition">
+                                                        Dừng Socket
+                                                    </button>
+                                                </template>
+                                            </div>
                                         </div>
-                                        <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-200">
-                                            <div class="text-xs text-blue-400 font-semibold">Tổng Keys Lưu Trữ</div>
-                                            <div class="text-2xl font-black font-mono text-blue-400 mt-1">{{ redisStats.total_keys }}</div>
-                                            <div class="text-[11px] text-slate-500 mt-0.5">DB 0: Active Cache</div>
+
+                                        <!-- Realtime Metrics của Socket User -->
+                                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                            <div class="p-4 rounded-xl bg-[#18181b] border border-[#27272a] shadow-lg">
+                                                <div class="text-[11px] text-rose-400 font-semibold uppercase tracking-wider">RAM Đang Dùng</div>
+                                                <div class="text-2xl font-black font-mono text-rose-500 mt-1">{{ userRedis.memory_used || '0 B' }}</div>
+                                                <div class="text-[11px] text-zinc-500 mt-0.5">Giới hạn: {{ userRedis.maxmemory_mb || 64 }} MB</div>
+                                            </div>
+                                            <div class="p-4 rounded-xl bg-[#18181b] border border-[#27272a] shadow-lg">
+                                                <div class="text-[11px] text-blue-400 font-semibold uppercase tracking-wider">Tổng Keys Cache</div>
+                                                <div class="text-2xl font-black font-mono text-blue-400 mt-1">{{ userRedis.total_keys || 0 }}</div>
+                                                <div class="text-[11px] text-zinc-500 mt-0.5">DB 0: Isolated Cache</div>
+                                            </div>
+                                            <div class="p-4 rounded-xl bg-[#18181b] border border-[#27272a] shadow-lg">
+                                                <div class="text-[11px] text-emerald-400 font-semibold uppercase tracking-wider">Tỷ Lệ Trúng (Hit Rate)</div>
+                                                <div class="text-2xl font-black font-mono text-emerald-400 mt-1">{{ userRedis.hit_rate || '100%' }}</div>
+                                                <div class="text-[11px] text-zinc-500 mt-0.5">Unix Socket Không Độ Trễ</div>
+                                            </div>
+                                            <div class="p-4 rounded-xl bg-[#18181b] border border-[#27272a] shadow-lg">
+                                                <div class="text-[11px] text-amber-400 font-semibold uppercase tracking-wider">Uptime & Kết Nối</div>
+                                                <div class="text-2xl font-black font-mono text-zinc-200 mt-1">{{ userRedis.uptime || '0s' }}</div>
+                                                <div class="text-[11px] text-zinc-500 mt-0.5">{{ userRedis.clients || 0 }} clients kết nối</div>
+                                            </div>
                                         </div>
-                                        <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-200">
-                                            <div class="text-xs text-emerald-400 font-semibold">Tỷ Lệ Trúng Cache (Hit Rate)</div>
-                                            <div class="text-2xl font-black font-mono text-emerald-400 mt-1">{{ redisStats.hit_rate }}</div>
-                                            <div class="text-[11px] text-slate-500 mt-0.5">Tối ưu tốc độ tối đa</div>
+
+                                        <!-- Hướng dẫn & 1-Click tích hợp vào WordPress -->
+                                        <div class="p-5 rounded-2xl bg-[#18181b] border border-[#27272a] shadow-xl space-y-4">
+                                            <div class="flex items-center justify-between border-b border-[#27272a] pb-3">
+                                                <div>
+                                                    <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                                                        <span>🔌</span> <span>Kết Nối WordPress Qua Unix Socket (Cực Nhanh & An Toàn 100%)</span>
+                                                    </h4>
+                                                    <p class="text-[11px] text-zinc-400 mt-0.5">
+                                                        Unix Socket chạy thẳng trong kernel bộ nhớ RAM mà không cần mở Port TCP, miễn nhiễm hoàn toàn với nguy cơ bị website khác xem trộm cache.
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
+                                                <!-- Cấu hình Socket Path -->
+                                                <div class="p-3.5 rounded-xl bg-[#202126] border border-[#33353a] space-y-2">
+                                                    <div class="flex items-center justify-between text-zinc-400">
+                                                        <span>Đường dẫn Socket UNIX:</span>
+                                                        <button @click="copyToClipboard(userRedis.socket_path || ('/home/' + currentUser.username + '/.redis/redis.sock'))" 
+                                                                class="text-emerald-400 hover:text-emerald-300 hover:underline text-[11px] flex items-center gap-1">
+                                                            <span>📋 Copy</span>
+                                                        </button>
+                                                    </div>
+                                                    <input type="text" readonly :value="userRedis.socket_path || ('/home/' + currentUser.username + '/.redis/redis.sock')" 
+                                                           class="w-full px-3 py-1.5 rounded-lg bg-zinc-900 border border-[#33353a] text-emerald-400 text-xs font-mono select-all">
+                                                    <div class="text-[11px] text-zinc-400 font-sans">
+                                                        • Dùng cho plugin: <strong>LiteSpeed Cache</strong> (Method: Redis, Host: đường dẫn trên, Port: 0).
+                                                    </div>
+                                                </div>
+
+                                                <!-- Code wp-config.php -->
+                                                <div class="p-3.5 rounded-xl bg-[#202126] border border-[#33353a] space-y-2">
+                                                    <div class="flex items-center justify-between text-zinc-400">
+                                                        <span>Code chèn wp-config.php (Redis Object Cache):</span>
+                                                        <button @click="copyToClipboard('define( \'WP_REDIS_SCHEME\', \'unix\' );\ndefine( \'WP_REDIS_PATH\', \'' + (userRedis.socket_path || ('/home/' + currentUser.username + '/.redis/redis.sock')) + '\' );')" 
+                                                                class="text-emerald-400 hover:text-emerald-300 hover:underline text-[11px] flex items-center gap-1">
+                                                            <span>📋 Copy Code</span>
+                                                        </button>
+                                                    </div>
+                                                    <pre class="w-full p-2.5 rounded-lg bg-zinc-900 border border-[#33353a] text-cyan-300 text-[11px] font-mono overflow-x-auto select-all">define( 'WP_REDIS_SCHEME', 'unix' );
+define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.username + '/.redis/redis.sock') }}' );</pre>
+                                                </div>
+                                            </div>
+
+                                            <!-- 1-Click Tự Động Kích Hoạt -->
+                                            <div class="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 to-teal-950/30 border border-emerald-800/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-sans">
+                                                <div>
+                                                    <div class="font-bold text-white text-xs flex items-center gap-1.5">
+                                                        <span class="text-emerald-400">⚡</span> <span>Tự Động Kích Hoạt Vào Website WordPress (1-Click)</span>
+                                                    </div>
+                                                    <div class="text-[11px] text-zinc-300 mt-0.5">
+                                                        Hệ thống sẽ tự động chèn định nghĩa Socket vào file <code>wp-config.php</code> của website mà bạn không cần mở file editor.
+                                                    </div>
+                                                </div>
+                                                <div class="flex items-center gap-2 shrink-0">
+                                                    <select v-if="domains && domains.length > 1" v-model="selectedDomainForRedis" 
+                                                            class="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-xs">
+                                                        <option v-for="d in domains" :key="d.id" :value="d.domain_name">{{ d.domain_name }}</option>
+                                                    </select>
+                                                    <button type="button" @click="handleUserRedisApplyWp(selectedDomainForRedis || (domains && domains.length ? domains[0].domain_name : ''))" 
+                                                            :disabled="applyingRedisWp"
+                                                            class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/40 flex items-center gap-1.5 transition">
+                                                        <i v-if="applyingRedisWp" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
+                                                        <span>{{ applyingRedisWp ? 'Đang áp dụng...' : 'Áp Dụng Ngay' }}</span>
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-200">
-                                            <div class="text-xs text-slate-400 font-semibold">Clients Kết Nối</div>
-                                            <div class="text-2xl font-black font-mono text-slate-200 mt-1">{{ redisStats.clients }}</div>
-                                            <div class="text-[11px] text-slate-500 mt-0.5">Uptime: {{ redisStats.uptime }}</div>
+                                    </template>
+
+                                    <!-- ======================================================== -->
+                                    <!-- B. DÀNH CHO QUẢN TRỊ VIÊN ADMIN (SYSTEM-WIDE REDIS)      -->
+                                    <!-- ======================================================== -->
+                                    <template v-else>
+                                        <!-- Service Controller Widget cho Admin -->
+                                        <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-10 h-10 rounded-xl bg-rose-950/80 border border-rose-800/80 text-rose-400 flex items-center justify-center text-xl font-bold">
+                                                    🔴
+                                                </div>
+                                                <div>
+                                                    <div class="font-bold text-white text-sm">Redis In-Memory Object Cache (System Service)</div>
+                                                    <div class="text-slate-400 text-xs">Dịch vụ: redis-server.service • Port 6379 • Dành cho toàn bộ máy chủ</div>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center space-x-2">
+                                                <button @click="handleFlushRedis" class="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-sm transition">
+                                                    ⚡ Xóa Cache (FLUSHALL)
+                                                </button>
+                                                <button @click="openRedisCommander" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 font-semibold">
+                                                    🔴 Redis Manager
+                                                </button>
+                                                <button @click="handleAppAction('redis', 'restart')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">Khởi động lại</button>
+                                                <button @click="handleAppAction('redis', getApp('redis').running ? 'stop' : 'start')"
+                                                    :class="getApp('redis').running ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-emerald-950 text-emerald-300 border-emerald-800'"
+                                                    class="px-3 py-1.5 rounded-xl border font-semibold">
+                                                    {{ getApp('redis').running ? 'Dừng' : 'Bật' }}
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
+
+                                        <!-- Realtime Redis Metric Cards cho Admin -->
+                                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-200">
+                                                <div class="text-xs text-rose-400 font-semibold">Bộ Nhớ RAM Đang Dùng</div>
+                                                <div class="text-2xl font-black font-mono text-rose-500 mt-1">{{ redisStats.memory_used }}</div>
+                                                <div class="text-[11px] text-slate-500 mt-0.5">Peak: {{ redisStats.memory_peak }}</div>
+                                            </div>
+                                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-200">
+                                                <div class="text-xs text-blue-400 font-semibold">Tổng Keys Lưu Trữ</div>
+                                                <div class="text-2xl font-black font-mono text-blue-400 mt-1">{{ redisStats.total_keys }}</div>
+                                                <div class="text-[11px] text-slate-500 mt-0.5">DB 0: Active Cache</div>
+                                            </div>
+                                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-200">
+                                                <div class="text-xs text-emerald-400 font-semibold">Tỷ Lệ Trúng Cache (Hit Rate)</div>
+                                                <div class="text-2xl font-black font-mono text-emerald-400 mt-1">{{ redisStats.hit_rate }}</div>
+                                                <div class="text-[11px] text-slate-500 mt-0.5">Tối ưu tốc độ tối đa</div>
+                                            </div>
+                                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-200">
+                                                <div class="text-xs text-slate-400 font-semibold">Clients Kết Nối</div>
+                                                <div class="text-2xl font-black font-mono text-slate-200 mt-1">{{ redisStats.clients }}</div>
+                                                <div class="text-[11px] text-slate-500 mt-0.5">Uptime: {{ redisStats.uptime }}</div>
+                                            </div>
+                                        </div>
+                                    </template>
                                 </div>
 
                                 <!-- 5. TAB POSTGRESQL (PGSQL) -->

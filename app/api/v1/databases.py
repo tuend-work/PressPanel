@@ -1,6 +1,8 @@
 import os
 import subprocess
 import shutil
+import json
+import re
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -30,6 +32,19 @@ class RemoteAccessRequest(BaseModel):
 
 class AutoBackupRequest(BaseModel):
     enabled: bool
+
+class RedisUserActionRequest(BaseModel):
+    action: str  # "start" | "stop" | "restart" | "flush"
+    maxmemory_mb: Optional[int] = 64
+    target_user: Optional[str] = None
+
+class RedisUserMemoryRequest(BaseModel):
+    maxmemory_mb: int = 64
+    target_user: Optional[str] = None
+
+class RedisUserApplyWpRequest(BaseModel):
+    domain_name: Optional[str] = None
+    target_user: Optional[str] = None
 
 @router.get("/")
 async def list_databases(db_type: str = "all", current_user: dict = Depends(get_current_user)):
@@ -336,3 +351,212 @@ async def toggle_remote_access(req: RemoteAccessRequest, current_user: dict = De
         "status": "ok",
         "message": f"Đã {'cho phép' if req.enabled else 'chặn'} kết nối CSDL từ xa thành công (Bind IP: {'0.0.0.0' if req.enabled else '127.0.0.1'})."
     }
+
+# ==============================================================================
+# REDIS / VALKEY OBJECT CACHE SOCKET PER USER
+# Dành riêng cho tài khoản Website User có thể tự do bật/tắt socket riêng biệt
+# ==============================================================================
+
+def get_redis_user_script_path() -> str:
+    path = "/opt/wpc/scripts/redis_user_manager.sh"
+    if os.path.exists(path):
+        return path
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    local_path = os.path.join(base_dir, "scripts", "redis_user_manager.sh")
+    return local_path
+
+@router.get("/redis-user/status")
+async def get_user_redis_status(
+    target_user: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Lấy thông tin trạng thái Redis / Valkey Object Cache Socket riêng của Website User.
+    Đường dẫn socket: /home/{user}/.redis/redis.sock
+    """
+    username = target_user if (current_user["role"] == "admin" and target_user) else current_user["username"]
+    
+    if os.name != "nt":
+        script = get_redis_user_script_path()
+        if os.path.exists(script):
+            try:
+                proc = subprocess.run(
+                    ["sudo", "bash", script, "status", username],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5
+                )
+                if proc.returncode == 0 and proc.stdout.strip():
+                    return json.loads(proc.stdout)
+            except Exception:
+                pass
+
+    # Fallback cho môi trường Windows Dev hoặc khi daemon chưa chạy
+    sock_path = f"/home/{username}/.redis/redis.sock"
+    return {
+        "status": "ok",
+        "engine": "valkey",
+        "installed": True,
+        "running": False,
+        "pid": 0,
+        "user": username,
+        "socket_path": sock_path,
+        "memory_used": "0 B",
+        "memory_peak": "0 B",
+        "maxmemory_mb": 64,
+        "total_keys": 0,
+        "hit_rate": "100%",
+        "clients": 0,
+        "uptime": "0s"
+    }
+
+@router.post("/redis-user/action")
+async def user_redis_action(
+    req: RedisUserActionRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Bật (start), Dừng (stop), Khởi động lại (restart) hoặc Xóa Cache (flush) socket Redis riêng của Website User.
+    """
+    username = req.target_user if (current_user["role"] == "admin" and req.target_user) else current_user["username"]
+    action = req.action.lower()
+    if action not in ["start", "stop", "restart", "flush"]:
+        raise HTTPException(status_code=400, detail="Hành động không hợp lệ.")
+
+    if os.name != "nt":
+        script = get_redis_user_script_path()
+        if not os.path.exists(script):
+            raise HTTPException(status_code=500, detail="Không tìm thấy script redis_user_manager.sh trên máy chủ.")
+
+        try:
+            proc = subprocess.run(
+                ["sudo", "bash", script, action, username, str(req.maxmemory_mb or 64)],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=12
+            )
+            out = proc.stdout.strip()
+            try:
+                res_data = json.loads(out)
+                if res_data.get("status") == "error":
+                    raise HTTPException(status_code=500, detail=res_data.get("message", "Lỗi thao tác socket Redis"))
+                return res_data
+            except json.JSONDecodeError:
+                if proc.returncode != 0:
+                    raise HTTPException(status_code=500, detail=proc.stderr.strip() or "Lỗi thực thi script quản lý socket")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Lỗi: {str(e)}")
+
+    action_texts = {
+        "start": "Bật Socket Redis riêng thành công!",
+        "stop": "Đã dừng Socket Redis của bạn.",
+        "restart": "Khởi động lại Socket Redis thành công!",
+        "flush": "Đã xóa sạch toàn bộ Object Cache trong socket của bạn."
+    }
+    return {
+        "status": "ok",
+        "message": action_texts.get(action, "Thao tác thành công!"),
+        "socket_path": f"/home/{username}/.redis/redis.sock",
+        "running": action != "stop"
+    }
+
+@router.post("/redis-user/memory")
+async def user_redis_set_memory(
+    req: RedisUserMemoryRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Thay đổi hạn mức RAM tối đa cho socket Redis của Website User (ví dụ 32MB, 64MB, 128MB, 256MB)"""
+    username = req.target_user if (current_user["role"] == "admin" and req.target_user) else current_user["username"]
+    mem = max(16, min(2048, req.maxmemory_mb))
+
+    if os.name != "nt":
+        script = get_redis_user_script_path()
+        if os.path.exists(script):
+            try:
+                subprocess.run(["sudo", "bash", script, "set-memory", username, str(mem)], timeout=5)
+            except Exception:
+                pass
+
+    return {
+        "status": "ok",
+        "message": f"Đã cập nhật dung lượng RAM tối đa cho Socket thành {mem}MB!",
+        "maxmemory_mb": mem
+    }
+
+@router.post("/redis-user/apply-wp")
+async def user_redis_apply_wp(
+    req: RedisUserApplyWpRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Tự động áp dụng cấu hình Redis Socket vào wp-config.php của website WordPress.
+    """
+    username = req.target_user if (current_user["role"] == "admin" and req.target_user) else current_user["username"]
+    sock_path = f"/home/{username}/.redis/redis.sock"
+
+    db = await get_db_connection()
+    if req.domain_name:
+        cur = await db.execute("SELECT id, domain_name, document_root FROM domains WHERE domain_name = ?", (req.domain_name,))
+    else:
+        cur = await db.execute("SELECT id, domain_name, document_root FROM domains WHERE user_id = ? LIMIT 1", (current_user["id"],))
+    dom = await cur.fetchone()
+    await db.close()
+
+    if not dom:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website để cấu hình.")
+
+    docroot = dom["document_root"] or f"/home/{username}/public_html"
+    wp_config = os.path.join(docroot, "wp-config.php")
+
+    if not os.path.exists(wp_config):
+        for cand in [
+            f"/home/{username}/domains/{dom['domain_name']}/public_html/wp-config.php",
+            f"/home/{username}/httpdocs/{dom['domain_name']}/wp-config.php",
+            f"/home/{username}/public_html/wp-config.php"
+        ]:
+            if os.path.exists(cand):
+                wp_config = cand
+                break
+
+    if not os.path.isfile(wp_config):
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy file wp-config.php của website {dom['domain_name']}.")
+
+    try:
+        with open(wp_config, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+
+        redis_snippet = (
+            f"\n// PressPanel Redis Socket Per User\n"
+            f"if ( ! defined( 'WP_REDIS_SCHEME' ) ) {{\n"
+            f"    define( 'WP_REDIS_SCHEME', 'unix' );\n"
+            f"}}\n"
+            f"if ( ! defined( 'WP_REDIS_PATH' ) ) {{\n"
+            f"    define( 'WP_REDIS_PATH', '{sock_path}' );\n"
+            f"}}\n"
+            f"if ( ! defined( 'WP_REDIS_MAXTTL' ) ) {{\n"
+            f"    define( 'WP_REDIS_MAXTTL', 86400 );\n"
+            f"}}\n"
+        )
+
+        if "WP_REDIS_PATH" in content:
+            content = re.sub(
+                r"define\s*\(\s*['\"]WP_REDIS_PATH['\"]\s*,\s*[^)]+\)\s*;",
+                f"define( 'WP_REDIS_PATH', '{sock_path}' );",
+                content
+            )
+        elif "/* That's all, stop editing!" in content:
+            content = content.replace("/* That's all, stop editing!", redis_snippet + "\n/* That's all, stop editing!")
+        elif "require_once ABSPATH . 'wp-settings.php';" in content:
+            content = content.replace("require_once ABSPATH . 'wp-settings.php';", redis_snippet + "\nrequire_once ABSPATH . 'wp-settings.php';")
+        else:
+            content += redis_snippet
+
+        with open(wp_config, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        return {
+            "status": "ok",
+            "message": f"Đã tự động cấu hình Redis Socket vào wp-config.php của website {dom['domain_name']} thành công!",
+            "socket_path": sock_path,
+            "domain_name": dom["domain_name"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật wp-config.php: {str(e)}")
