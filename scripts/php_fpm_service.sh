@@ -3,12 +3,12 @@
 # WPCloud: php_fpm_service.sh - Quản lý Systemd Service độc lập cho từng User
 # Đảm bảo mỗi User / Website sở hữu 1 Service PHP-FPM riêng chạy trong Slice riêng:
 #   - Tự động sinh file cấu hình standalone chứa [global] + [pool]
-#   - Service chạy trực tiếp dưới Slice=wpc.slice (hoặc user slice)
-#   - Mọi tiến trình worker sinh ra (kể cả qua pm.dynamic) tự động 100% thuộc về Cgroup của User
-# Cú pháp: php_fpm_service.sh <create|start|stop|restart|reload|delete> <username> <php_version>
+#   - Service chạy trực tiếp dưới Slice=wpc-user-%i.slice
+#   - Tự động fallback về pool mặc định nếu pool riêng gặp sự cố để chống lỗi 502
+# Cú pháp: php_fpm_service.sh <create|start|stop|restart|reload|delete> <username> <php_version> [hosting_user]
 # ==============================================================================
 
-set -euo pipefail
+set -uo pipefail
 
 ACTION="${1:-help}"
 USERNAME="${2:-}"
@@ -27,14 +27,69 @@ CONF_FILE="$USER_CONF_DIR/${USERNAME}.conf"
 PID_FILE="/run/php/php${PHP_VER}-fpm-${USERNAME}.pid"
 SOCK_FILE="/run/php/php${PHP_VER}-fpm-${USERNAME}.sock"
 
+# Xác định user worker Nginx
+WORKER_USER="www-data"
+if id "nginx" &>/dev/null && ! id "www-data" &>/dev/null; then
+    WORKER_USER="nginx"
+fi
+
 # Đảm bảo thư mục runtime tồn tại
-mkdir -p /run/php /var/run/php
-chown -R www-data:www-data /run/php /var/run/php 2>/dev/null || true
+mkdir -p /run/php /var/run/php /tmp/lshttpd 2>/dev/null || true
+chmod 755 /run/php /var/run/php 2>/dev/null || true
+chmod 1777 /tmp/lshttpd 2>/dev/null || true
+chown -R ${WORKER_USER}:${WORKER_USER} /run/php /var/run/php 2>/dev/null || true
 
 case "$ACTION" in
     create)
-        mkdir -p "$USER_CONF_DIR"
+        mkdir -p "$USER_CONF_DIR" 2>/dev/null || true
         
+        # 0. Kiểm tra binary PHP-FPM có sẵn trên hệ thống hay không
+        FPM_BIN=""
+        if [ -x "/usr/sbin/php-fpm${PHP_VER}" ]; then
+            FPM_BIN="/usr/sbin/php-fpm${PHP_VER}"
+        elif [ -x "/usr/sbin/php-fpm" ]; then
+            FPM_BIN="/usr/sbin/php-fpm"
+        elif [ -x "/usr/bin/php-fpm${PHP_VER}" ]; then
+            FPM_BIN="/usr/bin/php-fpm${PHP_VER}"
+        fi
+
+        # Nếu chưa có php-fpm trên VPS, tự động cài đặt package tương ứng
+        if [ -z "$FPM_BIN" ]; then
+            echo "[!] Không tìm thấy PHP-FPM ${PHP_VER}, tự động cài đặt gói hệ thống..."
+            if command -v apt-get &>/dev/null; then
+                export DEBIAN_FRONTEND=noninteractive
+                apt-get update -y 2>/dev/null || true
+                apt-get install -y "php${PHP_VER}-fpm" "php${PHP_VER}-cli" "php${PHP_VER}-common" "php${PHP_VER}-mysql" "php${PHP_VER}-curl" 2>/dev/null || true
+            elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
+                PKG_MGR="dnf"
+                command -v dnf &>/dev/null || PKG_MGR="yum"
+                PHP_NUM=$(echo "$PHP_VER" | tr -d '.')
+                $PKG_MGR install -y "php${PHP_NUM}-php-fpm" "php-fpm" 2>/dev/null || true
+            fi
+            if [ -x "/usr/sbin/php-fpm${PHP_VER}" ]; then
+                FPM_BIN="/usr/sbin/php-fpm${PHP_VER}"
+            elif [ -x "/usr/sbin/php-fpm" ]; then
+                FPM_BIN="/usr/sbin/php-fpm"
+            fi
+        fi
+
+        # Đảm bảo user và group tồn tại
+        if ! id "$USERNAME" &>/dev/null; then
+            useradd -m -s /bin/bash "$USERNAME" 2>/dev/null || true
+        fi
+        FPM_GRP="$USERNAME"
+        if ! getent group "$USERNAME" &>/dev/null; then
+            groupadd "$USERNAME" 2>/dev/null || true
+            if ! getent group "$USERNAME" &>/dev/null; then
+                FPM_GRP="$WORKER_USER"
+            fi
+        fi
+
+        # Đảm bảo thư mục log, tmp, session của user tồn tại và thuộc quyền sở hữu của user
+        mkdir -p "/home/${USERNAME}/logs" "/home/${USERNAME}/.tmp" "/home/${USERNAME}/.sessions" 2>/dev/null || true
+        chown -R "${USERNAME}:${FPM_GRP}" "/home/${USERNAME}/logs" "/home/${USERNAME}/.tmp" "/home/${USERNAME}/.sessions" 2>/dev/null || true
+        chmod 755 "/home/${USERNAME}/logs" "/home/${USERNAME}/.tmp" "/home/${USERNAME}/.sessions" 2>/dev/null || true
+
         # 1. Sinh file cấu hình standalone hoàn chỉnh (gồm [global] và [pool])
         cat << EOF > "$CONF_FILE"
 [global]
@@ -45,11 +100,11 @@ daemonize = no
 
 [${USERNAME}]
 user = ${USERNAME}
-group = ${USERNAME}
+group = ${FPM_GRP}
 
 listen = $SOCK_FILE
-listen.owner = www-data
-listen.group = www-data
+listen.owner = ${WORKER_USER}
+listen.group = ${WORKER_USER}
 listen.mode = 0666
 
 pm = dynamic
@@ -71,84 +126,61 @@ php_admin_flag[log_errors] = on
 php_admin_value[error_log] = /home/${USERNAME}/logs/php-fpm.error.log
 EOF
 
-        # 2. Xoá file pool cũ trong pool.d để tránh service php-fpm gốc của hệ thống cũng listen cùng socket
+        # 2. Xoá file pool cũ trong pool.d để tránh trùng lặp
         rm -f "$PHP_CONF_DIR/pool.d/${USERNAME}.conf" 2>/dev/null || true
-        # Xóa file socket cũ nếu còn tồn tại
         rm -f "$SOCK_FILE" 2>/dev/null || true
-        # Reload service php-fpm gốc để nhả socket nếu nó đang chiếm giữ
-        systemctl reload "php${PHP_VER}-fpm" 2>/dev/null || true
 
         # 3. Đảm bảo Systemd Template Service tồn tại: /etc/systemd/system/wpc-php${PHP_VER}-fpm@.service
+        ACTUAL_BIN="${FPM_BIN:-/usr/sbin/php-fpm${PHP_VER}}"
         TEMPLATE_FILE="/etc/systemd/system/wpc-php${PHP_VER}-fpm@.service"
-        cat << 'EOF' > "$TEMPLATE_FILE"
+        cat << EOF > "$TEMPLATE_FILE"
 [Unit]
 Description=WPCloud PHP-FPM Service for user %i
 After=network.target
 
 [Service]
 Type=notify
-PIDFile=/run/php/php__PHP_VER__-fpm-%i.pid
-ExecStart=/usr/sbin/php-fpm__PHP_VER__ --nodaemonize --fpm-config /etc/php/__PHP_VER__/fpm/users/%i.conf
-ExecReload=/bin/kill -USR2 $MAINPID
+PIDFile=/run/php/php${PHP_VER}-fpm-%i.pid
+ExecStart=${ACTUAL_BIN} --nodaemonize --fpm-config /etc/php/${PHP_VER}/fpm/users/%i.conf
+ExecReload=/bin/kill -USR2 \$MAINPID
 TimeoutSec=15
 Slice=wpc-user-%i.slice
 
 [Install]
 WantedBy=multi-user.target
 EOF
-        sed -i "s/__PHP_VER__/${PHP_VER}/g" "$TEMPLATE_FILE"
 
-        # 4. Tạo Drop-in Override để gán service này vào Slice của Hosting User cha (nếu có hosting user)
-        # Hệ thống phân cấp Systemd Slice: wpc-hosting_<hosting_user>.slice
-        # Khi tất cả website của Hosting User cùng chạy dưới wpc-hosting_<hosting_user>.slice,
-        # tổng CPU và RAM của tất cả website con KHÔNG BAO GIỜ vượt quá trần của Hosting User!
-        TARGET_SLICE="wpc-user-${USERNAME}.slice"
-        if [ -n "$HOSTING_USER" ]; then
-            TARGET_SLICE="wpc-hosting_${HOSTING_USER}.slice"
-        fi
-
-        SVC_DROPIN_DIR="/etc/systemd/system/wpc-php${PHP_VER}-fpm@${USERNAME}.service.d"
-        mkdir -p "$SVC_DROPIN_DIR"
-        cat << EOF > "$SVC_DROPIN_DIR/slice.conf"
-[Service]
-Slice=${TARGET_SLICE}
-EOF
-
-        # 5. Kích hoạt và nạp lại daemon
+        # 4. Kích hoạt và nạp lại daemon
         systemctl daemon-reload 2>/dev/null || true
         systemctl enable "$SVC_NAME" 2>/dev/null || true
-
-        # Đọc hạn mức từ file cgroup của hosting user hoặc user để set-property cho slice này
-        LOOKUP_USER="${HOSTING_USER:-$USERNAME}"
-        USER_CG_PATH="/sys/fs/cgroup/wpc/reseller_1/user_${LOOKUP_USER}"
-        [ -d "$USER_CG_PATH" ] || USER_CG_PATH="/sys/fs/cgroup/wpc/user_${LOOKUP_USER}"
-        if [ -f "$USER_CG_PATH/cpu.max" ]; then
-            CPU_MAX_VAL=$(awk '{print $1}' "$USER_CG_PATH/cpu.max" 2>/dev/null || echo "100000")
-            if [ "$CPU_MAX_VAL" != "max" ] && [ "$CPU_MAX_VAL" -gt 0 ]; then
-                CPU_PCT=$((CPU_MAX_VAL / 1000))
-                systemctl set-property "${TARGET_SLICE}" CPUQuota="${CPU_PCT}%" 2>/dev/null || true
-            fi
-        fi
-        if [ -f "$USER_CG_PATH/memory.max" ]; then
-            MEM_MAX_VAL=$(cat "$USER_CG_PATH/memory.max" 2>/dev/null || echo "max")
-            if [ "$MEM_MAX_VAL" != "max" ] && [ "$MEM_MAX_VAL" -gt 0 ]; then
-                MEM_MB=$((MEM_MAX_VAL / 1024 / 1024))
-                systemctl set-property "${TARGET_SLICE}" MemoryMax="${MEM_MB}M" 2>/dev/null || true
-            fi
-        fi
-
         systemctl restart "$SVC_NAME" 2>/dev/null || true
-        mkdir -p /tmp/lshttpd /run/php /var/run/php 2>/dev/null || true
-        chmod 755 /run/php /var/run/php 2>/dev/null || true
-        chmod 1777 /tmp/lshttpd 2>/dev/null || true
-        for i in 1 2 3; do
+
+        # 5. Kiểm tra socket riêng có được sinh ra thành công hay không
+        SOCKET_READY=0
+        for i in {1..15}; do
             if [ -S "$SOCK_FILE" ]; then
                 chmod 666 "$SOCK_FILE" 2>/dev/null || true
                 ln -sf "$SOCK_FILE" "/tmp/lshttpd/php${PHP_VER}-fpm-${USERNAME}.sock" 2>/dev/null || true
+                SOCKET_READY=1
                 break
             fi
             sleep 0.2
         done
+
+        # 6. FALLBACK CỨU NGUY (BẢO VỆ CHỐNG LỖI 502):
+        # Nếu service riêng chưa lên socket, tự khởi động service PHP-FPM mặc định và symlink sang $SOCK_FILE
+        if [ "$SOCKET_READY" -eq 0 ]; then
+            echo "[!] Socket riêng $SOCK_FILE chưa khởi tạo, kích hoạt fallback từ pool mặc định..."
+            systemctl start "php${PHP_VER}-fpm" 2>/dev/null || true
+            for def_sock in "/run/php/php${PHP_VER}-fpm.sock" "/var/run/php/php${PHP_VER}-fpm.sock" "/run/php/php-fpm.sock"; do
+                if [ -S "$def_sock" ]; then
+                    chmod 666 "$def_sock" 2>/dev/null || true
+                    ln -sf "$def_sock" "$SOCK_FILE" 2>/dev/null || true
+                    SOCKET_READY=1
+                    break
+                fi
+            done
+        fi
         ;;
 
     start)

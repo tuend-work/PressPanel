@@ -364,12 +364,17 @@ EOF
                     fi
 
                     # Nếu pool sock chưa sinh ra kịp (fallback sang pool mặc định nếu cần)
-                    if [ ! -e "$PHP_SOCK" ]; then
-                        if [ -e "/run/php/php${PHP_VER}-fpm.sock" ]; then
-                            PHP_SOCK="/run/php/php${PHP_VER}-fpm.sock"
-                        elif [ -e "/var/run/php/php${PHP_VER}-fpm.sock" ]; then
-                            PHP_SOCK="/var/run/php/php${PHP_VER}-fpm.sock"
-                        fi
+                    if [ ! -S "$PHP_SOCK" ]; then
+                        for fallback_sock in \
+                            "/run/php/php${PHP_VER}-fpm.sock" \
+                            "/var/run/php/php${PHP_VER}-fpm.sock" \
+                            "/run/php/php-fpm.sock"; do
+                            if [ -S "$fallback_sock" ]; then
+                                PHP_SOCK="$fallback_sock"
+                                ln -sf "$fallback_sock" "$USER_POOL_SOCK" 2>/dev/null || true
+                                break
+                            fi
+                        done
                     fi
 
                     sed -e "s/{{DOMAIN}}/$DOMAIN/g" \
@@ -1031,9 +1036,23 @@ EOF_NGX_SUSP
 
             systemctl enable openresty 2>/dev/null || systemctl enable nginx 2>/dev/null || true
             for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
-                if [ -x "/usr/sbin/php-fpm${pver}" ]; then
+                if [ -x "/usr/sbin/php-fpm${pver}" ] || systemctl list-unit-files "php${pver}-fpm.service" &>/dev/null; then
                     systemctl enable "php${pver}-fpm" 2>/dev/null || true
                     systemctl restart "php${pver}-fpm" 2>/dev/null || true
+                fi
+            done
+            # Tự động khởi động lại toàn bộ pool PHP-FPM độc lập của từng website
+            for u_conf in /etc/php/*/fpm/users/*.conf; do
+                [ -f "$u_conf" ] || continue
+                u_name=$(basename "$u_conf" .conf)
+                p_ver=$(echo "$u_conf" | awk -F'/' '{print $(NF-3)}')
+                if [ -n "$p_ver" ] && [ -n "$u_name" ]; then
+                    systemctl enable "wpc-php${p_ver}-fpm@${u_name}.service" 2>/dev/null || true
+                    systemctl restart "wpc-php${p_ver}-fpm@${u_name}.service" 2>/dev/null || true
+                    # Đảm bảo symlink fallback nếu pool riêng chưa kịp sinh socket
+                    if [ ! -S "/run/php/php${p_ver}-fpm-${u_name}.sock" ] && [ -S "/run/php/php${p_ver}-fpm.sock" ]; then
+                        ln -sf "/run/php/php${p_ver}-fpm.sock" "/run/php/php${p_ver}-fpm-${u_name}.sock" 2>/dev/null || true
+                    fi
                 fi
             done
             (systemctl reload openresty 2>/dev/null || systemctl reload nginx 2>/dev/null || systemctl restart openresty 2>/dev/null || systemctl restart nginx 2>/dev/null || true)

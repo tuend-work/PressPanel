@@ -473,9 +473,13 @@ if command -v apt-get &>/dev/null; then
         fi
     done
     for pv in 8.4 8.3 8.2 8.1 8.0 7.4; do
-        if [ -d "/etc/php/$pv" ] || [ -f "/usr/bin/php$pv" ] || [ -f "/usr/sbin/php-fpm$pv" ]; then
+        pv_num=$(echo "$pv" | tr -d '.')
+        if [ -d "/etc/php/$pv" ] || [ -f "/usr/bin/php$pv" ] || [ -f "/usr/sbin/php-fpm$pv" ] || [ -d "/usr/local/lsws/lsphp${pv_num}" ]; then
             DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                "php$pv-fpm" "php$pv-cli" "php$pv-common" "php$pv-mysql" "php$pv-curl" "php$pv-opcache" "php$pv-zip" \
                 "php$pv-redis" "php$pv-imagick" "php$pv-intl" "php$pv-memcached" "php$pv-soap" "php$pv-bcmath" 2>/dev/null || true
+            systemctl enable "php$pv-fpm" 2>/dev/null || true
+            systemctl start "php$pv-fpm" 2>/dev/null || true
         fi
     done
 elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
@@ -492,6 +496,18 @@ if [ -d "/usr/local/lsws" ]; then
     pkill -9 -f "lsphp" 2>/dev/null || true
     rm -f /tmp/lshttpd/*.sock 2>/dev/null || true
     /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
+fi
+
+if systemctl is-active --quiet nginx 2>/dev/null || systemctl is-active --quiet openresty 2>/dev/null; then
+    for u_conf in /etc/php/*/fpm/users/*.conf; do
+        [ -f "$u_conf" ] || continue
+        u_name=$(basename "$u_conf" .conf)
+        p_ver=$(echo "$u_conf" | awk -F'/' '{print $(NF-3)}')
+        if [ -n "$p_ver" ] && [ -n "$u_name" ]; then
+            bash /opt/wpc/scripts/php_fpm_service.sh create "$u_name" "$p_ver" 2>/dev/null || true
+        fi
+    done
+    systemctl reload openresty 2>/dev/null || systemctl reload nginx 2>/dev/null || true
 fi
 
 # 8.2 Cấu hình dịch vụ giám sát Cgroups v2 thời gian thực (wpc-cgroup)
