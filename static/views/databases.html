@@ -13,23 +13,23 @@
                                         <div v-if="dbTypeTab === 'mysql'" class="w-5 h-[2px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
                                     </button>
 
-                                    <!-- 2. Tab SQLServer -->
-                                    <button @click="dbTypeTab = 'sqlserver'"
+                                    <!-- 2. Tab SQLServer (Chỉ Admin) -->
+                                    <button v-if="currentUser.role === 'admin'" @click="dbTypeTab = 'sqlserver'"
                                         :class="dbTypeTab === 'sqlserver' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
                                         class="pb-2 text-xs transition relative tracking-wide">
                                         <span>SQLServer</span>
                                         <div v-if="dbTypeTab === 'sqlserver'" class="w-5 h-[2px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
                                     </button>
 
-                                    <!-- 3. Tab MongoDB -->
-                                    <button @click="dbTypeTab = 'mongodb'"
+                                    <!-- 3. Tab MongoDB (Chỉ Admin) -->
+                                    <button v-if="currentUser.role === 'admin'" @click="dbTypeTab = 'mongodb'"
                                         :class="dbTypeTab === 'mongodb' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
                                         class="pb-2 text-xs transition relative tracking-wide">
                                         <span>MongoDB</span>
                                         <div v-if="dbTypeTab === 'mongodb'" class="w-5 h-[2px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
                                     </button>
 
-                                    <!-- 4. Tab Redis -->
+                                    <!-- 4. Tab Redis (Admin & Website User) -->
                                     <button @click="dbTypeTab = 'redis'"
                                         :class="dbTypeTab === 'redis' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
                                         class="pb-2 text-xs transition relative tracking-wide">
@@ -37,8 +37,8 @@
                                         <div v-if="dbTypeTab === 'redis'" class="w-5 h-[2px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
                                     </button>
 
-                                    <!-- 5. Tab PgSQL -->
-                                    <button @click="dbTypeTab = 'pgsql'"
+                                    <!-- 5. Tab PgSQL (Chỉ Admin) -->
+                                    <button v-if="currentUser.role === 'admin'" @click="dbTypeTab = 'pgsql'"
                                         :class="dbTypeTab === 'pgsql' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
                                         class="pb-2 text-xs transition relative tracking-wide">
                                         <span>PgSQL</span>
@@ -50,8 +50,8 @@
                             <!-- 2. NỘI DUNG BÊN TRONG CONTAINER -->
                             <div class="p-4 sm:p-5 space-y-3.5 bg-[#181d24]">
                                 
-                                <!-- A. BANNER: AUTO BACKUP DATABASE (Khớp 100% ảnh mẫu gốc) -->
-                                <div class="bg-[#1f2631] border border-[#2b3543] rounded-md px-3.5 py-2.5 text-slate-200 flex items-center space-x-3 text-xs sm:text-sm">
+                                <!-- A. BANNER: AUTO BACKUP DATABASE (Chỉ hiển thị cho Quản trị viên trên Tab MySQL) -->
+                                <div v-if="currentUser.role === 'admin' && dbTypeTab === 'mysql'" class="bg-[#1f2631] border border-[#2b3543] rounded-md px-3.5 py-2.5 text-slate-200 flex items-center space-x-3 text-xs sm:text-sm">
                                     <div class="w-4 h-4 rounded-full bg-slate-500 text-white flex items-center justify-center text-[10px] font-serif font-bold italic shrink-0">i</div>
                                     <span class="font-medium text-slate-200 shrink-0">Auto Backup Database</span>
                                     <!-- Toggle Switch -->
@@ -64,71 +64,55 @@
                                     <span class="text-slate-400 text-xs truncate sm:text-clip">After adding a database, you can turn on automatic backup to ensure data security.</span>
                                 </div>
 
-                                <!-- B. ACTION TOOLBAR (Khớp 100% typography, màu sắc và nút bấm trong ảnh mẫu) -->
-                                <div class="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
+                                <!-- B. ACTION TOOLBAR (Chỉ hiển thị trên Tab MySQL, phân quyền nghiêm ngặt giữa Admin và Khách) -->
+                                <div v-if="dbTypeTab === 'mysql'" class="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
                                     <div class="flex flex-wrap items-center gap-2">
-                                        <!-- Add DB Button (Solid Green Pill) -->
+                                        <!-- Add DB Button (Solid Green Pill) - Cả Admin và Website User đều được tạo DB theo quota -->
                                         <button @click="openAddDbModal"
                                             class="px-3.5 py-1.5 rounded-md bg-[#10b981] hover:bg-[#059669] text-white font-medium text-xs sm:text-sm transition shadow-sm">
                                             <span>Add DB</span>
                                         </button>
 
-                                        <!-- Root password -->
-                                        <button @click="showRootPasswordModal = true"
-                                            class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm">
-                                            <span>Root password</span>
-                                        </button>
-
-                                        <!-- phpMyAdmin (Mở giao diện quản trị tương ứng) -->
-                                        <button v-if="dbTypeTab === 'mysql'" @click="openPhpMyAdmin"
+                                        <!-- phpMyAdmin (Mở giao diện quản trị) - Cả Admin và Website User đều cần -->
+                                        <button @click="openPhpMyAdmin"
                                             class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm"
                                             title="Mở phpMyAdmin Port 888">
                                             <span>phpMyAdmin</span>
                                         </button>
-                                        <button v-else-if="dbTypeTab === 'pgsql'" @click="openPgAdmin"
-                                            class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm"
-                                            title="Mở pgAdmin Port 5050">
-                                            <span>pgAdmin</span>
-                                        </button>
-                                        <button v-else-if="dbTypeTab === 'mongodb'" @click="openMongoExpress"
-                                            class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm"
-                                            title="Mở Mongo Express Port 8081">
-                                            <span>Mongo Express</span>
-                                        </button>
-                                        <button v-else-if="dbTypeTab === 'redis'" @click="openRedisCommander"
-                                            class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm"
-                                            title="Mở Redis Commander Port 8082">
-                                            <span>Redis Manager</span>
-                                        </button>
-                                        <button v-else @click="showAdvDbModal = true"
-                                            class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm">
-                                            <span>Web GUI</span>
-                                        </button>
 
-                                        <!-- Remote DB -->
-                                        <button @click="showRemoteDbModal = true"
-                                            class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm">
-                                            <span>Remote DB</span>
-                                        </button>
+                                        <!-- CÁC NÚT QUẢN TRỊ CẤP SERVER: CHỈ DÀNH CHO ADMIN CẤP CAO -->
+                                        <template v-if="currentUser.role === 'admin'">
+                                            <!-- Root password -->
+                                            <button @click="showRootPasswordModal = true"
+                                                class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm">
+                                                <span>Root password</span>
+                                            </button>
 
-                                        <!-- Advanced Setup -->
-                                        <button @click="showAdvDbModal = true"
-                                            class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm">
-                                            <span>Advanced Setup</span>
-                                        </button>
+                                            <!-- Remote DB -->
+                                            <button @click="showRemoteDbModal = true"
+                                                class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm">
+                                                <span>Remote DB</span>
+                                            </button>
 
-                                        <!-- Sync all -->
-                                        <button @click="fetchDatabasesList"
-                                            class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm"
-                                            title="Đồng bộ danh sách CSDL">
-                                            <span>Sync all</span>
-                                        </button>
+                                            <!-- Advanced Setup -->
+                                            <button @click="showAdvDbModal = true"
+                                                class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm">
+                                                <span>Advanced Setup</span>
+                                            </button>
 
-                                        <!-- Get DB from server -->
-                                        <button @click="showGetDbModal = true"
-                                            class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm">
-                                            <span>Get DB from server</span>
-                                        </button>
+                                            <!-- Sync all -->
+                                            <button @click="fetchDatabasesList"
+                                                class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm"
+                                                title="Đồng bộ danh sách CSDL">
+                                                <span>Sync all</span>
+                                            </button>
+
+                                            <!-- Get DB from server -->
+                                            <button @click="showGetDbModal = true"
+                                                class="px-3.5 py-1.5 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs sm:text-sm transition shadow-sm">
+                                                <span>Get DB from server</span>
+                                            </button>
+                                        </template>
                                     </div>
 
                                     <!-- Feedback Link on Far Right -->
@@ -139,8 +123,8 @@
                                     </button>
                                 </div>
 
-                                <!-- C. FILTER & SEARCH BAR (Chuẩn theo hàng cuối ảnh mẫu: All ˅ và Database search 🔍) -->
-                                <div class="flex flex-wrap items-center justify-start gap-2.5 text-xs pt-1">
+                                <!-- C. FILTER & SEARCH BAR (Chỉ hiển thị cho Tab MySQL) -->
+                                <div v-if="dbTypeTab === 'mysql'" class="flex flex-wrap items-center justify-start gap-2.5 text-xs pt-1">
                                     <div class="relative">
                                         <select v-model="dbWebsiteFilter"
                                             class="appearance-none pr-7 pl-3 py-1.5 rounded-md bg-[#1f2631] border border-[#313c4e] text-slate-200 text-xs font-medium focus:outline-none focus:border-emerald-500 cursor-pointer">
