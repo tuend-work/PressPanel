@@ -210,13 +210,14 @@
             <aside class="w-full md:w-[220px] bg-[#0d1624] text-slate-300 flex flex-col justify-between shrink-0 shadow-xl z-20">
                 <div class="overflow-y-auto sidebar-scrollbar flex-1 flex flex-col justify-between">
                     <div>
-                        <!-- Logo Header WPCloud -->
-                        <div class="h-16 px-5 flex items-center space-x-3 border-b border-slate-800/80 bg-[#0a111c]">
-                            <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/30 font-bold">
+                        <!-- Logo Header WPCloud (Bấm vào để nạp lại trang chính) -->
+                        <div class="h-16 px-5 flex items-center space-x-3 border-b border-slate-800/80 bg-[#0a111c] cursor-pointer hover:bg-slate-800/50 transition group select-none"
+                             @click="loadHomePage" title="Về trang chính Tổng quan">
+                            <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/30 font-bold group-hover:scale-105 transition-transform">
                                 <i data-lucide="cloud" class="w-5 h-5"></i>
                             </div>
                             <div class="flex flex-col">
-                                <span class="text-base font-bold text-white tracking-tight leading-tight flex items-center gap-1.5">
+                                <span class="text-base font-bold text-white tracking-tight leading-tight flex items-center gap-1.5 group-hover:text-blue-400 transition-colors">
                                     WPCloud
                                 </span>
                                 <span class="text-[11px] text-slate-400 font-medium">Control Panel</span>
@@ -1482,6 +1483,30 @@
                     window.location.reload();
                 };
 
+                // Hàm nạp lại trang chính (Dashboard / Web App) khi click vào Logo
+                const loadHomePage = () => {
+                    const targetTab = isWebUser.value ? 'domains' : 'dashboard';
+                    currentTab.value = targetTab;
+                    window.location.hash = targetTab;
+                    try {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    } catch(e) {}
+                    fetchDomains();
+                    fetchSystemStatus();
+                    if (currentUser.value?.role === 'admin') {
+                        fetchCustomers();
+                        fetchServicePlans();
+                        fetchTasks();
+                        fetchAppsList();
+                    }
+                    if (typeof fetchUserProfile === 'function') {
+                        fetchUserProfile();
+                    }
+                    nextTick(() => {
+                        if (window.lucide) lucide.createIcons();
+                    });
+                };
+
                 const handleAddDomain = async () => {
                     try {
                         const res = await fetch('/api/v1/domains/', {
@@ -2246,7 +2271,8 @@
                             localStorage.setItem('wpc_user', JSON.stringify(currentUser.value));
                             isImpersonating.value = true;
 
-                            currentTab.value = 'domains';
+                            // Chuyển về trang chính Tổng quan của Customer (#dashboard) và tải lại
+                            window.location.href = window.location.pathname + '#dashboard';
                             window.location.reload();
                         } else {
                             alert('Lỗi Login As: ' + (data.detail || 'Không thể đăng nhập dưới quyền Customer này'));
@@ -2284,7 +2310,8 @@
                             localStorage.setItem('wpc_user', JSON.stringify(currentUser.value));
                             isImpersonating.value = true;
 
-                            // Chuyển sang File Manager và tải lại trang để làm mới toàn bộ state
+                            // Chuyển sang trang chính của Web User (#domains) và tải lại
+                            window.location.href = window.location.pathname + '#domains';
                             window.location.reload();
                         } else {
                             alert('Lỗi: ' + (data.detail || 'Không thể đăng nhập dưới quyền Web User này'));
@@ -2304,10 +2331,10 @@
                         }
                         sessionStorage.removeItem('wpc_admin_backup_token');
                         sessionStorage.removeItem('wpc_admin_backup_user');
-                        window.location.reload();
-                    } else {
-                        window.location.reload();
                     }
+                    // Thoát Login As và Back lại: Luôn luôn chuyển về trang chính Dashboard (#dashboard)
+                    window.location.href = window.location.pathname + '#dashboard';
+                    window.location.reload();
                 };
 
                 const handleWPSSO = async (domain) => {
@@ -3730,7 +3757,7 @@
                     selectedCustomerIds, selectedDomainIds, selectedSubIds, showCustomerStatusMenu, showSubStatusMenu,
                     isAllCustomersSelected, toggleSelectAllCustomers, isAllDomainsSelected, toggleSelectAllDomains,
                     isAllSubsSelected, toggleSelectAllSubs, handleSetCustomerStatus, handleBatchDeleteCustomers, handleBatchDeleteDomains,
-                    fetchCustomers, handleAddCustomer, impersonateUser, impersonateWebsiteUser, exitImpersonation,
+                    fetchCustomers, handleAddCustomer, impersonateUser, impersonateWebsiteUser, exitImpersonation, loadHomePage,
                     servicePlans, showAddPlanModal, creatingPlan, newPlan, fetchServicePlans, handleAddPlan,
                     selectedPlanTab, filteredServicePlans, websitePlans,
                     showChangePlanModal, selectedCustomerForPlan, targetPlanId, changingPlan, selectedPlanPreview,
