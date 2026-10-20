@@ -18,6 +18,7 @@ WPC_DIR="/opt/wpc"
 # 1. Đảm bảo Linux user tồn tại trên hệ thống (Khóa SSH bằng nologin)
 ensure_linux_user() {
     local u="$1"
+    local h_user="${2:-$u}"
     local nologin_shell="/usr/sbin/nologin"
     [ -x "$nologin_shell" ] || nologin_shell="/sbin/nologin"
     [ -x "$nologin_shell" ] || nologin_shell="/bin/false"
@@ -28,6 +29,12 @@ ensure_linux_user() {
     else
         # Dam bao user ton tai cung bi khoa SSH login
         usermod -s "$nologin_shell" "$u" 2>/dev/null || true
+    fi
+
+    # Neu la website con thuoc Hosting User, them vao group cua Hosting User
+    if [ -n "$h_user" ] && [ "$h_user" != "$u" ]; then
+        id -g "$h_user" &>/dev/null || groupadd "$h_user" 2>/dev/null || true
+        usermod -a -G "$h_user" "$u" 2>/dev/null || true
     fi
 }
 
@@ -127,8 +134,8 @@ EOF_LSPHP
 # 2. Xử lý các hành động
 case "$ACTION" in
     add)
-        echo "[+] Tao vhost cho $DOMAIN ($WEBSERVER, PHP $PHP_VER) cua user $USERNAME..."
-        ensure_linux_user "$USERNAME"
+        echo "[+] Tao vhost cho $DOMAIN ($WEBSERVER, PHP $PHP_VER) cua user $USERNAME (Hosting Owner: $HOSTING_USER)..."
+        ensure_linux_user "$USERNAME" "$HOSTING_USER"
 
         # Tạo cây thư mục chuẩn: /home/$USERNAME/domains/$DOMAIN/{public_html, logs, ssl, backups}
         DOMAIN_DIR="/home/$USERNAME/domains/$DOMAIN"
@@ -154,13 +161,19 @@ case "$ACTION" in
             ln -snf "$DOC_ROOT" "/home/$USERNAME/public_html" 2>/dev/null || true
         fi
 
-        # Phân quyền an toàn: Thư mục thuộc sở hữu của Linux Web User
+        # Phân quyền an toàn: Thư mục thuộc sở hữu của Linux Web User và Group của Hosting User
+        local target_grp="$USERNAME"
+        if [ -n "$HOSTING_USER" ] && [ "$HOSTING_USER" != "$USERNAME" ]; then
+            target_grp="$HOSTING_USER"
+        fi
+
         if id "$USERNAME" &>/dev/null; then
-            chown -R "$USERNAME:$USERNAME" "/home/$USERNAME" 2>/dev/null || true
+            chown -R "$USERNAME:$target_grp" "/home/$USERNAME" 2>/dev/null || true
             # Thêm wpc (panel), nobody (OLS), www-data (Nginx) vào group của Web User để có thể phục vụ web
             for svc_u in wpc nobody www-data; do
                 if id "$svc_u" &>/dev/null; then
                     usermod -a -G "$USERNAME" "$svc_u" 2>/dev/null || true
+                    [ "$target_grp" != "$USERNAME" ] && usermod -a -G "$target_grp" "$svc_u" 2>/dev/null || true
                 fi
             done
         else
@@ -168,13 +181,17 @@ case "$ACTION" in
         fi
 
         # PHÂN QUYỀN CHUẨN SHARED HOSTING (cPanel / CyberPanel / OLS suEXEC standard):
-        # 1. /home và /home/$USERNAME: 0711 (drwx--x--x)
-        #    Cho phép Webserver (nobody/www-data) traverse (tìm đường) tới public_html,
-        #    nhưng TUYỆT ĐỐI NGĂN CHẶN các user khác đọc danh sách thư mục (không có 'r') hoặc sửa đổi (không có 'w').
+        # 1. /home và /home/$USERNAME: 2711 nếu có group Hosting User (setgid để mọi file mới thừa kế GID của Hosting User)
         chmod 711 "/home" 2>/dev/null || true
-        chmod 711 "/home/$USERNAME" 2>/dev/null || true
-        chmod 711 "/home/$USERNAME/domains" 2>/dev/null || true
-        chmod 711 "$DOMAIN_DIR" 2>/dev/null || true
+        if [ -n "$HOSTING_USER" ] && [ "$HOSTING_USER" != "$USERNAME" ]; then
+            chmod 2711 "/home/$USERNAME" 2>/dev/null || true
+            chmod 2711 "/home/$USERNAME/domains" 2>/dev/null || true
+            chmod 2711 "$DOMAIN_DIR" 2>/dev/null || true
+        else
+            chmod 711 "/home/$USERNAME" 2>/dev/null || true
+            chmod 711 "/home/$USERNAME/domains" 2>/dev/null || true
+            chmod 711 "$DOMAIN_DIR" 2>/dev/null || true
+        fi
 
         # 2. Thư mục web (public_html) phân quyền 755 (thư mục) và 644 (file), owner $USERNAME:$USERNAME
         chmod 755 "$DOC_ROOT" 2>/dev/null || true
@@ -320,9 +337,10 @@ EOF
                 fi
 
                 /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
-                (sleep 1 && /opt/wpc/bin/cgroup sync "$USERNAME" 2>/dev/null || true
+                TARGET_CG_USER="${HOSTING_USER:-$USERNAME}"
+                (sleep 1 && /opt/wpc/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || true
                 for lscg in /usr/local/lsws/lsns/bin/lscgctl /usr/local/lsws/bin/lscgctl; do
-                    [ -x "$lscg" ] && "$lscg" set "$USERNAME" --cpu=200 2>/dev/null || true
+                    [ -x "$lscg" ] && "$lscg" set "$TARGET_CG_USER" --cpu=200 2>/dev/null || true
                 done) &>/dev/null &
             fi
         fi
@@ -499,9 +517,10 @@ EOF_RW
 
                 # Khởi động lại OLS để nhận cấu hình tức thì
                 /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
-                (sleep 1 && /opt/wpc/bin/cgroup sync "$USERNAME" 2>/dev/null || true
+                TARGET_CG_USER="${HOSTING_USER:-$USERNAME}"
+                (sleep 1 && /opt/wpc/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || true
                 for lscg in /usr/local/lsws/lsns/bin/lscgctl /usr/local/lsws/bin/lscgctl; do
-                    [ -x "$lscg" ] && "$lscg" set "$USERNAME" --cpu=200 2>/dev/null || true
+                    [ -x "$lscg" ] && "$lscg" set "$TARGET_CG_USER" --cpu=200 2>/dev/null || true
                 done) &>/dev/null &
             fi
 

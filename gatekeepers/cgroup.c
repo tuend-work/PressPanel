@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
     init_security_env();
 
     if (argc < 2) {
-        send_json_error("cgroup", "Thieu lenh cgroup. Cu phap: cgroup <set-reseller|set-user|sync|attach|stats|freeze> [args...]");
+        send_json_error("cgroup", "Thieu lenh cgroup. Cu phap: cgroup <set-reseller|set-user|sync|attach|attach-child|stats|freeze> [args...]");
         return 1;
     }
 
@@ -154,8 +154,8 @@ int main(int argc, char *argv[]) {
     }
     else if (strcmp(action, "sync") == 0) {
         /*
-         * Tự động quét và di chuyển TẤT CẢ tiến trình của user (LSPHP, PHP-FPM, worker)
-         * vào đúng Cgroups v2 slice của user đó thông qua quyền SUID root
+         * Tự động quét và di chuyển TẤT CẢ tiến trình của user và các website con (LSPHP, PHP-FPM, worker)
+         * vào đúng Cgroups v2 slice của Hosting User cha thông qua quyền SUID root
          */
         const char *username = (argc >= 3) ? argv[2] : NULL;
         char cmd[4096];
@@ -164,28 +164,68 @@ int main(int argc, char *argv[]) {
                 send_json_error("cgroup", "Username khong hop le");
                 return 1;
             }
-            snprintf(cmd, sizeof(cmd),
-                "for cg in /sys/fs/cgroup/wpc/reseller_*/user_%s/cgroup.procs /sys/fs/cgroup/wpc/user_%s/cgroup.procs; do "
-                "  if [ -f \"$cg\" ]; then "
-                "    pgrep -u %s | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
-                "    pgrep -f 'lsphp.*%s' | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
-                "    pgrep -f 'pool %s' | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
-                "  fi; "
-                "done",
-                username, username, username, username, username);
+            if (access("/opt/wpc/scripts/cgroup_attach.sh", X_OK) == 0) {
+                snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/cgroup_attach.sh once %s 2>/dev/null || true", username);
+            } else {
+                snprintf(cmd, sizeof(cmd),
+                    "for cg in /sys/fs/cgroup/wpc/reseller_*/user_%s/cgroup.procs /sys/fs/cgroup/wpc/user_%s/cgroup.procs; do "
+                    "  if [ -f \"$cg\" ]; then "
+                    "    pgrep -u %s | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+                    "    pgrep -f 'lsphp.*%s' | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+                    "    pgrep -f 'pool %s' | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+                    "  fi; "
+                    "done",
+                    username, username, username, username, username);
+            }
         } else {
-            snprintf(cmd, sizeof(cmd),
-                "for cg in /sys/fs/cgroup/wpc/reseller_*/user_*/cgroup.procs /sys/fs/cgroup/wpc/user_*/cgroup.procs; do "
-                "  [ -f \"$cg\" ] || continue; "
-                "  u=$(basename $(dirname \"$cg\") | sed 's/^user_//'); "
-                "  [ -n \"$u\" ] || continue; "
-                "  pgrep -u \"$u\" | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
-                "  pgrep -f \"lsphp.*$u\" | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
-                "  pgrep -f \"pool $u\" | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
-                "done");
+            if (access("/opt/wpc/scripts/cgroup_attach.sh", X_OK) == 0) {
+                snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/cgroup_attach.sh once 2>/dev/null || true");
+            } else {
+                snprintf(cmd, sizeof(cmd),
+                    "for cg in /sys/fs/cgroup/wpc/reseller_*/user_*/cgroup.procs /sys/fs/cgroup/wpc/user_*/cgroup.procs; do "
+                    "  [ -f \"$cg\" ] || continue; "
+                    "  u=$(basename $(dirname \"$cg\") | sed 's/^user_//'); "
+                    "  [ -n \"$u\" ] || continue; "
+                    "  pgrep -u \"$u\" | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+                    "  pgrep -f \"lsphp.*$u\" | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+                    "  pgrep -f \"pool $u\" | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
+                    "done");
+            }
         }
         IGNORE_RESULT(system(cmd));
         send_json_ok("\"message\":\"Da dong bo tien trinh vao cgroups thanh cong\"");
+        return 0;
+    }
+    else if (strcmp(action, "attach-child") == 0) {
+        if (argc < 4) {
+            send_json_error("cgroup", "Cu phap: cgroup attach-child <hosting_user> <child_user>");
+            return 1;
+        }
+        const char *hosting_user = argv[2];
+        const char *child_user = argv[3];
+
+        if (!is_safe_id(hosting_user) || !is_safe_id(child_user)) {
+            send_json_error("cgroup", "Tham so Username khong hop le");
+            return 1;
+        }
+
+        char cmd[4096];
+        snprintf(cmd, sizeof(cmd),
+            "for hcg in /sys/fs/cgroup/wpc/reseller_*/user_%s/cgroup.procs /sys/fs/cgroup/wpc/user_%s/cgroup.procs; do "
+            "  if [ -f \"$hcg\" ]; then "
+            "    pgrep -u %s | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$hcg\" 2>/dev/null || true; done; "
+            "    pgrep -f 'lsphp.*%s' | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$hcg\" 2>/dev/null || true; done; "
+            "    pgrep -f 'pool %s' | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$hcg\" 2>/dev/null || true; done; "
+            "  fi; "
+            "done; "
+            "for stray in /sys/fs/cgroup/wpc/reseller_*/user_%s /sys/fs/cgroup/wpc/user_%s; do "
+            "  [ -d \"$stray\" ] && rmdir \"$stray\" 2>/dev/null || true; "
+            "done",
+            hosting_user, hosting_user, child_user, child_user, child_user,
+            child_user, child_user);
+        IGNORE_RESULT(system(cmd));
+
+        send_json_ok("\"message\":\"Da gan tien trinh website con vao cgroup hosting user\"");
         return 0;
     }
     else if (strcmp(action, "attach") == 0) {

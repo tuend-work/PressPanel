@@ -269,10 +269,17 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
                 u_mem = min(u_mem, wpkg["mem_mb"])
                 pkg_allow_ssh = wpkg["allow_ssh"]
 
+        # Áp dụng khóa trần Cgroups v2 cho Hosting User và gom website con vào chung Cgroup
         reseller_id = str(current_user.get("parent_id", 1) or 1)
-        await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
+        hosting_cpu = current_user.get("cpu_pct", 100) or 100
+        hosting_mem = current_user.get("mem_mb", 1024) or 1024
+
+        # Thiết lập Cgroup trần duy nhất cho Hosting User
+        await run_gatekeeper("cgroup", "set-user", reseller_id, hosting_username, str(hosting_cpu), str(hosting_mem), "100", "100")
+        # Gom ngay lập tức tiến trình của website con vào Cgroup của Hosting User cha
         if hosting_username != isolated_user:
-            await run_gatekeeper("cgroup", "set-user", reseller_id, hosting_username, str(current_user.get("cpu_pct", 100) or 100), str(current_user.get("mem_mb", 1024) or 1024), "100", "100")
+            await run_gatekeeper("cgroup", "attach-child", hosting_username, isolated_user)
+            await run_gatekeeper("cgroup", "sync", hosting_username)
 
         await db.execute("""
             INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version, package_id, allow_ssh)
@@ -344,8 +351,13 @@ async def change_domain_plan(domain_id: int, req: DomainChangePlanRequest, curre
     isolated_user = domain_to_linux_user(dom["domain_name"])
     reseller_id = str(dom["parent_id"] or 1)
 
+    hosting_username = dom.get("owner_username", isolated_user)
     try:
-        await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
+        if hosting_username != isolated_user:
+            await run_gatekeeper("cgroup", "attach-child", hosting_username, isolated_user)
+            await run_gatekeeper("cgroup", "sync", hosting_username)
+        else:
+            await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
     except Exception as e:
         print(f"Warning: Failed to update cgroup for {isolated_user}: {e}")
 
@@ -424,7 +436,12 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
                 u_cpu = min(u_cpu, dom["parent_cpu"])
                 u_mem = min(u_mem, dom["parent_mem"])
             try:
-                await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
+                hosting_username = dom.get("owner_username", isolated_user)
+                if hosting_username != isolated_user:
+                    await run_gatekeeper("cgroup", "attach-child", hosting_username, isolated_user)
+                    await run_gatekeeper("cgroup", "sync", hosting_username)
+                else:
+                    await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
                 await run_gatekeeper("user", "set-quota", isolated_user, str(pkg["disk_mb"]))
             except Exception:
                 pass

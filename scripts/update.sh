@@ -465,6 +465,7 @@ EOF_CGSVC
 systemctl daemon-reload 2>/dev/null || true
 systemctl enable wpc-cgroup.service 2>/dev/null || true
 systemctl restart wpc-cgroup.service 2>/dev/null || true
+/bin/bash /opt/wpc/scripts/cgroup_attach.sh once 2>/dev/null || true
 
 # Kích hoạt Cgroups v2 cho OpenLiteSpeed nếu có tiện ích lsns
 if [ -x "/usr/local/lsws/lsns/bin/lssetup" ]; then

@@ -253,8 +253,10 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
                 vhost_res = await run_gatekeeper("vhost", "add", clean_d, d_name, ws, php_v, username)
                 vhost_status = "success" if vhost_res.get("status") != "error" else "warning"
 
-                # Áp dụng giới hạn Cgroups v2 cho Linux User của website này
-                await run_gatekeeper("cgroup", "set-user", parent_reseller_id, clean_d, str(req.cpu_pct), str(req.mem_mb), "100", "100")
+                # Gom website con vào chung Cgroup trần của Hosting User
+                if clean_d != username:
+                    await run_gatekeeper("cgroup", "attach-child", username, clean_d)
+                await run_gatekeeper("cgroup", "sync", username)
 
                 # 2. Lưu vào bảng domains
                 try:
@@ -392,16 +394,20 @@ async def change_customer_plan(user_id: int, req: CustomerChangePlan, current_us
     except Exception as e:
         print(f"Warning: Failed to update quota for {username}: {e}")
 
-    # 3. Đồng bộ Cgroup cho các website isolated users thuộc hosting user này
+    # 3. Đồng bộ Cgroup gom toàn bộ website con vào Cgroup trần của Hosting User
     dom_cur = await db.execute("SELECT domain_name FROM domains WHERE user_id = ?", (user_id,))
     domains = await dom_cur.fetchall()
     for d in domains:
         clean_d = re.sub(r"[^a-z0-9]", "", d["domain_name"])[:30]
-        if clean_d:
+        if clean_d and clean_d != username:
             try:
-                await run_gatekeeper("cgroup", "set-user", parent_reseller_id, clean_d, str(pkg["cpu_pct"]), str(pkg["mem_mb"]), "100", "100")
+                await run_gatekeeper("cgroup", "attach-child", username, clean_d)
             except Exception:
                 pass
+    try:
+        await run_gatekeeper("cgroup", "sync", username)
+    except Exception:
+        pass
 
     await db.close()
     return {

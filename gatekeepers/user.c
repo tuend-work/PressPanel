@@ -82,8 +82,11 @@ int main(int argc, char *argv[]) {
         IGNORE_RESULT(system(cmd));
 
 
-        // Thiết lập quota ổ cứng
-        snprintf(cmd, sizeof(cmd), "setquota -u %s 0 %dM 0 0 -a 2>/dev/null || true", username, disk_mb);
+        // Thiết lập quota ổ cứng (khóa cả User Quota và Group Quota để tính gộp toàn bộ website con)
+        snprintf(cmd, sizeof(cmd), 
+            "setquota -u %s 0 %dM 0 0 -a 2>/dev/null || true; "
+            "setquota -g %s 0 %dM 0 0 -a 2>/dev/null || true",
+            username, disk_mb, username, disk_mb);
         IGNORE_RESULT(system(cmd));
 
         char extra[128];
@@ -127,8 +130,11 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         int disk_mb = atoi(argv[3]);
-        char cmd[256];
-        snprintf(cmd, sizeof(cmd), "setquota -u %s 0 %dM 0 0 -a 2>/dev/null || true", username, disk_mb);
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd), 
+            "setquota -u %s 0 %dM 0 0 -a 2>/dev/null || true; "
+            "setquota -g %s 0 %dM 0 0 -a 2>/dev/null || true",
+            username, disk_mb, username, disk_mb);
         IGNORE_RESULT(system(cmd));
 
         char extra[128];
