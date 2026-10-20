@@ -3811,9 +3811,30 @@
                 const wpLogLevel = ref('all');
                 const wpGlobalPlugins = ref([]);
 
+                const wpInstallTab = ref('create');
                 const showWpInstallModal = ref(false);
                 const wpInstalling = ref(false);
-                const wpInstallForm = ref({ domain_id: null, site_title: '', admin_user: 'admin', admin_pass: '', admin_email: '' });
+                const wpInstallForm = ref({
+                    domain: '',
+                    domain_id: null,
+                    subdirectory: '',
+                    apply_ssl: true,
+                    site_title: '',
+                    language: 'en_US',
+                    php_version: 'PHP-84',
+                    wp_version: '7.1.3',
+                    admin_user: 'ef617f',
+                    admin_pass: '',
+                    admin_email: '',
+                    allow_weak_passwords: false,
+                    show_more_settings: false,
+                    db_name: '',
+                    db_pass: '',
+                    db_prefix: 'wp_d17f4a_',
+                    enable_cache: true,
+                    create_html: true,
+                    batch_domains_text: ''
+                });
 
                 const showWpCloneModal = ref(false);
                 const wpCloning = ref(false);
@@ -4324,35 +4345,85 @@
                     }
                 };
 
-                const openWpInstallModal = () => {
+                const openWpInstallModal = (presetDomain = '') => {
+                    const randomHex = Math.random().toString(16).substring(2, 8);
+                    const firstDom = (domains.value && domains.value.length) ? domains.value[0].domain_name : '';
+                    const domVal = presetDomain || firstDom || '';
+                    const foundDom = domains.value.find(d => d.domain_name === domVal);
+
+                    // Sinh ngẫu nhiên đúng định dạng trong ảnh: 6e#Zxh*b@P@sWff3
+                    const strongChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^*';
+                    let randPass = '';
+                    for (let i = 0; i < 16; i++) {
+                        randPass += strongChars.charAt(Math.floor(Math.random() * strongChars.length));
+                    }
+                    const randDbPass = Math.random().toString(16).substring(2, 15);
+                    const randTablePrefix = 'wp_' + Math.random().toString(16).substring(2, 8) + '_';
+
+                    wpInstallTab.value = 'create';
                     wpInstallForm.value = {
-                        domain_id: domains.value.length ? domains.value[0].id : null,
-                        site_title: 'My WordPress Site',
-                        admin_user: 'admin',
-                        admin_pass: Math.random().toString(36).slice(-10) + 'A@1',
-                        admin_email: 'admin@' + (domains.value.length ? domains.value[0].domain_name : 'example.com')
+                        domain: domVal,
+                        domain_id: foundDom ? foundDom.id : null,
+                        subdirectory: '',
+                        apply_ssl: true,
+                        site_title: '',
+                        language: 'en_US',
+                        php_version: 'PHP-84',
+                        wp_version: '7.1.3',
+                        admin_user: randomHex,
+                        admin_pass: randPass,
+                        admin_email: domVal ? `admin@${domVal}` : 'admin@example.com',
+                        allow_weak_passwords: false,
+                        show_more_settings: false,
+                        db_name: 'wp_' + randomHex,
+                        db_pass: randDbPass,
+                        db_prefix: randTablePrefix,
+                        enable_cache: true,
+                        create_html: true,
+                        batch_domains_text: ''
                     };
                     showWpInstallModal.value = true;
                 };
 
                 const handleWpInstallNew = async () => {
+                    if (!wpInstallForm.value.domain && !wpInstallForm.value.domain_id) {
+                        alert('Vui lòng nhập hoặc chọn tên miền muốn cài đặt WordPress!');
+                        return;
+                    }
+                    if (!wpInstallForm.value.admin_email) {
+                        alert('Vui lòng nhập địa chỉ email quản trị!');
+                        return;
+                    }
+                    if (!wpInstallForm.value.admin_pass) {
+                        alert('Vui lòng nhập mật khẩu quản trị!');
+                        return;
+                    }
+
                     wpInstalling.value = true;
                     try {
+                        const payload = { ...wpInstallForm.value };
+                        // Nếu domain khớp với domain trong danh sách thì gán domain_id
+                        if (!payload.domain_id && payload.domain) {
+                            const matched = domains.value.find(d => d.domain_name.toLowerCase() === payload.domain.trim().toLowerCase());
+                            if (matched) payload.domain_id = matched.id;
+                        }
+
                         const res = await fetch('/api/v1/wp/install', {
                             method: 'POST',
                             headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
-                            body: JSON.stringify(wpInstallForm.value)
+                            body: JSON.stringify(payload)
                         });
                         const d = await res.json();
-                        if (d.status === 'ok') {
+                        if (res.ok && d.status === 'ok') {
                             alert(d.message || 'Cài đặt WordPress thành công!');
                             showWpInstallModal.value = false;
                             await fetchWpInstances();
                         } else {
-                            alert(d.detail || 'Cài đặt thất bại');
+                            const errMsg = d.detail || d.message || 'Cài đặt thất bại';
+                            alert('LỖI CÀI ĐẶT WORDPRESS:\n' + errMsg);
                         }
                     } catch(e) {
-                        alert('Lỗi cài đặt WordPress: ' + e);
+                        alert('Lỗi kết nối khi cài đặt WordPress: ' + e);
                     } finally {
                         wpInstalling.value = false;
                     }
@@ -4654,7 +4725,7 @@
                     // WordPress Manager
                     wpInstances, filteredWpInstances, wpSearchQuery, scanningWp, selectedWpInstance, wpDetail, wpSubTab, wpMainTab,
                     wpPlugins, wpThemes, wpUsers, wpLogs, wpLogPeriod, wpLogLevel, wpGlobalPlugins,
-                    showWpInstallModal, wpInstalling, wpInstallForm,
+                    showWpInstallModal, wpInstalling, wpInstallForm, wpInstallTab,
                     showWpCloneModal, wpCloning, wpCloneSource, wpCloneDestDomain,
                     showWpAddPluginModal, installingPlugin, newPluginSlug, newPluginZipUrl,
                     showWpAddThemeModal, installingTheme, newThemeSlug, newThemeZipUrl,

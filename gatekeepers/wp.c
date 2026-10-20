@@ -37,6 +37,14 @@ int main(int argc, char *argv[]) {
         const char *title = (argc > 4) ? argv[4] : "My WordPress Site";
         const char *admin_user = (argc > 5) ? argv[5] : "admin";
         const char *admin_email = (argc > 6) ? argv[6] : "admin@wpc.local";
+        const char *locale = (argc > 7) ? argv[7] : "en_US";
+        const char *custom_db_name = (argc > 8) ? argv[8] : "";
+        const char *custom_db_pass = (argc > 9) ? argv[9] : "";
+        const char *custom_db_prefix = (argc > 10) ? argv[10] : "wp_";
+        const char *sub_dir = (argc > 11) ? argv[11] : "";
+        const char *enable_cache = (argc > 12) ? argv[12] : "1";
+        const char *wp_ver = (argc > 13) ? argv[13] : "latest";
+        const char *create_html = (argc > 14) ? argv[14] : "0";
 
         if (!is_safe_id(admin_user)) {
             send_json_error("wp", "Admin user khong hop le");
@@ -58,6 +66,18 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
         }
+        if (*custom_db_name && !is_safe_token(custom_db_name)) {
+            send_json_error("wp", "Ten database khong hop le");
+            return 1;
+        }
+        if (*custom_db_prefix && !is_safe_token(custom_db_prefix)) {
+            send_json_error("wp", "Table prefix khong hop le");
+            return 1;
+        }
+        if (*sub_dir && !is_safe_token(sub_dir)) {
+            send_json_error("wp", "Subdirectory khong hop le");
+            return 1;
+        }
 
         // Nhận mật khẩu qua stdin
         char password[256] = {0};
@@ -67,8 +87,8 @@ int main(int argc, char *argv[]) {
         }
         password[strcspn(password, "\r\n")] = 0;
 
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh install '%s' '%s' '%s' '%s' '%s'",
-                 username, domain, title, admin_user, admin_email);
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh install '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s'",
+                 username, domain, title, admin_user, admin_email, locale, custom_db_name, custom_db_pass, custom_db_prefix, sub_dir, enable_cache, wp_ver, create_html);
 
         FILE *pipe_wp = popen(cmd, "w");
         if (!pipe_wp) {
@@ -81,7 +101,7 @@ int main(int argc, char *argv[]) {
             send_json_ok("\"message\":\"Cai dat WordPress thanh cong\"");
             return 0;
         }
-        send_json_error("wp", "Cai dat WordPress that bai");
+        send_json_error("wp", "Cai dat WordPress that bai. Kiem tra MariaDB hoac quyen thu muc!");
         return 1;
     }
     else if (strcmp(action, "download_zip") == 0) {

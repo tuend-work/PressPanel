@@ -3,6 +3,7 @@ import re
 import glob
 import json
 import time
+import shutil
 import secrets
 import asyncio
 import subprocess
@@ -18,8 +19,45 @@ from app.executor.gatekeeper import run_gatekeeper
 router = APIRouter(prefix="/wp", tags=["WordPress Manager"])
 
 # ==============================================================================
-# Helper Functions: Parse WP Config & Execute Safe Queries
+# Helper Functions: Prerequisites Validation & WP Config Parser
 # ==============================================================================
+
+def check_mysql_service_available() -> tuple[bool, str]:
+    """Kiểm tra nghiêm ngặt điều kiện tiên quyết: MariaDB / MySQL đã cài đặt và đang chạy hay chưa"""
+    # 1. Tìm binary mysql hoặc mariadb
+    mysql_bin = shutil.which("mysql") or shutil.which("mariadb")
+    if not mysql_bin:
+        for p in ["/usr/bin/mysql", "/usr/local/bin/mysql", "/opt/mariadb/bin/mysql", "/usr/bin/mariadb"]:
+            if os.path.isfile(p) and os.access(p, os.X_OK):
+                mysql_bin = p
+                break
+
+    if not mysql_bin:
+        return False, "Máy chủ CHƯA CÀI ĐẶT MariaDB/MySQL. Vui lòng cài đặt dịch vụ MariaDB trong App Store trước khi cài đặt WordPress!"
+
+    # 2. Kiểm tra dịch vụ có đang chạy và phản hồi hay không
+    try:
+        # Thử chạy SELECT 1
+        res = subprocess.run([mysql_bin, "-e", "SELECT 1;"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=4)
+        if res.returncode == 0:
+            return True, ""
+
+        # Thử mysqladmin ping
+        admin_bin = shutil.which("mysqladmin") or "/usr/bin/mysqladmin"
+        if os.path.isfile(admin_bin):
+            res_ping = subprocess.run([admin_bin, "ping", "--silent"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=4)
+            if res_ping.returncode == 0:
+                return True, ""
+
+        # Kiểm tra socket UNIX nếu có
+        for sock in ["/var/run/mysqld/mysqld.sock", "/tmp/mysql.sock", "/var/lib/mysql/mysql.sock"]:
+            if os.path.exists(sock):
+                return True, ""
+
+        err_out = res.stderr.decode("utf-8", errors="ignore").strip()
+        return False, f"Không thể kết nối tới MariaDB/MySQL: {err_out or 'Dịch vụ MariaDB chưa được khởi động hoặc đang tắt'}"
+    except Exception as e:
+        return False, f"Lỗi kiểm tra cơ sở dữ liệu MariaDB: {str(e)}"
 
 def resolve_target_dir(username: str, domain: str) -> str:
     candidates = [
@@ -146,11 +184,23 @@ def get_dir_size_mb(path: str) -> float:
 # ==============================================================================
 
 class WPInstallRequest(BaseModel):
-    domain_id: int
-    site_title: str
-    admin_user: str
+    domain_id: Optional[int] = None
+    domain: Optional[str] = None
+    subdirectory: Optional[str] = ""
+    apply_ssl: Optional[bool] = False
+    site_title: str = "My WordPress Site"
+    language: Optional[str] = "en_US"
+    php_version: Optional[str] = "8.4"
+    wp_version: Optional[str] = "7.1.3"
+    admin_user: str = "admin"
     admin_pass: str
     admin_email: str
+    allow_weak_passwords: Optional[bool] = False
+    db_name: Optional[str] = ""
+    db_pass: Optional[str] = ""
+    db_prefix: Optional[str] = "wp_"
+    enable_cache: Optional[bool] = True
+    create_html: Optional[bool] = False
 
 class WPInstallZipRequest(BaseModel):
     domain_id: int
@@ -434,42 +484,159 @@ async def get_wordpress_detail(instance_id: int, current_user: dict = Depends(ge
 
 @router.post("/install")
 async def install_wordpress(req: WPInstallRequest, current_user: dict = Depends(get_current_user)):
-    """Cài đặt WordPress mới hoàn toàn qua Direct ZIP từ wordpress.org (không nạp WP hook)"""
-    db = await get_db_connection()
-    cursor = await db.execute("SELECT domain_name FROM domains WHERE id = ? AND user_id = ?", (req.domain_id, current_user["id"]))
-    domain = await cursor.fetchone()
-    if not domain:
-        await db.close()
-        raise HTTPException(status_code=404, detail="Không tìm thấy tên miền chỉ định")
+    """Cài đặt WordPress mới hoàn toàn qua Direct ZIP từ wordpress.org (không nạp WP hook) với ràng buộc nghiêm ngặt"""
+    # 1. RÀNG BUỘC TIÊN QUYẾT: KIỂM TRA MARIADB / MYSQL
+    db_ok, db_err = check_mysql_service_available()
+    if not db_ok:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Lỗi ràng buộc hệ thống: {db_err}"
+        )
 
-    domain_name = domain["domain_name"]
+    # 2. XÁC THỰC VÀ CHUẨN HÓA TÊN MIỀN
+    db = await get_db_connection()
+    domain_name = ""
+    domain_id = req.domain_id
+
+    if domain_id:
+        if current_user["role"] == "admin":
+            cursor = await db.execute("SELECT id, domain_name, user_id FROM domains WHERE id = ?", (domain_id,))
+        else:
+            cursor = await db.execute("SELECT id, domain_name, user_id FROM domains WHERE id = ? AND user_id = ?", (domain_id, current_user["id"]))
+        domain_row = await cursor.fetchone()
+        if not domain_row:
+            await db.close()
+            raise HTTPException(status_code=404, detail="Không tìm thấy tên miền chỉ định")
+        domain_name = domain_row["domain_name"]
+    elif req.domain:
+        clean_domain = re.sub(r"^(https?://)?(www\.)?", "", req.domain.strip().lower()).rstrip("/")
+        if not clean_domain or not re.match(r"^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$", clean_domain):
+            await db.close()
+            raise HTTPException(status_code=400, detail="Tên miền không hợp lệ (ví dụ: mysite.com, blog.example.vn)")
+
+        domain_name = clean_domain
+        # Kiểm tra xem domain đã tồn tại trong database chưa
+        cursor = await db.execute("SELECT id, domain_name, user_id FROM domains WHERE domain_name = ?", (domain_name,))
+        existing_domain = await cursor.fetchone()
+        if existing_domain:
+            if current_user["role"] != "admin" and existing_domain["user_id"] != current_user["id"]:
+                await db.close()
+                raise HTTPException(status_code=403, detail="Tên miền này đã được đăng ký bởi người dùng khác trên hệ thống")
+            domain_id = existing_domain["id"]
+        else:
+            # Tự động khởi tạo VirtualHost cho domain mới
+            clean_linux_user = re.sub(r"[^a-z0-9]", "", clean_domain)[:30] or "webuser"
+            hosting_username = current_user.get("username", clean_linux_user)
+            ws_cur = await db.execute("SELECT webserver FROM domains ORDER BY id DESC LIMIT 1")
+            last_ws = await ws_cur.fetchone()
+            active_ws = last_ws["webserver"] if (last_ws and last_ws["webserver"]) else "ols"
+
+            php_ver = req.php_version or "8.4"
+            if php_ver.startswith("PHP-"):
+                php_ver = php_ver.replace("PHP-", "")
+                if len(php_ver) == 2:
+                    php_ver = f"{php_ver[0]}.{php_ver[1]}"
+
+            vhost_res = await run_gatekeeper("vhost", "add", clean_linux_user, domain_name, active_ws, php_ver, hosting_username)
+            if vhost_res.get("status") == "error":
+                await db.close()
+                raise HTTPException(status_code=400, detail=f"Không thể khởi tạo VirtualHost cho {domain_name}: {vhost_res.get('message')}")
+
+            ins_cur = await db.execute("""
+                INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version, allow_ssh)
+                VALUES (?, ?, ?, ?, ?, 1)
+            """, (current_user["id"], domain_name, f"/home/{clean_linux_user}/domains/{domain_name}/public_html", active_ws, php_ver))
+            domain_id = ins_cur.lastrowid
+            await db.commit()
+    else:
+        await db.close()
+        raise HTTPException(status_code=400, detail="Vui lòng chọn hoặc nhập tên miền muốn cài đặt WordPress")
+
+    # 3. VALIDATION DỮ LIỆU ĐẦU VÀO FORM
+    if not re.match(r"^[a-zA-Z0-9_\-\.]{3,32}$", req.admin_user.strip()):
+        await db.close()
+        raise HTTPException(status_code=400, detail="Username Admin không hợp lệ (chỉ chấp nhận 3-32 ký tự chữ, số, gạch ngang, gạch dưới)")
+
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", req.admin_email.strip()):
+        await db.close()
+        raise HTTPException(status_code=400, detail="Địa chỉ email quản trị không đúng định dạng")
+
+    if not req.allow_weak_passwords and len(req.admin_pass) < 6:
+        await db.close()
+        raise HTTPException(status_code=400, detail="Mật khẩu Admin phải có ít nhất 6 ký tự hoặc đánh dấu 'Allow weak passwords'")
+
+    if req.db_name and not re.match(r"^[a-zA-Z0-9_]{1,32}$", req.db_name):
+        await db.close()
+        raise HTTPException(status_code=400, detail="Tên cơ sở dữ liệu chỉ được chứa chữ cái, số và dấu gạch dưới")
+
+    if req.db_prefix and not re.match(r"^[a-zA-Z0-9_]{1,20}$", req.db_prefix):
+        await db.close()
+        raise HTTPException(status_code=400, detail="Table Prefix chỉ được chứa chữ cái, số và dấu gạch dưới")
+
+    sub_dir = (req.subdirectory or "").strip().strip("/")
+    if sub_dir and not re.match(r"^[a-zA-Z0-9_\-]{1,64}$", sub_dir):
+        await db.close()
+        raise HTTPException(status_code=400, detail="Thư mục con (Subdirectory) chỉ được chứa ký tự chữ, số, gạch ngang và gạch dưới")
+
     username = current_user["username"]
 
-    # Gọi C gatekeeper: wp install <username> <domain> <title> <admin_user> <admin_email> (admin_pass qua stdin)
+    # 4. GỌI GATEKEEPER THỰC THI SCRIPT CÀI ĐẶT
     res = await run_gatekeeper(
-        "wp", "install", username, domain_name, req.site_title, req.admin_user, req.admin_email,
+        "wp", "install",
+        username,
+        domain_name,
+        req.site_title or "Website title for wordpress",
+        req.admin_user.strip(),
+        req.admin_email.strip(),
+        req.language or "en_US",
+        req.db_name or "",
+        req.db_pass or "",
+        req.db_prefix or "wp_",
+        sub_dir,
+        "1" if req.enable_cache else "0",
+        req.wp_version or "latest",
+        "1" if req.create_html else "0",
         stdin_data=req.admin_pass
     )
+
     if res.get("status") == "error":
         await db.close()
-        raise HTTPException(status_code=400, detail=res.get("message", "Cài đặt WordPress thất bại"))
+        err_msg = res.get("message", "Cài đặt WordPress thất bại. Kiểm tra MariaDB hoặc quyền thư mục!")
+        raise HTTPException(status_code=400, detail=err_msg)
 
     docroot = resolve_target_dir(username, domain_name)
+    if sub_dir:
+        docroot = os.path.join(docroot, sub_dir)
     cfg = parse_wp_config_file(docroot)
 
+    # 5. LƯU THÔNG TIN INSTANCE VÀO DATABASE
     await db.execute("""
         INSERT INTO wp_instances (
             domain_id, user_id, site_title, admin_user, admin_email,
             wp_version, db_name, db_user, db_prefix, document_root
-        ) VALUES (?, ?, ?, ?, ?, 'latest', ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        req.domain_id, current_user["id"], req.site_title, req.admin_user, req.admin_email,
-        cfg["db_name"] or f"wp_{username[:8]}", cfg["db_user"] or username, cfg["table_prefix"] or "wp_", docroot
+        domain_id, current_user["id"], req.site_title or "Website title for wordpress",
+        req.admin_user.strip(), req.admin_email.strip(),
+        req.wp_version or "latest",
+        cfg["db_name"] or req.db_name or f"wp_{username[:8]}",
+        cfg["db_user"] or username,
+        cfg["table_prefix"] or req.db_prefix or "wp_",
+        docroot
     ))
+
+    # Nếu người dùng chọn Apply for SSL
+    if req.apply_ssl:
+        await db.execute("UPDATE domains SET ssl_enabled = 1 WHERE id = ?", (domain_id,))
+
     await db.commit()
     await db.close()
 
-    return {"status": "ok", "message": f"WordPress đã được cài đặt thành công trên {domain_name}!"}
+    site_path_info = f"{domain_name}/{sub_dir}" if sub_dir else domain_name
+    return {
+        "status": "ok",
+        "message": f"Website WordPress cho {site_path_info} đã được cài đặt thành công!"
+    }
 
 @router.post("/clone")
 async def clone_wordpress(req: WPCloneRequest, current_user: dict = Depends(get_current_user)):

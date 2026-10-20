@@ -42,47 +42,109 @@ case "$ACTION" in
         TITLE="${4:-My WordPress}"
         ADMIN_USER="${5:-admin}"
         ADMIN_EMAIL="${6:-admin@$DOMAIN}"
+        LOCALE="${7:-en_US}"
+        CUSTOM_DB_NAME="${8:-}"
+        CUSTOM_DB_PASS="${9:-}"
+        CUSTOM_DB_PREFIX="${10:-wp_}"
+        SUBDIRECTORY="${11:-}"
+        ENABLE_CACHE="${12:-1}"
+        WP_VERSION="${13:-latest}"
+        CREATE_HTML="${14:-0}"
+
         ADMIN_PASS=""
         if IFS= read -r line; then
             ADMIN_PASS="$line"
         fi
         if [ -z "$ADMIN_PASS" ]; then
-            ADMIN_PASS="${7:-admin123456}"
+            ADMIN_PASS="admin123456"
         fi
 
-        echo "[+] Bat dau cai dat WordPress cho $DOMAIN (User: $USERNAME)..."
+        echo "[+] Kiem tra dieu kien tien quyet tren he thong..."
+
+        # RÀNG BUỘC 1: KIỂM TRA MARIADB / MYSQL
+        if ! command -v mysql &>/dev/null; then
+            echo "[-] LOI NGHICH: May chu chua cai dat MariaDB/MySQL. Vui long cai dat MariaDB trong App Store truoc khi cai dat WordPress!"
+            exit 2
+        fi
+
+        if ! mysql -e "SELECT 1;" &>/dev/null && ! mysqladmin ping --silent 2>/dev/null; then
+            echo "[-] LOI NGHICH: Khong the ket noi toi MariaDB/MySQL. Dich vu chua chay hoac chua duoc khoi dong!"
+            exit 2
+        fi
+
+        # RÀNG BUỘC 2: KIỂM TRA THƯ MỤC VÀ SUBDIRECTORY
+        if [ -n "$SUBDIRECTORY" ]; then
+            TARGET_DIR="$TARGET_DIR/$SUBDIRECTORY"
+        fi
         mkdir -p "$TARGET_DIR"
 
-        # 1. Tải WordPress core ZIP trực tiếp từ wordpress.org (không chạy WP hooks)
-        TEMP_ZIP="/tmp/wp_latest_${USERNAME}_$$.zip"
-        TEMP_EXTRACT="/tmp/wp_ext_${USERNAME}_$$"
-        echo "[+] Dang tai ban WordPress core moi nhat tu wordpress.org..."
-        curl -fsSL --connect-timeout 15 --max-time 180 "https://wordpress.org/latest.zip" -o "$TEMP_ZIP" || {
-            echo "[-] Khong the tai WordPress zip tu wordpress.org"
-            exit 1
-        }
+        if [ -f "$TARGET_DIR/wp-config.php" ]; then
+            echo "[-] LOI: Thu muc $TARGET_DIR da co san wp-config.php. Website nay da duoc cai dat WordPress tu truoc!"
+            exit 4
+        fi
+
+        echo "[+] Bat dau cai dat WordPress cho $DOMAIN (User: $USERNAME, Path: $TARGET_DIR)..."
+
+        # 1. TẢI VÀ GIẢI NÉN WORDPRESS CORE ZIP TRỰC TIẾP
+        if [ "$LOCALE" = "vi" ] || [ "$LOCALE" = "vi_VN" ]; then
+            WP_ZIP_URL="https://vi.wordpress.org/latest-vi.zip"
+        elif [ -n "$WP_VERSION" ] && [ "$WP_VERSION" != "latest" ] && [ "$WP_VERSION" != "default" ]; then
+            WP_ZIP_URL="https://wordpress.org/wordpress-${WP_VERSION}.zip"
+        else
+            WP_ZIP_URL="https://wordpress.org/latest.zip"
+        fi
+
+        TEMP_ZIP="/tmp/wp_download_${USERNAME}_$$.zip"
+        TEMP_EXTRACT="/tmp/wp_extract_${USERNAME}_$$"
+
+        echo "[+] Dang tai ban WordPress core tu: $WP_ZIP_URL..."
+        if ! curl -fsSL --connect-timeout 20 --max-time 300 "$WP_ZIP_URL" -o "$TEMP_ZIP"; then
+            echo "[-] LOI: Khong the tai goi WordPress ZIP tu $WP_ZIP_URL. Vui long kiem tra ket noi mang ra ngoai!"
+            rm -f "$TEMP_ZIP"
+            exit 5
+        fi
 
         mkdir -p "$TEMP_EXTRACT"
-        unzip -q -o "$TEMP_ZIP" -d "$TEMP_EXTRACT"
+        if ! unzip -q -o "$TEMP_ZIP" -d "$TEMP_EXTRACT"; then
+            echo "[-] LOI: Khong the giai nen goi WordPress ZIP (tap tin bi loi hoac day o dia)!"
+            rm -rf "$TEMP_ZIP" "$TEMP_EXTRACT"
+            exit 6
+        fi
+
         cp -rf "$TEMP_EXTRACT"/wordpress/* "$TARGET_DIR/"
         rm -rf "$TEMP_ZIP" "$TEMP_EXTRACT"
 
-        # 2. Tao Database MariaDB
-        SAFE_USER_PREFIX=$(echo "$USERNAME" | tr -dc 'a-zA-Z0-9' | cut -c 1-8)
-        SAFE_DOM_PREFIX=$(echo "$DOMAIN" | tr -dc 'a-zA-Z0-9' | cut -c 1-8)
-        RAND_SUFFIX=$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n' | cut -c 1-4)
-        DB_NAME="wp_${SAFE_USER_PREFIX}_${RAND_SUFFIX}"
-        DB_USER="usr_${SAFE_USER_PREFIX}_${RAND_SUFFIX}"
-        DB_PASS=$(head -c 16 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 16)
-        DB_PREFIX="wp_"
+        # 2. KHỞI TẠO DATABASE & USER MARIADB VỚI KIỂM SOÁT LỖI TỪNG BƯỚC
+        if [ -n "$CUSTOM_DB_NAME" ]; then
+            DB_NAME="$CUSTOM_DB_NAME"
+        else
+            SAFE_USER_PREFIX=$(echo "$USERNAME" | tr -dc 'a-zA-Z0-9' | cut -c 1-8)
+            RAND_SUFFIX=$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n' | cut -c 1-4)
+            DB_NAME="wp_${SAFE_USER_PREFIX}_${RAND_SUFFIX}"
+        fi
+
+        if [ -n "$CUSTOM_DB_PASS" ]; then
+            DB_PASS="$CUSTOM_DB_PASS"
+        else
+            DB_PASS=$(head -c 16 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 16)
+        fi
+
+        DB_USER="usr_$(echo "$DB_NAME" | cut -c 1-12)"
+        DB_PREFIX="${CUSTOM_DB_PREFIX:-wp_}"
 
         echo "[+] Tao co so du lieu MariaDB: $DB_NAME..."
-        mysql -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci;" 2>/dev/null || true
-        mysql -e "CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';" 2>/dev/null || true
-        mysql -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost'; FLUSH PRIVILEGES;" 2>/dev/null || true
+        if ! mysql -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci;"; then
+            echo "[-] LOI NGHICH: Khong the tao database $DB_NAME trong MariaDB!"
+            exit 7
+        fi
 
-        # 3. Tao file wp-config.php chuan an toan
-        SALT_KEYS=$(curl -fsSL https://api.wordpress.org/secret-key/1.1/salt/ 2>/dev/null || true)
+        if ! mysql -e "CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS'; GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost'; FLUSH PRIVILEGES;"; then
+            echo "[-] LOI NGHICH: Khong the tao user database $DB_USER hoac cap quyen that bai!"
+            exit 8
+        fi
+
+        # 3. TAO FILE WP-CONFIG.PHP CHUẨN AN TOÀN
+        SALT_KEYS=$(curl -fsSL --connect-timeout 5 https://api.wordpress.org/secret-key/1.1/salt/ 2>/dev/null || true)
         if [ -z "$SALT_KEYS" ]; then
             SALT_KEYS="define('AUTH_KEY',         '$(head -c 32 /dev/urandom | base64)');
 define('SECURE_AUTH_KEY',  '$(head -c 32 /dev/urandom | base64)');
@@ -128,28 +190,61 @@ if ( ! defined( 'ABSPATH' ) ) {
 require_once ABSPATH . 'wp-settings.php';
 EOF
 
-        # 4. Khoi tao schema WordPress ban dau (WP-CLI an toan vi core sach 100% moi tai tu wp.org)
+        # 4. KHỞI TẠO SCHEMA WORDPRESS BAN ĐẦU
+        SITE_URL="http://$DOMAIN"
+        if [ -n "$SUBDIRECTORY" ]; then
+            SITE_URL="http://$DOMAIN/$SUBDIRECTORY"
+        fi
+
         if command -v wp &>/dev/null; then
             echo "[+] Khoi tao schema WordPress qua wp core install..."
-            wp core install \
+            if ! wp core install \
                 --path="$TARGET_DIR" \
-                --url="http://$DOMAIN" \
+                --url="$SITE_URL" \
                 --title="$TITLE" \
                 --admin_user="$ADMIN_USER" \
                 --admin_password="$ADMIN_PASS" \
                 --admin_email="$ADMIN_EMAIL" \
+                --locale="$LOCALE" \
                 --skip-plugins \
                 --skip-themes \
-                --allow-root >/dev/null 2>&1 || true
+                --allow-root; then
+                echo "[-] CANH BAO: WP CLI chua khoi tao duoc bang CSDL, ban co the tiep tuc hoan tat tai $SITE_URL/wp-admin/install.php"
+            fi
         fi
 
-        # 5. Cai dat MU-Plugins toi uu san neu co
+        # 5. TỰ ĐỘNG TÍCH HỢP CACHE NẾU ĐƯỢC CHỌN
+        if [ "$ENABLE_CACHE" = "1" ]; then
+            echo "[+] Cai dat Plugin Cache (LiteSpeed Cache)..."
+            CACHE_ZIP="/tmp/litespeed_cache_$$.zip"
+            if curl -fsSL --connect-timeout 10 "https://downloads.wordpress.org/plugin/litespeed-cache.zip" -o "$CACHE_ZIP" 2>/dev/null; then
+                mkdir -p "$TARGET_DIR/wp-content/plugins"
+                unzip -q -o "$CACHE_ZIP" -d "$TARGET_DIR/wp-content/plugins" 2>/dev/null || true
+                rm -f "$CACHE_ZIP"
+            fi
+        fi
+
+        # 6. CÀI ĐẶT BỘ MU-PLUGINS WPC OPTIMIZE NẾU CÓ
         mkdir -p "$TARGET_DIR/wp-content/mu-plugins"
         if [ -d "/opt/wpc/templates/mu-plugins" ]; then
             cp -f /opt/wpc/templates/mu-plugins/*.php "$TARGET_DIR/wp-content/mu-plugins/" 2>/dev/null || true
         fi
 
-        # 6. Phan quyen chuan Linux
+        # 7. TẠO FILE HTML GIỮ CHỖ NẾU YÊU CẦU
+        if [ "$CREATE_HTML" = "1" ] && [ ! -f "$TARGET_DIR/index.html" ]; then
+            cat << 'EOF_HTML' > "$TARGET_DIR/index.html"
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Website Under Construction</title></head>
+<body style="font-family:sans-serif;text-align:center;padding:50px;">
+<h2>Website is being deployed by PressPanel</h2>
+<p>WordPress installation completed successfully.</p>
+</body>
+</html>
+EOF_HTML
+        fi
+
+        # 8. PHÂN QUYỀN CHUẨN LINUX
         if id "$USERNAME" &>/dev/null; then
             chown -R "$USERNAME:$USERNAME" "$TARGET_DIR" 2>/dev/null || true
             find "$TARGET_DIR" -type d -exec chmod 755 {} + 2>/dev/null || true
@@ -157,7 +252,7 @@ EOF
             chmod 600 "$TARGET_DIR/wp-config.php" 2>/dev/null || true
         fi
 
-        echo "[+] Cai dat WordPress thanh cong tren $DOMAIN!"
+        echo "[+] Cai dat WordPress thanh cong tren $DOMAIN tai $TARGET_DIR!"
         exit 0
         ;;
 
