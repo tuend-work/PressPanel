@@ -2907,6 +2907,7 @@
                 });
                 const loadingDomainFpm = ref(false);
                 const savingDomainFpm = ref(false);
+                const resettingDomainFpm = ref(false);
                 const controllingFpm = ref(false);
                 const fpmConfigMode = ref('form');
 
@@ -2982,6 +2983,34 @@
                         alert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingDomainFpm.value = false;
+                    }
+                };
+
+                const resetDomainFpmSettings = async () => {
+                    if (!targetPhpDomain.value) return;
+                    if (!confirm(`Bạn có chắc chắn muốn khôi phục cấu hình PHP-FPM của website ${targetPhpDomain.value.domain_name} về mặc định hệ thống không?\n\nToàn bộ cấu hình pool sẽ được tạo mới sạch sẽ theo chuẩn hệ điều hành.`)) {
+                        return;
+                    }
+                    resettingDomainFpm.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${targetPhpDomain.value.id}/fpm-service/reset`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Đã khôi phục cấu hình PHP-FPM về mặc định hệ thống thành công!');
+                            await loadDomainFpmSettings(targetPhpDomain.value);
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể khôi phục cấu hình PHP-FPM'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        resettingDomainFpm.value = false;
                     }
                 };
 
@@ -5756,7 +5785,7 @@
                     openChangePhpModal, confirmChangePhp,
                     phpModalTab, domainPhpIni, loadingDomainPhpIni, savingDomainPhpIni, applyPhpPreset, loadDomainPhpIni, saveDomainPhpIni,
                     domainPhpExtensions, loadingDomainPhpExtensions, savingDomainPhpExtensions, loadDomainPhpExtensions, saveDomainPhpExtensions, applyPhpExtPreset,
-                    domainFpmData, loadingDomainFpm, savingDomainFpm, controllingFpm, fpmConfigMode, loadDomainFpmSettings, saveDomainFpmSettings, controlDomainFpm,
+                    domainFpmData, loadingDomainFpm, savingDomainFpm, resettingDomainFpm, controllingFpm, fpmConfigMode, loadDomainFpmSettings, saveDomainFpmSettings, resetDomainFpmSettings, controlDomainFpm,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain, handleToggleDomainStatus,
                     showEditDomainModal, selectedEditDomain, editDomainForm, savingDomainEdit, openEditDomainModal, handleSaveDomainEdit,
                     showDomainChangePlanModal, selectedDomainForPlan, targetDomainPlanId, changingDomainPlan, selectedDomainPlanPreview, openChangeDomainPlanModal, confirmChangeDomainPlan,

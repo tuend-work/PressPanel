@@ -27,17 +27,32 @@ CONF_FILE="$USER_CONF_DIR/${USERNAME}.conf"
 PID_FILE="/run/php/php${PHP_VER}-fpm-${USERNAME}.pid"
 SOCK_FILE="/run/php/php${PHP_VER}-fpm-${USERNAME}.sock"
 
-# Xác định user worker Nginx
-WORKER_USER="www-data"
-if id "nginx" &>/dev/null && ! id "www-data" &>/dev/null; then
+# Xác định an toàn user worker Webserver (tránh lỗi cannot get uid for user www-data trên RHEL/AlmaLinux)
+WORKER_USER="nobody"
+if id "www-data" &>/dev/null; then
+    WORKER_USER="www-data"
+elif id "nginx" &>/dev/null; then
     WORKER_USER="nginx"
+elif id "apache" &>/dev/null; then
+    WORKER_USER="apache"
+elif id "$USERNAME" &>/dev/null; then
+    WORKER_USER="$USERNAME"
+fi
+
+WORKER_GRP="$WORKER_USER"
+if ! getent group "$WORKER_USER" &>/dev/null; then
+    if getent group "$USERNAME" &>/dev/null; then
+        WORKER_GRP="$USERNAME"
+    else
+        WORKER_GRP="nobody"
+    fi
 fi
 
 # Đảm bảo thư mục runtime tồn tại
 mkdir -p /run/php /var/run/php /tmp/lshttpd 2>/dev/null || true
 chmod 755 /run/php /var/run/php 2>/dev/null || true
 chmod 1777 /tmp/lshttpd 2>/dev/null || true
-chown -R ${WORKER_USER}:${WORKER_USER} /run/php /var/run/php 2>/dev/null || true
+chown -R ${WORKER_USER}:${WORKER_GRP} /run/php /var/run/php 2>/dev/null || true
 
 case "$ACTION" in
     create)
@@ -104,7 +119,7 @@ group = ${FPM_GRP}
 
 listen = $SOCK_FILE
 listen.owner = ${WORKER_USER}
-listen.group = ${WORKER_USER}
+listen.group = ${WORKER_GRP}
 listen.mode = 0666
 
 pm = dynamic

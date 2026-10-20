@@ -129,7 +129,7 @@ SUPPORTED_APPS = [
 
     {
         "id": "php85",
-        "name": "PHP 8.5 Runtime",
+        "name": "PHP 8.5",
         "category": "php",
         "icon": "🐘",
         "desc": "Phiên bản PHP 8.5 thử nghiệm mới nhất của PHP Core Team.",
@@ -139,7 +139,7 @@ SUPPORTED_APPS = [
     },
     {
         "id": "php84",
-        "name": "PHP 8.4 Runtime",
+        "name": "PHP 8.4",
         "category": "php",
         "icon": "🐘",
         "desc": "Phiên bản PHP 8.4 hiện đại nhất, hỗ trợ Property Hooks, Asymmetric Visibility.",
@@ -149,7 +149,7 @@ SUPPORTED_APPS = [
     },
     {
         "id": "php83",
-        "name": "PHP 8.3 Runtime",
+        "name": "PHP 8.3",
         "category": "php",
         "icon": "🐘",
         "desc": "Phiên bản PHP 8.3 hiệu năng cao, bổ sung Typed Class Constants và json_validate.",
@@ -159,7 +159,7 @@ SUPPORTED_APPS = [
     },
     {
         "id": "php82",
-        "name": "PHP 8.2 Runtime",
+        "name": "PHP 8.2",
         "category": "php",
         "icon": "🐘",
         "desc": "Phiên bản PHP 8.2 ổn định cao, khuyên dùng cho hầu hết website WordPress.",
@@ -169,7 +169,7 @@ SUPPORTED_APPS = [
     },
     {
         "id": "php81",
-        "name": "PHP 8.1 Runtime",
+        "name": "PHP 8.1",
         "category": "php",
         "icon": "🐘",
         "desc": "PHP 8.1 hỗ trợ Enums, Readonly Properties, First-class Callables.",
@@ -179,7 +179,7 @@ SUPPORTED_APPS = [
     },
     {
         "id": "php80",
-        "name": "PHP 8.0 Runtime",
+        "name": "PHP 8.0",
         "category": "php",
         "icon": "🐘",
         "desc": "PHP 8.0 giới thiệu JIT Compiler, Named Arguments và Union Types.",
@@ -189,7 +189,7 @@ SUPPORTED_APPS = [
     },
     {
         "id": "php74",
-        "name": "PHP 7.4 Runtime",
+        "name": "PHP 7.4",
         "category": "php",
         "icon": "🐘",
         "desc": "Phiên bản PHP 7.4 Legacy ổn định nhất thế hệ PHP 7.x.",
@@ -199,7 +199,7 @@ SUPPORTED_APPS = [
     },
     {
         "id": "php73",
-        "name": "PHP 7.3 Runtime",
+        "name": "PHP 7.3",
         "category": "php",
         "icon": "🐘",
         "desc": "PHP 7.3 dành cho các dự án và theme WordPress cũ.",
@@ -209,7 +209,7 @@ SUPPORTED_APPS = [
     },
     {
         "id": "php72",
-        "name": "PHP 7.2 Runtime",
+        "name": "PHP 7.2",
         "category": "php",
         "icon": "🐘",
         "desc": "PHP 7.2 hỗ trợ mã nguồn WordPress 4.x - 5.x.",
@@ -219,7 +219,7 @@ SUPPORTED_APPS = [
     },
     {
         "id": "php71",
-        "name": "PHP 7.1 Runtime",
+        "name": "PHP 7.1",
         "category": "php",
         "icon": "🐘",
         "desc": "PHP 7.1 hỗ trợ tương thích mã nguồn cũ.",
@@ -229,7 +229,7 @@ SUPPORTED_APPS = [
     },
     {
         "id": "php70",
-        "name": "PHP 7.0 Runtime",
+        "name": "PHP 7.0",
         "category": "php",
         "icon": "🐘",
         "desc": "PHP 7.0 phiên bản nâng cấp tốc độ đột phá so với PHP 5.6.",
@@ -239,7 +239,7 @@ SUPPORTED_APPS = [
     },
     {
         "id": "php56",
-        "name": "PHP 5.6 Runtime",
+        "name": "PHP 5.6",
         "category": "php",
         "icon": "🐘",
         "desc": "PHP 5.6 Legacy dành cho các website cổ, tương thích cao với script cũ.",
@@ -478,26 +478,35 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
     installed = False
     running = False
 
+    is_php = (app.get("category") == "php")
+
     # 1. Kiểm tra binary thực tế
     for b in app["binary_checks"]:
-        if os.path.exists(b):
-            installed = True
-            break
-        # Chỉ dùng which nếu b là command name đơn giản không có path
-        if "/" not in b and shutil.which(b):
-            installed = True
-            break
+        if is_php:
+            # PHP apps: Bắt buộc phải là file thực thi hợp lệ (executable binary), tuyệt đối không nhận diện folder hoặc broken symlink
+            if os.path.isfile(b) and (os.access(b, os.X_OK) if os.name != "nt" else True):
+                installed = True
+                break
+        else:
+            if os.path.exists(b):
+                installed = True
+                break
+            # Chỉ dùng which nếu b là command name đơn giản không có path
+            if "/" not in b and shutil.which(b):
+                installed = True
+                break
 
-    # Bổ sung kiểm tra binary PHP Remi trên AlmaLinux / RHEL
-    if not installed and app.get("category") == "php":
+    # Bổ sung kiểm tra binary PHP Remi trên AlmaLinux / RHEL (chỉ file thực thi, không kiểm tra thư mục cấu hình /etc)
+    if not installed and is_php:
         clean_num = app["id"].replace("php", "")
         remi_paths = [
             f"/opt/remi/php{clean_num}/root/usr/sbin/php-fpm",
+            f"/opt/remi/php{clean_num}/root/usr/bin/php",
             f"/usr/bin/php{clean_num}",
-            f"/etc/opt/remi/php{clean_num}"
+            f"/usr/sbin/php{clean_num}-fpm"
         ]
         for rp in remi_paths:
-            if os.path.exists(rp):
+            if os.path.isfile(rp) and (os.access(rp, os.X_OK) if os.name != "nt" else True):
                 installed = True
                 break
 

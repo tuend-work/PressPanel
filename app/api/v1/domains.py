@@ -1431,6 +1431,60 @@ async def save_domain_php_extensions(
         "extensions": req.extensions
     }
 
+def get_safe_fpm_socket_owner(isolated_user: str) -> tuple[str, str]:
+    """
+    Xác định an toàn user/group sở hữu socket PHP-FPM.
+    Tránh lỗi 'cannot get uid for user www-data' trên RHEL/AlmaLinux/CentOS
+    nơi user www-data không tồn tại trong /etc/passwd.
+    """
+    if platform.system() != "Linux":
+        return ("www-data", "www-data")
+
+    try:
+        import pwd
+        # Thứ tự ưu tiên người dùng web server: www-data (Debian/Ubuntu) -> nginx (RHEL/Alma) -> apache -> isolated_user
+        for cand in ["www-data", "nginx", "apache"]:
+            try:
+                pwd.getpwnam(cand)
+                return (cand, cand)
+            except KeyError:
+                continue
+        if isolated_user:
+            try:
+                pwd.getpwnam(isolated_user)
+                return (isolated_user, isolated_user)
+            except KeyError:
+                pass
+    except Exception:
+        pass
+
+    return ("nobody", "nobody")
+
+def sanitize_fpm_config_content(content: str, isolated_user: str) -> str:
+    """Tự động thay thế listen.owner/listen.group nếu trỏ đến user/group không tồn tại trên hệ thống (như www-data trên AlmaLinux)"""
+    safe_u, safe_g = get_safe_fpm_socket_owner(isolated_user)
+    if platform.system() == "Linux":
+        try:
+            import pwd
+            for m in re.finditer(r'^[ \t]*listen\.owner[ \t]*=[ \t]*([^\r\n#;]+)', content, re.MULTILINE):
+                u = m.group(1).strip()
+                try:
+                    pwd.getpwnam(u)
+                except KeyError:
+                    content = content.replace(m.group(0), f"listen.owner = {safe_u}")
+            for m in re.finditer(r'^[ \t]*listen\.group[ \t]*=[ \t]*([^\r\n#;]+)', content, re.MULTILINE):
+                g = m.group(1).strip()
+                try:
+                    import grp
+                    grp.getgrnam(g)
+                except (KeyError, Exception):
+                    content = content.replace(m.group(0), f"listen.group = {safe_g}")
+        except Exception:
+            if safe_u != "www-data":
+                content = re.sub(r'^[ \t]*listen\.owner[ \t]*=[ \t]*www-data', f'listen.owner = {safe_u}', content, flags=re.MULTILINE)
+                content = re.sub(r'^[ \t]*listen\.group[ \t]*=[ \t]*www-data', f'listen.group = {safe_g}', content, flags=re.MULTILINE)
+    return content
+
 class DomainFpmSettingsUpdate(BaseModel):
     mode: str = "form"  # "form" or "raw"
     pm: Optional[str] = "dynamic"
@@ -1521,10 +1575,13 @@ async def get_domain_fpm_service(
         "request_terminate_timeout": "0s"
     }
     raw_config = ""
+    sock_owner, sock_group = get_safe_fpm_socket_owner(isolated_user)
+
     if os.path.exists(conf_path):
         try:
             with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
                 raw_config = f.read()
+            raw_config = sanitize_fpm_config_content(raw_config, isolated_user)
             for line in raw_config.splitlines():
                 line = line.strip()
                 if not line or line.startswith(";") or line.startswith("#"):
@@ -1550,7 +1607,7 @@ async def get_domain_fpm_service(
         except Exception:
             pass
     else:
-        # Template mặc định
+        # Template mặc định an toàn
         raw_config = f"""; WPCloud PHP-FPM Pool Configuration
 [global]
 pid = {pid_path}
@@ -1562,8 +1619,8 @@ daemonize = no
 user = {isolated_user}
 group = {isolated_user}
 listen = {sock_path}
-listen.owner = www-data
-listen.group = www-data
+listen.owner = {sock_owner}
+listen.group = {sock_group}
 listen.mode = 0666
 
 pm = dynamic
@@ -1637,11 +1694,12 @@ async def save_domain_fpm_service(
     pid_path = f"/run/php/php{php_ver}-fpm-{isolated_user}.pid"
 
     os.makedirs(conf_dir, exist_ok=True)
+    sock_owner, sock_group = get_safe_fpm_socket_owner(isolated_user)
 
     if req.mode == "raw" and req.raw_config:
         content = req.raw_config
     else:
-        # Sinh nội dung từ form
+        # Sinh nội dung từ form với socket owner an toàn đã nhận diện theo OS
         pm_mode = req.pm if req.pm in ["dynamic", "ondemand", "static"] else "dynamic"
         max_ch = max(1, min(100, int(req.pm_max_children or 10)))
         start_s = max(1, min(max_ch, int(req.pm_start_servers or 2)))
@@ -1661,8 +1719,8 @@ daemonize = no
 user = {isolated_user}
 group = {isolated_user}
 listen = {sock_path}
-listen.owner = www-data
-listen.group = www-data
+listen.owner = {sock_owner}
+listen.group = {sock_group}
 listen.mode = 0666
 
 pm = {pm_mode}
@@ -1684,6 +1742,9 @@ php_admin_flag[log_errors] = on
 php_admin_value[error_log] = /home/{isolated_user}/logs/php-fpm.error.log
 """
 
+    # Luôn kiểm tra khử lỗi listen.owner/listen.group không tồn tại (như www-data trên AlmaLinux)
+    content = sanitize_fpm_config_content(content, isolated_user)
+
     # Ghi file cấu hình an toàn qua sudo/python
     try:
         tmp_conf = f"/tmp/wpc_fpm_{isolated_user}_{int(time.time())}.conf"
@@ -1694,11 +1755,11 @@ php_admin_value[error_log] = /home/{isolated_user}/logs/php-fpm.error.log
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Không thể ghi file cấu hình FPM: {str(e)}")
 
-    # Đảm bảo template service tồn tại và tự động reload service
+    # Đảm bảo restart service để phục hồi ngay lập tức kể cả khi service đang ở trạng thái failed
     if platform.system() == "Linux":
         try:
             subprocess.run(
-                ["sudo", "/opt/wpc/scripts/php_fpm_service.sh", "reload", isolated_user, php_ver],
+                ["sudo", "/opt/wpc/scripts/php_fpm_service.sh", "restart", isolated_user, php_ver],
                 check=False
             )
         except Exception:
@@ -1706,7 +1767,97 @@ php_admin_value[error_log] = /home/{isolated_user}/logs/php-fpm.error.log
 
     return {
         "status": "success",
-        "message": f"Đã lưu cấu hình và tự động reload dịch vụ {service_name} thành công!"
+        "message": f"Đã lưu cấu hình và tự động khởi động lại dịch vụ {service_name} thành công!"
+    }
+
+@router.post("/{domain_id}/fpm-service/reset")
+async def reset_domain_fpm_service(
+    domain_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Khôi phục cấu hình PHP-FPM của website về mặc định của hệ thống"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    php_ver = str(domain["php_version"] or "8.2")
+    service_name = f"wpc-php{php_ver}-fpm@{isolated_user}.service"
+    conf_dir = f"/etc/php/{php_ver}/fpm/users"
+    conf_path = f"{conf_dir}/{isolated_user}.conf"
+
+    if platform.system() == "Linux":
+        try:
+            # Tái tạo sạch cấu hình mặc định an toàn cho OS hiện tại qua script
+            subprocess.run(
+                ["sudo", "/opt/wpc/scripts/php_fpm_service.sh", "create", isolated_user, php_ver],
+                check=False
+            )
+            subprocess.run(
+                ["sudo", "/opt/wpc/scripts/php_fpm_service.sh", "restart", isolated_user, php_ver],
+                check=False
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Lỗi khi khôi phục dịch vụ PHP-FPM: {str(e)}")
+    else:
+        # Dev Windows simulation
+        sock_owner, sock_group = get_safe_fpm_socket_owner(isolated_user)
+        sock_path = f"/run/php/php{php_ver}-fpm-{isolated_user}.sock"
+        pid_path = f"/run/php/php{php_ver}-fpm-{isolated_user}.pid"
+        os.makedirs(conf_dir, exist_ok=True)
+        default_content = f"""; WPCloud PHP-FPM Pool Configuration
+[global]
+pid = {pid_path}
+error_log = /var/log/php{php_ver}-fpm-{isolated_user}.log
+log_level = notice
+daemonize = no
+
+[{isolated_user}]
+user = {isolated_user}
+group = {isolated_user}
+listen = {sock_path}
+listen.owner = {sock_owner}
+listen.group = {sock_group}
+listen.mode = 0666
+
+pm = dynamic
+pm.max_children = 10
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 3
+pm.max_requests = 500
+request_terminate_timeout = 0s
+
+pm.status_path = /status-{isolated_user}
+ping.path = /ping-{isolated_user}
+
+php_admin_value[open_basedir] = /home/{isolated_user}/:/tmp/:/var/tmp/
+php_admin_value[upload_tmp_dir] = /home/{isolated_user}/.tmp
+php_admin_value[session.save_path] = /home/{isolated_user}/.sessions
+php_admin_value[disable_functions] = exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source
+php_admin_flag[log_errors] = on
+php_admin_value[error_log] = /home/{isolated_user}/logs/php-fpm.error.log
+"""
+        with open(conf_path, "w", encoding="utf-8") as f:
+            f.write(default_content)
+
+    return {
+        "status": "success",
+        "message": f"Đã khôi phục cấu hình PHP-FPM của website {clean_domain} về mặc định hệ thống thành công!"
     }
 
 @router.post("/{domain_id}/fpm-service/control")

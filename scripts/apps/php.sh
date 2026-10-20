@@ -105,7 +105,7 @@ EOF
                 exit 1
             fi
 
-            echo "[+] Đã cài đặt và kích hoạt PHP Runtime ${VERSION_CLEAN} thành công!"
+            echo "[+] Đã cài đặt và kích hoạt PHP ${VERSION_CLEAN} thành công!"
 
         elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
             PKG_MGR="dnf"
@@ -200,7 +200,7 @@ EOF
                 exit 1
             fi
 
-            echo "[+] Đã cài đặt và kích hoạt PHP Runtime ${VERSION_CLEAN} (${PHP_PKG_PREFIX}) thành công!"
+            echo "[+] Đã cài đặt và kích hoạt PHP ${VERSION_CLEAN} (${PHP_PKG_PREFIX}) thành công!"
         else
             echo "[-] Hệ điều hành không hỗ trợ apt-get hoặc dnf/yum."
             exit 1
@@ -208,7 +208,7 @@ EOF
         ;;
 
     remove)
-        echo "[+] Đang gỡ bỏ PHP Binary $VERSION_CLEAN..."
+        echo "[+] Đang gỡ bỏ PHP $VERSION_CLEAN..."
         systemctl stop "${PHP_PKG_PREFIX}-php-fpm" "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
         systemctl disable "${PHP_PKG_PREFIX}-php-fpm" "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
         if command -v apt-get &>/dev/null; then
@@ -218,9 +218,13 @@ EOF
             command -v dnf &>/dev/null || PKG_MGR="yum"
             $PKG_MGR remove -y "${PHP_PKG_PREFIX}*" "lsphp${LSPHP_NUM}*" 2>/dev/null || true
         fi
-        rm -rf "/etc/php/${VERSION_CLEAN}" "/usr/local/lsws/lsphp${LSPHP_NUM}" "/opt/remi/${PHP_PKG_PREFIX}" 2>/dev/null || true
-        rm -f "/usr/sbin/php-fpm${VERSION_CLEAN}" "/usr/bin/php${VERSION_CLEAN}" "/etc/systemd/system/php${VERSION_CLEAN}-fpm.service" 2>/dev/null || true
-        echo "[+] Đã gỡ bỏ PHP $VERSION_CLEAN và xoá thư mục cấu hình hoàn tất!"
+        rm -rf "/etc/php/${VERSION_CLEAN}" "/usr/local/lsws/lsphp${LSPHP_NUM}" "/opt/remi/${PHP_PKG_PREFIX}" "/etc/opt/remi/${PHP_PKG_PREFIX}" "/var/opt/remi/${PHP_PKG_PREFIX}" 2>/dev/null || true
+        rm -f "/usr/sbin/php-fpm${VERSION_CLEAN}" "/usr/bin/php${VERSION_CLEAN}" "/usr/bin/${PHP_PKG_PREFIX}" "/usr/sbin/${PHP_PKG_PREFIX}-fpm" "/etc/systemd/system/php${VERSION_CLEAN}-fpm.service" "/etc/systemd/system/${PHP_PKG_PREFIX}-php-fpm.service" 2>/dev/null || true
+        if command -v alternatives &>/dev/null; then
+            alternatives --remove php "/usr/bin/php${VERSION_CLEAN}" 2>/dev/null || true
+            alternatives --remove php "/usr/bin/${PHP_PKG_PREFIX}" 2>/dev/null || true
+        fi
+        echo "[+] Đã gỡ bỏ PHP $VERSION_CLEAN và xoá triệt để tệp nhị phân, thư mục cấu hình hoàn tất!"
         ;;
 
     set-cli)

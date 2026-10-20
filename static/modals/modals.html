@@ -691,15 +691,19 @@
 
                         <!-- Action Buttons -->
                         <div class="flex justify-between items-center pt-3 border-t border-slate-800">
-                            <span class="text-[10px] text-slate-400">
-                                Dịch vụ PHP-FPM sẽ tự động reload ngay sau khi lưu.
-                            </span>
+                            <button type="button" @click="resetDomainFpmSettings" :disabled="savingDomainFpm || loadingDomainFpm || resettingDomainFpm"
+                                class="px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-rose-950/40 text-rose-400 hover:text-rose-300 font-semibold border border-slate-700 hover:border-rose-700/60 transition flex items-center space-x-1.5 disabled:opacity-50 text-xs shadow-sm"
+                                title="Khôi phục file cấu hình PHP-FPM của website về mặc định chuẩn theo hệ điều hành">
+                                <span v-if="resettingDomainFpm" class="animate-spin">⏳</span>
+                                <span v-else>🔄</span>
+                                <span>{{ resettingDomainFpm ? 'Đang reset...' : 'Khôi Phục Mặc Định (Reset)' }}</span>
+                            </button>
                             <div class="flex space-x-2">
-                                <button type="button" @click="showChangePhpModal = false" :disabled="savingDomainFpm"
+                                <button type="button" @click="showChangePhpModal = false" :disabled="savingDomainFpm || resettingDomainFpm"
                                     class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700 transition">
                                     Đóng
                                 </button>
-                                <button type="button" @click="saveDomainFpmSettings" :disabled="savingDomainFpm || loadingDomainFpm"
+                                <button type="button" @click="saveDomainFpmSettings" :disabled="savingDomainFpm || loadingDomainFpm || resettingDomainFpm"
                                     class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white font-bold shadow-lg shadow-amber-500/25 transition flex items-center space-x-1.5 disabled:opacity-50">
                                     <span v-if="savingDomainFpm" class="animate-spin">⏳</span>
                                     <span>{{ savingDomainFpm ? 'Đang lưu & Reload...' : 'Lưu & Tự Động Reload Service' }}</span>

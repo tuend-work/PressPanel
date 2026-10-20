@@ -3,9 +3,9 @@ user = {{USERNAME}}
 group = {{USERNAME}}
 
 listen = /run/php/php{{PHP_VER}}-fpm-{{USERNAME}}.sock
-listen.owner = www-data
-listen.group = www-data
-listen.mode = 0660
+listen.owner = {{WORKER_USER}}
+listen.group = {{WORKER_GRP}}
+listen.mode = 0666
 
 pm = dynamic
 pm.max_children = 10

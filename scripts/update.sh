@@ -210,6 +210,33 @@ EOF
 done
 systemctl daemon-reload 2>/dev/null || true
 
+# Tự động sửa lỗi 'cannot get uid for user www-data' trong pool config trên RHEL/AlmaLinux/CentOS
+if ! id "www-data" &>/dev/null; then
+    SAFE_WORKER="nobody"
+    if id "nginx" &>/dev/null; then
+        SAFE_WORKER="nginx"
+    elif id "apache" &>/dev/null; then
+        SAFE_WORKER="apache"
+    fi
+    for f in /etc/php/*/fpm/users/*.conf; do
+        [ -f "$f" ] || continue
+        sed -i "s/listen\.owner[[:space:]]*=[[:space:]]*www-data/listen.owner = ${SAFE_WORKER}/g" "$f" 2>/dev/null || true
+        sed -i "s/listen\.group[[:space:]]*=[[:space:]]*www-data/listen.group = ${SAFE_WORKER}/g" "$f" 2>/dev/null || true
+    done
+fi
+
+# Tự động dọn dẹp thư mục rác /etc/opt/remi/php* nếu gói PHP tương ứng đã bị gỡ bỏ
+for rdir in /etc/opt/remi/php*; do
+    [ -d "$rdir" ] || continue
+    pnum=$(basename "$rdir" | sed 's/php//')
+    if [ ! -x "/opt/remi/php${pnum}/root/usr/sbin/php-fpm" ] && \
+       [ ! -x "/usr/bin/php${pnum}" ] && \
+       [ ! -x "/usr/sbin/php${pnum}-fpm" ] && \
+       [ ! -x "/usr/local/lsws/lsphp${pnum}/bin/lsphp" ]; then
+        rm -rf "$rdir" 2>/dev/null || true
+    fi
+done
+
 # Cập nhật cấu hình slice cho các user đã có standalone service (chỉ khi Nginx đang kích hoạt)
 if ! systemctl is-active --quiet lshttpd 2>/dev/null && ! systemctl is-active --quiet lsws 2>/dev/null; then
     for uconf in /etc/php/*/fpm/users/*.conf; do
