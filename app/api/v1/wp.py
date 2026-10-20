@@ -255,52 +255,112 @@ class WPCloneRequest(BaseModel):
 # Endpoints: Instances Management & Overview
 # ==============================================================================
 
+async def ensure_wp_instances_table(db):
+    """Đảm bảo bảng wp_instances và các cột cần thiết luôn tồn tại đầy đủ"""
+    try:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS wp_instances (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                domain_id INTEGER NOT NULL,
+                user_id INTEGER,
+                site_title TEXT NOT NULL,
+                admin_user TEXT NOT NULL,
+                admin_email TEXT NOT NULL,
+                wp_version TEXT NOT NULL,
+                db_name TEXT NOT NULL,
+                db_user TEXT NOT NULL,
+                db_prefix TEXT DEFAULT 'wp_',
+                document_root TEXT,
+                auto_update_core INTEGER DEFAULT 1,
+                auto_update_plugins INTEGER DEFAULT 0,
+                auto_update_themes INTEGER DEFAULT 0,
+                is_staging INTEGER DEFAULT 0,
+                staging_source_id INTEGER DEFAULT NULL,
+                security_score INTEGER DEFAULT 0,
+                is_locked INTEGER DEFAULT 0,
+                security_flags TEXT DEFAULT '{}',
+                wp_defines TEXT DEFAULT '{}',
+                wpc_optimize_flags TEXT DEFAULT '{}',
+                site_size_mb REAL DEFAULT 0,
+                db_size_mb REAL DEFAULT 0,
+                uploads_size_mb REAL DEFAULT 0,
+                last_scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_backup_at DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE
+            )
+        """)
+        cursor = await db.execute("PRAGMA table_info(wp_instances)")
+        existing_cols = [r[1] for r in await cursor.fetchall()]
+        needed_cols = [
+            ("user_id", "INTEGER"),
+            ("db_prefix", "TEXT DEFAULT 'wp_'"),
+            ("document_root", "TEXT"),
+            ("is_locked", "INTEGER DEFAULT 0"),
+            ("security_flags", "TEXT DEFAULT '{}'"),
+            ("wp_defines", "TEXT DEFAULT '{}'"),
+            ("wpc_optimize_flags", "TEXT DEFAULT '{}'"),
+            ("auto_update_themes", "INTEGER DEFAULT 0"),
+            ("site_size_mb", "REAL DEFAULT 0"),
+            ("db_size_mb", "REAL DEFAULT 0"),
+            ("uploads_size_mb", "REAL DEFAULT 0"),
+            ("last_scanned_at", "DATETIME DEFAULT CURRENT_TIMESTAMP")
+        ]
+        for col_name, col_type in needed_cols:
+            if col_name not in existing_cols:
+                try:
+                    await db.execute(f"ALTER TABLE wp_instances ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
+        await db.commit()
+    except Exception:
+        pass
+
 @router.get("/list")
 async def list_wordpress_instances(current_user: dict = Depends(get_current_user)):
     """Lấy danh sách các site WordPress thuộc quyền quản lý của User (hoặc tất cả nếu là admin)"""
     db = await get_db_connection()
-    if current_user["role"] == "admin":
-        cursor = await db.execute("""
-            SELECT w.*, d.domain_name, u.username as owner_username
-            FROM wp_instances w
-            JOIN domains d ON w.domain_id = d.id
-            JOIN users u ON d.user_id = u.id
-            ORDER BY w.id DESC
-        """)
-    else:
-        cursor = await db.execute("""
-            SELECT w.*, d.domain_name, u.username as owner_username
-            FROM wp_instances w
-            JOIN domains d ON w.domain_id = d.id
-            JOIN users u ON d.user_id = u.id
-            WHERE d.user_id = ?
-            ORDER BY w.id DESC
-        """)
-        cursor = await db.execute("""
-            SELECT w.*, d.domain_name, u.username as owner_username
-            FROM wp_instances w
-            JOIN domains d ON w.domain_id = d.id
-            JOIN users u ON d.user_id = u.id
-            WHERE d.user_id = ?
-            ORDER BY w.id DESC
-        """, (current_user["id"],))
+    try:
+        await ensure_wp_instances_table(db)
+        if current_user["role"] == "admin":
+            cursor = await db.execute("""
+                SELECT w.*, d.domain_name, u.username as owner_username
+                FROM wp_instances w
+                JOIN domains d ON w.domain_id = d.id
+                JOIN users u ON d.user_id = u.id
+                ORDER BY w.id DESC
+            """)
+        else:
+            cursor = await db.execute("""
+                SELECT w.*, d.domain_name, u.username as owner_username
+                FROM wp_instances w
+                JOIN domains d ON w.domain_id = d.id
+                JOIN users u ON d.user_id = u.id
+                WHERE d.user_id = ?
+                ORDER BY w.id DESC
+            """, (current_user["id"],))
 
-    rows = await cursor.fetchall()
-    await db.close()
-
-    instances = []
-    for r in rows:
-        item = dict(r)
-        # Parse JSON fields
-        for jf in ["security_flags", "wp_defines", "wpc_optimize_flags"]:
-            if isinstance(item.get(jf), str):
-                try:
-                    item[jf] = json.loads(item[jf])
-                except Exception:
+        rows = await cursor.fetchall()
+        instances = []
+        for r in rows:
+            item = dict(r)
+            # Parse JSON fields
+            for jf in ["security_flags", "wp_defines", "wpc_optimize_flags"]:
+                val = item.get(jf)
+                if isinstance(val, str):
+                    try:
+                        item[jf] = json.loads(val)
+                    except Exception:
+                        item[jf] = {}
+                elif not val:
                     item[jf] = {}
-        instances.append(item)
+            instances.append(item)
 
-    return {"status": "ok", "instances": instances}
+        return {"status": "ok", "instances": instances}
+    except Exception as e:
+        return {"status": "ok", "instances": [], "error": str(e)}
+    finally:
+        await db.close()
 
 @router.post("/scan")
 async def scan_wordpress_instances(current_user: dict = Depends(get_current_user)):

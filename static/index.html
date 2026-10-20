@@ -1617,11 +1617,16 @@
                             currentTab.value = initialTab;
                             window.location.hash = initialTab;
                             fetchDomains();
-                            fetchCustomers();
-                            fetchServicePlans();
+                            if (data.role === 'admin' || data.role === 'reseller') {
+                                fetchCustomers();
+                                fetchServicePlans();
+                            }
                             fetchSystemStatus();
                             fetchAppsList();
                             fetchTasks();
+                            if (data.role === 'admin') {
+                                fetchPanelVersion();
+                            }
                         } else {
                             loginError.value = data.detail || 'Sai tên đăng nhập hoặc mật khẩu';
                         }
@@ -1865,6 +1870,7 @@
                 // ==========================================
                 const fetchCustomers = async () => {
                     if (!token.value) return;
+                    if (currentUser.value?.role !== 'admin' && currentUser.value?.role !== 'reseller') return;
                     try {
                         const res = await fetch('/api/v1/users/customers', {
                             headers: { 'Authorization': `Bearer ${token.value}` }
@@ -4151,8 +4157,11 @@
                 let updatePollingTimer = null;
 
                 const fetchPanelVersion = async () => {
+                    if (!token.value || currentUser.value?.role !== 'admin') return;
                     try {
-                        const res = await fetch('/api/v1/system/version');
+                        const res = await fetch('/api/v1/system/version', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
                         if (res.ok) {
                             const data = await res.json();
                             if (data.current_version) panelVersion.value = data.current_version;
@@ -5131,11 +5140,12 @@
                     if (savedUser) {
                         try { currentUser.value = JSON.parse(savedUser); } catch(e){}
                     }
-                    fetchPanelVersion();
                     if (token.value) {
                         fetchDomains();
-                        fetchCustomers();
-                        fetchServicePlans();
+                        if (currentUser.value?.role === 'admin' || currentUser.value?.role === 'reseller') {
+                            fetchCustomers();
+                            fetchServicePlans();
+                        }
                         fetchSystemStatus();
                         fetchAppsList();
                         fetchTasks();
@@ -5143,6 +5153,9 @@
                         fetchDatabasesList();
                         fetchInstalledPhpList();
                         fetchWpInstances();
+                        if (currentUser.value?.role === 'admin') {
+                            fetchPanelVersion();
+                        }
                     }
                     refreshLucideIcons();
                     // Tự động làm mới số liệu và kiểm tra task chạy ngầm mỗi 3 giây
