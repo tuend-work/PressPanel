@@ -65,6 +65,21 @@ def resolve_target_path(user: dict, target_user: Optional[str], subpath: str) ->
         raise HTTPException(status_code=403, detail="Phát hiện hành vi Path Traversal không an toàn!")
     return real_target
 
+def sync_owner(path: str):
+    """Đảm bảo file/thư mục mới tạo hoặc chỉnh sửa có owner:group chuẩn xác với user sở hữu thư mục /home/<user>"""
+    try:
+        m = re.match(r"^/home/([^/]+)", path)
+        if m:
+            u = m.group(1)
+            subprocess.run(["sudo", "chown", "-R", f"{u}:{u}", path], check=False)
+        else:
+            parent = os.path.dirname(path) if not os.path.isdir(path) else os.path.dirname(path.rstrip("/\\"))
+            if os.path.exists(parent):
+                st = os.stat(parent)
+                subprocess.run(["sudo", "chown", "-R", f"{st.st_uid}:{st.st_gid}", path], check=False)
+    except Exception:
+        pass
+
 def get_recycle_bin_dir(user: dict, target_user: Optional[str]) -> str:
     u = target_user if (user["role"] == "admin" and target_user) else user["username"]
     r_dir = f"/home/{u}/.recycle_bin"
@@ -392,6 +407,7 @@ async def save_file_content(
     try:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(req.content)
+        sync_owner(file_path)
         return {"status": "ok", "message": "Đã lưu nội dung tệp tin thành công!"}
     except PermissionError:
         gatekeeper_app = "/opt/wpc/bin/app"
@@ -402,11 +418,13 @@ async def save_file_content(
             if os.path.isfile(gatekeeper_app):
                 proc = subprocess.run([gatekeeper_app, "config-write", tmp_save_path, file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 if proc.returncode == 0:
+                    sync_owner(file_path)
                     return {"status": "ok", "message": "Đã lưu nội dung tệp tin thành công!"}
             proc_sudo = subprocess.run(["sudo", "cp", tmp_save_path, file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if os.path.exists(tmp_save_path):
                 os.remove(tmp_save_path)
             if proc_sudo.returncode == 0:
+                sync_owner(file_path)
                 return {"status": "ok", "message": "Đã lưu nội dung tệp tin thành công!"}
             raise HTTPException(status_code=403, detail="Không có quyền ghi tệp tin này.")
         except Exception as e:
@@ -420,15 +438,57 @@ async def create_file_or_dir(
     current_user: dict = Depends(get_current_user)
 ):
     target_path = resolve_target_path(current_user, req.target_user, req.path)
+    parent_dir = os.path.dirname(target_path)
     try:
         if req.item_type == "folder":
-            os.makedirs(target_path, exist_ok=True)
+            try:
+                os.makedirs(target_path, exist_ok=True)
+                os.chmod(target_path, 0o755)
+            except PermissionError:
+                proc = subprocess.run(["sudo", "mkdir", "-p", target_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.returncode != 0:
+                    raise HTTPException(status_code=500, detail=f"Lỗi khởi tạo thư mục: {proc.stderr}")
+                subprocess.run(["sudo", "chmod", "755", target_path], check=False)
+
+            sync_owner(target_path)
             return {"status": "ok", "message": f"Tạo thư mục {os.path.basename(target_path)} thành công!"}
         else:
-            os.makedirs(os.path.dirname(target_path), exist_ok=True)
-            with open(target_path, "w", encoding="utf-8") as f:
-                f.write("")
+            created = False
+            try:
+                os.makedirs(parent_dir, exist_ok=True)
+                with open(target_path, "w", encoding="utf-8") as f:
+                    f.write("")
+                os.chmod(target_path, 0o644)
+                created = True
+            except PermissionError:
+                # Fallback bằng sudo touch / sudo cp khi tiến trình API wpc không có quyền ghi trực tiếp vào thư mục web user
+                subprocess.run(["sudo", "mkdir", "-p", parent_dir], check=False)
+                proc = subprocess.run(["sudo", "touch", target_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.returncode == 0:
+                    subprocess.run(["sudo", "chmod", "644", target_path], check=False)
+                    created = True
+                else:
+                    tmp_file = f"/tmp/wpc_new_{os.getpid()}_{os.path.basename(target_path)}.tmp"
+                    try:
+                        with open(tmp_file, "w", encoding="utf-8") as ftmp:
+                            ftmp.write("")
+                        proc_cp = subprocess.run(["sudo", "cp", tmp_file, target_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                        if os.path.exists(tmp_file):
+                            os.remove(tmp_file)
+                        if proc_cp.returncode == 0:
+                            subprocess.run(["sudo", "chmod", "644", target_path], check=False)
+                            created = True
+                    except Exception:
+                        if os.path.exists(tmp_file):
+                            os.remove(tmp_file)
+
+            if not created:
+                raise HTTPException(status_code=403, detail="Không có quyền tạo tệp tin trong thư mục này.")
+
+            sync_owner(target_path)
             return {"status": "ok", "message": f"Tạo tệp tin {os.path.basename(target_path)} thành công!"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi khởi tạo: {str(e)}")
 
@@ -448,8 +508,20 @@ async def upload_files(
         safe_fn = os.path.basename(f.filename)
         dest_path = os.path.join(work_dir, safe_fn)
         try:
-            with open(dest_path, "wb") as buffer:
-                shutil.copyfileobj(f.file, buffer)
+            try:
+                with open(dest_path, "wb") as buffer:
+                    shutil.copyfileobj(f.file, buffer)
+                os.chmod(dest_path, 0o644)
+            except PermissionError:
+                tmp_dest = f"/tmp/wpc_upload_{os.getpid()}_{safe_fn}"
+                with open(tmp_dest, "wb") as buffer:
+                    shutil.copyfileobj(f.file, buffer)
+                subprocess.run(["sudo", "cp", tmp_dest, dest_path], check=True)
+                subprocess.run(["sudo", "chmod", "644", dest_path], check=False)
+                if os.path.exists(tmp_dest):
+                    os.remove(tmp_dest)
+
+            sync_owner(dest_path)
             saved_files.append(safe_fn)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Lỗi tải lên {safe_fn}: {str(e)}")
@@ -667,7 +739,14 @@ async def rename_item(
         raise HTTPException(status_code=400, detail="Tên mới đã tồn tại trên thư mục.")
 
     try:
-        os.rename(old_p, new_p)
+        try:
+            os.rename(old_p, new_p)
+        except PermissionError:
+            proc = subprocess.run(["sudo", "mv", old_p, new_p], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if proc.returncode != 0:
+                raise Exception(proc.stderr or "sudo mv failed")
+
+        sync_owner(new_p)
         return {"status": "ok", "message": f"Đổi tên thành công sang {req.new_name}!"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi đổi tên: {str(e)}")
@@ -684,7 +763,13 @@ async def chmod_item(
 
     try:
         mode_val = int(req.mode, 8)
-        os.chmod(target, mode_val)
+        try:
+            os.chmod(target, mode_val)
+        except PermissionError:
+            proc = subprocess.run(["sudo", "chmod", req.mode, target], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if proc.returncode != 0:
+                raise Exception(proc.stderr or "sudo chmod failed")
+
         return {"status": "ok", "message": f"Phân quyền {req.name} thành {req.mode} thành công!"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi phân quyền: {str(e)}")
@@ -706,6 +791,7 @@ async def remote_download(
         proc = subprocess.run(["curl", "-fsSL", "--connect-timeout", "15", url, "-o", dest], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
         if proc.returncode != 0:
             raise HTTPException(status_code=400, detail="Không thể tải tệp từ URL chỉ định.")
+        sync_owner(dest)
         return {"status": "ok", "message": f"Tải tệp {fn} từ xa thành công!", "filename": fn}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi tải file từ xa: {str(e)}")
@@ -727,12 +813,23 @@ async def paste_items(
 
         try:
             if req.action == "cut":
-                shutil.move(src, dest)
+                try:
+                    shutil.move(src, dest)
+                except PermissionError:
+                    subprocess.run(["sudo", "mv", src, dest], check=True)
             else:
-                if os.path.isdir(src):
-                    shutil.copytree(src, dest, dirs_exist_ok=True)
-                else:
-                    shutil.copy2(src, dest)
+                try:
+                    if os.path.isdir(src):
+                        shutil.copytree(src, dest, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(src, dest)
+                except PermissionError:
+                    if os.path.isdir(src):
+                        subprocess.run(["sudo", "cp", "-r", src, dest], check=True)
+                    else:
+                        subprocess.run(["sudo", "cp", src, dest], check=True)
+
+            sync_owner(dest)
             pasted += 1
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Lỗi dán tệp {item}: {str(e)}")
@@ -772,11 +869,12 @@ async def compress_files(
         archive_name += ".tar.gz"
 
     archive_full_path = os.path.join(work_dir, archive_name)
+    target_dest = f"/tmp/wpc_zip_{os.getpid()}_{archive_name}"
 
     try:
         if req.format == "zip":
             import zipfile
-            with zipfile.ZipFile(archive_full_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            with zipfile.ZipFile(target_dest, "w", zipfile.ZIP_DEFLATED) as zf:
                 for item_name in req.items:
                     item_full = os.path.join(work_dir, item_name)
                     if os.path.isdir(item_full):
@@ -787,17 +885,28 @@ async def compress_files(
                                 zf.write(f_path, arcname)
                     elif os.path.isfile(item_full):
                         zf.write(item_full, item_name)
-            return {"status": "ok", "message": f"Nén thành công tệp {archive_name}!", "archive_name": archive_name}
         elif req.format in ("tar", "tar.gz", "tgz", "gz"):
             import tarfile
             mode = "w:gz" if req.format in ("tar.gz", "tgz", "gz") else "w"
-            with tarfile.open(archive_full_path, mode) as tf:
+            with tarfile.open(target_dest, mode) as tf:
                 for item_name in req.items:
                     item_full = os.path.join(work_dir, item_name)
                     if os.path.exists(item_full):
                         tf.add(item_full, arcname=item_name)
-            return {"status": "ok", "message": f"Nén thành công tệp {archive_name}!", "archive_name": archive_name}
+
+        # Chuyển từ /tmp sang work_dir và phân quyền
+        try:
+            shutil.move(target_dest, archive_full_path)
+            os.chmod(archive_full_path, 0o644)
+        except PermissionError:
+            subprocess.run(["sudo", "mv", target_dest, archive_full_path], check=True)
+            subprocess.run(["sudo", "chmod", "644", archive_full_path], check=False)
+
+        sync_owner(archive_full_path)
+        return {"status": "ok", "message": f"Nén thành công tệp {archive_name}!", "archive_name": archive_name}
     except Exception as e:
+        if os.path.exists(target_dest):
+            os.remove(target_dest)
         raise HTTPException(status_code=500, detail=f"Lỗi nén tệp: {str(e)}")
 
 @router.post("/search-content")
