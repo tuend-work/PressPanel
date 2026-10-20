@@ -728,7 +728,7 @@ EOF_NGX_SUSP
         ;;
 
     reload-vhost)
-        echo "[+] Reload VirtualHost cho $DOMAIN cua user $USERNAME ($WEBSERVER)..."
+        echo "[+] Reload VirtualHost cho $DOMAIN cua user $USERNAME ($WEBSERVER, PHP $PHP_VER)..."
         DOMAIN_DIR="/home/$USERNAME/domains/$DOMAIN"
         [ ! -d "$DOMAIN_DIR" ] && DOMAIN_DIR="/home/$USERNAME/httpdocs/$DOMAIN"
         DOC_ROOT="$DOMAIN_DIR/public_html"
@@ -760,6 +760,25 @@ EOF_NGX_SUSP
             if [ -f "$VH_CONF" ]; then
                 # Xóa toàn bộ ký tự \r (CR) gây hỏng heredoc OLS
                 sed -i 's/\r$//' "$VH_CONF" 2>/dev/null || true
+
+                # Thay thế triệt để các placeholder {{PHP_VERSION}} hoặc {{PHP_NUM}} còn sót lại để diệt lỗi shell metacharacters / chaining (403)
+                PHP_NUM=$(echo "$PHP_VER" | tr -d '.')
+                [ -z "$PHP_NUM" ] && PHP_NUM="82"
+                sed -i "s/{{PHP_VERSION}}/$PHP_NUM/g" "$VH_CONF" 2>/dev/null || true
+                sed -i "s/{{PHP_NUM}}/$PHP_NUM/g" "$VH_CONF" 2>/dev/null || true
+                sed -i -E "s|/usr/local/lsws/lsphp\{\{[^}]+\}\}/bin/lsphp|/usr/local/lsws/lsphp${PHP_NUM}/bin/lsphp|g" "$VH_CONF" 2>/dev/null || true
+
+                # Kiểm tra binary lsphp, nếu phiên bản được chọn không tồn tại, tự động fallback về binary có sẵn trên máy để không bao giờ bị 403
+                CURR_BIN=$(grep -E '^[[:space:]]*path[[:space:]]+' "$VH_CONF" | awk '{print $2}' | head -n 1)
+                if [ -n "$CURR_BIN" ] && [ ! -x "$CURR_BIN" ]; then
+                    for fb in 84 83 82 81 74; do
+                        if [ -x "/usr/local/lsws/lsphp${fb}/bin/lsphp" ]; then
+                            sed -i -E "s|path[[:space:]]+.*|path                    /usr/local/lsws/lsphp${fb}/bin/lsphp|g" "$VH_CONF" 2>/dev/null || true
+                            break
+                        fi
+                    done
+                fi
+
                 chmod 755 "$VH_DIR" 2>/dev/null || true
                 chmod 644 "$VH_CONF" 2>/dev/null || true
                 chown -R lsadm:lsadm "$VH_DIR" 2>/dev/null || true

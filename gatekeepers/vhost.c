@@ -119,12 +119,17 @@ int main(int argc, char *argv[]) {
     }
     else if (strcmp(action, "reload-vhost") == 0) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
+        const char *php_ver = (argc > 5) ? argv[5] : "8.2";
         if (!is_safe_webserver(webserver)) {
             send_json_error("vhost", "Webserver khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh reload-vhost %s %s %s",
-                 username, domain, webserver);
+        if (argc > 5 && !is_safe_php(php_ver)) {
+            send_json_error("vhost", "PHP version khong hop le");
+            return 1;
+        }
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh reload-vhost %s %s %s %s",
+                 username, domain, webserver, php_ver);
     }
     else {
         send_json_error("vhost", "Hanh dong khong hop le");

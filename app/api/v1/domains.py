@@ -1265,7 +1265,7 @@ RewriteRule ^/xmlrpc\\.php$ - [F,L]""",
     return settings
 
 
-def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHostSettingsUpdateRequest) -> str:
+def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHostSettingsUpdateRequest, php_ver: str = "8.2") -> str:
     if not content:
         content = ""
     # Chuẩn hóa triệt để newline UNIX (LF) loại bỏ mọi ký tự \r gây hỏng heredoc OLS
@@ -1357,6 +1357,13 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
             content = re.sub(r"\n?websocket\s+[^\s{]+\s*\{[^}]*\}\n?", "\n", content)
             content = re.sub(r"\n?websocket\s+[^\s{]+\s*\{[^}]*\}\n?", "\n", content)
 
+        # 11. BẢO VỆ CHỐNG SHELL METACHARACTERS & LỖI 403 DO PLACEHOLDER PHP
+        # Bắt buộc thay thế mọi {{PHP_VERSION}} hoặc {{PHP_NUM}} còn sót lại bằng số phiên bản PHP cụ thể (ví dụ: 82)
+        php_clean = str(php_ver or "8.2").strip()
+        php_num = php_clean.replace(".", "")
+        content = re.sub(r"/usr/local/lsws/lsphp\{\{[^}]+\}\}/bin/lsphp", f"/usr/local/lsws/lsphp{php_num}/bin/lsphp", content)
+        content = content.replace("{{PHP_VERSION}}", php_num).replace("{{PHP_NUM}}", php_num)
+
     else:
         # Nginx
         if settings.aliases is not None:
@@ -1437,6 +1444,12 @@ async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(g
     else:
         content = f"# Chưa tìm thấy file vhost cấu hình tại {conf_path}.\n# Bấm 'Tái Tạo VHost Từ Template' để tự động tạo lại."
 
+    if content and ws == "ols":
+        p_ver = str(domain["php_version"] or "8.2").strip()
+        p_num = p_ver.replace(".", "")
+        content = re.sub(r"/usr/local/lsws/lsphp\{\{[^}]+\}\}/bin/lsphp", f"/usr/local/lsws/lsphp{p_num}/bin/lsphp", content)
+        content = content.replace("{{PHP_VERSION}}", p_num).replace("{{PHP_NUM}}", p_num)
+
     parsed_settings = parse_vhost_content(content, ws, clean_domain)
 
     return {
@@ -1495,16 +1508,19 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
             except Exception:
                 pass
 
+    php_ver = str(domain["php_version"] or "8.2").strip()
+    php_num = php_ver.replace(".", "")
+
     if not content:
         # Nếu chưa có file vhost, lấy từ template
         tpl_path = f"/opt/wpc/templates/vhost_ols/default.tpl" if ws == "ols" else f"/opt/wpc/templates/vhost_nginx/default.tpl"
         if os.path.exists(tpl_path):
             with open(tpl_path, "r", encoding="utf-8", errors="ignore") as tf:
-                content = tf.read().replace("{{DOMAIN}}", clean_domain).replace("{{USERNAME}}", isolated_user)
+                content = tf.read().replace("{{DOMAIN}}", clean_domain).replace("{{USERNAME}}", isolated_user).replace("{{PHP_VERSION}}", php_num).replace("{{PHP_NUM}}", php_num)
         else:
             content = f"# VirtualHost for {clean_domain}\n"
 
-    new_content = apply_vhost_settings(content, ws, clean_domain, req)
+    new_content = apply_vhost_settings(content, ws, clean_domain, req, php_ver=php_ver)
     new_content = new_content.replace("\r\n", "\n").replace("\r", "\n")
 
     # Ghi file cấu hình an toàn
@@ -1532,12 +1548,12 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
 
         # Gọi C SUID Gatekeeper để reload và chuẩn hóa phân quyền vhost
         try:
-            res_gate = await run_gatekeeper("vhost", "reload-vhost", isolated_user, clean_domain, ws)
+            res_gate = await run_gatekeeper("vhost", "reload-vhost", isolated_user, clean_domain, ws, php_ver)
             if res_gate.get("status") != "success":
-                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws], check=False)
+                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws, php_ver], check=False)
         except Exception:
             try:
-                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws], check=False)
+                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws, php_ver], check=False)
             except Exception:
                 pass
 
@@ -1616,6 +1632,11 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
         subprocess.run(["sudo", "mkdir", "-p", conf_dir], check=False)
 
     clean_content = req.content.replace("\r\n", "\n").replace("\r", "\n")
+    php_ver = str(domain["php_version"] or "8.2").strip()
+    php_num = php_ver.replace(".", "")
+    if ws == "ols":
+        clean_content = re.sub(r"/usr/local/lsws/lsphp\{\{[^}]+\}\}/bin/lsphp", f"/usr/local/lsws/lsphp{php_num}/bin/lsphp", clean_content)
+        clean_content = clean_content.replace("{{PHP_VERSION}}", php_num).replace("{{PHP_NUM}}", php_num)
 
     import tempfile
     try:
@@ -1635,12 +1656,12 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
 
         # Gọi C SUID Gatekeeper để reload và chuẩn hóa phân quyền vhost
         try:
-            res_gate = await run_gatekeeper("vhost", "reload-vhost", isolated_user, clean_domain, ws)
+            res_gate = await run_gatekeeper("vhost", "reload-vhost", isolated_user, clean_domain, ws, php_ver)
             if res_gate.get("status") != "success":
-                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws], check=False)
+                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws, php_ver], check=False)
         except Exception:
             try:
-                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws], check=False)
+                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws, php_ver], check=False)
             except Exception:
                 pass
 
