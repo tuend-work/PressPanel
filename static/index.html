@@ -514,8 +514,8 @@
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.69').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.69').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.70').then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=0.5.70').then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -1563,6 +1563,115 @@
                     }
                 };
 
+                // ----------------------------------------------------
+                // CHỈNH SỬA WEBSITE (PHP, PACKAGE, SSH) & ĐỔI GÓI
+                // ----------------------------------------------------
+                const showEditDomainModal = ref(false);
+                const selectedEditDomain = ref(null);
+                const editDomainForm = ref({ php_version: '8.2', package_id: null, allow_ssh: false });
+                const savingDomainEdit = ref(false);
+
+                const openEditDomainModal = (domain) => {
+                    selectedEditDomain.value = domain;
+                    editDomainForm.value = {
+                        php_version: domain.php_version || '8.2',
+                        package_id: domain.package_id || null,
+                        allow_ssh: !!domain.allow_ssh
+                    };
+                    showEditDomainModal.value = true;
+                };
+
+                const handleSaveDomainEdit = async () => {
+                    if (!selectedEditDomain.value) return;
+                    savingDomainEdit.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${selectedEditDomain.value.id}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify(editDomainForm.value)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showEditDomainModal.value = false;
+                            alert(data.message || 'Đã cập nhật website thành công!');
+                            fetchDomains();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể cập nhật website'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        savingDomainEdit.value = false;
+                    }
+                };
+
+                const showDomainChangePlanModal = ref(false);
+                const selectedDomainForPlan = ref(null);
+                const targetDomainPlanId = ref(null);
+                const changingDomainPlan = ref(false);
+
+                const selectedDomainPlanPreview = computed(() => {
+                    if (!targetDomainPlanId.value) return null;
+                    return (websitePlans.value.find(p => p.id === targetDomainPlanId.value) || 
+                            servicePlans.value.find(p => p.id === targetDomainPlanId.value)) || null;
+                });
+
+                const openChangeDomainPlanModal = (domain) => {
+                    selectedDomainForPlan.value = domain;
+                    targetDomainPlanId.value = domain.package_id || (websitePlans.value[0]?.id || servicePlans.value[0]?.id || null);
+                    showDomainChangePlanModal.value = true;
+                };
+
+                const confirmChangeDomainPlan = async () => {
+                    if (!selectedDomainForPlan.value || !targetDomainPlanId.value) return;
+                    changingDomainPlan.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${selectedDomainForPlan.value.id}/plan`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ package_id: targetDomainPlanId.value })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showDomainChangePlanModal.value = false;
+                            alert(data.message || 'Đã đổi gói dịch vụ website thành công!');
+                            fetchDomains();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể đổi gói cho website'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        changingDomainPlan.value = false;
+                    }
+                };
+
+                // Bộ lọc và tìm kiếm danh sách website
+                const domainSearchQuery = ref('');
+                const domainCategoryFilter = ref('all');
+                const filteredDomains = computed(() => {
+                    let list = domains.value || [];
+                    if (domainCategoryFilter.value === 'active') {
+                        list = list.filter(d => d.status === 'active');
+                    } else if (domainCategoryFilter.value === 'suspended') {
+                        list = list.filter(d => d.status === 'suspended');
+                    }
+                    if (domainSearchQuery.value && domainSearchQuery.value.trim()) {
+                        const q = domainSearchQuery.value.trim().toLowerCase();
+                        list = list.filter(d => 
+                            (d.domain_name && d.domain_name.toLowerCase().includes(q)) ||
+                            (d.owner_username && d.owner_username.toLowerCase().includes(q)) ||
+                            (d.plan_name && d.plan_name.toLowerCase().includes(q))
+                        );
+                    }
+                    return list;
+                });
 
                 // ==========================================
                 // QUẢN TRỊ CUSTOMERS VÀ LOGIN AS USER (IMPERSONATION)
@@ -3342,7 +3451,7 @@
                     redisStats.value.memory_used = '1.2 MB';
                 };
 
-                const panelVersion = ref('0.5.69');
+                const panelVersion = ref('0.5.70');
                 const showUpdateModal = ref(false);
                 const isUpdating = ref(false);
                 const updateCompleted = ref(false);
@@ -3645,6 +3754,9 @@
                     openChangePhpModal, confirmChangePhp,
                     phpModalTab, domainPhpIni, loadingDomainPhpIni, savingDomainPhpIni, applyPhpPreset, loadDomainPhpIni, saveDomainPhpIni,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain, handleToggleDomainStatus,
+                    showEditDomainModal, selectedEditDomain, editDomainForm, savingDomainEdit, openEditDomainModal, handleSaveDomainEdit,
+                    showDomainChangePlanModal, selectedDomainForPlan, targetDomainPlanId, changingDomainPlan, selectedDomainPlanPreview, openChangeDomainPlanModal, confirmChangeDomainPlan,
+                    domainSearchQuery, domainCategoryFilter, filteredDomains,
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
                     fetchSystemStatus, restartPanel, refreshLucideIcons,
                     filesList, fileCurrentPath, fileTargetUser, loadingFiles, pathParts,

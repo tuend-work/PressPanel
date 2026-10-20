@@ -2361,6 +2361,175 @@
                 </div>
             </div>
 
+            <!-- MODAL: EDIT WEBSITE (PHP, PACKAGE, SSH) -->
+            <div v-if="showEditDomainModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white dark:bg-[#121620] rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-150">
+                    <!-- Header -->
+                    <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/40">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold text-sm">
+                                ✏️
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800 dark:text-white">Cấu Hình Website: <span class="text-blue-500 font-mono">{{ selectedEditDomain?.domain_name }}</span></h3>
+                                <p class="text-[11px] text-slate-500 dark:text-slate-400">Chỉnh sửa phiên bản PHP, gói tài nguyên và quyền SSH</p>
+                            </div>
+                        </div>
+                        <button @click="showEditDomainModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-lg font-bold">&times;</button>
+                    </div>
+
+                    <!-- Body -->
+                    <form @submit.prevent="handleSaveDomainEdit" class="p-6 space-y-4 text-xs">
+                        <!-- Domain info preview -->
+                        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <div class="text-[10px] text-slate-400">Linux Isolated User</div>
+                                <div class="font-bold text-slate-700 dark:text-slate-200 font-mono text-xs">{{ selectedEditDomain?.owner_username }}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[10px] text-slate-400">Trạng thái</div>
+                                <span :class="selectedEditDomain?.status === 'suspended' ? 'text-rose-500 bg-rose-500/10' : 'text-emerald-500 bg-emerald-500/10'" class="px-2 py-0.5 rounded-full font-semibold text-[11px]">
+                                    ● {{ selectedEditDomain?.status === 'suspended' ? 'Suspended' : 'Active' }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- 1. PHP Version -->
+                        <div>
+                            <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+                                <span>Phiên bản PHP</span>
+                                <span class="text-[10px] text-slate-400 font-normal">Tự động cấu hình VirtualHost</span>
+                            </label>
+                            <select v-model="editDomainForm.php_version" required
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-medium text-xs focus:outline-none focus:border-blue-500 shadow-sm">
+                                <option v-for="ver in ['7.4', '8.0', '8.1', '8.2', '8.3', '8.4', '8.5']" :key="'php_opt_' + ver" :value="ver">
+                                    PHP {{ ver }} {{ ver === '8.2' ? '(Khuyên dùng / Mặc định)' : '' }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- 2. Website Plan / Package -->
+                        <div>
+                            <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+                                <span>Gói Dịch Vụ (Website Plan)</span>
+                                <span class="text-[10px] text-slate-400 font-normal">Quy định mức trần CPU, RAM, Disk</span>
+                            </label>
+                            <select v-model="editDomainForm.package_id"
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-medium text-xs focus:outline-none focus:border-blue-500 shadow-sm">
+                                <option :value="null">-- Kế thừa gói mặc định của User --</option>
+                                <option v-for="plan in (websitePlans.length > 0 ? websitePlans : servicePlans)" :key="'edit_plan_' + plan.id" :value="plan.id">
+                                    {{ plan.name }} ({{ plan.cpu_pct }}% CPU, {{ plan.mem_mb }}M RAM, {{ (plan.disk_mb / 1024).toFixed(1) }}G Disk)
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- 3. SSH Access -->
+                        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <div class="font-bold text-slate-700 dark:text-slate-200 text-xs">Cho phép đăng nhập SSH</div>
+                                <div class="text-[10px] text-slate-400 mt-0.5">Cho phép Linux user của website này truy cập terminal qua SSH</div>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" v-model="editDomainForm.allow_ssh" class="sr-only peer">
+                                <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-slate-600 peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex justify-end space-x-2 pt-2 border-t border-slate-150 dark:border-slate-800">
+                            <button type="button" @click="showEditDomainModal = false" 
+                                class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium transition">Hủy</button>
+                            <button type="submit" :disabled="savingDomainEdit"
+                                class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-500/20 flex items-center space-x-1.5 transition">
+                                <span v-if="savingDomainEdit" class="animate-spin">⏳</span>
+                                <span v-else>💾</span>
+                                <span>{{ savingDomainEdit ? 'Đang Lưu...' : 'Lưu Thay Đổi' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- MODAL: CHANGE WEBSITE PACKAGE -->
+            <div v-if="showDomainChangePlanModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white dark:bg-[#121620] rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-150">
+                    <!-- Header -->
+                    <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/40">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold text-sm">
+                                📦
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800 dark:text-white">Đổi Gói Dịch Vụ Website</h3>
+                                <p class="text-[11px] text-slate-500 dark:text-slate-400">Áp dụng hạn mức Cgroup & Disk Quota tức thì</p>
+                            </div>
+                        </div>
+                        <button @click="showDomainChangePlanModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-lg font-bold">&times;</button>
+                    </div>
+
+                    <!-- Body -->
+                    <form @submit.prevent="confirmChangeDomainPlan" class="p-6 space-y-4 text-xs">
+                        <div class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
+                            <div>
+                                <div class="text-[10px] text-slate-400">Website</div>
+                                <div class="font-bold text-slate-800 dark:text-white text-sm font-mono">{{ selectedDomainForPlan?.domain_name }}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[10px] text-slate-400">Gói hiện tại</div>
+                                <span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500 dark:text-amber-400 font-semibold text-[11px]">
+                                    {{ selectedDomainForPlan?.plan_name || 'Website Starter' }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Select new plan -->
+                        <div>
+                            <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Chọn Website Plan Mới</label>
+                            <select v-model="targetDomainPlanId" required
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-medium text-xs focus:outline-none focus:border-amber-500 shadow-sm">
+                                <option :value="null" disabled>-- Chọn một Service Plan --</option>
+                                <option v-for="plan in (websitePlans.length > 0 ? websitePlans : servicePlans)" :key="'chg_dom_' + plan.id" :value="plan.id">
+                                    {{ plan.name }} ({{ (plan.disk_mb / 1024).toFixed(1) }}GB Disk, {{ plan.mem_mb }}MB RAM, {{ plan.cpu_pct }}% CPU)
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Preview plan specs -->
+                        <div v-if="selectedDomainPlanPreview" class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+                            <div class="font-semibold text-slate-700 dark:text-slate-300 text-[11px] flex items-center gap-1.5">
+                                <span>💡 Thông số kỹ thuật gói mới sẽ áp dụng:</span>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 text-center">
+                                <div class="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-[10px] text-slate-400">Dung lượng</div>
+                                    <div class="font-bold text-slate-800 dark:text-white font-mono mt-0.5">{{ (selectedDomainPlanPreview.disk_mb / 1024).toFixed(1) }} GB</div>
+                                </div>
+                                <div class="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-[10px] text-slate-400">Bộ nhớ RAM</div>
+                                    <div class="font-bold text-slate-800 dark:text-white font-mono mt-0.5">{{ selectedDomainPlanPreview.mem_mb }} MB</div>
+                                </div>
+                                <div class="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-[10px] text-slate-400">Giới hạn CPU</div>
+                                    <div class="font-bold text-slate-800 dark:text-white font-mono mt-0.5">{{ selectedDomainPlanPreview.cpu_pct }}%</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex justify-end space-x-2 pt-2 border-t border-slate-150 dark:border-slate-800">
+                            <button type="button" @click="showDomainChangePlanModal = false" 
+                                class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium transition">Hủy</button>
+                            <button type="submit" :disabled="changingDomainPlan || !targetDomainPlanId"
+                                class="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-md shadow-amber-500/20 flex items-center space-x-1.5 transition">
+                                <span v-if="changingDomainPlan" class="animate-spin">⏳</span>
+                                <span v-else>✓</span>
+                                <span>{{ changingDomainPlan ? 'Đang Áp Dụng...' : 'Xác Nhận Đổi Gói' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             </div>
         </div>
     </div>

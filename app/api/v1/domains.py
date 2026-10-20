@@ -81,6 +81,14 @@ class DomainCreate(BaseModel):
 class DomainBatchDeleteRequest(BaseModel):
     domain_ids: List[int]
 
+class DomainChangePlanRequest(BaseModel):
+    package_id: int
+
+class DomainUpdateRequest(BaseModel):
+    php_version: Optional[str] = None
+    package_id: Optional[int] = None
+    allow_ssh: Optional[bool] = None
+
 @router.get("/")
 async def list_domains(current_user: dict = Depends(get_current_user)):
     db = await get_db_connection()
@@ -288,6 +296,154 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
         raise HTTPException(status_code=400, detail=f"Lỗi khởi tạo website: {str(e)}")
     finally:
         await db.close()
+
+@router.put("/{domain_id}/plan")
+async def change_domain_plan(domain_id: int, req: DomainChangePlanRequest, current_user: dict = Depends(get_current_user)):
+    """
+    Đổi Package/Plan cho Website riêng lẻ:
+    - Cập nhật package_id trong bảng domains.
+    - Tự động áp dụng giới hạn Cgroups v2 (CPUQuota, MemoryMax) và Disk Quota cho isolated Linux user của domain.
+    """
+    db = await get_db_connection()
+    cur = await db.execute("""
+        SELECT d.id, d.domain_name, d.user_id, d.package_id, u.username as owner_username, u.parent_id, u.role as owner_role,
+               u.cpu_pct as parent_cpu, u.mem_mb as parent_mem, u.disk_mb as parent_disk
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    dom = await cur.fetchone()
+    if not dom:
+        await db.close()
+        raise HTTPException(status_code=404, detail="Không tìm thấy website")
+
+    # Kiểm tra quyền: Admin, Reseller (cha), hoặc chính chủ sở hữu
+    if current_user["role"] == "reseller" and dom["user_id"] != current_user["id"] and dom["parent_id"] != current_user["id"]:
+        await db.close()
+        raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
+    elif current_user["role"] == "user" and dom["user_id"] != current_user["id"]:
+        await db.close()
+        raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
+
+    pkg_cur = await db.execute("SELECT id, name, cpu_pct, mem_mb, disk_mb, allow_ssh FROM packages WHERE id = ?", (req.package_id,))
+    pkg = await pkg_cur.fetchone()
+    if not pkg:
+        await db.close()
+        raise HTTPException(status_code=404, detail="Không tìm thấy Website Plan đã chọn")
+
+    u_cpu = pkg["cpu_pct"]
+    u_mem = pkg["mem_mb"]
+    if dom["owner_role"] == "user" and dom["parent_cpu"]:
+        u_cpu = min(u_cpu, dom["parent_cpu"])
+        u_mem = min(u_mem, dom["parent_mem"])
+
+    await db.execute("UPDATE domains SET package_id = ?, allow_ssh = ? WHERE id = ?", (pkg["id"], pkg["allow_ssh"], domain_id))
+    await db.commit()
+    await db.close()
+
+    isolated_user = domain_to_linux_user(dom["domain_name"])
+    reseller_id = str(dom["parent_id"] or 1)
+
+    try:
+        await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
+    except Exception as e:
+        print(f"Warning: Failed to update cgroup for {isolated_user}: {e}")
+
+    try:
+        await run_gatekeeper("user", "set-quota", isolated_user, str(pkg["disk_mb"]))
+    except Exception as e:
+        print(f"Warning: Failed to update quota for {isolated_user}: {e}")
+
+    return {
+        "status": "ok",
+        "message": f"Đã đổi gói dịch vụ cho website '{dom['domain_name']}' sang '{pkg['name']}' thành công!",
+        "plan_name": pkg["name"]
+    }
+
+@router.put("/{domain_id}")
+async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: dict = Depends(get_current_user)):
+    """
+    Sửa cấu hình Website:
+    - Đổi phiên bản PHP (chạy vhost change-php)
+    - Đổi Website Plan / Hạn mức
+    - Bật / tắt quyền SSH
+    """
+    db = await get_db_connection()
+    cur = await db.execute("""
+        SELECT d.id, d.domain_name, d.user_id, d.php_version, d.package_id, d.allow_ssh, d.webserver,
+               u.username as owner_username, u.parent_id, u.role as owner_role,
+               u.cpu_pct as parent_cpu, u.mem_mb as parent_mem
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    dom = await cur.fetchone()
+    if not dom:
+        await db.close()
+        raise HTTPException(status_code=404, detail="Không tìm thấy website")
+
+    if current_user["role"] == "reseller" and dom["user_id"] != current_user["id"] and dom["parent_id"] != current_user["id"]:
+        await db.close()
+        raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
+    elif current_user["role"] == "user" and dom["user_id"] != current_user["id"]:
+        await db.close()
+        raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
+
+    isolated_user = domain_to_linux_user(dom["domain_name"])
+    reseller_id = str(dom["parent_id"] or 1)
+
+    new_php = dom["php_version"]
+    if req.php_version and req.php_version != dom["php_version"]:
+        if req.php_version not in ALLOWED_PHP_VERSIONS:
+            await db.close()
+            raise HTTPException(status_code=400, detail="Phiên bản PHP không hợp lệ")
+        new_php = req.php_version
+        try:
+            await run_gatekeeper("vhost", "change-php", isolated_user, dom["domain_name"], dom["webserver"] or "ols", new_php)
+        except Exception as e:
+            await db.close()
+            raise HTTPException(status_code=500, detail=f"Lỗi khi chuyển đổi PHP: {str(e)}")
+
+    new_pkg_id = dom["package_id"]
+    new_ssh = dom["allow_ssh"]
+    if req.allow_ssh is not None:
+        new_ssh = 1 if req.allow_ssh else 0
+        try:
+            await run_gatekeeper("vhost", "toggle-ssh", isolated_user, "enable" if new_ssh else "disable")
+        except Exception:
+            pass
+
+    if req.package_id and req.package_id != dom["package_id"]:
+        pkg_cur = await db.execute("SELECT id, name, cpu_pct, mem_mb, disk_mb, allow_ssh FROM packages WHERE id = ?", (req.package_id,))
+        pkg = await pkg_cur.fetchone()
+        if pkg:
+            new_pkg_id = pkg["id"]
+            u_cpu = pkg["cpu_pct"]
+            u_mem = pkg["mem_mb"]
+            if dom["owner_role"] == "user" and dom["parent_cpu"]:
+                u_cpu = min(u_cpu, dom["parent_cpu"])
+                u_mem = min(u_mem, dom["parent_mem"])
+            try:
+                await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
+                await run_gatekeeper("user", "set-quota", isolated_user, str(pkg["disk_mb"]))
+            except Exception:
+                pass
+
+    await db.execute("""
+        UPDATE domains 
+        SET php_version = ?, package_id = ?, allow_ssh = ?
+        WHERE id = ?
+    """, (new_php, new_pkg_id, new_ssh, domain_id))
+    await db.commit()
+    await db.close()
+
+    return {
+        "status": "ok",
+        "message": f"Đã cập nhật website '{dom['domain_name']}' thành công!",
+        "php_version": new_php,
+        "package_id": new_pkg_id,
+        "allow_ssh": new_ssh
+    }
 
 @router.post("/batch-delete")
 async def batch_delete_domains(req: DomainBatchDeleteRequest, current_user: dict = Depends(get_current_user)):
