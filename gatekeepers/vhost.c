@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
             send_json_error("vhost", "Webserver khong hop le");
             return 1;
         }
-        if (argc > 5 && !is_safe_php(php_ver)) {
+        if (argc > 5 && !is_safe_php_ver(php_ver)) {
             send_json_error("vhost", "PHP version khong hop le");
             return 1;
         }

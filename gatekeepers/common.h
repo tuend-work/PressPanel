@@ -91,6 +91,8 @@ static inline int is_safe_php_ver(const char *ver) {
     return 0;
 }
 
+#define is_safe_php is_safe_php_ver
+
 static inline int is_safe_webserver(const char *ws) {
     if (!ws || !*ws) return 0;
     return (strcmp(ws, "ols") == 0 || strcmp(ws, "nginx") == 0);
