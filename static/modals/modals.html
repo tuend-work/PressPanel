@@ -2539,3 +2539,84 @@
                     </form>
                 </div>
             </div>
+
+            <!-- MODAL: CONNECTION INFO (FTP & DATABASE CREDENTIALS FOR WEBSITE USER) -->
+            <div v-if="showConnectionInfoModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white dark:bg-[#121620] rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-150 text-slate-800 dark:text-slate-100">
+                    <!-- Header -->
+                    <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/40">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold text-sm">
+                                🔌
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800 dark:text-white">Thông Tin Kết Nối (Connection Info)</h3>
+                                <p class="text-[11px] text-slate-500 dark:text-slate-400">Thông số FTP / SFTP và MySQL Database của website</p>
+                            </div>
+                        </div>
+                        <button @click="showConnectionInfoModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-lg font-bold">&times;</button>
+                    </div>
+
+                    <!-- Body -->
+                    <div class="p-6 space-y-4 text-xs">
+                        <!-- FTP Section -->
+                        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+                            <h4 class="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 text-xs">
+                                <span>📁 Kết Nối FTP / SFTP</span>
+                            </h4>
+                            <div class="grid grid-cols-2 gap-2 text-[11px]">
+                                <div>
+                                    <span class="text-slate-400 block text-[10px]">Host / Máy chủ:</span>
+                                    <span class="font-mono font-bold text-cyan-500">{{ domains[0]?.domain_name || 'IP Server' }}</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 block text-[10px]">Cổng (Port):</span>
+                                    <span class="font-mono font-bold text-slate-700 dark:text-slate-300">21 (FTP) / 22 (SFTP)</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 block text-[10px]">Username:</span>
+                                    <span class="font-mono font-bold text-slate-700 dark:text-slate-300">{{ domains[0]?.owner_username }}</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 block text-[10px]">Thư mục gốc:</span>
+                                    <span class="font-mono font-bold text-slate-700 dark:text-slate-300 truncate block">{{ domains[0]?.document_root || ('/home/' + domains[0]?.owner_username + '/public_html') }}</span>
+                                </div>
+                            </div>
+                            <div class="text-[10px] text-slate-400 italic pt-1">
+                                💡 Mật khẩu đăng nhập FTP / SFTP chính là mật khẩu tài khoản Website User của bạn.
+                            </div>
+                        </div>
+
+                        <!-- Database Section -->
+                        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+                            <h4 class="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 text-xs">
+                                <span>🗄️ Kết Nối MySQL Database</span>
+                            </h4>
+                            <div class="grid grid-cols-2 gap-2 text-[11px]">
+                                <div>
+                                    <span class="text-slate-400 block text-[10px]">DB Host:</span>
+                                    <span class="font-mono font-bold text-cyan-500">localhost (hoặc 127.0.0.1)</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 block text-[10px]">DB Port:</span>
+                                    <span class="font-mono font-bold text-slate-700 dark:text-slate-300">3306</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 block text-[10px]">Tiền tố DB:</span>
+                                    <span class="font-mono font-bold text-slate-700 dark:text-slate-300">{{ domains[0]?.owner_username }}_*</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 block text-[10px]">Quản lý:</span>
+                                    <button @click="openPhpMyAdmin()" class="text-blue-500 hover:underline font-bold text-[11px]">Mở phpMyAdmin ↗</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end pt-2">
+                            <button @click="showConnectionInfoModal = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold transition">
+                                Đóng
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
