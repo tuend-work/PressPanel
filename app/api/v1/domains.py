@@ -1268,6 +1268,8 @@ RewriteRule ^/xmlrpc\\.php$ - [F,L]""",
 def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHostSettingsUpdateRequest) -> str:
     if not content:
         content = ""
+    # Chuẩn hóa triệt để newline UNIX (LF) loại bỏ mọi ký tự \r gây hỏng heredoc OLS
+    content = content.replace("\r\n", "\n").replace("\r", "\n")
 
     if ws == "ols":
         # 1. vhAliases
@@ -1286,11 +1288,19 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
             elif re.search(r"^vhAliases\s+.*$", content, flags=re.MULTILINE):
                 content = re.sub(r"^(vhAliases\s+.*)$", rf"\1\nadminEmails               {clean_email}", content, flags=re.MULTILINE)
 
-        # 3. indexFiles
+        # 3. indexFiles (luôn đảm bảo có chỉ mục hợp lệ tránh triệt để lỗi 403 Directory Listing Denied)
         if settings.indexFiles is not None:
-            idx = settings.indexFiles.strip()
+            idx = settings.indexFiles.strip() or "index.php, index.html, index.htm"
             if re.search(r"^indexFiles\s+.*$", content, flags=re.MULTILINE):
                 content = re.sub(r"^indexFiles\s+.*$", f"indexFiles                {idx}", content, flags=re.MULTILINE)
+            else:
+                content = f"indexFiles                {idx}\n\n" + content
+        elif not re.search(r"^indexFiles\s+", content, flags=re.MULTILINE):
+            content = "indexFiles                index.php, index.html, index.htm\n\n" + content
+
+        # Đảm bảo accessControl luôn có
+        if not re.search(r"accessControl\s*\{", content):
+            content = content + "\n\naccessControl {\n  allow                   *\n}\n"
 
         # 4. enableGzip
         if settings.enableGzip is not None:
@@ -1317,7 +1327,7 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
         # 8. External App tuning
         if settings.maxConns is not None:
             content = re.sub(r"(maxConns\s+)[0-9]+", rf"\g<1>{settings.maxConns}", content)
-            content = re.sub(r"(LSAPI_CHILDREN=)[0-9]+", rf"\g<1>{settings.maxConns}", content)
+            content = re.sub(r"((?:PHP_)?LSAPI_CHILDREN=)[0-9]+", rf"\g<1>{settings.maxConns}", content)
         if settings.memSoftLimit is not None:
             content = re.sub(r"(memSoftLimit\s+)[^\r\n]+", rf"\g<1>{settings.memSoftLimit}", content)
         if settings.memHardLimit is not None:
@@ -1329,7 +1339,8 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
 
         # 9. Rewrite Rules
         if settings.rewriteRules is not None:
-            rw_block = f"rules                   <<<END_rules\n{settings.rewriteRules.strip()}\nEND_rules"
+            clean_rw = settings.rewriteRules.replace("\r\n", "\n").replace("\r", "\n").strip()
+            rw_block = f"rules                   <<<END_rules\n{clean_rw}\nEND_rules"
             if "END_rules" in content:
                 content = re.sub(r"rules\s+<<<END_rules[\s\S]*?END_rules", lambda _: rw_block, content)
 
@@ -1343,6 +1354,7 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
             else:
                 content = content + "\n" + ws_code
         elif settings.wsEnabled is False:
+            content = re.sub(r"\n?websocket\s+[^\s{]+\s*\{[^}]*\}\n?", "\n", content)
             content = re.sub(r"\n?websocket\s+[^\s{]+\s*\{[^}]*\}\n?", "\n", content)
 
     else:
@@ -1493,6 +1505,7 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
             content = f"# VirtualHost for {clean_domain}\n"
 
     new_content = apply_vhost_settings(content, ws, clean_domain, req)
+    new_content = new_content.replace("\r\n", "\n").replace("\r", "\n")
 
     # Ghi file cấu hình an toàn
     conf_dir = os.path.dirname(conf_path)
@@ -1517,7 +1530,18 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
         except Exception:
             subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
 
-        # Reload webserver
+        # Gọi C SUID Gatekeeper để reload và chuẩn hóa phân quyền vhost
+        try:
+            res_gate = await run_gatekeeper("vhost", "reload-vhost", isolated_user, clean_domain, ws)
+            if res_gate.get("status") != "success":
+                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws], check=False)
+        except Exception:
+            try:
+                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws], check=False)
+            except Exception:
+                pass
+
+        # Reload webserver fallback
         if ws == "ols":
             subprocess.run(["sudo", "chown", "-R", "lsadm:lsadm", conf_dir], check=False)
             subprocess.run(["sudo", "chmod", "755", conf_dir], check=False)
@@ -1535,10 +1559,12 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
             subprocess.run(["sudo", "chmod", "711", f"/home/{isolated_user}/domains"], check=False)
             subprocess.run(["sudo", "chmod", "711", f"/home/{isolated_user}/domains/{clean_domain}"], check=False)
             subprocess.run(["sudo", "chmod", "755", f"/home/{isolated_user}/domains/{clean_domain}/public_html"], check=False)
+            subprocess.run(["sudo", "find", f"/home/{isolated_user}/domains/{clean_domain}/public_html", "-type", "d", "-exec", "chmod", "755", "{}", "+"], check=False)
+            subprocess.run(["sudo", "find", f"/home/{isolated_user}/domains/{clean_domain}/public_html", "-type", "f", "-exec", "chmod", "644", "{}", "+"], check=False)
 
             subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
-            subprocess.run(["sudo", "systemctl", "reload", "lshttpd"], check=False)
         else:
+            subprocess.run(["sudo", "nginx", "-t"], check=False)
             subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=False)
 
         updated_settings = parse_vhost_content(new_content, ws, clean_domain)
@@ -1589,10 +1615,12 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
     except Exception:
         subprocess.run(["sudo", "mkdir", "-p", conf_dir], check=False)
 
+    clean_content = req.content.replace("\r\n", "\n").replace("\r", "\n")
+
     import tempfile
     try:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, prefix=f"wpc_vh_{clean_domain}_", suffix=".tmp") as tf:
-            tf.write(req.content)
+            tf.write(clean_content)
             tmp_path = tf.name
 
         try:
@@ -1605,7 +1633,18 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
         except Exception:
             subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
 
-        # Reload webserver
+        # Gọi C SUID Gatekeeper để reload và chuẩn hóa phân quyền vhost
+        try:
+            res_gate = await run_gatekeeper("vhost", "reload-vhost", isolated_user, clean_domain, ws)
+            if res_gate.get("status") != "success":
+                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws], check=False)
+        except Exception:
+            try:
+                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws], check=False)
+            except Exception:
+                pass
+
+        # Reload webserver fallback
         if ws == "ols":
             subprocess.run(["sudo", "chown", "-R", "lsadm:lsadm", conf_dir], check=False)
             subprocess.run(["sudo", "chmod", "755", conf_dir], check=False)
@@ -1620,13 +1659,15 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
             subprocess.run(["sudo", "chmod", "711", f"/home/{isolated_user}/domains"], check=False)
             subprocess.run(["sudo", "chmod", "711", f"/home/{isolated_user}/domains/{clean_domain}"], check=False)
             subprocess.run(["sudo", "chmod", "755", f"/home/{isolated_user}/domains/{clean_domain}/public_html"], check=False)
+            subprocess.run(["sudo", "find", f"/home/{isolated_user}/domains/{clean_domain}/public_html", "-type", "d", "-exec", "chmod", "755", "{}", "+"], check=False)
+            subprocess.run(["sudo", "find", f"/home/{isolated_user}/domains/{clean_domain}/public_html", "-type", "f", "-exec", "chmod", "644", "{}", "+"], check=False)
 
             subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
-            subprocess.run(["sudo", "systemctl", "reload", "lshttpd"], check=False)
         else:
+            subprocess.run(["sudo", "nginx", "-t"], check=False)
             subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=False)
 
-        updated_settings = parse_vhost_content(req.content, ws, clean_domain)
+        updated_settings = parse_vhost_content(clean_content, ws, clean_domain)
         return {
             "status": "success",
             "message": f"Đã lưu và nạp lại cấu hình VirtualHost cho {clean_domain}!",

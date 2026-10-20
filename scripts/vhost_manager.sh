@@ -558,21 +558,39 @@ EOF_RW
         # 2. Xoa socket LSAPI cua user
         rm -f "/tmp/lshttpd/lsphp_${USERNAME}.sock" 2>/dev/null || true
 
-        # 3. Chuan bi trang suspended tinh
-        SUSPENDED_DIR="/opt/wpc/static/suspended"
+        # 3. Chuẩn bị trang suspended tĩnh ngay trong cây thư mục domain của user
+        # Điều này đảm bảo chế độ suEXEC / setUIDMode 2 của OpenLiteSpeed có toàn quyền đọc mà không bị lỗi 403
+        DOMAIN_DIR="/home/$USERNAME/domains/$DOMAIN"
+        [ ! -d "$DOMAIN_DIR" ] && DOMAIN_DIR="/home/$USERNAME/httpdocs/$DOMAIN"
+        SUSPENDED_DIR="$DOMAIN_DIR/suspended_html"
         mkdir -p "$SUSPENDED_DIR" 2>/dev/null || true
-        if [ ! -f "$SUSPENDED_DIR/index.html" ]; then
-            if [ -f "$WPC_DIR/templates/suspended/index.html" ]; then
-                cp -f "$WPC_DIR/templates/suspended/index.html" "$SUSPENDED_DIR/index.html" 2>/dev/null || true
-            else
-                cat << 'EOF_SUSP_HTML' > "$SUSPENDED_DIR/index.html"
+
+        if [ -f "$WPC_DIR/templates/suspended/index.html" ]; then
+            cp -f "$WPC_DIR/templates/suspended/index.html" "$SUSPENDED_DIR/index.html" 2>/dev/null || true
+        elif [ -f "/opt/wpc/templates/suspended/index.html" ]; then
+            cp -f "/opt/wpc/templates/suspended/index.html" "$SUSPENDED_DIR/index.html" 2>/dev/null || true
+        else
+            cat << 'EOF_SUSP_HTML' > "$SUSPENDED_DIR/index.html"
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Website Suspended</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:50px;background:#0f172a;color:#fff;">
 <h1>Website Tam Thoi Bi Khoa</h1><p>Website nay dang tam ngung hoat dong.</p></body></html>
 EOF_SUSP_HTML
-            fi
         fi
+
+        # Phân quyền chuẩn xác: User sở hữu thư mục suspended_html, các webserver worker có quyền đọc
+        if id "$USERNAME" &>/dev/null; then
+            chown -R "$USERNAME:$USERNAME" "$SUSPENDED_DIR" 2>/dev/null || true
+            for svc_u in wpc nobody www-data; do
+                if id "$svc_u" &>/dev/null; then
+                    usermod -a -G "$USERNAME" "$svc_u" 2>/dev/null || true
+                fi
+            done
+        fi
+        chmod 711 "/home" 2>/dev/null || true
+        chmod 711 "/home/$USERNAME" 2>/dev/null || true
+        chmod 711 "/home/$USERNAME/domains" 2>/dev/null || true
+        chmod 711 "$DOMAIN_DIR" 2>/dev/null || true
         chmod 755 "$SUSPENDED_DIR" 2>/dev/null || true
         chmod 644 "$SUSPENDED_DIR/index.html" 2>/dev/null || true
 
@@ -584,7 +602,7 @@ EOF_SUSP_HTML
                     cp -f "$VH_DIR/vhconf.conf" "$VH_DIR/vhconf.conf.active" 2>/dev/null || true
                 fi
                 cat << EOF_OLS_SUSP > "$VH_DIR/vhconf.conf"
-docRoot                   $SUSPENDED_DIR
+docRoot                   \$VH_ROOT/domains/$DOMAIN/suspended_html
 vhDomain                  $DOMAIN
 vhAliases                 www.$DOMAIN
 adminEmails               admin@$DOMAIN
@@ -598,15 +616,16 @@ accessControl {
 
 context / {
   type                    null
-  location                $SUSPENDED_DIR/
+  location                \$DOC_ROOT/
   allow                   *
   addDefaultCharset       utf-8
 }
 EOF_OLS_SUSP
+                sed -i 's/\r$//' "$VH_DIR/vhconf.conf" 2>/dev/null || true
                 chmod 755 "$VH_DIR" 2>/dev/null || true
                 chmod 644 "$VH_DIR/vhconf.conf" 2>/dev/null || true
                 chown -R lsadm:lsadm "$VH_DIR" 2>/dev/null || true
-                /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lshttpd 2>/dev/null || true
+                /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
             fi
         fi
 
@@ -620,7 +639,7 @@ EOF_OLS_SUSP
 server {
     listen 80;
     server_name $DOMAIN www.$DOMAIN;
-    root $SUSPENDED_DIR;
+    root /home/$USERNAME/domains/$DOMAIN/suspended_html;
     index index.html;
 
     location / {
@@ -628,7 +647,7 @@ server {
     }
 }
 EOF_NGX_SUSP
-            nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+            nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true)
             systemctl stop "wpc-php*-fpm@${USERNAME}.service" 2>/dev/null || true
         fi
 
@@ -643,6 +662,10 @@ EOF_NGX_SUSP
             usermod -U "$USERNAME" 2>/dev/null || true
         fi
 
+        DOMAIN_DIR="/home/$USERNAME/domains/$DOMAIN"
+        [ ! -d "$DOMAIN_DIR" ] && DOMAIN_DIR="/home/$USERNAME/httpdocs/$DOMAIN"
+        DOC_ROOT="$DOMAIN_DIR/public_html"
+
         # 2. Xu ly OpenLiteSpeed
         if [ "$WEBSERVER" = "ols" ] || [ -d "/usr/local/lsws/conf/vhosts/$DOMAIN" ]; then
             VH_DIR="/usr/local/lsws/conf/vhosts/$DOMAIN"
@@ -651,8 +674,6 @@ EOF_NGX_SUSP
             else
                 PHP_NUM=$(echo "$PHP_VER" | tr -d '.')
                 [ -z "$PHP_NUM" ] && PHP_NUM="84"
-                DOC_ROOT="/home/$USERNAME/domains/$DOMAIN/public_html"
-                [ ! -d "$DOC_ROOT" ] && DOC_ROOT="/home/$USERNAME/httpdocs/$DOMAIN"
                 if [ -f "$WPC_DIR/templates/vhost_ols/default.tpl" ]; then
                     sed -e "s/{{DOMAIN}}/$DOMAIN/g" \
                         -e "s/{{PHP_VERSION}}/$PHP_NUM/g" \
@@ -662,6 +683,7 @@ EOF_NGX_SUSP
                 fi
                 setup_ols_vhost_php "$DOMAIN" "$USERNAME" "$PHP_VER" "$HOSTING_USER" "$VH_DIR/vhconf.conf"
             fi
+            sed -i 's/\r$//' "$VH_DIR/vhconf.conf" 2>/dev/null || true
             chmod 755 "$VH_DIR" 2>/dev/null || true
             chmod 644 "$VH_DIR/vhconf.conf" 2>/dev/null || true
             chown -R lsadm:lsadm "$VH_DIR" 2>/dev/null || true
@@ -670,11 +692,25 @@ EOF_NGX_SUSP
             chmod 711 "/home" 2>/dev/null || true
             chmod 711 "/home/$USERNAME" 2>/dev/null || true
             chmod 711 "/home/$USERNAME/domains" 2>/dev/null || true
-            chmod 711 "/home/$USERNAME/domains/$DOMAIN" 2>/dev/null || true
-            chmod 755 "/home/$USERNAME/domains/$DOMAIN/public_html" 2>/dev/null || true
+            chmod 711 "$DOMAIN_DIR" 2>/dev/null || true
+            if [ -d "$DOC_ROOT" ]; then
+                chmod 755 "$DOC_ROOT" 2>/dev/null || true
+                find "$DOC_ROOT" -type d -exec chmod 755 {} + 2>/dev/null || true
+                find "$DOC_ROOT" -type f -exec chmod 644 {} + 2>/dev/null || true
+            fi
+            if id "$USERNAME" &>/dev/null; then
+                chown -R "$USERNAME:$USERNAME" "$DOMAIN_DIR" 2>/dev/null || true
+                for svc_u in wpc nobody www-data; do
+                    if id "$svc_u" &>/dev/null; then
+                        usermod -a -G "$USERNAME" "$svc_u" 2>/dev/null || true
+                    fi
+                done
+            fi
             
             mkdir -p /tmp/lshttpd && chmod 1777 /tmp/lshttpd 2>/dev/null || true
-            /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lshttpd 2>/dev/null || true
+            pkill -9 -u "$USERNAME" -f "lsphp" 2>/dev/null || true
+            rm -f "/tmp/lshttpd/lsphp_${USERNAME}.sock" 2>/dev/null || true
+            /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
         fi
 
         # 3. Xu ly Nginx
@@ -684,10 +720,64 @@ EOF_NGX_SUSP
                 mv -f "$NGX_CONF.active" "$NGX_CONF" 2>/dev/null || true
             fi
             systemctl start "wpc-php*-fpm@${USERNAME}.service" 2>/dev/null || true
-            nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+            nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true)
         fi
 
         echo "[+] Da mo khoa website $DOMAIN thanh cong!"
+        exit 0
+        ;;
+
+    reload-vhost)
+        echo "[+] Reload VirtualHost cho $DOMAIN cua user $USERNAME ($WEBSERVER)..."
+        DOMAIN_DIR="/home/$USERNAME/domains/$DOMAIN"
+        [ ! -d "$DOMAIN_DIR" ] && DOMAIN_DIR="/home/$USERNAME/httpdocs/$DOMAIN"
+        DOC_ROOT="$DOMAIN_DIR/public_html"
+
+        # 1. Chuẩn hóa phân quyền Shared Hosting 0711 cho user và domain
+        chmod 711 "/home" 2>/dev/null || true
+        chmod 711 "/home/$USERNAME" 2>/dev/null || true
+        chmod 711 "/home/$USERNAME/domains" 2>/dev/null || true
+        chmod 711 "$DOMAIN_DIR" 2>/dev/null || true
+        if [ -d "$DOC_ROOT" ]; then
+            chmod 755 "$DOC_ROOT" 2>/dev/null || true
+            find "$DOC_ROOT" -type d -exec chmod 755 {} + 2>/dev/null || true
+            find "$DOC_ROOT" -type f -exec chmod 644 {} + 2>/dev/null || true
+        fi
+
+        if id "$USERNAME" &>/dev/null; then
+            chown -R "$USERNAME:$USERNAME" "$DOMAIN_DIR" 2>/dev/null || true
+            for svc_u in wpc nobody www-data; do
+                if id "$svc_u" &>/dev/null; then
+                    usermod -a -G "$USERNAME" "$svc_u" 2>/dev/null || true
+                fi
+            done
+        fi
+
+        # 2. Xử lý OpenLiteSpeed
+        if [ "$WEBSERVER" = "ols" ] || [ -d "/usr/local/lsws/conf/vhosts/$DOMAIN" ]; then
+            VH_DIR="/usr/local/lsws/conf/vhosts/$DOMAIN"
+            VH_CONF="$VH_DIR/vhconf.conf"
+            if [ -f "$VH_CONF" ]; then
+                # Xóa toàn bộ ký tự \r (CR) gây hỏng heredoc OLS
+                sed -i 's/\r$//' "$VH_CONF" 2>/dev/null || true
+                chmod 755 "$VH_DIR" 2>/dev/null || true
+                chmod 644 "$VH_CONF" 2>/dev/null || true
+                chown -R lsadm:lsadm "$VH_DIR" 2>/dev/null || true
+
+                # Dọn socket cũ và đảm bảo sticky bit /tmp/lshttpd
+                pkill -9 -u "$USERNAME" -f "lsphp" 2>/dev/null || true
+                rm -f "/tmp/lshttpd/lsphp_${USERNAME}.sock" 2>/dev/null || true
+                mkdir -p /tmp/lshttpd && chmod 1777 /tmp/lshttpd 2>/dev/null || true
+
+                # Khởi động lại OLS
+                /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
+            fi
+        fi
+
+        # 3. Xử lý Nginx
+        if [ "$WEBSERVER" = "nginx" ] || [ -f "/etc/nginx/conf.d/$DOMAIN.conf" ]; then
+            nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true)
+        fi
         exit 0
         ;;
 
