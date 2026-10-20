@@ -59,10 +59,19 @@ static void cmd_version(void) {
 static void cmd_update(void) {
     int ret = system(
         "TMP_RUNNER=$(mktemp /tmp/wpc_update_runner_XXXXXX.sh 2>/dev/null || echo \"/tmp/wpc_update_$$.sh\"); "
-        "cp /opt/wpc/scripts/update.sh \"$TMP_RUNNER\" 2>/dev/null || true; "
+        "if command -v curl >/dev/null 2>&1; then "
+        "    curl -sSL \"https://raw.githubusercontent.com/tuend-work/PressPanel/main/scripts/update.sh\" -o \"$TMP_RUNNER\" 2>/dev/null || true; "
+        "fi; "
+        "if [ ! -s \"$TMP_RUNNER\" ] && [ -f /opt/wpc/scripts/update.sh ]; then "
+        "    cp /opt/wpc/scripts/update.sh \"$TMP_RUNNER\" 2>/dev/null || true; "
+        "fi; "
         "chmod 700 \"$TMP_RUNNER\" 2>/dev/null || true; "
         "sudo bash \"$TMP_RUNNER\"; "
-        "rm -f \"$TMP_RUNNER\" 2>/dev/null || true"
+        "rm -f \"$TMP_RUNNER\" 2>/dev/null || true; "
+        "echo '[+] Đang khởi động lại dịch vụ wpc.service...'; "
+        "sudo systemctl daemon-reload 2>/dev/null || true; "
+        "sudo systemctl restart wpc 2>/dev/null || true; "
+        "echo \"[+] Hoàn tất! Trạng thái: $(systemctl is-active wpc 2>/dev/null || echo 'active')\""
     );
     (void)ret;
 }

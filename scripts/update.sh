@@ -481,8 +481,9 @@ echo "=========================================================="
 echo "   CẬP NHẬT THÀNH CÔNG LÊN PHIÊN BẢN: $NEW_VER           "
 echo "   Trạng thái dịch vụ: $(systemctl is-active wpc 2>/dev/null) "
 echo "   Giao diện quản trị: http://<IP_MAY_CHU>:$PANEL_PORT   "
-echo "=========================================================="
 echo "[+] Hoàn tất toàn bộ tiến trình cập nhật 100%!"
-echo "[+] Đang khởi động lại dịch vụ WPCloud Control Panel..."
-(sleep 2 && systemctl restart wpc) >/dev/null 2>&1 &
+echo "[+] Đang khởi động lại dịch vụ WPCloud Control Panel (wpc.service)..."
+systemctl daemon-reload 2>/dev/null || true
+systemctl restart wpc 2>/dev/null || true
+echo "[+] Dịch vụ WPCloud đã được khởi động lại: $(systemctl is-active wpc 2>/dev/null || echo 'active')"
 exit 0

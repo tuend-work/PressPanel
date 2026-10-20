@@ -69,16 +69,19 @@ SUPPORTED_APPS = [
     },
     {
         "id": "redis",
-        "name": "Redis Object Cache",
+        "name": "Redis / Valkey Object Cache",
         "category": "database",
         "icon": "🔴",
-        "desc": "Bộ nhớ đệm trong RAM tốc độ cao, hỗ trợ Redis Object Cache cho WordPress (Port 6379).",
+        "desc": "Bộ nhớ đệm trong RAM tốc độ cao, hỗ trợ Valkey (mã nguồn mở độc lập của Linux Foundation) và Redis (Port 6379).",
         "service": "redis-server",
-        "binary_checks": ["/usr/bin/redis-server", "/usr/local/bin/redis-server"],
-        "default_version": "7.0",
+        "binary_checks": ["/usr/bin/valkey-server", "/usr/local/bin/valkey-server", "/usr/bin/redis-server", "/usr/local/bin/redis-server"],
+        "default_version": "valkey-8.0",
         "versions": [
-            {"value": "7.0", "label": "Redis 7.0 (Mới nhất)"},
-            {"value": "6.2", "label": "Redis 6.2 LTS"}
+            {"value": "valkey-8.0", "label": "Valkey 8.0 (Khuyên dùng, hiệu năng cao, Open-source 100%)"},
+            {"value": "valkey-7.2", "label": "Valkey 7.2 LTS (Tương thích tuyệt đối Redis 7.2)"},
+            {"value": "7.2", "label": "Redis 7.2 (Bản quyền RSALv2 / SSPLv1)"},
+            {"value": "7.0", "label": "Redis 7.0 (Ổn định)"},
+            {"value": "6.2", "label": "Redis 6.2 LTS (Legacy)"}
         ]
     },
     {
@@ -330,7 +333,7 @@ APP_SERVICE_CANDIDATES: Dict[str, List[str]] = {
     "nginx": ["openresty", "nginx"],
     "ols": ["lshttpd", "lsws"],
     "mysql": ["mariadb", "mysqld", "mysql"],
-    "redis": ["redis", "redis-server"],
+    "redis": ["valkey", "valkey-server", "redis-server", "redis"],
     "pgsql": ["postgresql", "postgresql-16", "postgresql-15", "postgresql-14"],
     "mongodb": ["mongod", "mongodb"],
     "sqlserver": ["mssql-server"],
@@ -436,6 +439,8 @@ def resolve_app_config_path(app_id: str, file_type: str = "main") -> str:
             "/etc/mysql/my.cnf"
         ],
         "redis": [
+            "/etc/valkey/valkey.conf",
+            "/etc/valkey.conf",
             "/etc/redis.conf",
             "/etc/redis/redis.conf"
         ],
