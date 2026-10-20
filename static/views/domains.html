@@ -100,9 +100,9 @@
                                         <th class="py-2.5 px-2">Site name ↓</th>
                                         <th class="py-2.5 px-1 w-20 text-center">Status ↓</th>
                                         <th class="py-2.5 px-1 w-24 text-center">Package</th>
-                                        <th class="py-2.5 px-1 w-14 text-center">CPU</th>
-                                        <th class="py-2.5 px-1 w-14 text-center">RAM</th>
-                                        <th class="py-2.5 px-1 w-14 text-center">Disk</th>
+                                        <th class="py-2.5 px-1 w-[70px] text-center">CPU</th>
+                                        <th class="py-2.5 px-1 w-[70px] text-center">RAM</th>
+                                        <th class="py-2.5 px-1 w-[70px] text-center">Disk</th>
                                         <th class="py-2.5 px-1 w-24 text-center">PHP / SSL</th>
                                         <th class="py-2.5 px-1 w-12 text-center">DB</th>
                                         <th class="py-2.5 px-2 w-32 text-right">Operate</th>
@@ -147,41 +147,71 @@
                                         </td>
 
                                         <!-- CPU Donut Chart Gauge -->
-                                        <td class="py-2.5 px-1 text-center w-14">
-                                            <div class="flex items-center justify-center" :title="(d.cpu_usage_pct || 0) + '% / ' + (d.cpu_pct || 100) + '% (' + Math.min(100, Math.round(((d.cpu_usage_pct || 0) / (d.cpu_pct || 100)) * 100)) + '% Used)'">
-                                                <div class="relative w-7 h-7 flex items-center justify-center cursor-pointer">
-                                                    <svg class="w-7 h-7 -rotate-90 transform" viewBox="0 0 36 36">
-                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#222a38]" stroke-width="4.5" />
-                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-[#38bdf8]" stroke-width="4.5" stroke-linecap="round"
+                                        <td class="py-2 px-1 text-center w-[70px]">
+                                            <div class="flex flex-col items-center gap-0.5">
+                                                <div class="relative w-9 h-9 flex items-center justify-center cursor-pointer"
+                                                    :title="(d.cpu_usage_pct || 0).toFixed(1) + '% / ' + (d.cpu_pct || 100) + '%'">
+                                                    <svg class="absolute inset-0 w-9 h-9 -rotate-90 transform" viewBox="0 0 36 36">
+                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#222a38]" stroke-width="4" />
+                                                        <circle cx="18" cy="18" r="15.9155" fill="none"
+                                                            :class="Math.min(100, Math.round(((d.cpu_usage_pct || 0) / (d.cpu_pct || 100)) * 100)) >= 85 ? 'stroke-rose-400' : Math.min(100, Math.round(((d.cpu_usage_pct || 0) / (d.cpu_pct || 100)) * 100)) >= 60 ? 'stroke-amber-400' : 'stroke-sky-400'"
+                                                            stroke-width="4" stroke-linecap="round"
                                                             :stroke-dasharray="Math.min(100, Math.max(0, Math.round(((d.cpu_usage_pct || 0) / (d.cpu_pct || 100)) * 100))) + ', 100'" />
                                                     </svg>
+                                                    <span class="relative text-[9px] font-bold font-mono leading-none"
+                                                        :class="Math.min(100, Math.round(((d.cpu_usage_pct || 0) / (d.cpu_pct || 100)) * 100)) >= 85 ? 'text-rose-400' : Math.min(100, Math.round(((d.cpu_usage_pct || 0) / (d.cpu_pct || 100)) * 100)) >= 60 ? 'text-amber-400' : 'text-sky-400'">
+                                                        {{ Math.min(100, Math.round(((d.cpu_usage_pct || 0) / (d.cpu_pct || 100)) * 100)) }}%
+                                                    </span>
                                                 </div>
+                                                <span class="text-[9px] font-mono text-slate-400 leading-none whitespace-nowrap">
+                                                    {{ (d.cpu_usage_pct || 0).toFixed(0) }}/{{ d.cpu_pct || 100 }}%
+                                                </span>
                                             </div>
                                         </td>
 
                                         <!-- RAM Donut Chart Gauge -->
-                                        <td class="py-2.5 px-1 text-center w-14">
-                                            <div class="flex items-center justify-center" :title="(d.mem_usage_mb || 0) + ' MB / ' + (d.mem_mb || 1024) + ' MB (' + Math.min(100, Math.round(((d.mem_usage_mb || 0) / (d.mem_mb || 1024)) * 100)) + '% Used)'">
-                                                <div class="relative w-7 h-7 flex items-center justify-center cursor-pointer">
-                                                    <svg class="w-7 h-7 -rotate-90 transform" viewBox="0 0 36 36">
-                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#222a38]" stroke-width="4.5" />
-                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-[#38bdf8]" stroke-width="4.5" stroke-linecap="round"
+                                        <td class="py-2 px-1 text-center w-[70px]">
+                                            <div class="flex flex-col items-center gap-0.5">
+                                                <div class="relative w-9 h-9 flex items-center justify-center cursor-pointer"
+                                                    :title="Math.round(d.mem_usage_mb || 0) + 'M / ' + (d.mem_mb || 1024) + 'M'">
+                                                    <svg class="absolute inset-0 w-9 h-9 -rotate-90 transform" viewBox="0 0 36 36">
+                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#222a38]" stroke-width="4" />
+                                                        <circle cx="18" cy="18" r="15.9155" fill="none"
+                                                            :class="Math.min(100, Math.round(((d.mem_usage_mb || 0) / (d.mem_mb || 1024)) * 100)) >= 85 ? 'stroke-rose-400' : Math.min(100, Math.round(((d.mem_usage_mb || 0) / (d.mem_mb || 1024)) * 100)) >= 60 ? 'stroke-amber-400' : 'stroke-violet-400'"
+                                                            stroke-width="4" stroke-linecap="round"
                                                             :stroke-dasharray="Math.min(100, Math.max(0, Math.round(((d.mem_usage_mb || 0) / (d.mem_mb || 1024)) * 100))) + ', 100'" />
                                                     </svg>
+                                                    <span class="relative text-[9px] font-bold font-mono leading-none"
+                                                        :class="Math.min(100, Math.round(((d.mem_usage_mb || 0) / (d.mem_mb || 1024)) * 100)) >= 85 ? 'text-rose-400' : Math.min(100, Math.round(((d.mem_usage_mb || 0) / (d.mem_mb || 1024)) * 100)) >= 60 ? 'text-amber-400' : 'text-violet-400'">
+                                                        {{ Math.min(100, Math.round(((d.mem_usage_mb || 0) / (d.mem_mb || 1024)) * 100)) }}%
+                                                    </span>
                                                 </div>
+                                                <span class="text-[9px] font-mono text-slate-400 leading-none whitespace-nowrap">
+                                                    {{ Math.round(d.mem_usage_mb || 0) }}M/{{ d.mem_mb || 1024 }}M
+                                                </span>
                                             </div>
                                         </td>
 
                                         <!-- Disk Donut Chart Gauge -->
-                                        <td class="py-2.5 px-1 text-center w-14">
-                                            <div class="flex items-center justify-center" :title="((d.disk_usage_mb || 0)/1024).toFixed(1) + ' GB / ' + ((d.disk_mb || 5120)/1024).toFixed(0) + ' GB (' + Math.min(100, Math.round(((d.disk_usage_mb || 0) / (d.disk_mb || 5120)) * 100)) + '% Used)'">
-                                                <div class="relative w-7 h-7 flex items-center justify-center cursor-pointer">
-                                                    <svg class="w-7 h-7 -rotate-90 transform" viewBox="0 0 36 36">
-                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#222a38]" stroke-width="4.5" />
-                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-[#38bdf8]" stroke-width="4.5" stroke-linecap="round"
+                                        <td class="py-2 px-1 text-center w-[70px]">
+                                            <div class="flex flex-col items-center gap-0.5">
+                                                <div class="relative w-9 h-9 flex items-center justify-center cursor-pointer"
+                                                    :title="((d.disk_usage_mb || 0)/1024).toFixed(1) + 'G / ' + ((d.disk_mb || 5120)/1024).toFixed(0) + 'G'">
+                                                    <svg class="absolute inset-0 w-9 h-9 -rotate-90 transform" viewBox="0 0 36 36">
+                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#222a38]" stroke-width="4" />
+                                                        <circle cx="18" cy="18" r="15.9155" fill="none"
+                                                            :class="Math.min(100, Math.round(((d.disk_usage_mb || 0) / (d.disk_mb || 5120)) * 100)) >= 85 ? 'stroke-rose-400' : Math.min(100, Math.round(((d.disk_usage_mb || 0) / (d.disk_mb || 5120)) * 100)) >= 60 ? 'stroke-amber-400' : 'stroke-emerald-400'"
+                                                            stroke-width="4" stroke-linecap="round"
                                                             :stroke-dasharray="Math.min(100, Math.max(0, Math.round(((d.disk_usage_mb || 0) / (d.disk_mb || 5120)) * 100))) + ', 100'" />
                                                     </svg>
+                                                    <span class="relative text-[9px] font-bold font-mono leading-none"
+                                                        :class="Math.min(100, Math.round(((d.disk_usage_mb || 0) / (d.disk_mb || 5120)) * 100)) >= 85 ? 'text-rose-400' : Math.min(100, Math.round(((d.disk_usage_mb || 0) / (d.disk_mb || 5120)) * 100)) >= 60 ? 'text-amber-400' : 'text-emerald-400'">
+                                                        {{ Math.min(100, Math.round(((d.disk_usage_mb || 0) / (d.disk_mb || 5120)) * 100)) }}%
+                                                    </span>
                                                 </div>
+                                                <span class="text-[9px] font-mono text-slate-400 leading-none whitespace-nowrap">
+                                                    {{ ((d.disk_usage_mb || 0)/1024).toFixed(1) }}G/{{ ((d.disk_mb || 5120)/1024).toFixed(0) }}G
+                                                </span>
                                             </div>
                                         </td>
 
