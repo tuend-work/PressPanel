@@ -1,11 +1,747 @@
-                    <div v-if="currentTab === 'wp'" class="space-y-5 max-w-7xl mx-auto">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <h2 class="text-base sm:text-lg font-bold text-slate-800 dark:text-white">WordPress Manager</h2>
-                                <p class="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">Quản trị vòng đời WordPress: 1-Click SSO, Staging, Hardening và sao lưu</p>
-                            </div>
+<div v-if="currentTab === 'wp'" class="space-y-5 max-w-7xl mx-auto pb-12">
+    <!-- TOP HEADER -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+            <div class="flex items-center space-x-2.5">
+                <div class="w-9 h-9 rounded-xl bg-blue-600/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-lg shadow-sm">
+                    <i data-lucide="layers" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h2 class="text-base sm:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <span>WordPress Manager</span>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-semibold">WPCloud Engine</span>
+                    </h2>
+                    <p class="text-[12px] text-slate-500 dark:text-slate-400">Quản trị vòng đời WordPress chuyên sâu: 1-Click Magic Login SSO, Direct ZIP Reinstall diệt mã độc, Lockdown & WPC Optimize</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2 flex-wrap">
+            <button v-if="selectedWpInstance" @click="backToWpList()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-1.5 shadow-sm">
+                <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+                <span>Danh sách Website</span>
+            </button>
+            <button @click="scanWpInstances()" :disabled="scanningWp" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-1.5 shadow-sm">
+                <i data-lucide="refresh-cw" :class="['w-3.5 h-3.5', scanningWp ? 'animate-spin' : '']"></i>
+                <span>Quét hệ thống</span>
+            </button>
+            <button @click="openWpInstallModal()" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition flex items-center gap-1.5 shadow-sm shadow-blue-500/20">
+                <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                <span>Cài đặt WordPress Mới</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN NAV TABS (KHI Ở CHẾ ĐỘ DANH SÁCH) -->
+    <div v-if="!selectedWpInstance" class="flex border-b border-slate-200 dark:border-slate-800 space-x-1">
+        <button @click="wpMainTab = 'sites'" :class="['px-4 py-2 text-xs font-semibold border-b-2 transition flex items-center gap-2', wpMainTab === 'sites' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200']">
+            <i data-lucide="globe" class="w-3.5 h-3.5"></i>
+            <span>Tất cả Website ({{ wpInstances.length }})</span>
+        </button>
+        <button v-if="currentUser.role === 'admin'" @click="openGlobalPluginsTab()" :class="['px-4 py-2 text-xs font-semibold border-b-2 transition flex items-center gap-2', wpMainTab === 'global_plugins' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200']">
+            <i data-lucide="plug" class="w-3.5 h-3.5"></i>
+            <span>Plugins Toàn Server</span>
+        </button>
+    </div>
+
+    <!-- VIEW 1: DANH SÁCH INSTANCES -->
+    <div v-if="!selectedWpInstance && wpMainTab === 'sites'" class="space-y-4">
+        <!-- Search & Filter Bar -->
+        <div class="flex items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div class="relative flex-1 max-w-sm">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
+                <input v-model="wpSearchQuery" type="text" placeholder="Tìm website theo domain, title..." class="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500" />
+            </div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Tổng cộng: <span class="font-bold text-slate-700 dark:text-slate-200">{{ filteredWpInstances.length }}</span> website
+            </div>
+        </div>
+
+        <!-- Instances Cards Grid -->
+        <div v-if="filteredWpInstances.length === 0" class="text-center py-16 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
+            <div class="w-12 h-12 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mb-3">
+                <i data-lucide="layers" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200">Chưa có website WordPress nào</h3>
+            <p class="text-xs text-slate-400 max-w-sm mx-auto mt-1 mb-4">Nhấn nút "Cài đặt WordPress Mới" hoặc "Quét hệ thống" để tự động kết nối các trang web WordPress hiện có.</p>
+            <button @click="openWpInstallModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-sm transition">
+                Cài đặt WordPress ngay
+            </button>
+        </div>
+
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div v-for="inst in filteredWpInstances" :key="inst.id" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm hover:shadow-md transition relative flex flex-col justify-between">
+                <div>
+                    <!-- Card Top: Title & Badges -->
+                    <div class="flex items-start justify-between gap-2 mb-2.5">
+                        <div class="min-w-0">
+                            <h3 class="text-sm font-bold text-slate-800 dark:text-white truncate flex items-center gap-1.5" :title="inst.domain_name">
+                                <span>{{ inst.domain_name }}</span>
+                                <a :href="'http://' + inst.domain_name" target="_blank" class="text-slate-400 hover:text-blue-500 transition">
+                                    <i data-lucide="external-link" class="w-3 h-3"></i>
+                                </a>
+                            </h3>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{{ inst.site_title || 'WordPress Site' }}</p>
                         </div>
-                        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 text-xs text-slate-600 dark:text-slate-300 shadow-sm leading-relaxed">
-                            <p>Tính năng WordPress Manager tích hợp sâu với WP-CLI chạy biệt lập trong lồng Namespace Cage. Đang theo dõi và bảo vệ toàn bộ các website WordPress trên hệ thống.</p>
+                        <div class="flex items-center gap-1 shrink-0">
+                            <span v-if="inst.is_locked" class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 flex items-center gap-1" title="Lockdown: chattr +i">
+                                <i data-lucide="lock" class="w-2.5 h-2.5"></i>
+                                <span>Locked</span>
+                            </span>
+                            <span v-else class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900 flex items-center gap-1">
+                                <i data-lucide="unlock" class="w-2.5 h-2.5"></i>
+                                <span>Active</span>
+                            </span>
                         </div>
                     </div>
+
+                    <!-- Meta Details -->
+                    <div class="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg mb-3">
+                        <div>
+                            <span class="text-slate-400">Phiên bản:</span>
+                            <span class="font-mono font-semibold text-slate-700 dark:text-slate-200 ml-1">v{{ inst.wp_version || '6.7' }}</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-400">User:</span>
+                            <span class="font-mono text-slate-700 dark:text-slate-200 ml-1">{{ inst.admin_user || 'admin' }}</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-400">Database:</span>
+                            <span class="font-mono text-slate-700 dark:text-slate-200 ml-1 truncate block" :title="inst.db_name">{{ inst.db_name || '-' }}</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-400">Bảo mật:</span>
+                            <span class="font-bold text-blue-600 dark:text-blue-400 ml-1">{{ inst.security_score || 80 }}/100</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Bottom Actions -->
+                <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-1.5">
+                    <button @click="magicLoginWp(inst.id)" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white transition flex items-center gap-1.5 shadow-sm shadow-emerald-500/20" title="1-Click Magic Login vào wp-admin">
+                        <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
+                        <span>Magic Login</span>
+                    </button>
+                    <div class="flex items-center gap-1">
+                        <button @click="openWpCloneModal(inst)" class="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Clone / Nhân bản website">
+                            <i data-lucide="copy" class="w-4 h-4"></i>
+                        </button>
+                        <button @click="selectWpInstance(inst)" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition flex items-center gap-1 shadow-sm">
+                            <span>Quản trị</span>
+                            <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- VIEW: GLOBAL PLUGINS (ADMIN SERVER-WIDE) -->
+    <div v-if="!selectedWpInstance && wpMainTab === 'global_plugins'" class="space-y-4">
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-bold text-slate-800 dark:text-white">Quản lý Plugins Tập Trung Toàn Server</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Gom nhóm toàn bộ Plugins trên tất cả website. Cho phép Admin cập nhật và làm sạch mã độc hàng loạt bằng Direct ZIP.</p>
+            </div>
+            <button @click="fetchGlobalPlugins()" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-200 transition flex items-center gap-1.5">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                <span>Tải lại</span>
+            </button>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+                    <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-semibold border-b border-slate-200 dark:border-slate-800">
+                        <tr>
+                            <th class="px-4 py-3">Tên Plugin / Slug</th>
+                            <th class="px-4 py-3">Số Website Sử Dụng</th>
+                            <th class="px-4 py-3">Các Website Cài Đặt</th>
+                            <th class="px-4 py-3 text-right">Hành Động Hàng Loạt</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                        <tr v-if="wpGlobalPlugins.length === 0">
+                            <td colspan="4" class="px-4 py-8 text-center text-slate-400">Đang quét hoặc không có dữ liệu plugin toàn server</td>
+                        </tr>
+                        <tr v-for="gp in wpGlobalPlugins" :key="gp.slug" class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                            <td class="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">
+                                <div>{{ gp.name }}</div>
+                                <div class="text-[11px] font-mono text-slate-400">{{ gp.slug }}</div>
+                            </td>
+                            <td class="px-4 py-3 font-bold text-blue-600 dark:text-blue-400">
+                                {{ gp.sites.length }} sites
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="flex flex-wrap gap-1 max-w-md">
+                                    <span v-for="st in gp.sites" :key="st.domain" class="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                        {{ st.domain }} (v{{ st.version }})
+                                    </span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <button @click="bulkUpdateGlobalPlugin(gp.slug)" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-sm transition inline-flex items-center gap-1.5">
+                                    <i data-lucide="download-cloud" class="w-3 h-3"></i>
+                                    <span>Làm Sạch / Cập Nhật All</span>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- VIEW 2: CHI TIẾT 1 WEBSITE WORDPRESS (8 TABS CHUYÊN SÂU) -->
+    <div v-if="selectedWpInstance" class="space-y-4">
+        <!-- Site Header Banner -->
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-xl shadow-md">
+                    W
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h2 class="text-base font-bold text-slate-800 dark:text-white">{{ selectedWpInstance.domain_name }}</h2>
+                        <a :href="'http://' + selectedWpInstance.domain_name" target="_blank" class="text-slate-400 hover:text-blue-500 transition">
+                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                        </a>
+                        <span v-if="wpDetail && wpDetail.is_locked" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 flex items-center gap-1">
+                            <i data-lucide="shield-alert" class="w-2.5 h-2.5"></i>
+                            <span>Lockdown ON</span>
+                        </span>
+                    </div>
+                    <div class="text-[12px] text-slate-500 dark:text-slate-400 flex items-center gap-3 mt-1">
+                        <span>User: <strong class="text-slate-700 dark:text-slate-300 font-mono">{{ selectedWpInstance.owner_username }}</strong></span>
+                        <span>•</span>
+                        <span>WordPress: <strong class="text-slate-700 dark:text-slate-300 font-mono">v{{ selectedWpInstance.wp_version || '6.7' }}</strong></span>
+                        <span>•</span>
+                        <span>DocRoot: <span class="font-mono text-[11px] text-slate-400">{{ selectedWpInstance.document_root }}</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Header Quick Action Buttons -->
+            <div class="flex items-center gap-2 flex-wrap">
+                <button @click="magicLoginWp(selectedWpInstance.id)" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white transition flex items-center gap-1.5 shadow-sm shadow-emerald-500/20">
+                    <i data-lucide="log-in" class="w-4 h-4"></i>
+                    <span>Magic Login (SSO)</span>
+                </button>
+                <button @click="toggleWpLockdown(selectedWpInstance.id)" :class="['px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-sm border', wpDetail && wpDetail.is_locked ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/40 dark:border-rose-900' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700']">
+                    <i :data-lucide="wpDetail && wpDetail.is_locked ? 'unlock' : 'lock'" class="w-3.5 h-3.5"></i>
+                    <span>{{ wpDetail && wpDetail.is_locked ? 'Mở Khóa Lockdown' : 'Kích Hoạt Lockdown' }}</span>
+                </button>
+                <button @click="fixWpPermissions(selectedWpInstance.id)" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-700" title="Khôi phục chmod 755/644/600 và chown user:user">
+                    <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
+                    <span>Sửa Quyền (Fix Perms)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 8 SUB-TABS NAVIGATION -->
+        <div class="flex border-b border-slate-200 dark:border-slate-800 space-x-1 overflow-x-auto pb-0.5">
+            <button @click="wpSubTab = 'overview'" :class="['px-3.5 py-2 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', wpSubTab === 'overview' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200']">
+                <i data-lucide="pie-chart" class="w-3.5 h-3.5"></i>
+                <span>1. Tổng Quan & Site Weight</span>
+            </button>
+            <button @click="wpSubTab = 'security'" :class="['px-3.5 py-2 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', wpSubTab === 'security' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200']">
+                <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+                <span>2. Bảo Mật & Lockdown</span>
+            </button>
+            <button @click="wpSubTab = 'defines'" :class="['px-3.5 py-2 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', wpSubTab === 'defines' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200']">
+                <i data-lucide="sliders" class="w-3.5 h-3.5"></i>
+                <span>3. Cấu Hình WP Defines</span>
+            </button>
+            <button @click="wpSubTab = 'optimize'" :class="['px-3.5 py-2 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', wpSubTab === 'optimize' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200']">
+                <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+                <span>4. WPC Optimize (7 MU-Plugins)</span>
+            </button>
+            <button @click="openWpPluginsTab()" :class="['px-3.5 py-2 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', wpSubTab === 'plugins' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200']">
+                <i data-lucide="plug" class="w-3.5 h-3.5"></i>
+                <span>5. Plugins (Direct ZIP)</span>
+            </button>
+            <button @click="openWpThemesTab()" :class="['px-3.5 py-2 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', wpSubTab === 'themes' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200']">
+                <i data-lucide="layout" class="w-3.5 h-3.5"></i>
+                <span>6. Giao Diện (Themes)</span>
+            </button>
+            <button @click="openWpUsersTab()" :class="['px-3.5 py-2 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', wpSubTab === 'users' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200']">
+                <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                <span>7. Quản Trị Users & SSO</span>
+            </button>
+            <button @click="openWpLogsTab()" :class="['px-3.5 py-2 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', wpSubTab === 'logs' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200']">
+                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                <span>8. Nhật Ký Lỗi PHP</span>
+            </button>
+        </div>
+
+        <!-- TAB 1: TỔNG QUAN & SITE WEIGHT -->
+        <div v-if="wpSubTab === 'overview'" class="space-y-4">
+            <!-- Site Weight Stat Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+                    <span class="text-[11px] text-slate-400 font-medium">Tổng Dung Lượng</span>
+                    <div class="text-base font-bold text-blue-600 dark:text-blue-400 mt-0.5">
+                        {{ wpDetail && wpDetail.weight ? wpDetail.weight.total_mb : 0 }} MB
+                    </div>
+                </div>
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+                    <span class="text-[11px] text-slate-400 font-medium">Cơ Sở Dữ Liệu</span>
+                    <div class="text-base font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">
+                        {{ wpDetail && wpDetail.weight ? wpDetail.weight.db_mb : 0 }} MB
+                    </div>
+                </div>
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+                    <span class="text-[11px] text-slate-400 font-medium">Uploads / Media</span>
+                    <div class="text-base font-bold text-amber-600 dark:text-amber-400 mt-0.5">
+                        {{ wpDetail && wpDetail.weight ? wpDetail.weight.uploads_mb : 0 }} MB
+                    </div>
+                </div>
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+                    <span class="text-[11px] text-slate-400 font-medium">Mã Nguồn Core</span>
+                    <div class="text-base font-bold text-slate-700 dark:text-slate-200 mt-0.5">
+                        {{ wpDetail && wpDetail.weight ? wpDetail.weight.core_mb : 0 }} MB
+                    </div>
+                </div>
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+                    <span class="text-[11px] text-slate-400 font-medium">Plugins</span>
+                    <div class="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                        {{ wpDetail && wpDetail.weight ? wpDetail.weight.plugins_mb : 0 }} MB
+                    </div>
+                </div>
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+                    <span class="text-[11px] text-slate-400 font-medium">Themes</span>
+                    <div class="text-base font-bold text-purple-600 dark:text-purple-400 mt-0.5">
+                        {{ wpDetail && wpDetail.weight ? wpDetail.weight.themes_mb : 0 }} MB
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Database Optimization Action Card -->
+            <div class="bg-gradient-to-r from-blue-900/20 via-indigo-900/10 to-transparent border border-blue-200 dark:border-blue-900/50 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                <div>
+                    <h4 class="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-blue-500"></i>
+                        <span>Dọn Rác Cơ Sở Dữ Liệu 1-Click (Database Cleanup)</span>
+                    </h4>
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Tự động xóa sạch Revisions bài viết cũ, Auto-drafts, Bình luận spam/trash, Transients tạm thời và Tối ưu hóa bảng.</p>
+                </div>
+                <button @click="cleanupWpDb(selectedWpInstance.id)" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-sm transition shrink-0 flex items-center gap-1.5">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    <span>Dọn Dẹp & Tối Ưu Ngay</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- TAB 2: BẢO MẬT & LOCKDOWN -->
+        <div v-if="wpSubTab === 'security'" class="space-y-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+                <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <h3 class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <i data-lucide="shield" class="w-4 h-4 text-rose-500"></i>
+                        <span>WordPress Lockdown (Bảo Vệ Bất Biến chattr +i)</span>
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Khi bật Lockdown, tệp `wp-config.php`, thư mục `wp-admin` và `wp-includes` được gắn cờ bất biến (`chattr +i`) và chuyển quyền chỉ đọc (`0444`). Bất kỳ hacker hay mã độc nào chiếm quyền thực thi PHP cũng KHÔNG THỂ ghi đè hay chèn backdoor vào source core!</p>
+                </div>
+
+                <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                    <div>
+                        <div class="text-xs font-bold text-slate-800 dark:text-white">Trạng thái Lockdown: {{ wpDetail && wpDetail.is_locked ? 'Đang Khóa An Toàn' : 'Đang Mở Khóa' }}</div>
+                        <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{{ wpDetail && wpDetail.is_locked ? 'Các tệp tin core và config đang được bảo vệ bất biến cấp độ Linux kernel.' : 'Các tệp tin có thể chỉnh sửa/cập nhật bình thường.' }}</div>
+                    </div>
+                    <button @click="toggleWpLockdown(selectedWpInstance.id)" :class="['px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-sm', wpDetail && wpDetail.is_locked ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white']">
+                        <i :data-lucide="wpDetail && wpDetail.is_locked ? 'unlock' : 'lock'" class="w-3.5 h-3.5"></i>
+                        <span>{{ wpDetail && wpDetail.is_locked ? 'Mở Khóa để Cập Nhật' : 'Khóa Chặt Ngay Lập Tức' }}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: WP DEFINES EDITOR -->
+        <div v-if="wpSubTab === 'defines'" class="space-y-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+                <div class="border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                            <i data-lucide="sliders" class="w-4 h-4 text-blue-500"></i>
+                            <span>Trình Quản Lý Tham Số wp-config.php (WP Defines)</span>
+                        </h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Chỉnh sửa nhanh các hằng số cấu hình hệ thống WordPress an toàn mà không cần sửa code thủ công.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- WP_DEBUG -->
+                    <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 dark:text-white font-mono">WP_DEBUG</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">Bật/Tắt chế độ gỡ lỗi PHP trên website</div>
+                        </div>
+                        <input type="checkbox" :checked="wpDetail && wpDetail.defines && wpDetail.defines.WP_DEBUG === 'true'" @change="handleSaveDefine('WP_DEBUG', $event.target.checked ? 'true' : 'false', true)" class="w-4 h-4 text-blue-600 rounded cursor-pointer" />
+                    </div>
+
+                    <!-- WP_DEBUG_LOG -->
+                    <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 dark:text-white font-mono">WP_DEBUG_LOG</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">Ghi log lỗi PHP vào wp-content/debug.log</div>
+                        </div>
+                        <input type="checkbox" :checked="wpDetail && wpDetail.defines && wpDetail.defines.WP_DEBUG_LOG === 'true'" @change="handleSaveDefine('WP_DEBUG_LOG', $event.target.checked ? 'true' : 'false', true)" class="w-4 h-4 text-blue-600 rounded cursor-pointer" />
+                    </div>
+
+                    <!-- DISALLOW_FILE_EDIT -->
+                    <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 dark:text-white font-mono">DISALLOW_FILE_EDIT</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">Khóa trình sửa code Theme/Plugin trong wp-admin</div>
+                        </div>
+                        <input type="checkbox" :checked="wpDetail && wpDetail.defines && wpDetail.defines.DISALLOW_FILE_EDIT === 'true'" @change="handleSaveDefine('DISALLOW_FILE_EDIT', $event.target.checked ? 'true' : 'false', true)" class="w-4 h-4 text-blue-600 rounded cursor-pointer" />
+                    </div>
+
+                    <!-- WP_CACHE -->
+                    <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 dark:text-white font-mono">WP_CACHE</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">Bật cờ cache hệ thống của WordPress</div>
+                        </div>
+                        <input type="checkbox" :checked="wpDetail && wpDetail.defines && wpDetail.defines.WP_CACHE === 'true'" @change="handleSaveDefine('WP_CACHE', $event.target.checked ? 'true' : 'false', true)" class="w-4 h-4 text-blue-600 rounded cursor-pointer" />
+                    </div>
+
+                    <!-- WP_MEMORY_LIMIT -->
+                    <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 dark:text-white font-mono">WP_MEMORY_LIMIT</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">Giới hạn RAM PHP cho WordPress</div>
+                        </div>
+                        <select :value="wpDetail && wpDetail.defines ? wpDetail.defines.WP_MEMORY_LIMIT : '256M'" @change="handleSaveDefine('WP_MEMORY_LIMIT', `'${$event.target.value}'`, true)" class="text-xs px-2 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 font-mono">
+                            <option value="128M">128M</option>
+                            <option value="256M">256M</option>
+                            <option value="512M">512M</option>
+                            <option value="1024M">1024M</option>
+                        </select>
+                    </div>
+
+                    <!-- AUTOSAVE_INTERVAL -->
+                    <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 dark:text-white font-mono">AUTOSAVE_INTERVAL</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">Tần suất tự lưu bài viết (giây)</div>
+                        </div>
+                        <select :value="wpDetail && wpDetail.defines ? wpDetail.defines.AUTOSAVE_INTERVAL : '60'" @change="handleSaveDefine('AUTOSAVE_INTERVAL', $event.target.value, true)" class="text-xs px-2 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 font-mono">
+                            <option value="60">60s</option>
+                            <option value="120">120s</option>
+                            <option value="300">300s</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: WPC OPTIMIZE (7 MU-PLUGINS) -->
+        <div v-if="wpSubTab === 'optimize'" class="space-y-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+                <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <h3 class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <i data-lucide="zap" class="w-4 h-4 text-amber-500"></i>
+                        <span>Bộ Tối Ưu Hóa WordPress Độc Quyền (WPC Optimize MU-Plugins)</span>
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Các module tối ưu được nạp dưới dạng Must-Use Plugins (chạy tự động trước mọi plugin khác, không bị tắt bởi user trong wp-admin, không sinh database rác).</p>
+                </div>
+
+                <div class="space-y-3">
+                    <!-- 1. Admin -->
+                    <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 dark:text-white">wpc-optimize-admin.php (Tối Ưu WP-Admin)</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">Dọn dẹp widget thừa, tắt thông báo phiền phức, tăng tốc độ load trang quản trị wp-admin</div>
+                        </div>
+                        <input type="checkbox" :checked="wpDetail && wpDetail.wpc_optimize && wpDetail.wpc_optimize.admin" @change="toggleWpOptimize(selectedWpInstance.id, 'wpc-optimize-admin.php', $event.target.checked)" class="w-4 h-4 text-blue-600 rounded cursor-pointer" />
+                    </div>
+
+                    <!-- 2. Compatibility -->
+                    <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 dark:text-white">wpc-optimize-compatibility.php (Tương Thích PHP Mới)</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">Vá lỗi deprecated và tăng tính tương thích khi chạy plugin/theme cũ trên PHP 8.1, 8.2, 8.3</div>
+                        </div>
+                        <input type="checkbox" :checked="wpDetail && wpDetail.wpc_optimize && wpDetail.wpc_optimize.compatibility" @change="toggleWpOptimize(selectedWpInstance.id, 'wpc-optimize-compatibility.php', $event.target.checked)" class="w-4 h-4 text-blue-600 rounded cursor-pointer" />
+                    </div>
+
+                    <!-- 3. Editor -->
+                    <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 dark:text-white">wpc-optimize-editor.php (Trình Soạn Thảo)</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">Tối ưu hiệu năng trình soạn thảo Block Gutenberg, tránh giật lag khi viết bài dài</div>
+                        </div>
+                        <input type="checkbox" :checked="wpDetail && wpDetail.wpc_optimize && wpDetail.wpc_optimize.editor" @change="toggleWpOptimize(selectedWpInstance.id, 'wpc-optimize-editor.php', $event.target.checked)" class="w-4 h-4 text-blue-600 rounded cursor-pointer" />
+                    </div>
+
+                    <!-- 4. Flatsome -->
+                    <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 dark:text-white">wpc-optimize-flatsome.php (Tăng Tốc Flatsome Theme)</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">Tối ưu hoá đặc biệt cho giao diện Flatsome và WooCommerce, giảm query database thừa</div>
+                        </div>
+                        <input type="checkbox" :checked="wpDetail && wpDetail.wpc_optimize && wpDetail.wpc_optimize.flatsome" @change="toggleWpOptimize(selectedWpInstance.id, 'wpc-optimize-flatsome.php', $event.target.checked)" class="w-4 h-4 text-blue-600 rounded cursor-pointer" />
+                    </div>
+
+                    <!-- 5. Frontend -->
+                    <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 dark:text-white">wpc-optimize-frontend.php (Tối Ưu Tốc Độ Khách Xem)</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">Loại bỏ query string khỏi static assets, tắt biểu tượng emoji không dùng, trì hoãn JS</div>
+                        </div>
+                        <input type="checkbox" :checked="wpDetail && wpDetail.wpc_optimize && wpDetail.wpc_optimize.frontend" @change="toggleWpOptimize(selectedWpInstance.id, 'wpc-optimize-frontend.php', $event.target.checked)" class="w-4 h-4 text-blue-600 rounded cursor-pointer" />
+                    </div>
+
+                    <!-- 6. Media -->
+                    <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 dark:text-white">wpc-optimize-media.php (Tối Ưu Hình Ảnh)</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">Giới hạn kích thước upload ảnh khổng lồ, ngăn sinh quá nhiều size thumbnail thừa thãi</div>
+                        </div>
+                        <input type="checkbox" :checked="wpDetail && wpDetail.wpc_optimize && wpDetail.wpc_optimize.media" @change="toggleWpOptimize(selectedWpInstance.id, 'wpc-optimize-media.php', $event.target.checked)" class="w-4 h-4 text-blue-600 rounded cursor-pointer" />
+                    </div>
+
+                    <!-- 7. Security -->
+                    <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 dark:text-white">wpc-optimize-security.php (Lá Chắn Bảo Mật Sâu)</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">Giấu phiên bản WordPress, vô hiệu hóa XML-RPC, chặn quét username tác giả (?author=1)</div>
+                        </div>
+                        <input type="checkbox" :checked="wpDetail && wpDetail.wpc_optimize && wpDetail.wpc_optimize.security" @change="toggleWpOptimize(selectedWpInstance.id, 'wpc-optimize-security.php', $event.target.checked)" class="w-4 h-4 text-blue-600 rounded cursor-pointer" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 5: PLUGINS MANAGEMENT (DIRECT ZIP & CLEAN REINSTALL) -->
+        <div v-if="wpSubTab === 'plugins'" class="space-y-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                        <i data-lucide="plug" class="w-4 h-4 text-blue-500"></i>
+                        <span>Quản Lý Plugins (Triết lý Direct ZIP - Sạch 100% Mã Độc)</span>
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Tải ZIP trực tiếp từ wordpress.org, xoá sạch thư mục cũ diệt mọi backdoor, không chạy WP hooks gây lỗi.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button @click="openAddPluginModal()" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                        <span>Cài Plugin Mới</span>
+                    </button>
+                    <button @click="fetchWpPlugins(selectedWpInstance.id)" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition flex items-center gap-1">
+                        <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Plugins List Table -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+                        <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-semibold border-b border-slate-200 dark:border-slate-800">
+                            <tr>
+                                <th class="px-4 py-3">Plugin</th>
+                                <th class="px-4 py-3">Phiên Bản</th>
+                                <th class="px-4 py-3">Trạng Thái</th>
+                                <th class="px-4 py-3 text-right">Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                            <tr v-if="wpPlugins.length === 0">
+                                <td colspan="4" class="px-4 py-8 text-center text-slate-400">Chưa có plugin nào hoặc đang tải...</td>
+                            </tr>
+                            <tr v-for="p in wpPlugins" :key="p.slug" class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                <td class="px-4 py-3">
+                                    <div class="font-bold text-slate-800 dark:text-slate-100">{{ p.name }}</div>
+                                    <div class="text-[11px] text-slate-400 font-mono mt-0.5">{{ p.file }}</div>
+                                </td>
+                                <td class="px-4 py-3 font-mono font-semibold text-slate-700 dark:text-slate-300">
+                                    v{{ p.version }}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span :class="['px-2 py-0.5 rounded-full text-[10px] font-semibold', p.is_active ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400']">
+                                        {{ p.is_active ? 'Đang Bật' : 'Đang Tắt' }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-right space-x-1.5">
+                                    <button @click="toggleWpPlugin(selectedWpInstance.id, p.file, !p.is_active)" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition', p.is_active ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300']">
+                                        {{ p.is_active ? 'Tắt' : 'Bật' }}
+                                    </button>
+                                    <button @click="reinstallWpPlugin(selectedWpInstance.id, p.slug)" class="px-2.5 py-1 rounded text-[11px] font-semibold bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300 transition" title="Tải ZIP sạch từ wordpress.org và giải nén đè mới 100% để làm sạch mã độc">
+                                        Cài lại (Direct ZIP)
+                                    </button>
+                                    <button @click="deleteWpPlugin(selectedWpInstance.id, p.slug)" class="p-1 rounded text-slate-400 hover:text-rose-600 transition" title="Xóa plugin">
+                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 6: THEMES MANAGEMENT -->
+        <div v-if="wpSubTab === 'themes'" class="space-y-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                        <i data-lucide="layout" class="w-4 h-4 text-purple-500"></i>
+                        <span>Quản Lý Giao Diện (Themes)</span>
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Kích hoạt giao diện qua cập nhật database MariaDB, làm sạch source theme bằng Direct ZIP.</p>
+                </div>
+                <button @click="openAddThemeModal()" class="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                    <span>Cài Theme Mới</span>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <div v-for="th in wpThemes" :key="th.slug" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-start justify-between gap-2 mb-2">
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-800 dark:text-white">{{ th.name }}</h4>
+                                <span class="text-[10px] font-mono text-slate-400">v{{ th.version }}</span>
+                            </div>
+                            <span v-if="th.is_active" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900">
+                                Đang Kích Hoạt
+                            </span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mb-3">{{ th.description || 'WordPress theme' }}</p>
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1.5">
+                        <button v-if="!th.is_active" @click="activateWpTheme(selectedWpInstance.id, th.slug)" class="px-3 py-1 rounded text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition">
+                            Kích hoạt
+                        </button>
+                        <div v-else class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                            Active Theme
+                        </div>
+                        <button @click="reinstallWpTheme(selectedWpInstance.id, th.slug)" class="px-2.5 py-1 rounded text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 transition" title="Tải ZIP sạch từ wordpress.org đè mới">
+                            Cài lại ZIP
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 7: USERS MANAGEMENT & MAGIC LOGIN -->
+        <div v-if="wpSubTab === 'users'" class="space-y-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                        <i data-lucide="users" class="w-4 h-4 text-emerald-500"></i>
+                        <span>Quản Trị Người Dùng & Magic Login</span>
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Đọc trực tiếp danh sách tài khoản từ MariaDB. Cho phép đăng nhập 1-click dưới quyền bất kỳ tài khoản nào hoặc đổi pass.</p>
+                </div>
+                <button @click="fetchWpUsers(selectedWpInstance.id)" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition flex items-center gap-1">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                    <span>Tải lại</span>
+                </button>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+                        <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-semibold border-b border-slate-200 dark:border-slate-800">
+                            <tr>
+                                <th class="px-4 py-3">ID</th>
+                                <th class="px-4 py-3">Tên Đăng Nhập</th>
+                                <th class="px-4 py-3">Email</th>
+                                <th class="px-4 py-3">Vai Trò (Role)</th>
+                                <th class="px-4 py-3 text-right">Đăng Nhập SSO / Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                            <tr v-if="wpUsers.length === 0">
+                                <td colspan="5" class="px-4 py-8 text-center text-slate-400">Đang đọc danh sách người dùng từ MariaDB...</td>
+                            </tr>
+                            <tr v-for="u in wpUsers" :key="u.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                <td class="px-4 py-3 font-mono font-bold text-slate-400">#{{ u.id }}</td>
+                                <td class="px-4 py-3 font-bold text-slate-800 dark:text-slate-100">
+                                    {{ u.login }}
+                                    <div class="text-[10px] text-slate-400 font-normal">{{ u.display_name }}</div>
+                                </td>
+                                <td class="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">{{ u.email }}</td>
+                                <td class="px-4 py-3">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200 dark:border-blue-900 uppercase">
+                                        {{ u.role }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-right space-x-1.5">
+                                    <button @click="magicLoginWpUser(selectedWpInstance.id, u.id)" class="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold shadow-sm transition inline-flex items-center gap-1">
+                                        <i data-lucide="log-in" class="w-3 h-3"></i>
+                                        <span>Login as {{ u.login }}</span>
+                                    </button>
+                                    <button @click="openEditWpUserModal(u)" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition">
+                                        Sửa / Đổi Pass
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 8: NHẬT KÝ LỖI PHP (REALTIME PHP ERROR LOGS) -->
+        <div v-if="wpSubTab === 'logs'" class="space-y-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                        <i data-lucide="file-text" class="w-4 h-4 text-rose-500"></i>
+                        <span>Nhật Ký Lỗi PHP & Debug Log (Realtime Error Viewer)</span>
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Theo dõi các lỗi Fatal Error làm sập website, Warning và Notice theo thời gian thực.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <!-- Period Filter -->
+                    <select v-model="wpLogPeriod" @change="fetchWpLogs(selectedWpInstance.id)" class="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+                        <option value="15m">15 phút qua</option>
+                        <option value="1h">1 giờ qua</option>
+                        <option value="24h">24 giờ qua</option>
+                        <option value="all">Tất cả</option>
+                    </select>
+
+                    <!-- Level Filter -->
+                    <select v-model="wpLogLevel" @change="fetchWpLogs(selectedWpInstance.id)" class="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+                        <option value="all">Mọi cấp độ</option>
+                        <option value="fatal">Chỉ Fatal / Parse Error</option>
+                        <option value="warning">Chỉ Warning</option>
+                        <option value="notice">Chỉ Notice</option>
+                    </select>
+
+                    <button @click="fetchWpLogs(selectedWpInstance.id)" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-sm transition">
+                        Làm mới
+                    </button>
+                </div>
+            </div>
+
+            <!-- Terminal Log Window -->
+            <div class="bg-[#0b1320] border border-slate-800 rounded-xl p-4 font-mono text-[11px] overflow-x-auto max-h-[500px] overflow-y-auto shadow-inner leading-relaxed text-slate-300">
+                <div v-if="wpLogs.length === 0" class="text-center py-12 text-slate-500">
+                    <i data-lucide="check-circle" class="w-8 h-8 mx-auto text-emerald-500/60 mb-2"></i>
+                    <div>Tuyệt vời! Không có lỗi PHP nào được ghi nhận trong khoảng thời gian đã chọn.</div>
+                </div>
+                <div v-else class="space-y-1.5">
+                    <div v-for="(lg, idx) in wpLogs" :key="idx" class="border-b border-slate-800/60 pb-1.5">
+                        <div class="flex items-center gap-2 mb-0.5">
+                            <span v-if="lg.level === 'fatal'" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-950 text-rose-400 border border-rose-800 uppercase">FATAL</span>
+                            <span v-else-if="lg.level === 'warning'" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-950 text-amber-400 border border-amber-800 uppercase">WARNING</span>
+                            <span v-else class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-950 text-blue-400 border border-blue-800 uppercase">NOTICE</span>
+                            <span class="text-slate-500 text-[10px]">{{ lg.time }}</span>
+                        </div>
+                        <div :class="['break-words', lg.level === 'fatal' ? 'text-rose-300' : lg.level === 'warning' ? 'text-amber-200' : 'text-slate-300']">
+                            {{ lg.message }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -250,6 +250,28 @@ async def init_database():
         except Exception:
             pass
 
+        # Cập nhật schema cho WordPress Manager
+        wp_cols = [
+            ("user_id", "INTEGER DEFAULT 1"),
+            ("db_prefix", "TEXT DEFAULT 'wp_'"),
+            ("document_root", "TEXT DEFAULT ''"),
+            ("is_locked", "INTEGER DEFAULT 0"),
+            ("security_score", "INTEGER DEFAULT 0"),
+            ("security_flags", "TEXT DEFAULT '{}'"),
+            ("wp_defines", "TEXT DEFAULT '{}'"),
+            ("wpc_optimize_flags", "TEXT DEFAULT '{}'"),
+            ("auto_update_themes", "INTEGER DEFAULT 0"),
+            ("site_size_mb", "REAL DEFAULT 0"),
+            ("db_size_mb", "REAL DEFAULT 0"),
+            ("uploads_size_mb", "REAL DEFAULT 0"),
+            ("last_scanned_at", "DATETIME DEFAULT CURRENT_TIMESTAMP"),
+        ]
+        for col_name, col_type in wp_cols:
+            try:
+                await db.execute(f"ALTER TABLE wp_instances ADD COLUMN {col_name} {col_type}")
+            except Exception:
+                pass
+
         # Tạo các gói Service Plans mẫu (Hosting Plans) nếu chưa có
         cursor = await db.execute("SELECT id FROM packages WHERE id = 1")
         pkg1 = await cursor.fetchone()

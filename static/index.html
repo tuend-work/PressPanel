@@ -3784,6 +3784,647 @@
                     }
                 };
 
+                // =============================================================
+                // WORDPRESS MANAGER STATE & METHODS
+                // =============================================================
+                const wpInstances = ref([]);
+                const wpSearchQuery = ref('');
+                const filteredWpInstances = computed(() => {
+                    if (!wpSearchQuery.value) return wpInstances.value;
+                    const q = wpSearchQuery.value.toLowerCase();
+                    return wpInstances.value.filter(i => 
+                        (i.domain_name && i.domain_name.toLowerCase().includes(q)) ||
+                        (i.site_title && i.site_title.toLowerCase().includes(q)) ||
+                        (i.admin_user && i.admin_user.toLowerCase().includes(q))
+                    );
+                });
+                const scanningWp = ref(false);
+                const selectedWpInstance = ref(null);
+                const wpDetail = ref(null);
+                const wpSubTab = ref('overview');
+                const wpMainTab = ref('sites');
+                const wpPlugins = ref([]);
+                const wpThemes = ref([]);
+                const wpUsers = ref([]);
+                const wpLogs = ref([]);
+                const wpLogPeriod = ref('all');
+                const wpLogLevel = ref('all');
+                const wpGlobalPlugins = ref([]);
+
+                const showWpInstallModal = ref(false);
+                const wpInstalling = ref(false);
+                const wpInstallForm = ref({ domain_id: null, site_title: '', admin_user: 'admin', admin_pass: '', admin_email: '' });
+
+                const showWpCloneModal = ref(false);
+                const wpCloning = ref(false);
+                const wpCloneSource = ref(null);
+                const wpCloneDestDomain = ref('');
+
+                const showWpAddPluginModal = ref(false);
+                const installingPlugin = ref(false);
+                const newPluginSlug = ref('');
+                const newPluginZipUrl = ref('');
+
+                const showWpAddThemeModal = ref(false);
+                const installingTheme = ref(false);
+                const newThemeSlug = ref('');
+                const newThemeZipUrl = ref('');
+
+                const showWpEditUserModal = ref(false);
+                const savingWpUser = ref(false);
+                const editingWpUser = ref(null);
+                const editWpUserForm = ref({ email: '', password: '', role: 'administrator' });
+
+                const fetchWpInstances = async () => {
+                    try {
+                        const res = await fetch('/api/v1/wp/list', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            wpInstances.value = d.instances || [];
+                        }
+                    } catch(e) {
+                        console.error('Lỗi tải danh sách WordPress:', e);
+                    }
+                };
+
+                const scanWpInstances = async () => {
+                    scanningWp.value = true;
+                    try {
+                        const res = await fetch('/api/v1/wp/scan', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            alert(d.message || 'Quét WordPress thành công');
+                            await fetchWpInstances();
+                        } else {
+                            alert(d.detail || 'Quét thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi kết nối khi quét hệ thống: ' + e);
+                    } finally {
+                        scanningWp.value = false;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const selectWpInstance = async (inst) => {
+                    selectedWpInstance.value = inst;
+                    wpSubTab.value = 'overview';
+                    await fetchWpDetail(inst.id);
+                    refreshLucideIcons();
+                };
+
+                const backToWpList = () => {
+                    selectedWpInstance.value = null;
+                    wpDetail.value = null;
+                    refreshLucideIcons();
+                };
+
+                const fetchWpDetail = async (instId) => {
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/detail`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            wpDetail.value = d.detail;
+                            if (selectedWpInstance.value && selectedWpInstance.value.id === instId) {
+                                selectedWpInstance.value.is_locked = d.detail.is_locked;
+                            }
+                        }
+                    } catch(e) {
+                        console.error('Lỗi tải chi tiết WP:', e);
+                    }
+                };
+
+                const magicLoginWp = async (instId) => {
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/sso`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok' && d.sso_url) {
+                            window.open(d.sso_url, '_blank');
+                        } else {
+                            alert(d.detail || d.message || 'Không thể tạo phiên Magic Login');
+                        }
+                    } catch(e) {
+                        alert('Lỗi tạo liên kết SSO: ' + e);
+                    }
+                };
+
+                const magicLoginWpUser = async (instId, userId) => {
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/sso-user/${userId}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok' && d.sso_url) {
+                            window.open(d.sso_url, '_blank');
+                        } else {
+                            alert(d.detail || d.message || 'Không thể tạo phiên Magic Login cho User');
+                        }
+                    } catch(e) {
+                        alert('Lỗi tạo SSO: ' + e);
+                    }
+                };
+
+                const toggleWpLockdown = async (instId) => {
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/lockdown`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            alert(d.message);
+                            await fetchWpDetail(instId);
+                            await fetchWpInstances();
+                        } else {
+                            alert(d.detail || 'Thao tác thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi thực hiện Lockdown: ' + e);
+                    } finally {
+                        refreshLucideIcons();
+                    }
+                };
+
+                const fixWpPermissions = async (instId) => {
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/fixperms`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        alert(d.message || 'Đã sửa quyền thành công');
+                    } catch(e) {
+                        alert('Lỗi phân quyền: ' + e);
+                    }
+                };
+
+                const cleanupWpDb = async (instId) => {
+                    if (!confirm('Bạn có chắc chắn muốn dọn dẹp các bản lưu tạm (revisions), spam và tối ưu database?')) return;
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/db-cleanup`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        alert(d.message || 'Dọn dẹp database thành công!');
+                        await fetchWpDetail(instId);
+                    } catch(e) {
+                        alert('Lỗi dọn dẹp database: ' + e);
+                    }
+                };
+
+                const handleSaveDefine = async (constant, val, enable) => {
+                    if (!selectedWpInstance.value) return;
+                    try {
+                        const res = await fetch(`/api/v1/wp/${selectedWpInstance.value.id}/defines/save`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ constant, value: val, enable })
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            await fetchWpDetail(selectedWpInstance.value.id);
+                        } else {
+                            alert(d.detail || 'Cập nhật define thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi cập nhật define: ' + e);
+                    }
+                };
+
+                const toggleWpOptimize = async (instId, fileName, enable) => {
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/wpc-optimize/toggle`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ file_name: fileName, enable })
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            await fetchWpDetail(instId);
+                        } else {
+                            alert(d.detail || 'Thao tác thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi WPC Optimize: ' + e);
+                    }
+                };
+
+                const openWpPluginsTab = async () => {
+                    wpSubTab.value = 'plugins';
+                    if (selectedWpInstance.value) {
+                        await fetchWpPlugins(selectedWpInstance.value.id);
+                    }
+                    refreshLucideIcons();
+                };
+
+                const fetchWpPlugins = async (instId) => {
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/plugins`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            wpPlugins.value = d.plugins || [];
+                        }
+                    } catch(e) {
+                        console.error('Lỗi tải plugins:', e);
+                    } finally {
+                        refreshLucideIcons();
+                    }
+                };
+
+                const toggleWpPlugin = async (instId, pluginFile, enable) => {
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/plugins/toggle`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ plugin_file: pluginFile, enable })
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            await fetchWpPlugins(instId);
+                        } else {
+                            alert(d.detail || 'Bật/tắt plugin thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi toggle plugin: ' + e);
+                    }
+                };
+
+                const reinstallWpPlugin = async (instId, slug, zipUrl = '') => {
+                    if (!confirm(`Bạn có chắc muốn làm sạch và cài đặt lại Plugin [${slug}] bằng Direct ZIP? Mọi tệp cũ sẽ được dọn sạch để loại bỏ mã độc.`)) return;
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/plugins/reinstall`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ slug, zip_url: zipUrl })
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            alert(d.message || 'Làm sạch và cài đặt lại Plugin thành công!');
+                            await fetchWpPlugins(instId);
+                        } else {
+                            alert(d.detail || 'Cài lại thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi cài lại plugin: ' + e);
+                    }
+                };
+
+                const deleteWpPlugin = async (instId, slug) => {
+                    if (!confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn Plugin [${slug}]?`)) return;
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/plugins/delete`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ slug })
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            await fetchWpPlugins(instId);
+                        } else {
+                            alert(d.detail || 'Xóa plugin thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi xóa plugin: ' + e);
+                    }
+                };
+
+                const openWpThemesTab = async () => {
+                    wpSubTab.value = 'themes';
+                    if (selectedWpInstance.value) {
+                        await fetchWpThemes(selectedWpInstance.value.id);
+                    }
+                    refreshLucideIcons();
+                };
+
+                const fetchWpThemes = async (instId) => {
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/themes`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            wpThemes.value = d.themes || [];
+                        }
+                    } catch(e) {
+                        console.error('Lỗi tải themes:', e);
+                    } finally {
+                        refreshLucideIcons();
+                    }
+                };
+
+                const activateWpTheme = async (instId, slug) => {
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/themes/activate`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ slug })
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            alert(d.message || 'Kích hoạt theme thành công!');
+                            await fetchWpThemes(instId);
+                        } else {
+                            alert(d.detail || 'Kích hoạt theme thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi kích hoạt theme: ' + e);
+                    }
+                };
+
+                const reinstallWpTheme = async (instId, slug, zipUrl = '') => {
+                    if (!confirm(`Bạn có chắc muốn làm sạch và cài đặt lại Theme [${slug}] bằng Direct ZIP?`)) return;
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/themes/reinstall`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ slug, zip_url: zipUrl })
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            alert(d.message || 'Cài lại theme thành công!');
+                            await fetchWpThemes(instId);
+                        } else {
+                            alert(d.detail || 'Cài lại theme thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi cài lại theme: ' + e);
+                    }
+                };
+
+                const openWpUsersTab = async () => {
+                    wpSubTab.value = 'users';
+                    if (selectedWpInstance.value) {
+                        await fetchWpUsers(selectedWpInstance.value.id);
+                    }
+                    refreshLucideIcons();
+                };
+
+                const fetchWpUsers = async (instId) => {
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/users`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            wpUsers.value = d.users || [];
+                        }
+                    } catch(e) {
+                        console.error('Lỗi tải users:', e);
+                    } finally {
+                        refreshLucideIcons();
+                    }
+                };
+
+                const openEditWpUserModal = (user) => {
+                    editingWpUser.value = user;
+                    editWpUserForm.value = {
+                        email: user.email || '',
+                        password: '',
+                        role: user.role || 'subscriber'
+                    };
+                    showWpEditUserModal.value = true;
+                };
+
+                const handleSaveWpUserEdit = async () => {
+                    if (!selectedWpInstance.value || !editingWpUser.value) return;
+                    savingWpUser.value = true;
+                    try {
+                        const payload = {
+                            user_id: editingWpUser.value.id,
+                            user_email: editWpUserForm.value.email,
+                            role: editWpUserForm.value.role
+                        };
+                        if (editWpUserForm.value.password) {
+                            payload.user_pass = editWpUserForm.value.password;
+                        }
+                        const res = await fetch(`/api/v1/wp/${selectedWpInstance.value.id}/users/modify`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            alert(d.message || 'Cập nhật user thành công!');
+                            showWpEditUserModal.value = false;
+                            await fetchWpUsers(selectedWpInstance.value.id);
+                        } else {
+                            alert(d.detail || 'Cập nhật thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi lưu user: ' + e);
+                    } finally {
+                        savingWpUser.value = false;
+                    }
+                };
+
+                const openWpLogsTab = async () => {
+                    wpSubTab.value = 'logs';
+                    if (selectedWpInstance.value) {
+                        await fetchWpLogs(selectedWpInstance.value.id);
+                    }
+                    refreshLucideIcons();
+                };
+
+                const fetchWpLogs = async (instId) => {
+                    try {
+                        const res = await fetch(`/api/v1/wp/${instId}/logs?period=${wpLogPeriod.value}&level=${wpLogLevel.value}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            wpLogs.value = d.logs || [];
+                        }
+                    } catch(e) {
+                        console.error('Lỗi đọc log:', e);
+                    } finally {
+                        refreshLucideIcons();
+                    }
+                };
+
+                const openGlobalPluginsTab = async () => {
+                    wpMainTab.value = 'global_plugins';
+                    await fetchGlobalPlugins();
+                    refreshLucideIcons();
+                };
+
+                const fetchGlobalPlugins = async () => {
+                    try {
+                        const res = await fetch('/api/v1/wp/admin/plugins', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            wpGlobalPlugins.value = d.plugins || [];
+                        }
+                    } catch(e) {
+                        console.error('Lỗi tải plugins toàn server:', e);
+                    } finally {
+                        refreshLucideIcons();
+                    }
+                };
+
+                const bulkUpdateGlobalPlugin = async (slug) => {
+                    if (!confirm(`Bạn có chắc muốn cập nhật làm sạch Plugin [${slug}] trên toàn bộ website của server?`)) return;
+                    try {
+                        const res = await fetch(`/api/v1/wp/admin/plugins/bulk-update?slug=${encodeURIComponent(slug)}`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            alert(d.message || 'Cập nhật hàng loạt thành công!');
+                            await fetchGlobalPlugins();
+                        } else {
+                            alert(d.detail || 'Cập nhật thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi bulk update: ' + e);
+                    }
+                };
+
+                const openWpInstallModal = () => {
+                    wpInstallForm.value = {
+                        domain_id: domains.value.length ? domains.value[0].id : null,
+                        site_title: 'My WordPress Site',
+                        admin_user: 'admin',
+                        admin_pass: Math.random().toString(36).slice(-10) + 'A@1',
+                        admin_email: 'admin@' + (domains.value.length ? domains.value[0].domain_name : 'example.com')
+                    };
+                    showWpInstallModal.value = true;
+                };
+
+                const handleWpInstallNew = async () => {
+                    wpInstalling.value = true;
+                    try {
+                        const res = await fetch('/api/v1/wp/install', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify(wpInstallForm.value)
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            alert(d.message || 'Cài đặt WordPress thành công!');
+                            showWpInstallModal.value = false;
+                            await fetchWpInstances();
+                        } else {
+                            alert(d.detail || 'Cài đặt thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi cài đặt WordPress: ' + e);
+                    } finally {
+                        wpInstalling.value = false;
+                    }
+                };
+
+                const openWpCloneModal = (inst) => {
+                    wpCloneSource.value = inst;
+                    wpCloneDestDomain.value = 'staging.' + inst.domain_name;
+                    showWpCloneModal.value = true;
+                };
+
+                const handleWpCloneSite = async () => {
+                    if (!wpCloneSource.value) return;
+                    wpCloning.value = true;
+                    try {
+                        const res = await fetch('/api/v1/wp/clone', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                src_domain_id: wpCloneSource.value.domain_id,
+                                dest_domain_name: wpCloneDestDomain.value
+                            })
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            alert(d.message || 'Clone website thành công!');
+                            showWpCloneModal.value = false;
+                            await fetchWpInstances();
+                        } else {
+                            alert(d.detail || 'Clone thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi clone website: ' + e);
+                    } finally {
+                        wpCloning.value = false;
+                    }
+                };
+
+                const openAddPluginModal = () => {
+                    newPluginSlug.value = '';
+                    newPluginZipUrl.value = '';
+                    showWpAddPluginModal.value = true;
+                };
+
+                const handleInstallPluginSubmit = async () => {
+                    if (!selectedWpInstance.value) return;
+                    installingPlugin.value = true;
+                    try {
+                        const slug = newPluginSlug.value.trim() || 'custom-plugin';
+                        const zipUrl = newPluginZipUrl.value.trim();
+                        const res = await fetch(`/api/v1/wp/${selectedWpInstance.value.id}/plugins/install`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ slug, zip_url: zipUrl })
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            alert(d.message || 'Cài đặt Plugin thành công!');
+                            showWpAddPluginModal.value = false;
+                            await fetchWpPlugins(selectedWpInstance.value.id);
+                        } else {
+                            alert(d.detail || 'Cài đặt plugin thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi cài đặt plugin: ' + e);
+                    } finally {
+                        installingPlugin.value = false;
+                    }
+                };
+
+                const openAddThemeModal = () => {
+                    newThemeSlug.value = '';
+                    newThemeZipUrl.value = '';
+                    showWpAddThemeModal.value = true;
+                };
+
+                const handleInstallThemeSubmit = async () => {
+                    if (!selectedWpInstance.value) return;
+                    installingTheme.value = true;
+                    try {
+                        const slug = newThemeSlug.value.trim() || 'custom-theme';
+                        const zipUrl = newThemeZipUrl.value.trim();
+                        const res = await fetch(`/api/v1/wp/${selectedWpInstance.value.id}/themes/reinstall`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ slug, zip_url: zipUrl })
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            alert(d.message || 'Cài đặt Theme thành công!');
+                            showWpAddThemeModal.value = false;
+                            await fetchWpThemes(selectedWpInstance.value.id);
+                        } else {
+                            alert(d.detail || 'Cài đặt theme thất bại');
+                        }
+                    } catch(e) {
+                        alert('Lỗi cài theme: ' + e);
+                    } finally {
+                        installingTheme.value = false;
+                    }
+                };
+
                 const refreshLucideIcons = () => {
                     nextTick(() => {
                         if (window.lucide && typeof window.lucide.createIcons === 'function') {
@@ -3809,6 +4450,9 @@
                     }
                     if (newTab === 'databases') {
                         fetchDatabasesList();
+                    }
+                    if (newTab === 'wp') {
+                        fetchWpInstances();
                     }
                     refreshLucideIcons();
                 });
@@ -3887,6 +4531,7 @@
                         fetchUserProfile();
                         fetchDatabasesList();
                         fetchInstalledPhpList();
+                        fetchWpInstances();
                     }
                     refreshLucideIcons();
                     // Tự động làm mới số liệu và kiểm tra task chạy ngầm mỗi 3 giây
@@ -3975,7 +4620,23 @@
                     generateRandomPassword, copyToClipboard,
                     dbStoreApps, getCurrentDbApp, getCurrentDbPortAndStatus,
                     openPgAdmin, openMongoExpress, openRedisCommander,
-                    isDarkMode, toggleTheme
+                    isDarkMode, toggleTheme,
+                    // WordPress Manager
+                    wpInstances, filteredWpInstances, wpSearchQuery, scanningWp, selectedWpInstance, wpDetail, wpSubTab, wpMainTab,
+                    wpPlugins, wpThemes, wpUsers, wpLogs, wpLogPeriod, wpLogLevel, wpGlobalPlugins,
+                    showWpInstallModal, wpInstalling, wpInstallForm,
+                    showWpCloneModal, wpCloning, wpCloneSource, wpCloneDestDomain,
+                    showWpAddPluginModal, installingPlugin, newPluginSlug, newPluginZipUrl,
+                    showWpAddThemeModal, installingTheme, newThemeSlug, newThemeZipUrl,
+                    showWpEditUserModal, savingWpUser, editingWpUser, editWpUserForm,
+                    fetchWpInstances, scanWpInstances, selectWpInstance, backToWpList, fetchWpDetail, magicLoginWp, magicLoginWpUser,
+                    toggleWpLockdown, fixWpPermissions, cleanupWpDb, handleSaveDefine, toggleWpOptimize,
+                    openWpPluginsTab, fetchWpPlugins, toggleWpPlugin, reinstallWpPlugin, deleteWpPlugin,
+                    openWpThemesTab, fetchWpThemes, activateWpTheme, reinstallWpTheme,
+                    openWpUsersTab, fetchWpUsers, openEditWpUserModal, handleSaveWpUserEdit,
+                    openWpLogsTab, fetchWpLogs, openGlobalPluginsTab, fetchGlobalPlugins, bulkUpdateGlobalPlugin,
+                    openWpInstallModal, handleWpInstallNew, openWpCloneModal, handleWpCloneSite,
+                    openAddPluginModal, handleInstallPluginSubmit, openAddThemeModal, handleInstallThemeSubmit
                 };
             }
         }).mount('#app');

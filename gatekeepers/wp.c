@@ -5,11 +5,19 @@
 
 #include "common.h"
 
+static int is_safe_num_string(const char *str) {
+    if (!str || !*str) return 0;
+    for (size_t i = 0; str[i]; i++) {
+        if (!isdigit((unsigned char)str[i])) return 0;
+    }
+    return 1;
+}
+
 int main(int argc, char *argv[]) {
     init_security_env();
 
     if (argc < 4) {
-        send_json_error("wp", "Cu phap: wp <install|clone|backup|restore|secure|plugin|theme|sso> <username> <domain> [args...]");
+        send_json_error("wp", "Cu phap: wp <action> <username> <domain> [args...]");
         return 1;
     }
 
@@ -22,13 +30,14 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    char cmd[1024];
+    char cmd[2048];
+    memset(cmd, 0, sizeof(cmd));
 
     if (strcmp(action, "install") == 0) {
         const char *title = (argc > 4) ? argv[4] : "My WordPress Site";
         const char *admin_user = (argc > 5) ? argv[5] : "admin";
+        const char *admin_email = (argc > 6) ? argv[6] : "admin@wpc.local";
 
-        // Kiểm tra không chứa ký tự phá vỡ lệnh shell
         if (!is_safe_id(admin_user)) {
             send_json_error("wp", "Admin user khong hop le");
             return 1;
@@ -41,6 +50,14 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
         }
+        for (size_t i = 0; admin_email[i]; i++) {
+            char c = admin_email[i];
+            if (c == '\'' || c == '"' || c == '`' || c == '$' || c == ';' ||
+                c == '&' || c == '|' || c == '\n' || c == '\r' || c == '\\' || c == ' ') {
+                send_json_error("wp", "Admin email khong hop le");
+                return 1;
+            }
+        }
 
         // Nhận mật khẩu qua stdin
         char password[256] = {0};
@@ -50,8 +67,8 @@ int main(int argc, char *argv[]) {
         }
         password[strcspn(password, "\r\n")] = 0;
 
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh install '%s' '%s' '%s' '%s'",
-                 username, domain, title, admin_user);
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh install '%s' '%s' '%s' '%s' '%s'",
+                 username, domain, title, admin_user, admin_email);
 
         FILE *pipe_wp = popen(cmd, "w");
         if (!pipe_wp) {
@@ -66,6 +83,126 @@ int main(int argc, char *argv[]) {
         }
         send_json_error("wp", "Cai dat WordPress that bai");
         return 1;
+    }
+    else if (strcmp(action, "download_zip") == 0) {
+        if (argc < 6) {
+            send_json_error("wp", "Cu phap: wp download_zip <username> <domain> <plugin|theme|core> <slug> [zip_url]");
+            return 1;
+        }
+        const char *type = argv[4];
+        const char *slug = argv[5];
+        const char *zip_url = (argc > 6) ? argv[6] : "";
+
+        if (strcmp(type, "plugin") != 0 && strcmp(type, "theme") != 0 && strcmp(type, "core") != 0) {
+            send_json_error("wp", "Loai tai ve khong hop le (chi chap nhan plugin, theme hoac core)");
+            return 1;
+        }
+        if (!is_safe_token(slug)) {
+            send_json_error("wp", "Slug khong hop le");
+            return 1;
+        }
+        if (*zip_url && !is_safe_url(zip_url)) {
+            send_json_error("wp", "URL ZIP khong hop le hoac chua ky tu nguy hiem");
+            return 1;
+        }
+
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh download_zip '%s' '%s' '%s' '%s' '%s'",
+                 username, domain, type, slug, zip_url);
+    }
+    else if (strcmp(action, "delete_item") == 0) {
+        if (argc < 6) {
+            send_json_error("wp", "Cu phap: wp delete_item <username> <domain> <plugin|theme> <slug>");
+            return 1;
+        }
+        const char *type = argv[4];
+        const char *slug = argv[5];
+        if (strcmp(type, "plugin") != 0 && strcmp(type, "theme") != 0) {
+            send_json_error("wp", "Loai xoa khong hop le (plugin hoac theme)");
+            return 1;
+        }
+        if (!is_safe_token(slug)) {
+            send_json_error("wp", "Slug khong hop le");
+            return 1;
+        }
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh delete_item '%s' '%s' '%s' '%s'",
+                 username, domain, type, slug);
+    }
+    else if (strcmp(action, "lock") == 0) {
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh lock '%s' '%s'",
+                 username, domain);
+    }
+    else if (strcmp(action, "unlock") == 0) {
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh unlock '%s' '%s'",
+                 username, domain);
+    }
+    else if (strcmp(action, "fixperms") == 0) {
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh fixperms '%s' '%s'",
+                 username, domain);
+    }
+    else if (strcmp(action, "sso_create") == 0) {
+        if (argc < 6) {
+            send_json_error("wp", "Cu phap: wp sso_create <username> <domain> <target_user_id> <token>");
+            return 1;
+        }
+        const char *target_user_id = argv[4];
+        const char *token = argv[5];
+
+        if (!is_safe_num_string(target_user_id) && !is_safe_id(target_user_id)) {
+            send_json_error("wp", "Target user ID khong hop le");
+            return 1;
+        }
+        if (!is_safe_id(token)) {
+            send_json_error("wp", "SSO token khong hop le");
+            return 1;
+        }
+
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh sso_create '%s' '%s' '%s' '%s'",
+                 username, domain, target_user_id, token);
+    }
+    else if (strcmp(action, "wpc_optimize") == 0) {
+        if (argc < 6) {
+            send_json_error("wp", "Cu phap: wp wpc_optimize <username> <domain> <file_name> <1|0>");
+            return 1;
+        }
+        const char *file_name = argv[4];
+        const char *enable = argv[5];
+
+        if (!is_safe_token(file_name) || (strcmp(enable, "0") != 0 && strcmp(enable, "1") != 0)) {
+            send_json_error("wp", "Tham so wpc_optimize khong hop le");
+            return 1;
+        }
+
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh wpc_optimize '%s' '%s' '%s' '%s'",
+                 username, domain, file_name, enable);
+    }
+    else if (strcmp(action, "db_cleanup") == 0) {
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh db_cleanup '%s' '%s'",
+                 username, domain);
+    }
+    else if (strcmp(action, "config_define") == 0) {
+        if (argc < 7) {
+            send_json_error("wp", "Cu phap: wp config_define <username> <domain> <constant> <value> <1|0>");
+            return 1;
+        }
+        const char *constant = argv[4];
+        const char *val = argv[5];
+        const char *enable = argv[6];
+
+        if (!is_safe_id(constant) || (strcmp(enable, "0") != 0 && strcmp(enable, "1") != 0)) {
+            send_json_error("wp", "Tham so config_define khong hop le");
+            return 1;
+        }
+        for (size_t i = 0; val[i]; i++) {
+            char c = val[i];
+            if (c == '\'' || c == '"' || c == '`' || c == '$' || c == ';' ||
+                c == '&' || c == '|' || c == '\n' || c == '\r' || c == '\\') {
+                send_json_error("wp", "Gia tri define chua ky tu khong an toan");
+                return 1;
+            }
+        }
+
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/wp_manager.sh config_define '%s' '%s' '%s' '%s' '%s'",
+                 username, domain, constant, val, enable);
     }
     else if (strcmp(action, "clone") == 0) {
         if (argc < 5) {
@@ -116,4 +253,3 @@ int main(int argc, char *argv[]) {
     send_json_error("wp", "Thuc thi lenh WordPress that bai");
     return 1;
 }
-

@@ -2807,3 +2807,228 @@
                     </div>
                 </div>
             </div>
+
+            <!-- MODAL: CÀI ĐẶT WORDPRESS MỚI (DIRECT ZIP) -->
+            <div v-if="showWpInstallModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="glass rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">W</div>
+                            <h3 class="text-base font-bold text-white">Cài Đặt WordPress Mới</h3>
+                        </div>
+                        <button @click="showWpInstallModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <form @submit.prevent="handleWpInstallNew" class="space-y-3.5 text-xs">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Chọn Tên Miền (Website)</label>
+                            <select v-model="wpInstallForm.domain_id" required class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500 font-mono">
+                                <option :value="null">-- Chọn tên miền muốn cài đặt --</option>
+                                <option v-for="d in domains" :key="d.id" :value="d.id">{{ d.domain_name }}</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Tiêu Đề Website (Site Title)</label>
+                            <input type="text" v-model="wpInstallForm.site_title" required placeholder="My Blog / E-Commerce" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Tài Khoản Admin</label>
+                                <input type="text" v-model="wpInstallForm.admin_user" required placeholder="admin" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Mật Khẩu Admin</label>
+                                <input type="text" v-model="wpInstallForm.admin_pass" required placeholder="Mật khẩu mạnh..." class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Email Quản Trị</label>
+                            <input type="email" v-model="wpInstallForm.admin_email" required placeholder="admin@example.com" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-blue-950/40 border border-blue-800/40 text-[11px] text-blue-300 space-y-1">
+                            <p>• Tải trực tiếp WordPress Core ZIP sạch 100% từ wordpress.org.</p>
+                            <p>• Tự động tạo cơ sở dữ liệu MariaDB, mã hóa Salts và áp dụng cấu hình bảo mật.</p>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-2">
+                            <button type="button" @click="showWpInstallModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
+                            <button type="submit" :disabled="wpInstalling" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-blue-500/20">
+                                <i v-if="wpInstalling" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
+                                <span>{{ wpInstalling ? 'Đang cài đặt...' : 'Cài Đặt Ngay' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- MODAL: CLONE WEBSITE WORDPRESS -->
+            <div v-if="showWpCloneModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="glass rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="copy" class="w-5 h-5 text-blue-400"></i>
+                            <h3 class="text-base font-bold text-white">Nhân Bản Website (Clone)</h3>
+                        </div>
+                        <button @click="showWpCloneModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <form @submit.prevent="handleWpCloneSite" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Website Nguồn</label>
+                            <input type="text" :value="wpCloneSource ? wpCloneSource.domain_name : ''" disabled class="w-full px-3 py-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 font-mono">
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Tên Miền Đích (Destination Domain)</label>
+                            <input type="text" v-model="wpCloneDestDomain" required placeholder="staging.example.com" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono">
+                            <p class="text-[10px] text-slate-400 mt-1">Đảm bảo tên miền đích đã được tạo trong mục Web Application hoặc là subdomain.</p>
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-indigo-950/40 border border-indigo-800/40 text-[11px] text-indigo-300 space-y-1">
+                            <p>• Tự động sao chép toàn bộ mã nguồn và dữ liệu database.</p>
+                            <p>• Chạy WP-CLI search-replace với cờ an toàn --skip-plugins --skip-themes.</p>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-2">
+                            <button type="button" @click="showWpCloneModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
+                            <button type="submit" :disabled="wpCloning" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-indigo-500/20">
+                                <i v-if="wpCloning" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
+                                <span>{{ wpCloning ? 'Đang nhân bản...' : 'Tiến Hành Clone' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- MODAL: CÀI ĐẶT PLUGIN MỚI (DIRECT ZIP) -->
+            <div v-if="showWpAddPluginModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="glass rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="plug" class="w-5 h-5 text-blue-400"></i>
+                            <h3 class="text-base font-bold text-white">Cài Đặt Plugin Mới (Direct ZIP)</h3>
+                        </div>
+                        <button @click="showWpAddPluginModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <form @submit.prevent="handleInstallPluginSubmit" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Slug Plugin từ WordPress.org</label>
+                            <input type="text" v-model="newPluginSlug" placeholder="ví dụ: litespeed-cache, woocommerce, wordfence..." class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono">
+                            <p class="text-[10px] text-slate-400 mt-1">Hệ thống sẽ tải file ZIP trực tiếp từ https://downloads.wordpress.org/plugin/{slug}.zip</p>
+                        </div>
+
+                        <div class="relative flex py-1 items-center">
+                            <div class="flex-grow border-t border-slate-800"></div>
+                            <span class="flex-shrink mx-2 text-[10px] text-slate-500 uppercase font-bold">HOẶC</span>
+                            <div class="flex-grow border-t border-slate-800"></div>
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Tải từ URL ZIP Tùy Chỉnh</label>
+                            <input type="url" v-model="newPluginZipUrl" placeholder="https://example.com/plugin-pro.zip" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono">
+                            <p class="text-[10px] text-slate-400 mt-1">Dành cho plugin Premium/Pro được lưu trữ trên Cloud/CDN.</p>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-2">
+                            <button type="button" @click="showWpAddPluginModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
+                            <button type="submit" :disabled="installingPlugin" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-blue-500/20">
+                                <i v-if="installingPlugin" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
+                                <span>{{ installingPlugin ? 'Đang tải & cài...' : 'Tải ZIP & Cài Đặt' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- MODAL: CÀI ĐẶT THEME MỚI (DIRECT ZIP) -->
+            <div v-if="showWpAddThemeModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="glass rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="layout" class="w-5 h-5 text-purple-400"></i>
+                            <h3 class="text-base font-bold text-white">Cài Đặt Giao Diện Mới (Themes)</h3>
+                        </div>
+                        <button @click="showWpAddThemeModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <form @submit.prevent="handleInstallThemeSubmit" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Slug Theme từ WordPress.org</label>
+                            <input type="text" v-model="newThemeSlug" placeholder="ví dụ: astra, generatepress, oceanwp..." class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-mono">
+                            <p class="text-[10px] text-slate-400 mt-1">Tải trực tiếp từ https://downloads.wordpress.org/theme/{slug}.zip</p>
+                        </div>
+
+                        <div class="relative flex py-1 items-center">
+                            <div class="flex-grow border-t border-slate-800"></div>
+                            <span class="flex-shrink mx-2 text-[10px] text-slate-500 uppercase font-bold">HOẶC</span>
+                            <div class="flex-grow border-t border-slate-800"></div>
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Tải từ URL ZIP Tùy Chỉnh</label>
+                            <input type="url" v-model="newThemeZipUrl" placeholder="https://example.com/theme-pro.zip" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-mono">
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-2">
+                            <button type="button" @click="showWpAddThemeModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
+                            <button type="submit" :disabled="installingTheme" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-purple-500/20">
+                                <i v-if="installingTheme" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
+                                <span>{{ installingTheme ? 'Đang tải...' : 'Tải ZIP & Cài Đặt' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- MODAL: SỬA / ĐỔI MẬT KHẨU USER WORDPRESS -->
+            <div v-if="showWpEditUserModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="glass rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="user-cog" class="w-5 h-5 text-emerald-400"></i>
+                            <h3 class="text-base font-bold text-white">Chỉnh Sửa Người Dùng #{{ editingWpUser ? editingWpUser.id : '' }}</h3>
+                        </div>
+                        <button @click="showWpEditUserModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <form @submit.prevent="handleSaveWpUserEdit" class="space-y-3.5 text-xs">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Tên Đăng Nhập (Username)</label>
+                            <input type="text" :value="editingWpUser ? editingWpUser.login : ''" disabled class="w-full px-3 py-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 font-mono">
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Email</label>
+                            <input type="email" v-model="editWpUserForm.email" required class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-emerald-500">
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Mật Khẩu Mới (Để trống nếu không đổi)</label>
+                            <input type="text" v-model="editWpUserForm.password" placeholder="Nhập mật khẩu mới..." class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-mono">
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Vai Trò (Role)</label>
+                            <select v-model="editWpUserForm.role" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-emerald-500 uppercase">
+                                <option value="administrator">Administrator (Quản trị viên)</option>
+                                <option value="editor">Editor (Biên tập viên)</option>
+                                <option value="author">Author (Tác giả)</option>
+                                <option value="subscriber">Subscriber (Thành viên)</option>
+                            </select>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-2">
+                            <button type="button" @click="showWpEditUserModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
+                            <button type="submit" :disabled="savingWpUser" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/20">
+                                <i v-if="savingWpUser" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
+                                <span>{{ savingWpUser ? 'Đang lưu...' : 'Lưu Thay Đổi' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>

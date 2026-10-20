@@ -142,6 +142,22 @@ static inline int is_safe_config_path(const char *path) {
     return 1;
 }
 
+static inline int is_safe_url(const char *url) {
+    if (!url || !*url) return 0;
+    if (strncmp(url, "http://", 7) != 0 && strncmp(url, "https://", 8) != 0) return 0;
+    size_t len = strlen(url);
+    if (len > 2048) return 0;
+    for (size_t i = 0; i < len; i++) {
+        char c = url[i];
+        if (c == '\'' || c == '"' || c == '`' || c == '$' || c == ';' ||
+            c == '&' || c == '|' || c == '\n' || c == '\r' || c == '\\' ||
+            c == ' ' || c == '<' || c == '>') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static inline int is_system_user(const char *username) {
     if (!username || !*username) return 1;
     const char *sys_users[] = {
