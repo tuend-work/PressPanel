@@ -462,6 +462,33 @@ if [ -f "/usr/local/openresty/nginx/conf/nginx.conf" ] || command -v openresty &
     bash "$TMP_DIR/scripts/apps/nginx.sh" configure 2>/dev/null || true
 fi
 
+# 7.7 Tự động sửa lỗi unknown "http3" variable nếu Nginx không có module ngx_http_v3_module
+if command -v nginx &>/dev/null; then
+    HAS_HTTP3=0
+    if nginx -V 2>&1 | grep -q -- "with-http_v3_module"; then
+        HAS_HTTP3=1
+    fi
+    if [ "$HAS_HTTP3" -eq 0 ] || ! nginx -t 2>/dev/null; then
+        echo "[!] Đang kiểm tra và loại bỏ biến http3/quic không tương thích khỏi cấu hình Nginx..."
+        for f in /etc/nginx/conf.d/*.conf /etc/nginx/nginx.conf /usr/local/openresty/nginx/conf/nginx.conf; do
+            [ -f "$f" ] || continue
+            sed -i '/quic;/d' "$f" 2>/dev/null || true
+            sed -i '/quic/d' "$f" 2>/dev/null || true
+            sed -i '/http3/d' "$f" 2>/dev/null || true
+            sed -i '/Alt-Svc/d' "$f" 2>/dev/null || true
+            sed -i '/QUIC-Status/d' "$f" 2>/dev/null || true
+        done
+        if ! nginx -t 2>/dev/null; then
+            for f in /etc/nginx/conf.d/*.conf; do
+                [ -f "$f" ] || continue
+                sed -i '/http2[[:space:]]\+on;/d' "$f" 2>/dev/null || true
+                sed -i 's/listen 443 ssl;/listen 443 ssl http2;/g' "$f" 2>/dev/null || true
+                sed -i 's/listen \[::\]:443 ssl;/listen [::]:443 ssl http2;/g' "$f" 2>/dev/null || true
+            done
+        fi
+    fi
+fi
+
 if systemctl is-active --quiet openresty 2>/dev/null; then
     systemctl restart openresty 2>/dev/null || true
 elif systemctl is-active --quiet nginx 2>/dev/null; then

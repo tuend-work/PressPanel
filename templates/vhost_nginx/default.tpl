@@ -33,9 +33,8 @@ server {
     http2 on;
     http3 on;
 
-    # Quảng bá giao thức HTTP/3 tới trình duyệt web
+    # Quảng bá giao thức HTTP/3 tới trình duyệt web (nếu bật)
     add_header Alt-Svc 'h3=":443"; ma=86400' always;
-    add_header QUIC-Status $http3 always;
 
     # Chứng chỉ SSL (Tự ký hoặc Let's Encrypt CA)
     ssl_certificate {{SSL_CERT}};

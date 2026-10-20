@@ -1283,6 +1283,23 @@
                                 <span>📜</span>
                                 <span>Service Status</span>
                             </button>
+
+                            <!-- NGINX URL REWRITE TAB BUTTON IN SIDEBAR -->
+                            <button v-if="selectedSettingApp?.id === 'nginx'"
+                                @click="appSettingTab = 'server_config'; wsServerTab = 'rewrite'"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'server_config' && wsServerTab === 'rewrite' ? 'bg-[#1e2633] text-indigo-400 font-bold border-l-2 border-indigo-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>🔀</span>
+                                <span>URL Rewrite</span>
+                            </button>
+
+                            <!-- BUILD SETTINGS (CẤU HÌNH ĐỐI SỐ BIÊN DỊCH TỪ SOURCE) -->
+                            <button @click="openAppBuildSettings(selectedSettingApp.id)"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'build_settings' ? 'bg-[#1e2633] text-amber-400 font-bold border-l-2 border-amber-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>🛠️</span>
+                                <span>Build settings</span>
+                            </button>
                         </div>
 
                         <!-- Right Content Area -->
@@ -1317,7 +1334,8 @@
                                             { id: 'general', label: 'General' },
                                             { id: 'log', label: 'Log' },
                                             { id: 'tuning', label: 'Tuning' },
-                                            { id: 'security', label: 'Security' }
+                                            { id: 'security', label: 'Security' },
+                                            { id: 'rewrite', label: 'URL Rewrite' }
                                         ] : [
                                             { id: 'general', label: 'General' },
                                             { id: 'log', label: 'Log' },
@@ -1585,6 +1603,63 @@
                                                     <span class="text-[11px] text-slate-400">Nén dữ liệu tĩnh và động tiết kiệm băng thông</span>
                                                     <span class="mt-2 inline-block px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold">Active</span>
                                                 </div>
+                                            </div>
+                                    <!-- TAB: URL REWRITE (DÀNH RIÊNG CHO NGINX WEBSERVER CONFIGURATION) -->
+                                    <div v-if="wsServerTab === 'rewrite'" class="space-y-4">
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                            <div class="flex items-center justify-between border-b border-[#232b36] pb-2.5">
+                                                <div>
+                                                    <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                                                        <span>🔀</span>
+                                                        <span>Nginx Global URL Rewrite & Routing Directives</span>
+                                                    </h4>
+                                                    <p class="text-[11px] text-slate-400 mt-0.5">
+                                                        Cấu hình các quy tắc URL Rewrite, try_files, chuyển hướng và bảo vệ định tuyến dùng chung toàn cục cho Nginx (<code class="text-cyan-400 font-mono">/etc/nginx/conf.d/00_rewrite.conf</code>).
+                                                    </p>
+                                                </div>
+                                                <span class="text-[10px] px-2.5 py-0.5 rounded font-mono bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">
+                                                    try_files &bull; rewrite &bull; location
+                                                </span>
+                                            </div>
+
+                                            <!-- Mẫu Gợi Ý Nhanh -->
+                                            <div class="space-y-1.5">
+                                                <span class="text-[11px] text-slate-400 font-medium">Chèn nhanh các quy tắc mẫu (Click to insert):</span>
+                                                <div class="flex items-center gap-1.5 flex-wrap">
+                                                    <button type="button" @click="appendNginxRewritePreset('wordpress')"
+                                                        class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
+                                                        + WordPress try_files
+                                                    </button>
+                                                    <button type="button" @click="appendNginxRewritePreset('laravel')"
+                                                        class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
+                                                        + Laravel / SPA
+                                                    </button>
+                                                    <button type="button" @click="appendNginxRewritePreset('security')"
+                                                        class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
+                                                        + Chặn file ẩn & nhạy cảm (.env, .git)
+                                                    </button>
+                                                    <button type="button" @click="appendNginxRewritePreset('force_https')"
+                                                        class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
+                                                        + Force HTTPS Redirect
+                                                    </button>
+                                                    <button type="button" @click="appendNginxRewritePreset('static_cache')"
+                                                        class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
+                                                        + Cache Static Assets (CSS, JS, Img)
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <textarea v-model="wsServerConfig.rewriteRules"
+                                                rows="12"
+                                                placeholder="# Nhập cấu hình URL Rewrite hoặc location blocks tại đây...
+# Ví dụ:
+# location / {
+#     try_files $uri $uri/ /index.php?$args;
+# }"
+                                                class="w-full p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs focus:outline-none focus:border-cyan-500 resize-y h-64 custom-scrollbar leading-relaxed">
+                                            </textarea>
+                                            <div class="text-[10px] text-slate-400 italic">
+                                                💡 Hệ thống tự động kiểm tra cú pháp bằng <code>nginx -t</code> trước khi lưu và reload, đảm bảo không làm gián đoạn máy chủ nếu cấu hình có lỗi cú pháp.
                                             </div>
                                         </div>
                                     </div>
@@ -1926,8 +2001,126 @@
                                     <div>● Status: {{ selectedSettingApp?.running ? 'active (running)' : 'inactive (dead)' }}</div>
                                     <div>● Version: {{ selectedSettingApp?.default_version }}</div>
                                     <div>● Binary checks: {{ selectedSettingApp?.binary_checks?.join(', ') }}</div>
-                                </div>
                             </div>
+
+                            <!-- TAB 5: BUILD SETTINGS (CẤU HÌNH ĐỐI SỐ BIÊN DỊCH TỪ MÃ NGUỒN) -->
+                            <div v-if="appSettingTab === 'build_settings'" class="flex-1 flex flex-col space-y-3 min-h-[420px]">
+                                <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3.5">
+                                    <div class="flex items-center justify-between border-b border-[#232b36] pb-2.5">
+                                        <div>
+                                            <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                                                <span>🛠️</span>
+                                                <span>Build Settings & Configure Arguments</span>
+                                            </h4>
+                                            <p class="text-[11px] text-slate-400 mt-0.5">
+                                                Tùy biến các đối số cấu hình biên dịch (configure flags) khi build <b>{{ selectedSettingApp?.name }}</b> từ mã nguồn.
+                                            </p>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span v-if="['nginx', 'openresty'].includes(selectedSettingApp?.id) && appBuildInfo?.has_http3"
+                                                class="px-2.5 py-1 rounded font-mono text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1 font-bold">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                                <span>QUIC/HTTP3 (ngx_http_v3_module): ĐÃ HỖ TRỢ</span>
+                                            </span>
+                                            <span v-else-if="['nginx', 'openresty'].includes(selectedSettingApp?.id)"
+                                                class="px-2.5 py-1 rounded font-mono text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center gap-1 font-bold">
+                                                <span>⚠️</span>
+                                                <span>Chưa có ngx_http_v3_module (Cần Rebuild)</span>
+                                            </span>
+                                            <span class="px-2 py-1 rounded font-mono text-[10px] bg-slate-800 text-slate-300 border border-slate-700">
+                                                Source Build
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Quick Presets -->
+                                    <div class="space-y-1.5">
+                                        <span class="text-[11px] text-slate-400 font-medium">Thêm nhanh các module & cờ biên dịch (Click to append):</span>
+                                        <div class="flex items-center gap-1.5 flex-wrap">
+                                            <template v-if="['nginx', 'openresty'].includes(selectedSettingApp?.id)">
+                                                <button type="button" @click="appendBuildArg('--with-http_v3_module')"
+                                                    class="px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-[10px] font-mono border border-amber-500/30 transition font-bold">
+                                                    + --with-http_v3_module (QUIC & HTTP/3)
+                                                </button>
+                                                <button type="button" @click="appendBuildArg('--with-http_ssl_module')"
+                                                    class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
+                                                    + --with-http_ssl_module
+                                                </button>
+                                                <button type="button" @click="appendBuildArg('--with-http_v2_module')"
+                                                    class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
+                                                    + --with-http_v2_module
+                                                </button>
+                                                <button type="button" @click="appendBuildArg('--with-http_realip_module')"
+                                                    class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
+                                                    + --with-http_realip_module
+                                                </button>
+                                                <button type="button" @click="appendBuildArg('--with-stream')"
+                                                    class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
+                                                    + --with-stream
+                                                </button>
+                                                <button type="button" @click="appendBuildArg('--with-stream_ssl_module')"
+                                                    class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
+                                                    + --with-stream_ssl_module
+                                                </button>
+                                                <button type="button" @click="appendBuildArg('--with-http_gzip_static_module')"
+                                                    class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
+                                                    + --with-http_gzip_static_module
+                                                </button>
+                                                <button type="button" @click="appendBuildArg('--with-pcre-jit')"
+                                                    class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
+                                                    + --with-pcre-jit
+                                                </button>
+                                            </template>
+                                            <template v-else-if="selectedSettingApp?.category === 'php'">
+                                                <button type="button" @click="appendBuildArg('--enable-mbstring')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">+ --enable-mbstring</button>
+                                                <button type="button" @click="appendBuildArg('--with-curl')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">+ --with-curl</button>
+                                                <button type="button" @click="appendBuildArg('--with-openssl')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">+ --with-openssl</button>
+                                                <button type="button" @click="appendBuildArg('--enable-opcache')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">+ --enable-opcache</button>
+                                                <button type="button" @click="appendBuildArg('--with-zlib')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">+ --with-zlib</button>
+                                                <button type="button" @click="appendBuildArg('--with-mysqli')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">+ --with-mysqli</button>
+                                            </template>
+                                            <template v-else>
+                                                <button type="button" @click="appendBuildArg('--with-openssl')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">+ --with-openssl</button>
+                                                <button type="button" @click="appendBuildArg('--enable-http3')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">+ --enable-http3</button>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-1">
+                                        <div class="flex items-center justify-between">
+                                            <label class="text-[11px] font-mono text-slate-400">File lưu trữ đối số: <code class="text-amber-400">/opt/wpc/config/build/{{ selectedSettingApp?.id }}.args</code></label>
+                                            <button type="button" @click="resetAppBuildArgsToDefault" class="text-[11px] text-cyan-400 hover:underline">
+                                                🔄 Khôi phục đối số mặc định
+                                            </button>
+                                        </div>
+                                        <textarea v-model="appBuildArgs"
+                                            rows="8"
+                                            placeholder="--prefix=... --with-http_v3_module ..."
+                                            class="w-full p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-amber-300 font-mono text-xs focus:outline-none focus:border-amber-500 resize-y h-56 custom-scrollbar leading-relaxed">
+                                        </textarea>
+                                    </div>
+
+                                    <div class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200/90 leading-relaxed">
+                                        💡 <b>Biên dịch đa luồng:</b> Hệ thống sẽ tải mã nguồn chính thức và chạy <code>./configure [các đối số trên] && make -j$(nproc)</code>. Quá trình biên dịch chạy ngầm và bạn có thể theo dõi tiến trình qua Messages Box / Task List.
+                                    </div>
+                                </div>
+
+                                <!-- Actions Footer -->
+                                <div class="flex justify-between items-center pt-2 border-t border-[#232b36] shrink-0">
+                                    <button @click="triggerAppBuild(selectedSettingApp?.id)" :disabled="buildingApp"
+                                        class="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-bold text-xs flex items-center space-x-2 shadow-lg shadow-amber-500/20 transition">
+                                        <span v-if="buildingApp" class="animate-spin">⏳</span>
+                                        <span v-else>🔨</span>
+                                        <span>{{ buildingApp ? 'Đang gửi lệnh build...' : 'Bắt Đầu Build / Biên Dịch Ngay' }}</span>
+                                    </button>
+
+                                    <button @click="saveAppBuildSettings(selectedSettingApp?.id)" :disabled="savingBuildSettings"
+                                        class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs shadow-lg shadow-emerald-500/20 flex items-center space-x-1.5 transition">
+                                        <span v-if="savingBuildSettings" class="animate-spin">⏳</span>
+                                        <span v-else>💾</span>
+                                        <span>{{ savingBuildSettings ? 'Đang lưu...' : 'Lưu Đối Số Build' }}</span>
+                                    </button>
+                                </div>
                         </div>
                     </div>
                 </div>

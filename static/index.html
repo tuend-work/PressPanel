@@ -1021,7 +1021,8 @@
                     lscacheEnabled: true,
                     modSecurityEnabled: true,
                     http2Enabled: true,
-                    http3Enabled: true
+                    http3Enabled: true,
+                    rewriteRules: ''
                 });
 
                 const handleRewriteWebserverConfig = async (webserver) => {
@@ -1247,6 +1248,125 @@
                         alert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingConfig.value = false;
+                    }
+                };
+
+                // CẤU HÌNH ĐỐI SỐ BIÊN DỊCH ỨNG DỤNG (BUILD SETTINGS)
+                const appBuildArgs = ref('');
+                const appBuildInfo = ref(null);
+                const savingBuildSettings = ref(false);
+                const buildingApp = ref(false);
+
+                const openAppBuildSettings = async (appId) => {
+                    appSettingTab.value = 'build_settings';
+                    appBuildArgs.value = '# Đang tải cấu hình đối số build...';
+                    try {
+                        const res = await fetch(`/api/v1/apps/${appId}/build-settings`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            appBuildInfo.value = data;
+                            appBuildArgs.value = data.build_args || data.default_args || '';
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải build settings:', e);
+                        appBuildArgs.value = '# Lỗi tải cấu hình: ' + e.message;
+                    }
+                };
+
+                const saveAppBuildSettings = async (appId) => {
+                    if (!appId) return;
+                    savingBuildSettings.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/apps/${appId}/build-settings`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ build_args: appBuildArgs.value })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Lưu đối số biên dịch thành công!');
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể lưu đối số biên dịch.'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        savingBuildSettings.value = false;
+                    }
+                };
+
+                const triggerAppBuild = async (appId) => {
+                    if (!appId) return;
+                    if (!confirm(`Bạn có chắc chắn muốn bắt đầu biên dịch ứng dụng ${appId.toUpperCase()} từ nguồn với các đối số đã nhập?\nQuá trình này sẽ chạy ngầm và sử dụng CPU đa luồng để biên dịch mã nguồn.`)) return;
+
+                    buildingApp.value = true;
+                    try {
+                        // Tự động lưu đối số trước khi build
+                        await fetch(`/api/v1/apps/${appId}/build-settings`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ build_args: appBuildArgs.value })
+                        });
+
+                        const res = await fetch(`/api/v1/apps/${appId}/build`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Đã kích hoạt tiến trình biên dịch từ nguồn!');
+                            showMessagesBox.value = true;
+                            msgBoxTab.value = 'tasks';
+                            fetchRunningTasks();
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể kích hoạt tiến trình biên dịch.'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi: ' + e.message);
+                    } finally {
+                        buildingApp.value = false;
+                    }
+                };
+
+                const appendBuildArg = (arg) => {
+                    if (!appBuildArgs.value.includes(arg)) {
+                        if (appBuildArgs.value.trim().endsWith('\\')) {
+                            appBuildArgs.value = appBuildArgs.value.trim() + '\n' + arg + ' \\';
+                        } else {
+                            appBuildArgs.value = appBuildArgs.value.trim() + ' \\\n' + arg;
+                        }
+                    }
+                };
+
+                const resetAppBuildArgsToDefault = () => {
+                    if (appBuildInfo.value?.default_args) {
+                        appBuildArgs.value = appBuildInfo.value.default_args;
+                    }
+                };
+
+                const appendNginxRewritePreset = (presetKey) => {
+                    let snippet = '';
+                    if (presetKey === 'wordpress') {
+                        snippet = `\n# WordPress Permalink Rewrite Rule\nlocation / {\n    try_files $uri $uri/ /index.php?$args;\n}\n`;
+                    } else if (presetKey === 'laravel') {
+                        snippet = `\n# Laravel / SPA Routing\nlocation / {\n    try_files $uri $uri/ /index.php?$query_string;\n}\n`;
+                    } else if (presetKey === 'security') {
+                        snippet = `\n# Security: Chặn file ẩn và file nhạy cảm\nlocation ~ /\\.(?!well-known).* {\n    deny all;\n    access_log off;\n    log_not_found off;\n}\nlocation ~* /(wp-config\\.php|\\.env|\\.git|\\.user\\.ini|composer\\.(json|lock)) {\n    deny all;\n    access_log off;\n    log_not_found off;\n}\n`;
+                    } else if (presetKey === 'force_https') {
+                        snippet = `\n# Force HTTPS Redirect\nif ($scheme != "https") {\n    return 301 https://$host$request_uri;\n}\n`;
+                    } else if (presetKey === 'static_cache') {
+                        snippet = `\n# Cache Static Assets (CSS, JS, Fonts, Images)\nlocation ~* \\.(jpg|jpeg|png|gif|ico|css|js|woff|woff2|ttf|svg|eot)$ {\n    expires 30d;\n    add_header Cache-Control "public, no-transform";\n    access_log off;\n    log_not_found off;\n}\n`;
+                    }
+                    if (snippet) {
+                        wsServerConfig.value.rewriteRules = (wsServerConfig.value.rewriteRules || '').trim() + '\n' + snippet;
                     }
                 };
 
@@ -5620,6 +5740,7 @@
                     showAppSettingModal, selectedSettingApp, appSettingTab, appConfigPath,
                     appConfigContent, savingConfig, rewritingConfig, handleRewriteWebserverConfig,
                     wsServerTab, wsServerConfig, savingWsServerConfig, fetchWsServerSettings, saveWsServerSettings,
+                    appBuildArgs, appBuildInfo, savingBuildSettings, buildingApp, openAppBuildSettings, saveAppBuildSettings, triggerAppBuild, appendBuildArg, resetAppBuildArgsToDefault, appendNginxRewritePreset,
                     openAppSettings, loadAppConfig,
                     saveCurrentAppConfig, toggleAppAutorestart,
                     phpExtensions, loadingExtensions, phpDirectives, savingDirectives,

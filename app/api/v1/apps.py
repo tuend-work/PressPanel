@@ -1452,6 +1452,7 @@ class WebserverSettingsUpdateRequest(BaseModel):
     rateLimitEnabled: Optional[bool] = None
     rateLimitReqSec: Optional[int] = None
     rateLimitBurst: Optional[int] = None
+    rewriteRules: Optional[str] = None
 
 
 @router.get("/webserver-settings")
@@ -1511,8 +1512,45 @@ async def get_webserver_settings(webserver: str = "ols", current_user: dict = De
         "lscacheEnabled": True,
         "modSecurityEnabled": True,
         "http2Enabled": True,
-        "http3Enabled": True
+        "http3Enabled": True,
+        "rewriteRules": ""
     }
+
+    if ws == "nginx":
+        rewrite_file = "/etc/nginx/conf.d/00_rewrite.conf"
+        rewrite_content = ""
+        if os.path.exists(rewrite_file):
+            try:
+                with open(rewrite_file, "r", encoding="utf-8", errors="ignore") as rf:
+                    rewrite_content = rf.read()
+            except Exception:
+                pass
+        if not rewrite_content:
+            rewrite_content = (
+                "# Global URL Rewrite & Location Directives for Nginx (/etc/nginx/conf.d/00_rewrite.conf)\n"
+                "# 1. Chặn các file nhạy cảm và thư mục ẩn\n"
+                "location ~ /\\.(?!well-known).* {\n"
+                "    deny all;\n"
+                "    access_log off;\n"
+                "    log_not_found off;\n"
+                "}\n\n"
+                "location ~* /(wp-config\\.php|\\.env|\\.git|\\.user\\.ini|composer\\.(json|lock)) {\n"
+                "    deny all;\n"
+                "    access_log off;\n"
+                "    log_not_found off;\n"
+                "}\n\n"
+                "# 2. Tối ưu static files\n"
+                "location = /favicon.ico {\n"
+                "    log_not_found off;\n"
+                "    access_log off;\n"
+                "}\n\n"
+                "location = /robots.txt {\n"
+                "    allow all;\n"
+                "    log_not_found off;\n"
+                "    access_log off;\n"
+                "}\n"
+            )
+        settings["rewriteRules"] = rewrite_content
 
     if content:
         if ws == "ols":
@@ -1619,6 +1657,35 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
             else:
                 content = re.sub(r"(http\s*\{)", rf"\1\n    client_max_body_size {req.maxBodySize};", content)
 
+    # Lưu file URL Rewrite riêng cho Nginx nếu có truyền vào
+    if ws == "nginx" and req.rewriteRules is not None:
+        rw_path = "/etc/nginx/conf.d/00_rewrite.conf"
+        rw_tmp = "/tmp/wpc_nginx_rewrite.tmp"
+        rw_bak = "/tmp/wpc_nginx_rewrite.bak"
+        try:
+            if os.path.exists(rw_path):
+                shutil.copy2(rw_path, rw_bak)
+            with open(rw_tmp, "w", encoding="utf-8") as rf:
+                rf.write(req.rewriteRules.strip() + "\n")
+            try:
+                shutil.move(rw_tmp, rw_path)
+            except Exception:
+                subprocess.run(["sudo", "mv", rw_tmp, rw_path], check=True)
+            subprocess.run(["sudo", "chmod", "644", rw_path], check=False)
+
+            # Kiểm tra cú pháp nginx -t
+            test_proc = subprocess.run(["sudo", "nginx", "-t"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if test_proc.returncode != 0:
+                # Khôi phục file cũ nếu có lỗi cú pháp
+                if os.path.exists(rw_bak):
+                    subprocess.run(["sudo", "mv", rw_bak, rw_path], check=False)
+                err_out = test_proc.stderr or test_proc.stdout or "Cú pháp Nginx không hợp lệ."
+                raise HTTPException(status_code=400, detail=f"Lỗi kiểm tra cú pháp Nginx URL Rewrite:\n{err_out}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Lỗi lưu file Nginx URL Rewrite: {str(e)}")
+
     # Ghi file cấu hình an toàn
     tmp_path = f"/tmp/wpc_{ws}_main_conf.tmp"
     try:
@@ -1652,6 +1719,166 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi lưu file cấu hình máy chủ: {str(e)}")
+
+
+# ==============================================================================
+# QUẢN LÝ ĐỐI SỐ BIÊN DỊCH ỨNG DỤNG (BUILD SETTINGS & COMPILE FROM SOURCE)
+# ==============================================================================
+
+class AppBuildSettingsRequest(BaseModel):
+    build_args: str
+
+DEFAULT_BUILD_ARGS = {
+    "nginx": (
+        "--prefix=/etc/nginx \\\n"
+        "--sbin-path=/usr/sbin/nginx \\\n"
+        "--modules-path=/usr/lib/nginx/modules \\\n"
+        "--conf-path=/etc/nginx/nginx.conf \\\n"
+        "--error-log-path=/var/log/nginx/error.log \\\n"
+        "--http-log-path=/var/log/nginx/access.log \\\n"
+        "--pid-path=/var/run/nginx.pid \\\n"
+        "--lock-path=/var/run/nginx.lock \\\n"
+        "--with-http_ssl_module \\\n"
+        "--with-http_v2_module \\\n"
+        "--with-http_v3_module \\\n"
+        "--with-http_realip_module \\\n"
+        "--with-http_addition_module \\\n"
+        "--with-http_sub_module \\\n"
+        "--with-http_dav_module \\\n"
+        "--with-http_flv_module \\\n"
+        "--with-http_mp4_module \\\n"
+        "--with-http_gunzip_module \\\n"
+        "--with-http_gzip_static_module \\\n"
+        "--with-http_random_index_module \\\n"
+        "--with-http_secure_link_module \\\n"
+        "--with-http_stub_status_module \\\n"
+        "--with-http_auth_request_module \\\n"
+        "--with-threads \\\n"
+        "--with-stream \\\n"
+        "--with-stream_ssl_module \\\n"
+        "--with-stream_realip_module \\\n"
+        "--with-pcre \\\n"
+        "--with-pcre-jit"
+    ),
+    "openresty": (
+        "--prefix=/usr/local/openresty \\\n"
+        "--sbin-path=/usr/sbin/nginx \\\n"
+        "--conf-path=/usr/local/openresty/nginx/conf/nginx.conf \\\n"
+        "--with-pcre-jit \\\n"
+        "--with-http_ssl_module \\\n"
+        "--with-http_v2_module \\\n"
+        "--with-http_v3_module \\\n"
+        "--with-http_realip_module \\\n"
+        "--with-http_stub_status_module \\\n"
+        "--with-http_gzip_static_module"
+    ),
+    "ols": (
+        "--prefix=/usr/local/lsws \\\n"
+        "--with-openssl \\\n"
+        "--enable-http3 \\\n"
+        "--enable-quic"
+    ),
+    "php": (
+        "--enable-fpm \\\n"
+        "--with-fpm-user=www-data \\\n"
+        "--with-fpm-group=www-data \\\n"
+        "--enable-mbstring \\\n"
+        "--with-curl \\\n"
+        "--with-openssl \\\n"
+        "--with-zlib \\\n"
+        "--with-mysqli \\\n"
+        "--with-pdo-mysql \\\n"
+        "--enable-opcache \\\n"
+        "--enable-intl \\\n"
+        "--enable-bcmath \\\n"
+        "--enable-sockets \\\n"
+        "--with-zip"
+    )
+}
+
+@router.get("/{app_id}/build-settings")
+async def get_app_build_settings(app_id: str, current_user: dict = Depends(get_current_user)):
+    """Lấy các đối số biên dịch từ nguồn của ứng dụng"""
+    clean_id = app_id.lower()
+    if clean_id.startswith("php"):
+        def_key = "php"
+    else:
+        def_key = clean_id
+
+    default_args = DEFAULT_BUILD_ARGS.get(def_key, "--prefix=/usr/local")
+    args_file = f"/opt/wpc/config/build/{clean_id}.args"
+    custom_args = ""
+    if os.path.exists(args_file):
+        try:
+            with open(args_file, "r", encoding="utf-8") as f:
+                custom_args = f.read().strip()
+        except Exception:
+            pass
+
+    build_args = custom_args if custom_args else default_args
+
+    # Phát hiện tính năng của binary hiện tại
+    has_http3 = False
+    if clean_id in ["nginx", "openresty"]:
+        try:
+            r = subprocess.run(["nginx", "-V"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+            has_http3 = ("with-http_v3_module" in (r.stderr or "") or "with-http_v3_module" in (r.stdout or ""))
+        except Exception:
+            pass
+
+    return {
+        "status": "ok",
+        "app_id": clean_id,
+        "build_args": build_args,
+        "default_args": default_args,
+        "has_http3": has_http3,
+        "config_file": args_file
+    }
+
+@router.post("/{app_id}/build-settings")
+async def save_app_build_settings(app_id: str, req: AppBuildSettingsRequest, current_user: dict = Depends(get_current_user)):
+    """Lưu các đối số biên dịch từ nguồn của ứng dụng"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền cập nhật cấu hình build.")
+
+    clean_id = app_id.lower()
+    build_dir = "/opt/wpc/config/build"
+    os.makedirs(build_dir, exist_ok=True)
+    args_file = f"{build_dir}/{clean_id}.args"
+
+    try:
+        with open(args_file, "w", encoding="utf-8") as f:
+            f.write(req.build_args.strip() + "\n")
+        try:
+            os.chmod(args_file, 0o644)
+        except Exception:
+            pass
+        return {"status": "ok", "message": f"Đã lưu các đối số biên dịch cho {clean_id} thành công!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi lưu đối số build: {str(e)}")
+
+@router.post("/{app_id}/build")
+async def trigger_app_build(app_id: str, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
+    """Bắt đầu tiến trình biên dịch ứng dụng từ nguồn theo đối số đã cấu hình"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền kích hoạt biên dịch.")
+
+    clean_id = app_id.lower()
+    script = f"{WPC_BASE}/scripts/apps/build_app.sh"
+    cmd = f"sudo bash {script} {clean_id}"
+
+    task_id = await add_system_task(
+        user_id=current_user["id"],
+        action_name=f"Build / Compile [{clean_id}] from Source",
+        cmd=cmd,
+        background_tasks=background_tasks
+    )
+
+    return {
+        "status": "ok",
+        "task_id": task_id,
+        "message": f"Đã thêm tác vụ biên dịch {clean_id} từ nguồn vào danh sách tiến trình ngầm (Task list)."
+    }
 
 
 

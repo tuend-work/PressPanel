@@ -544,11 +544,17 @@ EOF
                         "$WPC_DIR/templates/vhost_nginx/default.tpl" > "/etc/nginx/conf.d/$DOMAIN.conf"
 
                     # Kiểm tra tính tương thích QUIC / HTTP3 và HTTP2 với phiên bản Nginx hiện tại
-                    if ! nginx -t 2>/dev/null; then
-                        # Nếu Nginx không có module http_v3 (quic)
+                    HAS_HTTP3=0
+                    if nginx -V 2>&1 | grep -q -- "with-http_v3_module"; then
+                        HAS_HTTP3=1
+                    fi
+                    if [ "$HAS_HTTP3" -eq 0 ] || ! nginx -t 2>/dev/null; then
+                        # Nếu Nginx không hỗ trợ ngx_http_v3_module (quic) hoặc gây lỗi cú pháp
                         sed -i '/quic;/d' "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
-                        sed -i '/http3[[:space:]]\+on;/d' "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
+                        sed -i '/quic/d' "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
+                        sed -i '/http3/d' "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
                         sed -i '/Alt-Svc/d' "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
+                        sed -i '/QUIC-Status/d' "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
                     fi
                     if ! nginx -t 2>/dev/null; then
                         # Nếu Nginx cũ không hỗ trợ directive "http2 on;"
@@ -1335,12 +1341,18 @@ EOF_VHSSL
             done
 
             # Kiểm tra tính tương thích cấu hình Nginx (QUIC, HTTP3, HTTP2)
+            HAS_HTTP3=0
+            if nginx -V 2>&1 | grep -q -- "with-http_v3_module"; then
+                HAS_HTTP3=1
+            fi
             for n_conf in /etc/nginx/conf.d/*.conf; do
                 [ -f "$n_conf" ] || continue
-                if ! nginx -t 2>/dev/null; then
+                if [ "$HAS_HTTP3" -eq 0 ] || ! nginx -t 2>/dev/null; then
                     sed -i '/quic;/d' "$n_conf" 2>/dev/null || true
-                    sed -i '/http3[[:space:]]\+on;/d' "$n_conf" 2>/dev/null || true
+                    sed -i '/quic/d' "$n_conf" 2>/dev/null || true
+                    sed -i '/http3/d' "$n_conf" 2>/dev/null || true
                     sed -i '/Alt-Svc/d' "$n_conf" 2>/dev/null || true
+                    sed -i '/QUIC-Status/d' "$n_conf" 2>/dev/null || true
                 fi
                 if ! nginx -t 2>/dev/null; then
                     sed -i '/http2[[:space:]]\+on;/d' "$n_conf" 2>/dev/null || true
