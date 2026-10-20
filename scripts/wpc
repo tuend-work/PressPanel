@@ -75,6 +75,14 @@ case "$ACTION" in
         sudo bash "$INSTALL_DIR/scripts/reinstall.sh"
         ;;
     status)
+        VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || cat "/opt/presspanel/VERSION" 2>/dev/null || echo "Unknown")
+        if [ -f "/etc/systemd/system/wpc.service" ] && ! grep -q "Server v${VER}" /etc/systemd/system/wpc.service 2>/dev/null; then
+            sudo sed -i "s/Description=.*/Description=WPCloud Control Panel Server v${VER} (FastAPI + Asyncio)/" /etc/systemd/system/wpc.service 2>/dev/null || true
+            sudo systemctl daemon-reload 2>/dev/null || true
+        fi
+        echo "=========================================================="
+        echo "   WPCloud Control Panel v${VER} - Trạng thái dịch vụ"
+        echo "=========================================================="
         sudo systemctl status wpc
         ;;
     restart)

@@ -177,6 +177,10 @@ rm -f /etc/systemd/system/presspanel.service 2>/dev/null || true
 
 if [ -f "$TMP_DIR/systemd/wpc.service" ]; then
     cp "$TMP_DIR/systemd/wpc.service" /etc/systemd/system/wpc.service
+    CURR_VER=$(cat "$TMP_DIR/VERSION" 2>/dev/null || cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "")
+    if [ -n "$CURR_VER" ]; then
+        sed -i "s/Description=.*/Description=WPCloud Control Panel Server v${CURR_VER} (FastAPI + Asyncio)/" /etc/systemd/system/wpc.service 2>/dev/null || true
+    fi
 fi
 systemctl daemon-reload 2>/dev/null || true
 systemctl enable wpc 2>/dev/null || true

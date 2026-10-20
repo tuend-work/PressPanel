@@ -268,6 +268,10 @@ elif [ -f "$INSTALL_DIR/systemd/wpc.service" ]; then
 fi
 
 if [ -f /etc/systemd/system/wpc.service ]; then
+    CURR_VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || cat "$SRC_DIR/VERSION" 2>/dev/null || echo "")
+    if [ -n "$CURR_VER" ]; then
+        sed -i "s/Description=.*/Description=WPCloud Control Panel Server v${CURR_VER} (FastAPI + Asyncio)/" /etc/systemd/system/wpc.service 2>/dev/null || true
+    fi
     sed -i "s/--port 8888/--port $PANEL_PORT/g" /etc/systemd/system/wpc.service 2>/dev/null || true
 fi
 
