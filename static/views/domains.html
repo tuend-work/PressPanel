@@ -258,6 +258,12 @@
                                         <!-- Operate (Joined Button Group) -->
                                         <td class="py-2.5 px-2 text-right w-28">
                                             <div class="inline-flex rounded-md overflow-hidden border border-slate-200 dark:border-slate-700/80 shadow-sm shrink-0">
+                                                <!-- WordPress Manager Button -->
+                                                <button @click="openDomainWp(d)" title="Quản trị WordPress Manager (8 Tabs, Direct ZIP, Lockdown, Magic Login SSO)"
+                                                    class="w-7 h-7 bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition font-bold text-xs"
+                                                    style="padding: 0;">
+                                                    W
+                                                </button>
                                                 <!-- Conf -->
                                                 <button @click="openDomainVhostModal(d)" title="Cấu hình VirtualHost (Conf)"
                                                     class="w-7 h-7 bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center transition"
@@ -347,10 +353,11 @@
 
                                     <!-- Right: Quick Action icons (WordPress, File Manager, Mail, Databases, VHost Settings) -->
                                     <div class="flex items-center space-x-1.5">
-                                        <button v-if="domains[0]?.install_wp" @click="handleWPSSO(domains[0])"
-                                            title="WordPress Management / Auto SSO Login"
-                                            class="w-8 h-8 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center transition">
+                                        <button @click="openDomainWp(domains[0])"
+                                            title="Quản trị WordPress Manager (8 Tabs, Direct ZIP, Lockdown, Magic Login SSO)"
+                                            class="h-8 px-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5 transition text-xs font-semibold shadow-sm shadow-blue-500/20">
                                             <span class="text-xs font-black font-serif">W</span>
+                                            <span>WordPress Manager</span>
                                         </button>
                                         <button @click="openFileManager(domains[0]?.owner_username)"
                                             title="Quản lý tệp tin (File Manager)"

@@ -279,10 +279,10 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 7. WordPress Toolkit (Ẩn khi ở chế độ Hosting User) -->
-                            <button v-if="!isHostingUser" @click="currentTab = 'wp'" :class="navClass('wp')">
+                            <!-- 7. WordPress Toolkit (Hiển thị cho tất cả Quản Trị Viên & Khách Hàng) -->
+                            <button @click="currentTab = 'wp'" :class="navClass('wp')">
                                 <div class="flex items-center space-x-3">
-                                    <i data-lucide="layers" class="w-4 h-4 text-slate-400"></i>
+                                    <div class="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-[10px]">W</div>
                                     <span>WordPress</span>
                                 </div>
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
@@ -674,7 +674,7 @@
                     if (isWebUser.value && (chosen === 'dashboard' || chosen === 'service_plans' || chosen === 'customers' || chosen === 'apps' || chosen === 'firewall' || chosen === 'tools_settings')) {
                         chosen = 'domains';
                     }
-                    if (isHostingUser.value && ['mail', 'files', 'databases', 'monitoring', 'wp'].includes(chosen)) {
+                    if (isHostingUser.value && ['mail', 'files', 'databases', 'monitoring'].includes(chosen)) {
                         chosen = 'domains';
                     }
                     return chosen;
@@ -3884,6 +3884,36 @@
                     refreshLucideIcons();
                 };
 
+                const openDomainWp = async (domain) => {
+                    currentTab.value = 'wp';
+                    window.location.hash = 'wp';
+                    if (!wpInstances.value.length) {
+                        await fetchWpInstances();
+                    }
+                    const domName = typeof domain === 'string' ? domain : domain.domain_name;
+                    const domId = typeof domain === 'object' ? domain.id : null;
+                    const found = wpInstances.value.find(i => i.domain_name === domName || (domId && i.domain_id === domId));
+                    if (found) {
+                        await selectWpInstance(found);
+                    } else {
+                        await scanWpInstances();
+                        const reFound = wpInstances.value.find(i => i.domain_name === domName || (domId && i.domain_id === domId));
+                        if (reFound) {
+                            await selectWpInstance(reFound);
+                        } else {
+                            wpInstallForm.value = {
+                                domain_id: domId || (domains.value.length ? domains.value[0].id : null),
+                                site_title: domName,
+                                admin_user: 'admin',
+                                admin_pass: Math.random().toString(36).slice(-10) + 'A@1',
+                                admin_email: 'admin@' + domName
+                            };
+                            showWpInstallModal.value = true;
+                        }
+                    }
+                    refreshLucideIcons();
+                };
+
                 const fetchWpDetail = async (instId) => {
                     try {
                         const res = await fetch(`/api/v1/wp/${instId}/detail`, {
@@ -4629,7 +4659,7 @@
                     showWpAddPluginModal, installingPlugin, newPluginSlug, newPluginZipUrl,
                     showWpAddThemeModal, installingTheme, newThemeSlug, newThemeZipUrl,
                     showWpEditUserModal, savingWpUser, editingWpUser, editWpUserForm,
-                    fetchWpInstances, scanWpInstances, selectWpInstance, backToWpList, fetchWpDetail, magicLoginWp, magicLoginWpUser,
+                    fetchWpInstances, scanWpInstances, selectWpInstance, backToWpList, openDomainWp, fetchWpDetail, magicLoginWp, magicLoginWpUser,
                     toggleWpLockdown, fixWpPermissions, cleanupWpDb, handleSaveDefine, toggleWpOptimize,
                     openWpPluginsTab, fetchWpPlugins, toggleWpPlugin, reinstallWpPlugin, deleteWpPlugin,
                     openWpThemesTab, fetchWpThemes, activateWpTheme, reinstallWpTheme,
