@@ -399,84 +399,79 @@
                 <!-- Topbar Header WPCloud Style (Hỗ trợ Dark & Light Mode) -->
                 <header class="h-16 px-4 sm:px-6 flex items-center justify-between shrink-0 shadow-sm z-10 transition-colors duration-200"
                     :class="isDarkMode ? 'bg-[#111722] border-b border-[#1e2736]' : 'bg-white border-b border-slate-200/80'">
-                    <!-- Left: Hamburger toggle & Rounded Search Input -->
+                    <!-- Left: Mobile Menu & Current Tab Title -->
                     <div class="flex items-center space-x-3 shrink-0">
                         <button class="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition md:hidden">
                             <i data-lucide="menu" class="w-5 h-5"></i>
                         </button>
-                        <div class="relative w-36 md:w-44 lg:w-56 hidden sm:block">
-                            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                                <i data-lucide="search" class="w-4 h-4"></i>
-                            </span>
-                            <input type="text" placeholder="Tìm kiếm nhanh..."
-                                class="w-full pl-9 pr-4 py-1.5 rounded-full text-xs transition shadow-sm focus:outline-none"
-                                :class="isDarkMode ? 'bg-[#0b1017] border border-[#222d3d] text-slate-200 placeholder-slate-500 focus:border-blue-500 focus:bg-[#111722]' : 'bg-slate-50 border border-slate-200/80 text-slate-700 placeholder-slate-400 focus:border-blue-500 focus:bg-white'">
+                        <div class="hidden sm:flex items-center space-x-2">
+                            <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                            <span class="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight">{{ tabTitle }}</span>
                         </div>
                     </div>
 
-                    <!-- Center: CỤM WIDGET TÀI NGUYÊN (CPU, RAM, DISK) CHO ADMIN / HOSTING USER / WEB USER -->
-                    <div class="flex items-center space-x-4 sm:space-x-6 md:space-x-7 px-3 sm:px-4 py-1 rounded-2xl transition border cursor-default select-none shadow-sm"
-                         :class="isDarkMode ? 'bg-[#0a0f18]/90 border-slate-800/90 hover:border-slate-700' : 'bg-slate-50 border-slate-200/90 hover:border-slate-300'"
+                    <!-- Center: CỤM WIDGET TÀI NGUYÊN (CPU, RAM, DISK) DÀN ĐỀU RỘNG RÃI & THOÁNG ĐÃNG -->
+                    <div class="flex-1 flex items-center justify-center space-x-8 sm:space-x-12 md:space-x-16 lg:space-x-24 select-none px-4"
                          :title="headerResourceStats.roleTitle">
                         
                         <!-- 1. CPU Gauge -->
-                        <div class="flex flex-col items-center min-w-[54px] sm:min-w-[62px]">
-                            <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400 dark:text-slate-400 leading-none mb-1">CPU</span>
-                            <div class="relative w-8 h-8 flex items-center justify-center">
-                                <svg class="w-8 h-8 -rotate-90 transform" viewBox="0 0 36 36">
-                                    <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#1d2636]" stroke-width="4.2" />
+                        <div class="flex flex-col items-center min-w-[75px] sm:min-w-[90px] md:min-w-[105px] transition-transform hover:scale-105">
+                            <span class="text-[11px] font-bold tracking-wider uppercase text-slate-400 dark:text-slate-400 leading-none mb-1.5">CPU</span>
+                            <div class="relative w-9 h-9 flex items-center justify-center">
+                                <svg class="w-9 h-9 -rotate-90 transform" viewBox="0 0 36 36">
+                                    <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-slate-800" stroke-width="3.6" />
                                     <circle cx="18" cy="18" r="15.9155" fill="none"
                                         class="transition-all duration-700"
                                         :class="headerResourceStats.cpu.percent >= 85 ? 'stroke-rose-400' : 'stroke-amber-400'"
-                                        stroke-width="4.2" stroke-linecap="round"
+                                        stroke-width="3.6" stroke-linecap="round"
                                         :stroke-dasharray="Math.min(100, Math.max(0, headerResourceStats.cpu.percent)) + ', 100'" />
                                 </svg>
-                                <span class="absolute text-[9px] font-extrabold font-mono leading-none"
+                                <span class="absolute text-[9.5px] font-extrabold font-mono leading-none"
                                     :class="headerResourceStats.cpu.percent >= 85 ? 'text-rose-400' : 'text-amber-400'">
                                     {{ headerResourceStats.cpu.label }}
                                 </span>
                             </div>
-                            <span class="text-[9px] font-mono font-semibold text-sky-400 dark:text-sky-300 leading-none mt-1 tracking-tight">
+                            <span class="text-[11px] font-mono font-semibold text-sky-400 dark:text-sky-300 leading-none mt-1.5 tracking-tight whitespace-nowrap">
                                 {{ headerResourceStats.cpu.sub }}
                             </span>
                         </div>
 
                         <!-- 2. RAM Gauge -->
-                        <div class="flex flex-col items-center min-w-[58px] sm:min-w-[66px]">
-                            <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400 dark:text-slate-400 leading-none mb-1">RAM</span>
-                            <div class="relative w-8 h-8 flex items-center justify-center">
-                                <svg class="w-8 h-8 -rotate-90 transform" viewBox="0 0 36 36">
-                                    <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#1d2636]" stroke-width="4.2" />
+                        <div class="flex flex-col items-center min-w-[75px] sm:min-w-[90px] md:min-w-[105px] transition-transform hover:scale-105">
+                            <span class="text-[11px] font-bold tracking-wider uppercase text-slate-400 dark:text-slate-400 leading-none mb-1.5">RAM</span>
+                            <div class="relative w-9 h-9 flex items-center justify-center">
+                                <svg class="w-9 h-9 -rotate-90 transform" viewBox="0 0 36 36">
+                                    <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-slate-800" stroke-width="3.6" />
                                     <circle cx="18" cy="18" r="15.9155" fill="none"
                                         class="stroke-violet-400 transition-all duration-700"
-                                        stroke-width="4.2" stroke-linecap="round"
+                                        stroke-width="3.6" stroke-linecap="round"
                                         :stroke-dasharray="Math.min(100, Math.max(0, headerResourceStats.ram.percent)) + ', 100'" />
                                 </svg>
-                                <span class="absolute text-[9px] font-extrabold font-mono leading-none text-violet-400">
+                                <span class="absolute text-[9.5px] font-extrabold font-mono leading-none text-violet-400">
                                     {{ headerResourceStats.ram.label }}
                                 </span>
                             </div>
-                            <span class="text-[9px] font-mono font-semibold text-sky-400 dark:text-sky-300 leading-none mt-1 tracking-tight">
+                            <span class="text-[11px] font-mono font-semibold text-sky-400 dark:text-sky-300 leading-none mt-1.5 tracking-tight whitespace-nowrap">
                                 {{ headerResourceStats.ram.sub }}
                             </span>
                         </div>
 
                         <!-- 3. Disk Gauge -->
-                        <div class="flex flex-col items-center min-w-[54px] sm:min-w-[62px]">
-                            <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400 dark:text-slate-400 leading-none mb-1">Disk</span>
-                            <div class="relative w-8 h-8 flex items-center justify-center">
-                                <svg class="w-8 h-8 -rotate-90 transform" viewBox="0 0 36 36">
-                                    <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#1d2636]" stroke-width="4.2" />
+                        <div class="flex flex-col items-center min-w-[75px] sm:min-w-[90px] md:min-w-[105px] transition-transform hover:scale-105">
+                            <span class="text-[11px] font-bold tracking-wider uppercase text-slate-400 dark:text-slate-400 leading-none mb-1.5">DISK</span>
+                            <div class="relative w-9 h-9 flex items-center justify-center">
+                                <svg class="w-9 h-9 -rotate-90 transform" viewBox="0 0 36 36">
+                                    <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-slate-800" stroke-width="3.6" />
                                     <circle cx="18" cy="18" r="15.9155" fill="none"
                                         class="stroke-emerald-400 transition-all duration-700"
-                                        stroke-width="4.2" stroke-linecap="round"
+                                        stroke-width="3.6" stroke-linecap="round"
                                         :stroke-dasharray="Math.min(100, Math.max(0, headerResourceStats.disk.percent)) + ', 100'" />
                                 </svg>
-                                <span class="absolute text-[9px] font-extrabold font-mono leading-none text-emerald-400">
+                                <span class="absolute text-[9.5px] font-extrabold font-mono leading-none text-emerald-400">
                                     {{ headerResourceStats.disk.label }}
                                 </span>
                             </div>
-                            <span class="text-[9px] font-mono font-semibold text-sky-400 dark:text-sky-300 leading-none mt-1 tracking-tight">
+                            <span class="text-[11px] font-mono font-semibold text-sky-400 dark:text-sky-300 leading-none mt-1.5 tracking-tight whitespace-nowrap">
                                 {{ headerResourceStats.disk.sub }}
                             </span>
                         </div>
