@@ -128,6 +128,12 @@ class CalculateSizeRequest(BaseModel):
     name: str
     target_user: Optional[str] = None
 
+class SearchContentRequest(BaseModel):
+    current_path: str = ""
+    query: str
+    target_user: Optional[str] = None
+    case_sensitive: bool = False
+
 # ==============================================================================
 # Endpoints: List, Content & File Operations
 # ==============================================================================
@@ -136,6 +142,8 @@ class CalculateSizeRequest(BaseModel):
 async def list_files(
     path: str = Query("", description="Đường dẫn tương đối"),
     target_user: Optional[str] = Query(None, description="Username mục tiêu (dành cho Admin)"),
+    search: Optional[str] = Query(None, description="Từ khóa tìm kiếm"),
+    include_subdir: bool = Query(False, description="Tìm đệ quy thư mục con"),
     current_user: dict = Depends(get_current_user)
 ):
     target_dir = resolve_target_path(current_user, target_user, path)
@@ -144,6 +152,88 @@ async def list_files(
             os.makedirs(target_dir, exist_ok=True)
         except Exception:
             return {"items": [], "current_path": path, "absolute_path": target_dir}
+
+    # Nếu tìm kiếm có bao gồm thư mục con
+    if search and include_subdir:
+        q = search.lower().strip()
+        matched_items = []
+        max_results = 200
+        count = 0
+        skip_dirs = {".git", ".recycle_bin", "node_modules", "vendor", ".cache"}
+        for root, dirs, files in os.walk(target_dir):
+            dirs[:] = [d for d in dirs if d not in skip_dirs]
+            rel_dir = os.path.relpath(root, target_dir)
+            if rel_dir == ".":
+                rel_dir = ""
+
+            for d in dirs:
+                if q in d.lower():
+                    item_rel = os.path.join(rel_dir, d).replace("\\", "/")
+                    full_p = os.path.join(root, d)
+                    try:
+                        st = os.stat(full_p)
+                        mode_oct = oct(st.st_mode)[-3:]
+                        mtime = int(st.st_mtime)
+                    except Exception:
+                        mode_oct = "755"
+                        mtime = int(time.time())
+                    matched_items.append({
+                        "name": item_rel,
+                        "is_dir": True,
+                        "is_symlink": os.path.islink(full_p),
+                        "link_target": "",
+                        "size": 0,
+                        "size_formatted": None,
+                        "modified": mtime,
+                        "mode": mode_oct,
+                        "owner": "root",
+                        "pmsn_owner": f"{mode_oct} / root",
+                        "protected": False
+                    })
+                    count += 1
+                    if count >= max_results:
+                        break
+
+            for f in files:
+                if q in f.lower():
+                    item_rel = os.path.join(rel_dir, f).replace("\\", "/")
+                    full_p = os.path.join(root, f)
+                    try:
+                        st = os.stat(full_p)
+                        sz = st.st_size
+                        mode_oct = oct(st.st_mode)[-3:]
+                        mtime = int(st.st_mtime)
+                    except Exception:
+                        sz = 0
+                        mode_oct = "644"
+                        mtime = int(time.time())
+                    matched_items.append({
+                        "name": item_rel,
+                        "is_dir": False,
+                        "is_symlink": os.path.islink(full_p),
+                        "link_target": "",
+                        "size": sz,
+                        "size_formatted": format_bytes(sz),
+                        "modified": mtime,
+                        "mode": mode_oct,
+                        "owner": "root",
+                        "pmsn_owner": f"{mode_oct} / root",
+                        "protected": False
+                    })
+                    count += 1
+                    if count >= max_results:
+                        break
+            if count >= max_results:
+                break
+
+        sorted_items = sorted(matched_items, key=lambda x: (not x["is_dir"], x["name"].lower()))
+        return {
+            "items": sorted_items,
+            "current_path": path,
+            "absolute_path": target_dir,
+            "target_user": target_user or current_user["username"],
+            "is_search": True
+        }
 
     items = []
     # 1. Thử duyệt thư mục bằng Python os.scandir
@@ -709,3 +799,102 @@ async def compress_files(
             return {"status": "ok", "message": f"Nén thành công tệp {archive_name}!", "archive_name": archive_name}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi nén tệp: {str(e)}")
+
+@router.post("/search-content")
+async def search_file_content(
+    req: SearchContentRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    work_dir = resolve_target_path(current_user, req.target_user, req.current_path)
+    if not os.path.isdir(work_dir):
+        raise HTTPException(status_code=404, detail="Thư mục làm việc không tồn tại.")
+
+    query = req.query.strip()
+    if not query:
+        return {"items": [], "count": 0}
+
+    results = []
+    max_results = 80
+
+    # 1. Thử dùng grep trên hệ điều hành Linux
+    try:
+        cmd = ["grep", "-rnI"]
+        if not req.case_sensitive:
+            cmd.append("-i")
+        cmd.extend([
+            "--exclude-dir=.git",
+            "--exclude-dir=.recycle_bin",
+            "--exclude-dir=node_modules",
+            "--exclude-dir=vendor",
+            "--exclude-dir=.cache",
+            "-m", "5",
+            query,
+            "."
+        ])
+        proc = subprocess.run(cmd, cwd=work_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
+        if proc.returncode in (0, 1) and proc.stdout:
+            lines = proc.stdout.strip().split("\n")
+            for line in lines:
+                if not line.strip():
+                    continue
+                parts = line.split(":", 2)
+                if len(parts) >= 3:
+                    fpath = parts[0].lstrip("./")
+                    try:
+                        lineno = int(parts[1])
+                    except ValueError:
+                        lineno = 1
+                    snippet = parts[2].strip()
+                    if len(snippet) > 200:
+                        snippet = snippet[:200] + "..."
+                    results.append({
+                        "file": fpath,
+                        "line": lineno,
+                        "snippet": snippet
+                    })
+                    if len(results) >= max_results:
+                        break
+            if results:
+                return {"items": results, "count": len(results)}
+    except Exception:
+        pass
+
+    # 2. Fallback bằng Python os.walk (hoạt động tốt trên mọi môi trường)
+    count = 0
+    skip_dirs = {".git", ".recycle_bin", "node_modules", "vendor", ".cache"}
+    flags = 0 if req.case_sensitive else re.IGNORECASE
+    pattern = re.compile(re.escape(query), flags)
+
+    for root, dirs, files in os.walk(work_dir):
+        dirs[:] = [d for d in dirs if d not in skip_dirs]
+        for f in files:
+            ext = os.path.splitext(f)[1].lower()
+            if ext in (".zip", ".gz", ".tar", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".exe", ".bin", ".woff", ".woff2", ".ttf"):
+                continue
+            fpath = os.path.join(root, f)
+            try:
+                if os.path.getsize(fpath) > 2 * 1024 * 1024:
+                    continue
+                rel_fpath = os.path.relpath(fpath, work_dir).replace("\\", "/")
+                with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
+                    for idx, line in enumerate(fh, 1):
+                        if pattern.search(line):
+                            snip = line.strip()
+                            if len(snip) > 200:
+                                snip = snip[:200] + "..."
+                            results.append({
+                                "file": rel_fpath,
+                                "line": idx,
+                                "snippet": snip
+                            })
+                            count += 1
+                            if count >= max_results:
+                                break
+            except Exception:
+                continue
+            if count >= max_results:
+                break
+        if count >= max_results:
+            break
+
+    return {"items": results, "count": len(results)}

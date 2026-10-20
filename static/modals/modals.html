@@ -3413,3 +3413,262 @@
                     </form>
                 </div>
             </div>
+
+            <!-- MODAL: CREATE ITEM (TẠO TỆP TIN / THƯ MỤC) -->
+            <div v-if="showCreateItemModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-[#18181b] border border-[#27272a] rounded-2xl max-w-sm w-full p-5 shadow-2xl relative text-xs">
+                    <div class="flex justify-between items-center mb-4 border-b border-[#27272a] pb-2.5">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <span>{{ newItemType === 'folder' ? '📁' : '📄' }}</span>
+                            <span>{{ newItemType === 'folder' ? 'Tạo Thư Mục Mới' : 'Tạo Tệp Tin Mới' }}</span>
+                        </h3>
+                        <button type="button" @click="showCreateItemModal = false" class="text-zinc-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <form @submit.prevent="confirmCreateItem" class="space-y-3.5">
+                        <div>
+                            <label class="block font-medium text-zinc-300 mb-1">
+                                Tên {{ newItemType === 'folder' ? 'thư mục' : 'tệp tin' }}:
+                            </label>
+                            <input type="text" v-model="newItemName" required 
+                                   :placeholder="newItemType === 'folder' ? 'vd: images, assets, wp-content' : 'vd: index.php, config.php, style.css'"
+                                   class="w-full px-3 py-2 rounded-lg bg-[#202126] border border-[#33353a] text-white font-mono focus:outline-none focus:border-emerald-500 text-xs">
+                        </div>
+
+                        <div class="text-[11px] text-zinc-400">
+                            Vị trí: <code class="text-emerald-400 font-mono">/{{ fileCurrentPath || '' }}</code>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-2">
+                            <button type="button" @click="showCreateItemModal = false" class="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700">Hủy</button>
+                            <button type="submit" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
+                                Xác Nhận Tạo
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- MODAL: COMPRESS (NÉN TỆP TIN & THƯ MỤC) -->
+            <div v-if="showCompressModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-[#18181b] border border-[#27272a] rounded-2xl max-w-md w-full p-5 shadow-2xl relative text-xs">
+                    <div class="flex justify-between items-center mb-3 border-b border-[#27272a] pb-2.5">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-lg">📦</span>
+                            <h3 class="text-sm font-bold text-white">Nén Tệp Tin & Thư Mục</h3>
+                        </div>
+                        <button type="button" @click="showCompressModal = false" class="text-zinc-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <p class="text-zinc-400 mb-3 text-[11px]">
+                        Đang chọn <strong class="text-emerald-400 font-mono">{{ selectedFileNames.length }}</strong> mục để nén trong thư mục hiện tại.
+                    </p>
+
+                    <form @submit.prevent="confirmCompressFiles" class="space-y-3.5">
+                        <div>
+                            <label class="block font-medium text-zinc-300 mb-1">Tên tệp nén lưu trữ:</label>
+                            <input type="text" v-model="compressArchiveName" required placeholder="vd: backup_code, data_archive"
+                                   class="w-full px-3 py-2 rounded-lg bg-[#202126] border border-[#33353a] text-white font-mono focus:outline-none focus:border-emerald-500 text-xs">
+                        </div>
+
+                        <div>
+                            <label class="block font-medium text-zinc-300 mb-1">Định dạng nén:</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button type="button" @click="compressFormat = 'zip'"
+                                        :class="compressFormat === 'zip' ? 'bg-emerald-600 text-white border-emerald-500 font-bold shadow-md' : 'bg-[#202126] text-zinc-300 border-[#33353a] hover:bg-[#2a2b32]'"
+                                        class="py-2 px-3 rounded-lg border text-center font-mono text-xs transition">
+                                    .zip
+                                </button>
+                                <button type="button" @click="compressFormat = 'tar.gz'"
+                                        :class="compressFormat === 'tar.gz' ? 'bg-emerald-600 text-white border-emerald-500 font-bold shadow-md' : 'bg-[#202126] text-zinc-300 border-[#33353a] hover:bg-[#2a2b32]'"
+                                        class="py-2 px-3 rounded-lg border text-center font-mono text-xs transition">
+                                    .tar.gz
+                                </button>
+                                <button type="button" @click="compressFormat = 'tar'"
+                                        :class="compressFormat === 'tar' ? 'bg-emerald-600 text-white border-emerald-500 font-bold shadow-md' : 'bg-[#202126] text-zinc-300 border-[#33353a] hover:bg-[#2a2b32]'"
+                                        class="py-2 px-3 rounded-lg border text-center font-mono text-xs transition">
+                                    .tar
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Danh sách các file được chọn -->
+                        <div>
+                            <label class="block font-medium text-zinc-400 mb-1">Danh sách tệp tin nén:</label>
+                            <div class="p-2.5 bg-[#202126] rounded-lg border border-[#33353a] max-h-32 overflow-y-auto font-mono text-[11px] text-zinc-300 space-y-1">
+                                <div v-for="item in selectedFileNames" :key="item" class="truncate flex items-center gap-1.5">
+                                    <span class="text-zinc-500">▪</span> <span>{{ item }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-2">
+                            <button type="button" @click="showCompressModal = false" :disabled="compressingFiles" class="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700">Hủy</button>
+                            <button type="submit" :disabled="compressingFiles" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
+                                <span v-if="compressingFiles" class="animate-spin">⏳</span>
+                                <span>{{ compressingFiles ? 'Đang Nén...' : 'Bắt Đầu Nén' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- MODAL: SEARCH FILE CONTENT (TÌM KIẾM NỘI DUNG TỆP TIN) -->
+            <div v-if="showSearchContentModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-[#18181b] border border-[#27272a] rounded-2xl max-w-2xl w-full p-5 shadow-2xl relative text-xs flex flex-col max-h-[85vh]">
+                    <div class="flex justify-between items-center mb-3 border-b border-[#27272a] pb-2.5 shrink-0">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-lg">🔍</span>
+                            <h3 class="text-sm font-bold text-white">Tìm Kiếm Nội Dung Tệp Tin (Search Content / Grep)</h3>
+                        </div>
+                        <button type="button" @click="showSearchContentModal = false" class="text-zinc-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <form @submit.prevent="handleSearchContentSubmit" class="space-y-3 shrink-0">
+                        <div class="flex items-center gap-2">
+                            <input type="text" v-model="searchContentQuery" required placeholder="Nhập từ khóa hoặc chuỗi ký tự cần tìm trong mã nguồn..." 
+                                   class="flex-1 px-3 py-2 rounded-lg bg-[#202126] border border-[#33353a] text-white placeholder-zinc-500 font-mono focus:outline-none focus:border-emerald-500 text-xs">
+                            <button type="submit" :disabled="searchingContent" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 shrink-0">
+                                <span v-if="searchingContent" class="animate-spin">⏳</span>
+                                <span>{{ searchingContent ? 'Đang Tìm...' : 'Tìm Kiếm' }}</span>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between text-[11px] text-zinc-400">
+                            <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                                <input type="checkbox" v-model="searchContentCaseSensitive" class="w-3.5 h-3.5 rounded bg-zinc-900 border-zinc-700 text-emerald-500 focus:ring-emerald-500 accent-emerald-500">
+                                <span>Phân biệt chữ hoa / thường (Case sensitive)</span>
+                            </label>
+                            <span>Thư mục: <code class="text-emerald-400 font-mono">/{{ fileCurrentPath || '' }}</code></span>
+                        </div>
+                    </form>
+
+                    <!-- Kết quả tìm kiếm -->
+                    <div class="flex-1 overflow-y-auto mt-3 border border-[#27272a] rounded-lg bg-[#141518] divide-y divide-[#202126] min-h-[160px]">
+                        <div v-if="searchingContent" class="py-10 text-center text-zinc-400">
+                            <div class="animate-spin text-xl mb-1">⏳</div>
+                            <span>Đang quét toàn bộ tệp tin trong thư mục...</span>
+                        </div>
+                        <div v-else-if="searchContentResults.length === 0" class="py-10 text-center text-zinc-500">
+                            Chưa có kết quả tìm kiếm. Nhập từ khóa và bấm Tìm Kiếm.
+                        </div>
+                        <template v-else>
+                            <div v-for="(item, idx) in searchContentResults" :key="idx" 
+                                 @click="openFileFromSearchResult(item.file)"
+                                 class="p-2.5 hover:bg-[#202126] cursor-pointer transition text-xs group">
+                                <div class="flex items-center justify-between font-mono text-[11px] text-emerald-400 mb-1">
+                                    <span class="group-hover:underline flex items-center gap-1">
+                                        <span>📄</span> <span>{{ item.file }}</span>
+                                    </span>
+                                    <span class="text-zinc-500 text-[10px]">Dòng {{ item.line }} ↗</span>
+                                </div>
+                                <div class="font-mono text-[11px] text-zinc-300 bg-[#1c1d22] px-2 py-1 rounded truncate border border-[#2a2b32]">
+                                    {{ item.snippet }}
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="flex justify-between items-center pt-3 border-t border-[#27272a] shrink-0">
+                        <span class="text-[11px] text-zinc-400">Tìm thấy <strong class="text-white font-mono">{{ searchContentResults.length }}</strong> kết quả</span>
+                        <button type="button" @click="showSearchContentModal = false" class="px-4 py-1.5 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700">Đóng</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: FILE EDITOR (SOẠN THẢO TỆP TIN) -->
+            <div v-if="showEditFileModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6">
+                <div class="bg-[#18181b] border border-[#27272a] rounded-2xl max-w-5xl w-full h-[90vh] shadow-2xl flex flex-col overflow-hidden text-xs">
+                    <!-- Editor Header -->
+                    <div class="h-14 px-5 border-b border-[#27272a] flex items-center justify-between bg-[#141518] shrink-0">
+                        <div class="flex items-center space-x-3 min-w-0">
+                            <span class="text-lg">📄</span>
+                            <div class="min-w-0">
+                                <h3 class="font-bold text-white truncate text-xs sm:text-sm font-mono flex items-center gap-1.5">
+                                    <span>{{ editingFileName }}</span>
+                                </h3>
+                                <p class="text-[10px] text-zinc-500 font-mono truncate">/{{ editingFilePath }}</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center space-x-2 shrink-0">
+                            <button type="button" @click="saveFileContent" :disabled="savingFile" 
+                                    class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 text-xs">
+                                <span v-if="savingFile" class="animate-spin">⏳</span>
+                                <span v-else>💾</span>
+                                <span>{{ savingFile ? 'Đang Lưu...' : 'Lưu Tệp' }}</span>
+                            </button>
+                            <button type="button" @click="showEditFileModal = false" class="w-8 h-8 rounded-lg bg-[#202126] hover:bg-[#2a2b32] text-zinc-400 hover:text-white flex items-center justify-center text-lg leading-none transition">
+                                &times;
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Editor Textarea Area -->
+                    <div class="flex-1 bg-[#121316] p-4 overflow-hidden flex flex-col">
+                        <textarea v-model="editingFileContent" 
+                                  class="w-full flex-1 bg-transparent text-zinc-200 font-mono text-xs focus:outline-none resize-none leading-relaxed select-text p-1" 
+                                  spellcheck="false" placeholder="Nội dung tệp..."></textarea>
+                    </div>
+
+                    <!-- Editor Footer -->
+                    <div class="px-5 py-2 border-t border-[#27272a] bg-[#141518] flex items-center justify-between text-[11px] text-zinc-500 font-mono shrink-0">
+                        <span>Định dạng: UTF-8</span>
+                        <span>Độ dài: {{ editingFileContent ? editingFileContent.length : 0 }} ký tự</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: RECYCLE BIN (THÙNG RÁC) -->
+            <div v-if="showRecycleBinModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-[#18181b] border border-[#27272a] rounded-2xl max-w-2xl w-full p-5 shadow-2xl relative text-xs flex flex-col max-h-[85vh]">
+                    <div class="flex justify-between items-center mb-3 border-b border-[#27272a] pb-2.5 shrink-0">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-lg">🗑️</span>
+                            <h3 class="text-sm font-bold text-white">Thùng Rác (Recycle Bin)</h3>
+                        </div>
+                        <button type="button" @click="showRecycleBinModal = false" class="text-zinc-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <div class="flex justify-between items-center mb-3 shrink-0">
+                        <p class="text-zinc-400 text-[11px]">
+                            Các tệp được lưu giữ tạm thời. Bạn có thể khôi phục về vị trí ban đầu hoặc dọn sạch vĩnh viễn.
+                        </p>
+                        <button type="button" v-if="recycleBinItems.length > 0" @click="emptyRecycleBinAction" 
+                                class="px-3 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 font-semibold text-[11px] border border-rose-800/40 transition">
+                            Dọn Sạch Thùng Rác
+                        </button>
+                    </div>
+
+                    <!-- Danh sách tệp trong thùng rác -->
+                    <div class="flex-1 overflow-y-auto border border-[#27272a] rounded-lg bg-[#141518] divide-y divide-[#202126] min-h-[160px]">
+                        <div v-if="loadingRecycleBin" class="py-10 text-center text-zinc-400">
+                            <div class="animate-spin text-xl mb-1">⏳</div>
+                            <span>Đang tải danh sách thùng rác...</span>
+                        </div>
+                        <div v-else-if="recycleBinItems.length === 0" class="py-10 text-center text-zinc-500">
+                            Thùng rác đang trống.
+                        </div>
+                        <template v-else>
+                            <div v-for="item in recycleBinItems" :key="item.id" class="p-3 flex items-center justify-between hover:bg-[#202126] transition">
+                                <div class="min-w-0 pr-3">
+                                    <div class="font-bold text-white flex items-center gap-1.5 truncate">
+                                        <span>{{ item.is_dir ? '📁' : '📄' }}</span>
+                                        <span>{{ item.original_name }}</span>
+                                    </div>
+                                    <div class="text-[10px] text-zinc-500 font-mono truncate">
+                                        Gốc: {{ item.original_path }} • Xóa lúc: {{ formatTimestamp(item.deleted_at) }}
+                                    </div>
+                                </div>
+                                <button type="button" @click="restoreRecycleItem(item.id)" 
+                                        class="px-3 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold transition shrink-0">
+                                    Khôi Phục
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="flex justify-end pt-3 border-t border-[#27272a] shrink-0 mt-3">
+                        <button type="button" @click="showRecycleBinModal = false" class="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700">Đóng</button>
+                    </div>
+                </div>
+            </div>

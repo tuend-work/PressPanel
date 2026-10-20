@@ -36,11 +36,11 @@
                             <!-- Bên phải: Tìm kiếm tệp tin -->
                             <div class="flex items-center gap-2 shrink-0">
                                 <div class="relative">
-                                    <input type="text" v-model="fileSearchQuery" placeholder="Search Files" 
+                                    <input type="text" v-model="fileSearchQuery" @keyup.enter="handleFileSearch" placeholder="Search Files" 
                                            class="w-40 sm:w-48 px-3 py-1.5 rounded-lg bg-[#202126] border border-[#33353a] text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 text-xs">
                                 </div>
                                 <label class="flex items-center gap-1.5 cursor-pointer text-zinc-400 hover:text-zinc-300 select-none text-[11px] whitespace-nowrap">
-                                    <input type="checkbox" v-model="fileSearchSubdir" class="w-3.5 h-3.5 rounded bg-zinc-900 border-zinc-700 text-emerald-500 focus:ring-emerald-500 accent-emerald-500">
+                                    <input type="checkbox" v-model="fileSearchSubdir" @change="handleFileSearch" class="w-3.5 h-3.5 rounded bg-zinc-900 border-zinc-700 text-emerald-500 focus:ring-emerald-500 accent-emerald-500">
                                     <span>Include subdir</span>
                                 </label>
                                 <button type="button" @click="handleFileSearch" class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center justify-center shadow-sm">
@@ -101,10 +101,10 @@
                                         <span>File Operations &gt;</span>
                                     </button>
                                     <div class="absolute left-0 mt-1 w-44 bg-[#202126] border border-[#33353a] rounded-lg shadow-2xl py-1 hidden group-hover:block z-30">
-                                        <button type="button" @click="openCompressModal" :disabled="!selectedFileNames.length" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-emerald-400 disabled:opacity-40">
+                                        <button type="button" @click="openCompressModal" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-emerald-400">
                                             <span>📦 Nén Tệp Tin (Zip)</span>
                                         </button>
-                                        <button type="button" @click="handleBatchChmod" :disabled="!selectedFileNames.length" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-emerald-400 disabled:opacity-40">
+                                        <button type="button" @click="handleBatchChmod" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-emerald-400">
                                             <span>🔒 Phân Quyền (Chmod)</span>
                                         </button>
                                         <button type="button" v-if="clipboardItems.length > 0" @click="handlePasteClipboard" class="w-full px-3 py-1.5 text-left text-emerald-400 hover:bg-emerald-600/20 font-medium">
@@ -147,8 +147,8 @@
                                         <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-400"></i>
                                         <span>Delete ({{ selectedFileNames.length }})</span>
                                     </button>
-                                    <button type="button" @click="openCompressModal" class="px-2 py-1 rounded bg-[#2a2b32] hover:bg-[#34353d] text-zinc-300 font-medium text-[11px]">
-                                        More &gt;
+                                    <button type="button" @click="openCompressModal" class="px-2.5 py-1 rounded bg-[#2a2b32] hover:bg-[#34353d] text-emerald-400 font-medium text-[11px] flex items-center gap-1" title="Nén Zip các mục đã chọn">
+                                        <span>📦 Zip</span>
                                     </button>
                                 </div>
 

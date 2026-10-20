@@ -593,9 +593,10 @@
                 'files.html', 'others.html', 'profile.html'
             ];
             try {
+                const cacheBuster = Date.now();
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.74').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.74').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=' + cacheBuster).then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=' + cacheBuster).then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -2986,6 +2987,10 @@
 
                 // Search File Content
                 const showSearchContentModal = ref(false);
+                const searchContentQuery = ref('');
+                const searchContentCaseSensitive = ref(false);
+                const searchContentResults = ref([]);
+                const searchingContent = ref(false);
 
                 // Clipboard States (Copy / Cut / Paste)
                 const clipboardAction = ref(''); // 'copy' | 'cut'
@@ -3065,6 +3070,13 @@
 
                 const handleFileSearch = () => {
                     fileCurrentPage.value = 1;
+                    if (fileSearchSubdir.value && fileSearchQuery.value && fileSearchQuery.value.trim()) {
+                        fetchFilesList(fileCurrentPath.value, fileSearchQuery.value.trim(), true);
+                    } else {
+                        if (filesList.value.some(f => f.name && f.name.includes('/'))) {
+                            fetchFilesList(fileCurrentPath.value);
+                        }
+                    }
                 };
 
                 const calculateFolderSize = async (folderName) => {
@@ -3520,13 +3532,17 @@
                     return fileCurrentPath.value.split('/').filter(Boolean);
                 });
 
-                const fetchFilesList = async (subpath = '') => {
+                const fetchFilesList = async (subpath = '', search = '', include_subdir = false) => {
                     loadingFiles.value = true;
                     fileCurrentPath.value = subpath;
                     selectedFileNames.value = [];
                     try {
                         const targetUserParam = fileTargetUser.value ? `&target_user=${encodeURIComponent(fileTargetUser.value)}` : '';
-                        const res = await fetch(`/api/v1/files/list?path=${encodeURIComponent(subpath)}${targetUserParam}`, {
+                        let url = `/api/v1/files/list?path=${encodeURIComponent(subpath)}${targetUserParam}`;
+                        if (search && include_subdir) {
+                            url += `&search=${encodeURIComponent(search)}&include_subdir=true`;
+                        }
+                        const res = await fetch(url, {
                             headers: { 'Authorization': `Bearer ${token.value}` }
                         });
                         if (res.ok) {
@@ -3563,8 +3579,12 @@
                 };
 
                 const openEditFileModal = async (fileName) => {
-                    editingFileName.value = fileName;
-                    const filePath = fileCurrentPath.value ? `${fileCurrentPath.value}/${fileName}` : fileName;
+                    const cleanName = fileName.replace(/^\/+/, '');
+                    editingFileName.value = cleanName.split('/').pop() || cleanName;
+                    let filePath = cleanName;
+                    if (!cleanName.includes('/') && fileCurrentPath.value) {
+                        filePath = `${fileCurrentPath.value}/${cleanName}`;
+                    }
                     editingFilePath.value = filePath;
                     editingFileContent.value = 'Đang tải nội dung tệp...';
                     showEditFileModal.value = true;
@@ -3583,6 +3603,48 @@
                         editingFileContent.value = '// Lỗi: ' + e.message;
                     }
                     refreshLucideIcons();
+                };
+
+                const handleSearchContentSubmit = async () => {
+                    if (!searchContentQuery.value || !searchContentQuery.value.trim()) {
+                        alert('Vui lòng nhập từ khóa cần tìm kiếm!');
+                        return;
+                    }
+                    searchingContent.value = true;
+                    searchContentResults.value = [];
+                    try {
+                        const res = await fetch('/api/v1/files/search-content', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                current_path: fileCurrentPath.value,
+                                query: searchContentQuery.value.trim(),
+                                case_sensitive: searchContentCaseSensitive.value,
+                                target_user: fileTargetUser.value || undefined
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            searchContentResults.value = data.items || [];
+                            if (searchContentResults.value.length === 0) {
+                                alert('Không tìm thấy tệp tin nào chứa từ khóa chỉ định.');
+                            }
+                        } else {
+                            alert('Lỗi tìm kiếm: ' + (data.detail || 'Không thể tìm kiếm nội dung'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        searchingContent.value = false;
+                    }
+                };
+
+                const openFileFromSearchResult = (relFilePath) => {
+                    showSearchContentModal.value = false;
+                    openEditFileModal(relFilePath);
                 };
 
                 const saveFileContent = async () => {
@@ -5218,6 +5280,18 @@
                     refreshLucideIcons();
                 });
 
+                watch(showSearchContentModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showCompressModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showRecycleBinModal, () => {
+                    refreshLucideIcons();
+                });
+
                 watch(showTerminalModal, () => {
                     refreshLucideIcons();
                 });
@@ -5356,7 +5430,8 @@
                     showRemoteDownloadModal, remoteDownloadUrl, remoteDownloadName, downloadingRemote, handleRemoteDownload,
                     showRenameModal, renameOldName, renameNewName, openRenameModal, confirmRename,
                     showChmodModal, chmodTargetName, chmodMode, openChmodModal, confirmChmod,
-                    showSearchContentModal, clipboardAction, clipboardSrcPath, clipboardItems, downloadSingleFile,
+                    showSearchContentModal, searchContentQuery, searchContentCaseSensitive, searchContentResults, searchingContent, handleSearchContentSubmit, openFileFromSearchResult,
+                    clipboardAction, clipboardSrcPath, clipboardItems, downloadSingleFile,
                     showCompressModal, compressArchiveName, compressFormat, compressingFiles,
                     openCompressModal, confirmCompressFiles,
                     showEditFileModal, editingFileName, editingFilePath, editingFileContent, savingFile,
