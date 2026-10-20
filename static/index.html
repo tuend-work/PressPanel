@@ -514,8 +514,8 @@
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.71').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.71').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.72').then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=0.5.72').then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -677,6 +677,9 @@
 
                 // Gói Dịch Vụ Lưu Trữ (Service Plans: Loại 1 User Plan, Loại 2 Website Plan)
                 const servicePlans = ref([]);
+                const websitePlans = computed(() => {
+                    return servicePlans.value.filter(p => p.plan_type === 'website');
+                });
                 const showAddPlanModal = ref(false);
                 const creatingPlan = ref(false);
                 const selectedPlanTab = ref('all'); // 'all', 'user', 'website'
@@ -1710,10 +1713,6 @@
                 const filteredServicePlans = computed(() => {
                     if (selectedPlanTab.value === 'all') return servicePlans.value;
                     return servicePlans.value.filter(p => (p.plan_type || 'user') === selectedPlanTab.value);
-                });
-
-                const websitePlans = computed(() => {
-                    return servicePlans.value.filter(p => p.plan_type === 'website');
                 });
 
                 const handleAddPlan = async () => {
@@ -3451,7 +3450,7 @@
                     redisStats.value.memory_used = '1.2 MB';
                 };
 
-                const panelVersion = ref('0.5.71');
+                const panelVersion = ref('0.5.72');
                 const showUpdateModal = ref(false);
                 const isUpdating = ref(false);
                 const updateCompleted = ref(false);

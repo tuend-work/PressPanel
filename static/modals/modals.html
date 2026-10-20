@@ -1836,6 +1836,16 @@
                         </div>
 
                         <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                            <button type="button" @click="showEditCustomerModal = false" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition font-medium">Hủy</button>
+                            <button type="submit" :disabled="savingCustomerEdit" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition flex items-center space-x-2">
+                                <span v-if="savingCustomerEdit" class="animate-spin">⏳</span>
+                                <span>{{ savingCustomerEdit ? 'Đang Lưu...' : 'Lưu Thay Đổi' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- MODAL: CẤU HÌNH VIRTUAL HOST CHO TỪNG DOMAIN (IMAGE 2 STYLE: REGISTRATION, GENERAL, LOG, SECURITY, EXTERNAL APP, SCRIPT HANDLER, REWRITE, CONTEXT, SSL, WEBSOCKET, MODULES, RAW CONFIG) -->
             <div v-if="showDomainVhostModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4">
                 <div class="bg-[#0f131a] rounded-2xl max-w-5xl w-full shadow-2xl overflow-hidden flex flex-col border border-[#2b3545] h-[700px] text-xs text-slate-300">
@@ -2529,9 +2539,3 @@
                     </form>
                 </div>
             </div>
-
-            </div>
-        </div>
-    </div>
-</body>
-</html>
