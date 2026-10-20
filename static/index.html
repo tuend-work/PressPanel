@@ -4174,7 +4174,8 @@
                         const res = await fetch('/api/v1/databases/redis-user/status', {
                             headers: { 'Authorization': `Bearer ${token.value}` }
                         });
-                        if (res.ok) {
+                        const ct = res.headers.get('content-type') || '';
+                        if (res.ok && ct.includes('application/json')) {
                             const data = await res.json();
                             userRedis.value = { ...userRedis.value, ...data, loading: false };
                             if (domains.value && domains.value.length && !selectedDomainForRedis.value) {
@@ -4200,7 +4201,12 @@
                                 maxmemory_mb: userRedis.value.maxmemory_mb
                             })
                         });
-                        const data = await res.json();
+                        if (res.status === 405 || res.status === 404) {
+                            alert('Lỗi: Dịch vụ backend trên máy chủ chưa nạp mã nguồn mới nhất (v0.5.94). Vui lòng chạy lệnh: sudo bash /opt/wpc/scripts/update.sh trên máy chủ!');
+                            return;
+                        }
+                        const ct = res.headers.get('content-type') || '';
+                        const data = ct.includes('application/json') ? await res.json() : {};
                         if (res.ok) {
                             alert(data.message || 'Thao tác thành công!');
                             fetchUserRedisStatus();
@@ -4478,9 +4484,12 @@
                         const res = await fetch('/api/v1/wp/list', {
                             headers: { 'Authorization': `Bearer ${token.value}` }
                         });
-                        const d = await res.json();
-                        if (d.status === 'ok') {
-                            wpInstances.value = d.instances || [];
+                        const ct = res.headers.get('content-type') || '';
+                        if (res.ok && ct.includes('application/json')) {
+                            const d = await res.json();
+                            if (d.status === 'ok') {
+                                wpInstances.value = d.instances || [];
+                            }
                         }
                     } catch(e) {
                         console.error('Lỗi tải danh sách WordPress:', e);

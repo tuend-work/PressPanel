@@ -74,9 +74,24 @@ def get_or_create_secret_key() -> str:
     except Exception:
         return conf_key or "wpc-fallback-secret-key-32-chars-long-minimum!!"
 
+def get_current_panel_version() -> str:
+    for cand in [
+        "/opt/wpc/VERSION",
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "VERSION")
+    ]:
+        if os.path.isfile(cand):
+            try:
+                with open(cand, "r", encoding="utf-8") as f:
+                    v = f.read().strip()
+                    if v:
+                        return v
+            except Exception:
+                pass
+    return "0.5.94"
+
 class Settings:
     PROJECT_NAME: str = "WPCloud"
-    VERSION: str = "0.5.74"
+    VERSION: str = get_current_panel_version()
     API_V1_STR: str = "/api/v1"
     
     # Mạng & Cổng kết nối
