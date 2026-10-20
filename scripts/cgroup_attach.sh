@@ -42,16 +42,25 @@ try:
             "reseller_id": str(parent),
             "cpu": int(cpu),
             "mem": int(mem),
-            "sites": set()
+            "sites": {}
         }
 
-    # Lấy tất cả các website thuộc user
-    cur.execute("SELECT user_id, domain_name FROM domains")
-    for uid, dname in cur.fetchall():
+    # Lấy tất cả các website thuộc user và hạn mức riêng của website (nếu có package_id con)
+    cur.execute("""
+        SELECT d.user_id, d.domain_name,
+               COALESCE(p_dom.cpu_pct, 0) as dom_cpu,
+               COALESCE(p_dom.mem_mb, 0) as dom_mem
+        FROM domains d
+        LEFT JOIN packages p_dom ON d.package_id = p_dom.id
+    """)
+    for uid, dname, d_cpu, d_mem in cur.fetchall():
         if uid in users:
             clean_d = re.sub(r"[^a-z0-9]", "", (dname or "").lower())[:30]
             if clean_d and clean_d != users[uid]["username"]:
-                users[uid]["sites"].add(clean_d)
+                # Nếu domain có package riêng thì lấy d_cpu, nếu không thì lấy cpu của user cha
+                eff_cpu = int(d_cpu) if d_cpu and d_cpu > 0 else users[uid]["cpu"]
+                eff_mem = int(d_mem) if d_mem and d_mem > 0 else users[uid]["mem"]
+                users[uid]["sites"][clean_d] = (eff_cpu, eff_mem)
 
     conn.close()
 
@@ -60,7 +69,10 @@ try:
         r_id = u_info["reseller_id"]
         cpu = u_info["cpu"]
         mem = u_info["mem"]
-        sites_str = ",".join(sorted(u_info["sites"]))
+        site_tokens = []
+        for s_name, (s_c, s_m) in sorted(u_info["sites"].items()):
+            site_tokens.append(f"{s_name}@{s_c}@{s_m}")
+        sites_str = ",".join(site_tokens)
         print(f"{u}:{r_id}:{cpu}:{mem}:{sites_str}")
 except Exception:
     pass
@@ -76,7 +88,7 @@ init_cgroup_root() {
     done
 }
 
-# Đồng bộ Cgroup cho một Hosting User cụ thể
+# Đồng bộ Cgroup cho một Hosting User cụ thể (Hỗ trợ Sub-cgroups phân cấp 2 tầng)
 enforce_hosting_user() {
     local h_user="$1"
     local reseller_id="$2"
@@ -87,10 +99,10 @@ enforce_hosting_user() {
     local cg_dir="/sys/fs/cgroup/wpc/reseller_${reseller_id}/user_${h_user}"
     local cg_flat="/sys/fs/cgroup/wpc/user_${h_user}"
 
-    # 1. Tạo thư mục Cgroup trần duy nhất của Hosting User
+    # 1. Tạo thư mục Cgroup trần cha của Hosting User
     mkdir -p "$cg_dir" "$cg_flat" 2>/dev/null || true
 
-    # 2. Thiết lập trần CPU và RAM cho Hosting User
+    # 2. Thiết lập trần cha (Hard Ceiling của gói Hosting): CPU và RAM
     local cpu_max="$((cpu_pct * 1000)) 100000"
     local mem_max="$((mem_mb * 1024 * 1024))"
 
@@ -99,55 +111,81 @@ enforce_hosting_user() {
     [ -f "$cg_flat/cpu.max" ] && echo "$cpu_max" > "$cg_flat/cpu.max" 2>/dev/null || true
     [ -f "$cg_flat/memory.max" ] && echo "$mem_max" > "$cg_flat/memory.max" 2>/dev/null || true
 
+    # Kích hoạt controller cho cây con bên trong Cgroup của Hosting User
+    for c in cpu memory io pids; do
+        echo "+$c" > "$cg_dir/cgroup.subtree_control" 2>/dev/null || true
+        echo "+$c" > "$cg_flat/cgroup.subtree_control" 2>/dev/null || true
+    done
+
     # Thiết lập Systemd Slice tương ứng
     systemctl set-property "wpc-hosting_${h_user}.slice" CPUQuota="${cpu_pct}%" MemoryMax="${mem_mb}M" 2>/dev/null || true
 
-    # 3. Thu thập TẤT CẢ PIDs của Hosting User và TẤT CẢ Website con
-    local all_pids=()
-
-    # Tiến trình của chính Hosting User
+    # 3. Quản lý tiến trình của chính Hosting User (nếu có SSH/cron)
     if id "$h_user" &>/dev/null; then
         mapfile -t h_pids < <(pgrep -u "$h_user" 2>/dev/null || true)
-        all_pids+=("${h_pids[@]}")
+        if [ ${#h_pids[@]} -gt 0 ]; then
+            local main_cg="$cg_dir/main"
+            mkdir -p "$main_cg" 2>/dev/null || true
+            for p in "${h_pids[@]}"; do
+                [ -n "$p" ] && echo "$p" > "$main_cg/cgroup.procs" 2>/dev/null || echo "$p" > "$cg_dir/cgroup.procs" 2>/dev/null || true
+            done
+        fi
     fi
 
-    # Tiến trình của các website con (LSPHP, PHP-FPM, pool worker)
-    IFS=',' read -r -a site_arr <<< "$child_sites"
-    for s_user in "${site_arr[@]}"; do
-        [ -n "$s_user" ] || continue
+    # 4. Quản lý Sub-cgroups phân cấp 2 tầng cho từng Website con
+    if [ -n "$child_sites" ]; then
+        IFS=',' read -r -a site_arr <<< "$child_sites"
+        for site_info in "${site_arr[@]}"; do
+            [ -n "$site_info" ] || continue
+            local s_user=""
+            local s_cpu=""
+            local s_mem=""
+            IFS='@' read -r s_user s_cpu s_mem <<< "$site_info"
+            [ -n "$s_user" ] || continue
 
-        # Quét PID theo isolated linux user và theo tên socket / process pattern
-        mapfile -t s_pids < <(
-            {
-                pgrep -u "$s_user" 2>/dev/null || true
-                pgrep -f "lsphp.*${s_user}" 2>/dev/null || true
-                pgrep -f "pool ${s_user}" 2>/dev/null || true
-            } | sort -u
-        )
-        all_pids+=("${s_pids[@]}")
+            # Hạn mức của Sub-cgroup website con:
+            # - Nếu website có Website Plan riêng (vd 150% hay 50%): giới hạn đúng mức đó
+            # - Nhưng vẫn chịu sự khống chế của trần cha (cpu_pct) bên ngoài
+            local sub_cpu="${s_cpu:-$cpu_pct}"
+            local sub_mem="${s_mem:-$mem_mb}"
+            local sub_cpu_max="$((sub_cpu * 1000)) 100000"
+            local sub_mem_max="$((sub_mem * 1024 * 1024))"
 
-        # 4. Xóa bỏ / Dọn sạch cgroup riêng của website con nếu lỡ bị tạo trước đó
-        for stray_cg in "/sys/fs/cgroup/wpc/reseller_${reseller_id}/user_${s_user}" "/sys/fs/cgroup/wpc/user_${s_user}"; do
-            if [ -d "$stray_cg" ] && [ "$stray_cg" != "$cg_dir" ] && [ "$stray_cg" != "$cg_flat" ]; then
-                # Di chuyển toàn bộ tiến trình trong cgroup rác sang cgroup Hosting User cha
-                if [ -f "$stray_cg/cgroup.procs" ]; then
-                    while read -r stray_pid; do
-                        [ -n "$stray_pid" ] && echo "$stray_pid" > "$cg_dir/cgroup.procs" 2>/dev/null || true
-                    done < "$stray_cg/cgroup.procs"
+            local sub_cg="$cg_dir/site_${s_user}"
+            mkdir -p "$sub_cg" 2>/dev/null || true
+
+            [ -f "$sub_cg/cpu.max" ] && echo "$sub_cpu_max" > "$sub_cg/cpu.max" 2>/dev/null || true
+            [ -f "$sub_cg/memory.max" ] && echo "$sub_mem_max" > "$sub_cg/memory.max" 2>/dev/null || true
+
+            # Thu thập toàn bộ PID của website con này (LSPHP, PHP-FPM, pool worker)
+            mapfile -t s_pids < <(
+                {
+                    pgrep -u "$s_user" 2>/dev/null || true
+                    pgrep -f "lsphp.*${s_user}" 2>/dev/null || true
+                    pgrep -f "pool ${s_user}" 2>/dev/null || true
+                } | sort -u
+            )
+
+            # Gán vào Sub-cgroup con của website (hoặc fallback vào cha nếu subtree_control chưa bật)
+            for p in "${s_pids[@]}"; do
+                if [ -n "$p" ] && [ -d "/proc/$p" ]; then
+                    echo "$p" > "$sub_cg/cgroup.procs" 2>/dev/null || echo "$p" > "$cg_dir/cgroup.procs" 2>/dev/null || true
                 fi
-                # Xóa thư mục cgroup rác để kernel không cấp quota độc lập
-                rmdir "$stray_cg" 2>/dev/null || true
-            fi
-        done
-    done
+            done
 
-    # 5. Gắn tất cả các PID thu thập được vào file cgroup.procs của Hosting User
-    for pid in "${all_pids[@]}"; do
-        if [ -n "$pid" ] && [ -d "/proc/$pid" ]; then
-            echo "$pid" > "$cg_dir/cgroup.procs" 2>/dev/null || true
-            echo "$pid" > "$cg_flat/cgroup.procs" 2>/dev/null || true
-        fi
-    done
+            # 5. Xóa bỏ / Dọn sạch cgroup rác ngang hàng của website con ngoài root nếu lỡ bị tạo trước đó
+            for stray_cg in "/sys/fs/cgroup/wpc/reseller_${reseller_id}/user_${s_user}" "/sys/fs/cgroup/wpc/user_${s_user}"; do
+                if [ -d "$stray_cg" ] && [ "$stray_cg" != "$cg_dir" ] && [ "$stray_cg" != "$cg_flat" ]; then
+                    if [ -f "$stray_cg/cgroup.procs" ]; then
+                        while read -r stray_pid; do
+                            [ -n "$stray_pid" ] && echo "$stray_pid" > "$sub_cg/cgroup.procs" 2>/dev/null || true
+                        done < "$stray_cg/cgroup.procs"
+                    fi
+                    rmdir "$stray_cg" 2>/dev/null || true
+                fi
+            done
+        done
+    fi
 }
 
 # Quét toàn bộ hệ thống
