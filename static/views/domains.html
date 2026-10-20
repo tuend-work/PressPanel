@@ -86,133 +86,151 @@
                         </div>
 
                         <!-- BẢNG DANH SÁCH DOMAIN CLEAN TABLE (Chuẩn phong cách Modern Dark Table như ảnh tham chiếu) -->
-                        <div v-else class="overflow-hidden rounded-2xl border border-slate-200/90 dark:border-[#1d2433] bg-white dark:bg-[#10141e] shadow-sm">
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left border-collapse text-xs">
-                                    <thead>
-                                        <tr class="bg-slate-50/90 dark:bg-[#141926] border-b border-slate-200/80 dark:border-[#1d2433] text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
-                                            <th class="py-3.5 px-3 w-10 text-center">
-                                                <input type="checkbox" @change="toggleSelectAllDomains" :checked="isAllDomainsSelected" class="rounded text-emerald-600 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer">
-                                            </th>
-                                            <th class="py-3.5 px-3 min-w-[200px]">Site name ↓</th>
-                                            <th class="py-3.5 px-3 w-28 text-center">Status ↓</th>
-                                            <th class="py-3.5 px-3 min-w-[120px]">Package</th>
-                                            <th class="py-3.5 px-3 min-w-[100px]">CPU</th>
-                                            <th class="py-3.5 px-3 min-w-[100px]">RAM</th>
-                                            <th class="py-3.5 px-3 min-w-[100px]">Disk</th>
-                                            <th class="py-3.5 px-3 min-w-[110px]">PHP / SSL ↓</th>
-                                            <th class="py-3.5 px-2 w-20 text-center">Database</th>
-                                            <th class="py-3.5 px-4 w-52 text-right">Operate</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-slate-100 dark:divide-[#181f2c]">
-                                        <tr v-for="(d, idx) in filteredDomains" :key="d.id" class="hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition">
-                                            <td class="py-3.5 px-3 text-center">
-                                                <input type="checkbox" :value="d.id" v-model="selectedDomainIds" class="rounded text-emerald-600 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer">
-                                            </td>
-                                            <td class="py-3.5 px-3">
-                                                <div class="flex flex-col min-w-0">
-                                                    <a :href="'http://' + d.domain_name" target="_blank" class="font-bold text-sm text-slate-800 dark:text-slate-100 hover:text-emerald-400 transition flex items-center gap-1.5 truncate">
-                                                        <span class="truncate">{{ d.domain_name }}</span>
-                                                        <i data-lucide="external-link" class="w-3 h-3 text-slate-400 shrink-0"></i>
-                                                    </a>
-                                                    <!-- Subtitle: isolated user / linux owner (Không hiện webserver) -->
-                                                    <span class="text-[10px] text-slate-400/80 font-mono truncate mt-0.5">
-                                                        {{ d.owner_username || d.domain_name.replace(/[^a-z0-9]/g, '').slice(0, 16) }}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <!-- CỘT STATUS: BẤM VÀO ĐỂ CHUYỂN QUA LẠI 2 CHẾ ĐỘ ACTIVE/SUSPEND -->
-                                            <td class="py-3.5 px-3 text-center">
-                                                <button @click="handleToggleDomainStatus(d)" :title="d.status === 'suspended' ? 'Bấm để Mở Khóa (Active)' : 'Bấm để Tạm Khóa (Suspend)'"
-                                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full transition cursor-pointer hover:scale-105 active:scale-95 shadow-sm"
-                                                    :class="d.status === 'suspended' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'">
-                                                    <span class="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-black"
-                                                        :class="d.status === 'suspended' ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-slate-950'">
-                                                        {{ d.status === 'suspended' ? '⏸' : '▶' }}
-                                                    </span>
-                                                    <span class="text-[11px] font-semibold">{{ d.status === 'suspended' ? 'Suspended' : 'Active' }}</span>
-                                                </button>
-                                            </td>
-                                            <!-- CỘT PACKAGE VỚI NÚT ĐỔI GÓI NHANH -->
-                                            <td class="py-3.5 px-3">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="px-2 py-0.5 rounded-lg text-[11px] font-mono font-semibold bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-700/80 truncate max-w-[120px]">
-                                                        {{ d.plan_name || 'Website Starter' }}
-                                                    </span>
-                                                    <button @click="openChangeDomainPlanModal(d)" title="Đổi Website Package"
-                                                        class="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition">
-                                                        <i data-lucide="repeat" class="w-3 h-3"></i>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                            <!-- CPU -->
-                                            <td class="py-3.5 px-3 font-mono text-xs whitespace-nowrap">
-                                                <span class="font-bold text-slate-700 dark:text-slate-200">{{ d.cpu_usage_pct || 0 }}%</span>
-                                                <span class="text-slate-400 font-normal"> / {{ d.cpu_pct || 100 }}%</span>
-                                            </td>
-                                            <!-- RAM -->
-                                            <td class="py-3.5 px-3 font-mono text-xs whitespace-nowrap" :title="(d.mem_usage_mb || 0) + ' MB / ' + (d.mem_mb || 1024) + ' MB'">
-                                                <span class="font-bold text-slate-700 dark:text-slate-200">{{ Math.round(((d.mem_usage_mb || 0) / (d.mem_mb || 1024)) * 100) }}%</span>
-                                                <span class="text-slate-400 font-normal"> / 100%</span>
-                                                <span class="text-[10px] text-slate-400 block font-normal">{{ d.mem_usage_mb || 0 }}M / {{ d.mem_mb || 1024 }}M</span>
-                                            </td>
-                                            <!-- DISK -->
-                                            <td class="py-3.5 px-3 font-mono text-xs whitespace-nowrap" :title="((d.disk_usage_mb || 0)/1024).toFixed(1) + ' GB / ' + ((d.disk_mb || 5120)/1024).toFixed(0) + ' GB'">
-                                                <span class="font-bold text-slate-700 dark:text-slate-200">{{ Math.round(((d.disk_usage_mb || 0) / (d.disk_mb || 5120)) * 100) }}%</span>
-                                                <span class="text-slate-400 font-normal"> / 100%</span>
-                                                <span class="text-[10px] text-slate-400 block font-normal">{{ ((d.disk_usage_mb || 0)/1024).toFixed(1) }}G / {{ ((d.disk_mb || 5120)/1024).toFixed(0) }}G</span>
-                                            </td>
-                                            <!-- PHP & SSL -->
-                                            <td class="py-3.5 px-3">
-                                                <div class="flex flex-col space-y-0.5 font-mono text-[10px]">
-                                                    <span class="font-semibold text-emerald-400">PHP {{ d.php_version || '8.2' }}</span>
-                                                    <span :class="d.ssl_enabled ? 'text-emerald-500' : 'text-slate-400'">
-                                                        {{ d.ssl_enabled ? '🔒 SSL Active' : 'No SSL' }}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <!-- DATABASE -->
-                                            <td class="py-3.5 px-2 text-center">
-                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                                                    <span>🗄️</span>
-                                                    <span>{{ d.db_count || 0 }}</span>
+                        <div v-else class="overflow-x-auto rounded-2xl border border-slate-200/90 dark:border-[#1d2433] bg-white dark:bg-[#10141e] shadow-sm">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr class="bg-slate-50/90 dark:bg-[#141926] border-b border-slate-200/80 dark:border-[#1d2433] text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                                        <th class="py-2.5 px-2 w-8 text-center">
+                                            <input type="checkbox" @change="toggleSelectAllDomains" :checked="isAllDomainsSelected" class="rounded text-emerald-600 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer">
+                                        </th>
+                                        <th class="py-2.5 px-2">Site name ↓</th>
+                                        <th class="py-2.5 px-1 w-20 text-center">Status ↓</th>
+                                        <th class="py-2.5 px-1 w-24 text-center">Package</th>
+                                        <th class="py-2.5 px-1 w-14 text-center">CPU</th>
+                                        <th class="py-2.5 px-1 w-14 text-center">RAM</th>
+                                        <th class="py-2.5 px-1 w-14 text-center">Disk</th>
+                                        <th class="py-2.5 px-1 w-24 text-center">PHP / SSL</th>
+                                        <th class="py-2.5 px-1 w-12 text-center">DB</th>
+                                        <th class="py-2.5 px-2 w-32 text-right">Operate</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-[#181f2c]">
+                                    <tr v-for="(d, idx) in filteredDomains" :key="d.id" class="hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition">
+                                        <!-- Checkbox -->
+                                        <td class="py-2.5 px-2 text-center w-8">
+                                            <input type="checkbox" :value="d.id" v-model="selectedDomainIds" class="rounded text-emerald-600 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer">
+                                        </td>
+
+                                        <!-- Site name -->
+                                        <td class="py-2.5 px-2 min-w-0">
+                                            <div class="flex flex-col min-w-0 max-w-[170px]">
+                                                <a :href="'http://' + d.domain_name" target="_blank" class="font-bold text-xs text-slate-800 dark:text-slate-100 hover:text-emerald-400 transition flex items-center gap-1 truncate" :title="d.domain_name">
+                                                    <span class="truncate">{{ d.domain_name }}</span>
+                                                    <i data-lucide="external-link" class="w-2.5 h-2.5 text-slate-400 shrink-0"></i>
+                                                </a>
+                                                <span class="text-[10px] text-slate-400 font-mono truncate">
+                                                    {{ d.owner_username || d.domain_name.replace(/[^a-z0-9]/g, '').slice(0, 16) }}
                                                 </span>
-                                            </td>
-                                            <!-- OPERATE (CỘT HÀNH ĐỘNG DẠNG CLEAN BUTTONS NHƯ ẢNH) -->
-                                            <td class="py-3.5 px-4 text-right">
-                                                <div class="flex items-center justify-end space-x-1 font-mono text-[11px]">
-                                                    <!-- Conf / VHost -->
-                                                    <button @click="openDomainVhostModal(d)" title="Cấu hình VirtualHost"
-                                                        class="px-2 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold transition">
-                                                        Conf
-                                                    </button>
-                                                    <!-- Edit: Sửa PHP, Package, SSH -->
-                                                    <button @click="openEditDomainModal(d)" title="Chỉnh sửa cấu hình website"
-                                                        class="px-2 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 font-bold transition">
-                                                        Edit
-                                                    </button>
-                                                    <!-- Package: Đổi gói -->
-                                                    <button @click="openChangeDomainPlanModal(d)" title="Đổi gói Website Plan"
-                                                        class="px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold transition">
-                                                        Package
-                                                    </button>
-                                                    <!-- Manage: Login quản trị -->
-                                                    <button @click="impersonateWebsiteUser(d)" title="Login quản trị website này"
-                                                        class="px-2 py-1 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 font-bold transition">
-                                                        Manage
-                                                    </button>
-                                                    <!-- Delete -->
-                                                    <button @click="handleDeleteDomain(d)" title="Xóa website"
-                                                        class="p-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition">
-                                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                                                    </button>
+                                            </div>
+                                        </td>
+
+                                        <!-- Status -->
+                                        <td class="py-2.5 px-1 text-center w-20">
+                                            <button @click="handleToggleDomainStatus(d)" :title="d.status === 'suspended' ? 'Bấm để Mở Khóa (Active)' : 'Bấm để Tạm Khóa (Suspend)'"
+                                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full transition cursor-pointer text-[10px] font-semibold"
+                                                :class="d.status === 'suspended' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'">
+                                                <span class="text-[8px]">{{ d.status === 'suspended' ? '⏸' : '▶' }}</span>
+                                                <span>{{ d.status === 'suspended' ? 'Suspended' : 'Active' }}</span>
+                                            </button>
+                                        </td>
+
+                                        <!-- Package -->
+                                        <td class="py-2.5 px-1 text-center w-24">
+                                            <button @click="openChangeDomainPlanModal(d)" title="Bấm để đổi Website Package"
+                                                class="px-2 py-0.5 rounded-md text-[10px] font-mono font-medium bg-slate-100 dark:bg-slate-800/80 text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-700 hover:border-amber-400 transition truncate max-w-[90px] inline-block">
+                                                {{ d.plan_name || 'Website Starter' }}
+                                            </button>
+                                        </td>
+
+                                        <!-- CPU Donut Chart Gauge -->
+                                        <td class="py-2.5 px-1 text-center w-14">
+                                            <div class="flex items-center justify-center" :title="(d.cpu_usage_pct || 0) + '% / ' + (d.cpu_pct || 100) + '% (' + Math.min(100, Math.round(((d.cpu_usage_pct || 0) / (d.cpu_pct || 100)) * 100)) + '% Used)'">
+                                                <div class="relative w-7 h-7 flex items-center justify-center cursor-pointer">
+                                                    <svg class="w-7 h-7 -rotate-90 transform" viewBox="0 0 36 36">
+                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#222a38]" stroke-width="4.5" />
+                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-[#38bdf8]" stroke-width="4.5" stroke-linecap="round"
+                                                            :stroke-dasharray="Math.min(100, Math.max(0, Math.round(((d.cpu_usage_pct || 0) / (d.cpu_pct || 100)) * 100))) + ', 100'" />
+                                                    </svg>
                                                 </div>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                                            </div>
+                                        </td>
+
+                                        <!-- RAM Donut Chart Gauge -->
+                                        <td class="py-2.5 px-1 text-center w-14">
+                                            <div class="flex items-center justify-center" :title="(d.mem_usage_mb || 0) + ' MB / ' + (d.mem_mb || 1024) + ' MB (' + Math.min(100, Math.round(((d.mem_usage_mb || 0) / (d.mem_mb || 1024)) * 100)) + '% Used)'">
+                                                <div class="relative w-7 h-7 flex items-center justify-center cursor-pointer">
+                                                    <svg class="w-7 h-7 -rotate-90 transform" viewBox="0 0 36 36">
+                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#222a38]" stroke-width="4.5" />
+                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-[#38bdf8]" stroke-width="4.5" stroke-linecap="round"
+                                                            :stroke-dasharray="Math.min(100, Math.max(0, Math.round(((d.mem_usage_mb || 0) / (d.mem_mb || 1024)) * 100))) + ', 100'" />
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        <!-- Disk Donut Chart Gauge -->
+                                        <td class="py-2.5 px-1 text-center w-14">
+                                            <div class="flex items-center justify-center" :title="((d.disk_usage_mb || 0)/1024).toFixed(1) + ' GB / ' + ((d.disk_mb || 5120)/1024).toFixed(0) + ' GB (' + Math.min(100, Math.round(((d.disk_usage_mb || 0) / (d.disk_mb || 5120)) * 100)) + '% Used)'">
+                                                <div class="relative w-7 h-7 flex items-center justify-center cursor-pointer">
+                                                    <svg class="w-7 h-7 -rotate-90 transform" viewBox="0 0 36 36">
+                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#222a38]" stroke-width="4.5" />
+                                                        <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-[#38bdf8]" stroke-width="4.5" stroke-linecap="round"
+                                                            :stroke-dasharray="Math.min(100, Math.max(0, Math.round(((d.disk_usage_mb || 0) / (d.disk_mb || 5120)) * 100))) + ', 100'" />
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        <!-- PHP & SSL -->
+                                        <td class="py-2.5 px-1 text-center w-24">
+                                            <div class="font-mono text-[11px] inline-flex items-center gap-1 justify-center">
+                                                <span class="font-bold text-emerald-400">PHP {{ d.php_version || '8.2' }}</span>
+                                                <span :title="d.ssl_enabled ? 'SSL Active (HTTPS)' : 'No SSL'" class="text-xs cursor-help">
+                                                    {{ d.ssl_enabled ? '🔒' : '🔓' }}
+                                                </span>
+                                            </div>
+                                        </td>
+
+                                        <!-- Database -->
+                                        <td class="py-2.5 px-1 text-center w-12">
+                                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                <span>🗄️</span>
+                                                <span>{{ d.db_count || 0 }}</span>
+                                            </span>
+                                        </td>
+
+                                        <!-- Operate (Joined Button Group like 1Panel) -->
+                                        <td class="py-2.5 px-2 text-right w-32">
+                                            <div class="inline-flex rounded-md overflow-hidden border border-slate-200 dark:border-slate-700/80 shadow-sm shrink-0">
+                                                <!-- Conf -->
+                                                <button @click="openDomainVhostModal(d)" title="Cấu hình VirtualHost (Conf)"
+                                                    class="w-7 h-7 bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center transition"
+                                                    style="padding: 0;">
+                                                    <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                                <!-- Manage / Eye -->
+                                                <button @click="impersonateWebsiteUser(d)" title="Quản trị / Login website (Manage)"
+                                                    class="w-7 h-7 bg-[#2b6cb0] hover:bg-[#3182ce] text-white flex items-center justify-center transition"
+                                                    style="padding: 0;">
+                                                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                                <!-- Edit -->
+                                                <button @click="openEditDomainModal(d)" title="Chỉnh sửa cấu hình (Edit: PHP, Gói, SSH)"
+                                                    class="w-7 h-7 bg-[#2f855a] hover:bg-[#38a169] text-white flex items-center justify-center transition"
+                                                    style="padding: 0;">
+                                                    <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                                <!-- Delete -->
+                                                <button @click="handleDeleteDomain(d)" title="Xóa website"
+                                                    class="w-7 h-7 bg-[#c53030] hover:bg-[#e53e3e] text-white flex items-center justify-center transition"
+                                                    style="padding: 0;">
+                                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
 
 </div>

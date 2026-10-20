@@ -514,8 +514,8 @@
             ];
             try {
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.72').then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=0.5.72').then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=0.5.73').then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=0.5.73').then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -2620,8 +2620,13 @@
                             },
                             body: JSON.stringify(payload)
                         });
-                        const data = await res.json();
-                        if (res.ok) {
+                        let data = {};
+                        try {
+                            data = await res.json();
+                        } catch (parseErr) {
+                            data = { status: 'error', message: `Máy chủ phản hồi mã ${res.status}` };
+                        }
+                        if (res.ok && data.status !== 'error') {
                             if (data.settings) {
                                 domainVhostSettings.value = {
                                     ...domainVhostSettings.value,
@@ -2633,7 +2638,7 @@
                             }
                             alert(data.message || 'Đã lưu và áp dụng cấu hình VirtualHost thành công!');
                         } else {
-                            alert(data.detail || 'Lỗi khi lưu cấu hình VirtualHost.');
+                            alert(data.message || data.detail || 'Lỗi khi lưu cấu hình VirtualHost.');
                         }
                     } catch (e) {
                         alert('Lỗi: ' + e.message);
@@ -3450,7 +3455,7 @@
                     redisStats.value.memory_used = '1.2 MB';
                 };
 
-                const panelVersion = ref('0.5.72');
+                const panelVersion = ref('0.5.73');
                 const showUpdateModal = ref(false);
                 const isUpdating = ref(false);
                 const updateCompleted = ref(false);

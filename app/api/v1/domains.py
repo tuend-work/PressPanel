@@ -1478,16 +1478,22 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
     new_content = apply_vhost_settings(content, ws, clean_domain, req)
 
     # Ghi file cấu hình an toàn
-    os.makedirs(os.path.dirname(conf_path), exist_ok=True)
-    tmp_path = f"/tmp/wpc_vhost_{clean_domain}.tmp"
+    conf_dir = os.path.dirname(conf_path)
     try:
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            f.write(new_content)
+        os.makedirs(conf_dir, exist_ok=True)
+    except Exception:
+        subprocess.run(["sudo", "mkdir", "-p", conf_dir], check=False)
+
+    import tempfile
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, prefix=f"wpc_vh_{clean_domain}_", suffix=".tmp") as tf:
+            tf.write(new_content)
+            tmp_path = tf.name
 
         try:
             shutil.move(tmp_path, conf_path)
-        except PermissionError:
-            subprocess.run(["sudo", "mv", tmp_path, conf_path], check=True)
+        except Exception:
+            subprocess.run(["sudo", "mv", "-f", tmp_path, conf_path], check=False)
 
         try:
             os.chmod(conf_path, 0o644)
@@ -1496,7 +1502,8 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
 
         # Reload webserver
         if ws == "ols":
-            subprocess.run(["/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
+            subprocess.run(["sudo", "chown", "-R", "lsadm:lsadm", conf_dir], check=False)
+            subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
             subprocess.run(["sudo", "systemctl", "reload", "lshttpd"], check=False)
         else:
             subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=False)
@@ -1509,7 +1516,11 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
             "settings": updated_settings
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi lưu file cấu hình VirtualHost: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Lỗi lưu file cấu hình VirtualHost: {str(e)}",
+            "detail": str(e)
+        }
 
 
 @router.post("/{domain_id}/vhost-config")
@@ -1538,17 +1549,22 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
     else:
         conf_path = f"/etc/nginx/conf.d/{clean_domain}.conf"
 
-    os.makedirs(os.path.dirname(conf_path), exist_ok=True)
-    tmp_path = f"/tmp/wpc_vhost_{clean_domain}.tmp"
+    conf_dir = os.path.dirname(conf_path)
     try:
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            f.write(req.content)
+        os.makedirs(conf_dir, exist_ok=True)
+    except Exception:
+        subprocess.run(["sudo", "mkdir", "-p", conf_dir], check=False)
 
-        # Di chuyển đè vào file cấu hình
+    import tempfile
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, prefix=f"wpc_vh_{clean_domain}_", suffix=".tmp") as tf:
+            tf.write(req.content)
+            tmp_path = tf.name
+
         try:
             shutil.move(tmp_path, conf_path)
-        except PermissionError:
-            subprocess.run(["sudo", "mv", tmp_path, conf_path], check=True)
+        except Exception:
+            subprocess.run(["sudo", "mv", "-f", tmp_path, conf_path], check=False)
 
         try:
             os.chmod(conf_path, 0o644)
@@ -1557,9 +1573,11 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
 
         # Reload webserver
         if ws == "ols":
-            subprocess.run(["/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
+            subprocess.run(["sudo", "chown", "-R", "lsadm:lsadm", conf_dir], check=False)
+            subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
+            subprocess.run(["sudo", "systemctl", "reload", "lshttpd"], check=False)
         else:
-            subprocess.run(["systemctl", "reload", "nginx"], check=False)
+            subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=False)
 
         updated_settings = parse_vhost_content(req.content, ws, clean_domain)
         return {
@@ -1568,7 +1586,11 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
             "settings": updated_settings
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi lưu file cấu hình: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Lỗi lưu file cấu hình: {str(e)}",
+            "detail": str(e)
+        }
 
 
 @router.post("/{domain_id}/vhost-rebuild")
