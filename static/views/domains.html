@@ -138,29 +138,29 @@
                                                             <span>/ {{ d.cpu_pct || 100 }}%</span>
                                                         </div>
                                                         <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                                            <div class="h-full bg-cyan-500 rounded-full transition-all duration-300" :style="{ width: Math.min(100, Math.max(3, (d.cpu_usage_pct || 0))) + '%' }"></div>
+                                                            <div class="h-full bg-cyan-500 rounded-full transition-all duration-300" :style="{ width: Math.min(100, Math.max(3, Math.round(((d.cpu_usage_pct || 0) / (d.cpu_pct || 100)) * 100))) + '%' }"></div>
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td class="py-3.5 px-4">
                                                     <div class="flex flex-col space-y-1">
                                                         <div class="flex justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                                                            <span class="font-bold text-slate-700 dark:text-slate-200">{{ Math.round(((d.mem_usage_mb || 64) / (d.mem_mb || 1024)) * 100) }}%</span>
-                                                            <span>{{ d.mem_usage_mb || 64 }}M / {{ d.mem_mb || 1024 }}M</span>
+                                                            <span class="font-bold text-slate-700 dark:text-slate-200">{{ Math.round(((d.mem_usage_mb || 0) / (d.mem_mb || 1024)) * 100) }}%</span>
+                                                            <span>{{ d.mem_usage_mb || 0 }}M / {{ d.mem_mb || 1024 }}M</span>
                                                         </div>
                                                         <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                                            <div class="h-full bg-indigo-500 rounded-full transition-all duration-300" :style="{ width: Math.min(100, Math.max(5, ((d.mem_usage_mb || 64) / (d.mem_mb || 1024)) * 100)) + '%' }"></div>
+                                                            <div class="h-full bg-indigo-500 rounded-full transition-all duration-300" :style="{ width: Math.min(100, Math.max(3, Math.round(((d.mem_usage_mb || 0) / (d.mem_mb || 1024)) * 100))) + '%' }"></div>
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td class="py-3.5 px-4">
                                                     <div class="flex flex-col space-y-1">
                                                         <div class="flex justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                                                            <span class="font-bold text-slate-700 dark:text-slate-200">{{ Math.round(((d.disk_usage_mb || 250) / (d.disk_mb || 5120)) * 100) }}%</span>
-                                                            <span>{{ ((d.disk_usage_mb || 250)/1024).toFixed(1) }}G / {{ ((d.disk_mb || 5120)/1024).toFixed(0) }}G</span>
+                                                            <span class="font-bold text-slate-700 dark:text-slate-200">{{ Math.round(((d.disk_usage_mb || 0) / (d.disk_mb || 5120)) * 100) }}%</span>
+                                                            <span>{{ ((d.disk_usage_mb || 0)/1024).toFixed(1) }}G / {{ ((d.disk_mb || 5120)/1024).toFixed(0) }}G</span>
                                                         </div>
                                                         <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                                            <div class="h-full bg-amber-500 rounded-full transition-all duration-300" :style="{ width: Math.min(100, Math.max(5, ((d.disk_usage_mb || 250) / (d.disk_mb || 5120)) * 100)) + '%' }"></div>
+                                                            <div class="h-full bg-amber-500 rounded-full transition-all duration-300" :style="{ width: Math.min(100, Math.max(3, Math.round(((d.disk_usage_mb || 0) / (d.disk_mb || 5120)) * 100))) + '%' }"></div>
                                                         </div>
                                                     </div>
                                                 </td>
@@ -317,10 +317,10 @@
                                             <div class="space-y-2 text-xs">
                                                 <div class="flex justify-between items-center text-slate-600">
                                                     <span>Disk space</span>
-                                                    <span class="font-bold text-slate-800 font-mono">1.3 MB / 5.0 GB</span>
+                                                    <span class="font-bold text-slate-800 font-mono">{{ ((d.disk_usage_mb || 0)/1024).toFixed(1) }} GB / {{ ((d.disk_mb || 5120)/1024).toFixed(1) }} GB</span>
                                                 </div>
                                                 <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                    <div class="h-full bg-blue-500 rounded-full" style="width: 5%"></div>
+                                                    <div class="h-full bg-blue-500 rounded-full transition-all duration-300" :style="{ width: Math.min(100, Math.max(3, Math.round(((d.disk_usage_mb || 0) / (d.disk_mb || 5120)) * 100))) + '%' }"></div>
                                                 </div>
                                                 <div class="flex justify-between items-center text-slate-600 pt-1">
                                                     <span>Traffic this month</span>

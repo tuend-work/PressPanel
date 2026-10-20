@@ -2,6 +2,9 @@ import os
 import re
 import subprocess
 import shutil
+import time
+import asyncio
+import platform
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -13,6 +16,60 @@ ALLOWED_PHP_VERSIONS = {"5.6", "7.0", "7.1", "7.2", "7.3", "7.4", "8.0", "8.1", 
 ALLOWED_WEBSERVERS = {"ols", "nginx"}
 
 router = APIRouter(prefix="/domains", tags=["Websites & Domains"])
+
+_disk_usage_cache = {}  # {path: (size_mb, timestamp)}
+
+def domain_to_linux_user(domain: str) -> str:
+    # Bỏ www. và chuyển sang viết liền không dấu chấm
+    clean = re.sub(r"^(https?://)?(www\.)?", "", domain.strip().lower())
+    clean = re.sub(r"[^a-z0-9]", "", clean)
+    if not clean:
+        clean = "webuser"
+    # Giới hạn 30 ký tự để phù hợp giới hạn username của Linux (thường max 32)
+    return clean[:30]
+
+async def get_path_disk_usage_mb(path: str) -> float:
+    if not path or not os.path.exists(path):
+        return 0.0
+    now = time.time()
+    if path in _disk_usage_cache:
+        cached_size, ts = _disk_usage_cache[path]
+        if now - ts < 60:  # Cache 60 giây tránh scan I/O liên tục
+            return cached_size
+
+    size_mb = 0.0
+    if platform.system() == "Linux":
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "du", "-sm", path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            out, _ = await asyncio.wait_for(proc.communicate(), timeout=0.8)
+            if proc.returncode == 0:
+                first_part = out.decode("utf-8", errors="ignore").split()[0]
+                size_mb = float(first_part)
+        except Exception:
+            pass
+
+    if size_mb == 0.0:
+        try:
+            total = 0
+            for root, _, files in os.walk(path):
+                for f in files:
+                    fp = os.path.join(root, f)
+                    if not os.path.islink(fp) and os.path.exists(fp):
+                        total += os.path.getsize(fp)
+            size_mb = round(total / (1024 * 1024), 1)
+        except Exception:
+            pass
+
+    if size_mb > 0:
+        _disk_usage_cache[path] = (size_mb, now)
+    elif path in _disk_usage_cache:
+        return _disk_usage_cache[path][0]
+
+    return size_mb
 
 class DomainCreate(BaseModel):
     domain_name: str
@@ -55,34 +112,101 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
     rows = await cursor.fetchall()
     await db.close()
 
+    # Thu thập thống kê tiến trình thực tế trên Linux cho các domain
+    user_proc_stats = {}  # { username: {"cpu": 0.0, "rss_bytes": 0} }
+
+    if platform.system() == "Linux" and rows:
+        try:
+            ps_proc = await asyncio.create_subprocess_exec(
+                "ps", "-eo", "user:32,%cpu,rss,args", "--no-headers",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout_data, _ = await asyncio.wait_for(ps_proc.communicate(), timeout=1.5)
+            for line in stdout_data.decode("utf-8", errors="ignore").splitlines():
+                parts = line.strip().split(None, 3)
+                if len(parts) >= 3:
+                    u_name = parts[0].strip()
+                    try:
+                        c_val = float(parts[1])
+                        m_kb = int(parts[2])
+                    except (ValueError, IndexError):
+                        continue
+                    
+                    if u_name not in user_proc_stats:
+                        user_proc_stats[u_name] = {"cpu": 0.0, "rss_bytes": 0}
+                    user_proc_stats[u_name]["cpu"] += c_val
+                    user_proc_stats[u_name]["rss_bytes"] += m_kb * 1024
+
+                    cmd_args = parts[3] if len(parts) > 3 else ""
+                    if cmd_args and ("lsphp" in cmd_args or "pool" in cmd_args):
+                        for r_item in rows:
+                            iso_u = domain_to_linux_user(r_item["domain_name"])
+                            if iso_u != u_name and iso_u in cmd_args:
+                                if iso_u not in user_proc_stats:
+                                    user_proc_stats[iso_u] = {"cpu": 0.0, "rss_bytes": 0}
+                                user_proc_stats[iso_u]["cpu"] += c_val
+                                user_proc_stats[iso_u]["rss_bytes"] += m_kb * 1024
+        except Exception:
+            pass
+
     results = []
     for r in rows:
         d_dict = dict(r)
         cpu_limit = d_dict.get("cpu_pct") or 100
         mem_limit = d_dict.get("mem_mb") or 1024
         disk_limit = d_dict.get("disk_mb") or 5120
+        d_status = d_dict.get("status", "active")
+        d_name = d_dict.get("domain_name", "")
+        isolated_u = domain_to_linux_user(d_name)
+        reseller_id = d_dict.get("user_id") or 1
 
-        if d_dict.get("status") == "suspended":
+        # Đo dung lượng Disk thực tế
+        doc_root = d_dict.get("document_root")
+        home_dir = f"/home/{isolated_u}"
+        target_disk_path = home_dir if os.path.isdir(home_dir) else doc_root
+        real_disk_mb = 0.0
+        if target_disk_path:
+            real_disk_mb = await get_path_disk_usage_mb(target_disk_path)
+
+        if d_status == "suspended":
             d_dict["cpu_usage_pct"] = 0.0
             d_dict["mem_usage_mb"] = 0
-            d_dict["disk_usage_mb"] = min(disk_limit, 180)
-        else:
-            d_dict["cpu_usage_pct"] = round(min(cpu_limit, 2.5), 1)
-            d_dict["mem_usage_mb"] = min(mem_limit, 95)
-            d_dict["disk_usage_mb"] = min(disk_limit, 320)
+            d_dict["disk_usage_mb"] = real_disk_mb
+            results.append(d_dict)
+            continue
+
+        # 1. CPU thực tế từ bảng tiến trình Linux
+        proc_stat = user_proc_stats.get(isolated_u, {"cpu": 0.0, "rss_bytes": 0})
+        real_cpu = round(proc_stat["cpu"], 1)
+
+        # 2. RAM thực tế từ Cgroups v2 kết hợp Process RSS
+        cg_mem_bytes = 0
+        cgroup_paths = [
+            f"/sys/fs/cgroup/wpc/reseller_{reseller_id}/user_{isolated_u}/memory.current",
+            f"/sys/fs/cgroup/wpc/reseller_1/user_{isolated_u}/memory.current",
+            f"/sys/fs/cgroup/wpc/user_{isolated_u}/memory.current",
+        ]
+        for mp in cgroup_paths:
+            if os.path.exists(mp):
+                try:
+                    with open(mp, "r") as f:
+                        v = int(f.read().strip())
+                        if v > cg_mem_bytes:
+                            cg_mem_bytes = v
+                except Exception:
+                    pass
+
+        real_mem_bytes = max(cg_mem_bytes, proc_stat["rss_bytes"])
+        real_mem_mb = round(real_mem_bytes / (1024 * 1024), 1)
+
+        d_dict["cpu_usage_pct"] = real_cpu
+        d_dict["mem_usage_mb"] = real_mem_mb
+        d_dict["disk_usage_mb"] = real_disk_mb
 
         results.append(d_dict)
 
     return results
-
-def domain_to_linux_user(domain: str) -> str:
-    # Bỏ www. và chuyển sang viết liền không dấu chấm
-    clean = re.sub(r"^(https?://)?(www\.)?", "", domain.strip().lower())
-    clean = re.sub(r"[^a-z0-9]", "", clean)
-    if not clean:
-        clean = "webuser"
-    # Giới hạn 30 ký tự để phù hợp giới hạn username của Linux (thường max 32)
-    return clean[:30]
 
 @router.post("/")
 async def create_domain(req: DomainCreate, current_user: dict = Depends(get_current_user)):
