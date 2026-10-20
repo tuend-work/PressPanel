@@ -9,7 +9,7 @@ int main(int argc, char *argv[]) {
     init_security_env();
 
     if (argc < 2) {
-        send_json_error("vhost", "Cu phap: vhost <add|remove|set-php|ssl|rewrite-all|apply-php-ini> [args...]");
+        send_json_error("vhost", "Cu phap: vhost <add|remove|set-php|ssl|suspend|unsuspend|rewrite-all|apply-php-ini> [args...]");
         return 1;
     }
 
@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (argc < 4) {
-        send_json_error("vhost", "Cu phap: vhost <add|remove|set-php|ssl|apply-php-ini> <username> <domain> [args...]");
+        send_json_error("vhost", "Cu phap: vhost <add|remove|set-php|ssl|suspend|unsuspend|apply-php-ini> <username> <domain> [args...]");
         return 1;
     }
 
@@ -97,6 +97,24 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh apply-php-ini %s %s %s",
+                 username, domain, webserver);
+    }
+    else if (strcmp(action, "suspend") == 0) {
+        const char *webserver = (argc > 4) ? argv[4] : "ols";
+        if (!is_safe_webserver(webserver)) {
+            send_json_error("vhost", "Webserver khong hop le");
+            return 1;
+        }
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh suspend %s %s %s",
+                 username, domain, webserver);
+    }
+    else if (strcmp(action, "unsuspend") == 0) {
+        const char *webserver = (argc > 4) ? argv[4] : "ols";
+        if (!is_safe_webserver(webserver)) {
+            send_json_error("vhost", "Webserver khong hop le");
+            return 1;
+        }
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh unsuspend %s %s %s",
                  username, domain, webserver);
     }
     else {

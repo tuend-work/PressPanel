@@ -1029,7 +1029,7 @@ async def update_domain_status(
     
     db = await get_db_connection()
     cursor = await db.execute("""
-        SELECT d.id, d.domain_name, d.user_id, u.parent_id
+        SELECT d.id, d.domain_name, d.webserver, d.user_id, u.parent_id
         FROM domains d
         JOIN users u ON d.user_id = u.id
         WHERE d.id = ?
@@ -1049,15 +1049,32 @@ async def update_domain_status(
     await db.commit()
     await db.close()
     
-    # Thực hiện suspend / unsuspend Linux isolated user qua gatekeeper nếu có
+    # Thực hiện suspend / unsuspend Webserver VirtualHost & Linux isolated user
     isolated_u = domain_to_linux_user(domain["domain_name"])
+    ws = domain["webserver"] or "ols"
+    action = "suspend" if req.status == "suspended" else "unsuspend"
+
+    # 1. Cấu hình VirtualHost chuyển sang trang tạm khóa / khôi phục vhost active
     try:
-        if req.status == "suspended":
-            await run_gatekeeper("user", "suspend", isolated_u)
-        else:
-            await run_gatekeeper("user", "unsuspend", isolated_u)
+        res = await run_gatekeeper("vhost", action, isolated_u, domain["domain_name"], ws)
+        if res.get("status") != "success":
+            subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", action, isolated_u, domain["domain_name"], ws], check=False)
     except Exception:
-        pass
+        try:
+            subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", action, isolated_u, domain["domain_name"], ws], check=False)
+        except Exception:
+            pass
+
+    # 2. Khóa / Mở khóa Linux isolated user và dọn tiến trình chạy ngầm
+    try:
+        await run_gatekeeper("user", action, isolated_u)
+    except Exception:
+        flag = "-L" if action == "suspend" else "-U"
+        subprocess.run(["sudo", "usermod", flag, isolated_u], check=False)
+        
+    if action == "suspend":
+        subprocess.run(["sudo", "pkill", "-9", "-u", isolated_u], check=False)
+        subprocess.run(["sudo", "rm", "-f", f"/tmp/lshttpd/lsphp_{isolated_u}.sock"], check=False)
         
     action_text = "tạm khóa (suspend)" if req.status == "suspended" else "mở khóa (unsuspend)"
     return {
@@ -1123,16 +1140,16 @@ def parse_vhost_content(content: str, ws: str, domain_name: str) -> dict:
         "rewriteRules": """# 1. Cho phép SSL ACME challenge (Let's Encrypt / Certbot)
 RewriteRule ^/\\.well-known/ - [L]
 
-# 2. Chặn file ẩn và file nhạy cảm
-RewriteRule ^/(\\.|\\.env|\\.git|composer\\.|\\.sql|\\.bak) - [F,L]
+# 2. Chặn truy cập file ẩn, file cấu hình và VCS repository
+RewriteRule ^/(\\.git|\\.env|\\.user\\.ini|\\.svn|composer\\.(json|lock)|package\\.json|\\.sql|\\.bak|\\.log) - [F,L]
 
-# 3. Bảo vệ wp-config.php
+# 3. Bảo vệ file cấu hình WordPress wp-config.php
 RewriteRule ^/wp-config\\.php$ - [F,L]
 
-# 4. Chống thực thi PHP webshell trong uploads
+# 4. Chống thực thi mã độc PHP trong thư mục uploads và cache
 RewriteRule ^/(wp-content/uploads|cache)/.*\\.php$ - [F,L]
 
-# 5. Chặn XML-RPC
+# 5. Chặn XML-RPC chống tấn công Brute-force & DDoS WordPress
 RewriteRule ^/xmlrpc\\.php$ - [F,L]""",
         "wsUri": "/ws",
         "wsTarget": "127.0.0.1:3000",
@@ -1314,7 +1331,7 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
         if settings.rewriteRules is not None:
             rw_block = f"rules                   <<<END_rules\n{settings.rewriteRules.strip()}\nEND_rules"
             if "END_rules" in content:
-                content = re.sub(r"rules\s+<<<END_rules[\s\S]*?END_rules", rw_block, content)
+                content = re.sub(r"rules\s+<<<END_rules[\s\S]*?END_rules", lambda _: rw_block, content)
 
         # 10. WebSocket Proxy
         if settings.wsEnabled is True:
@@ -1322,7 +1339,7 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
             tgt = (settings.wsTarget or "127.0.0.1:3000").strip()
             ws_code = f"\nwebsocket {uri} {{\n  address                 {tgt}\n}}\n"
             if re.search(r"websocket\s+[^\s{]+\s*\{[^}]*\}", content):
-                content = re.sub(r"websocket\s+[^\s{]+\s*\{[^}]*\}", ws_code.strip(), content)
+                content = re.sub(r"websocket\s+[^\s{]+\s*\{[^}]*\}", lambda _: ws_code.strip(), content)
             else:
                 content = content + "\n" + ws_code
         elif settings.wsEnabled is False:
@@ -1351,7 +1368,7 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
         proxy_set_header Host $host;
     }}"""
             if f"location {uri}" in content:
-                content = re.sub(rf"location\s+{re.escape(uri)}\s*\{{[^}}]*\}}", ws_block.strip(), content)
+                content = re.sub(rf"location\s+{re.escape(uri)}\s*\{{[^}}]*\}}", lambda _: ws_block.strip(), content)
             else:
                 last_brace = content.rfind("}")
                 if last_brace != -1:
@@ -1503,6 +1520,22 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
         # Reload webserver
         if ws == "ols":
             subprocess.run(["sudo", "chown", "-R", "lsadm:lsadm", conf_dir], check=False)
+            subprocess.run(["sudo", "chmod", "755", conf_dir], check=False)
+            subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
+
+            # Dừng tiến trình lsphp cũ và xóa socket để OpenLiteSpeed khởi tạo lại pool với thông số mới (LSAPI_CHILDREN)
+            subprocess.run(["sudo", "pkill", "-9", "-u", isolated_user, "-f", "lsphp"], check=False)
+            subprocess.run(["sudo", "rm", "-f", f"/tmp/lshttpd/lsphp_{isolated_user}.sock"], check=False)
+            subprocess.run(["sudo", "mkdir", "-p", "/tmp/lshttpd"], check=False)
+            subprocess.run(["sudo", "chmod", "1777", "/tmp/lshttpd"], check=False)
+
+            # Chuẩn hóa phân quyền 0711 Shared Hosting cho toàn bộ cây thư mục website tránh triệt để lỗi 403
+            subprocess.run(["sudo", "chmod", "711", "/home"], check=False)
+            subprocess.run(["sudo", "chmod", "711", f"/home/{isolated_user}"], check=False)
+            subprocess.run(["sudo", "chmod", "711", f"/home/{isolated_user}/domains"], check=False)
+            subprocess.run(["sudo", "chmod", "711", f"/home/{isolated_user}/domains/{clean_domain}"], check=False)
+            subprocess.run(["sudo", "chmod", "755", f"/home/{isolated_user}/domains/{clean_domain}/public_html"], check=False)
+
             subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
             subprocess.run(["sudo", "systemctl", "reload", "lshttpd"], check=False)
         else:
@@ -1544,6 +1577,7 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
 
     clean_domain = domain["domain_name"]
     ws = domain["webserver"] or "ols"
+    isolated_user = domain_to_linux_user(clean_domain)
     if ws == "ols":
         conf_path = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
     else:
@@ -1574,6 +1608,19 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
         # Reload webserver
         if ws == "ols":
             subprocess.run(["sudo", "chown", "-R", "lsadm:lsadm", conf_dir], check=False)
+            subprocess.run(["sudo", "chmod", "755", conf_dir], check=False)
+            subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
+            subprocess.run(["sudo", "pkill", "-9", "-u", isolated_user, "-f", "lsphp"], check=False)
+            subprocess.run(["sudo", "rm", "-f", f"/tmp/lshttpd/lsphp_{isolated_user}.sock"], check=False)
+            subprocess.run(["sudo", "mkdir", "-p", "/tmp/lshttpd"], check=False)
+            subprocess.run(["sudo", "chmod", "1777", "/tmp/lshttpd"], check=False)
+
+            subprocess.run(["sudo", "chmod", "711", "/home"], check=False)
+            subprocess.run(["sudo", "chmod", "711", f"/home/{isolated_user}"], check=False)
+            subprocess.run(["sudo", "chmod", "711", f"/home/{isolated_user}/domains"], check=False)
+            subprocess.run(["sudo", "chmod", "711", f"/home/{isolated_user}/domains/{clean_domain}"], check=False)
+            subprocess.run(["sudo", "chmod", "755", f"/home/{isolated_user}/domains/{clean_domain}/public_html"], check=False)
+
             subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
             subprocess.run(["sudo", "systemctl", "reload", "lshttpd"], check=False)
         else:

@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -7,6 +8,7 @@ from app.api.deps import get_current_user, require_role
 from app.db.session import get_db_connection
 from app.core.security import get_password_hash, verify_password, create_access_token
 from app.executor.gatekeeper import run_gatekeeper
+from app.api.v1.domains import domain_to_linux_user
 
 router = APIRouter(prefix="/users", tags=["Customer Management"])
 
@@ -84,11 +86,54 @@ async def set_customers_status(req: CustomerStatusRequest, current_user: dict = 
     placeholders = ",".join(["?"] * len(req.user_ids))
     if current_user["role"] == "admin":
         await db.execute(f"UPDATE users SET status = ? WHERE id IN ({placeholders}) AND role IN ('user', 'reseller')", [req.status] + req.user_ids)
+        user_cur = await db.execute(f"SELECT id, username FROM users WHERE id IN ({placeholders}) AND role IN ('user', 'reseller')", req.user_ids)
     else:
         await db.execute(f"UPDATE users SET status = ? WHERE id IN ({placeholders}) AND parent_id = ? AND role IN ('user', 'reseller')", [req.status] + req.user_ids + [current_user["id"]])
+        user_cur = await db.execute(f"SELECT id, username FROM users WHERE id IN ({placeholders}) AND parent_id = ? AND role IN ('user', 'reseller')", req.user_ids + [current_user["id"]])
+    
+    target_users = await user_cur.fetchall()
+
+    # Tìm toàn bộ domain thuộc sở hữu của các user này
+    dom_cur = await db.execute(f"SELECT id, domain_name, webserver, user_id FROM domains WHERE user_id IN ({placeholders})", req.user_ids)
+    user_domains = await dom_cur.fetchall()
+
+    # Cập nhật trạng thái toàn bộ domains của các user này
+    if user_domains:
+        await db.execute(f"UPDATE domains SET status = ? WHERE user_id IN ({placeholders})", [req.status] + req.user_ids)
+
     await db.commit()
     await db.close()
-    return {"status": "ok", "message": f"Đã cập nhật trạng thái {req.status.upper()} cho {len(req.user_ids)} khách hàng."}
+
+    action = "suspend" if req.status == "suspended" else "unsuspend"
+
+    # 1. Khóa / Mở khóa từng domain trên Webserver
+    for d in user_domains:
+        d_name = d["domain_name"]
+        d_ws = d["webserver"] or "ols"
+        isolated_u = domain_to_linux_user(d_name)
+        try:
+            res = await run_gatekeeper("vhost", action, isolated_u, d_name, d_ws)
+            if res.get("status") != "success":
+                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", action, isolated_u, d_name, d_ws], check=False)
+        except Exception:
+            try:
+                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", action, isolated_u, d_name, d_ws], check=False)
+            except Exception:
+                pass
+
+    # 2. Khóa / Mở khóa Linux user
+    for u in target_users:
+        u_name = u["username"]
+        try:
+            await run_gatekeeper("user", action, u_name)
+        except Exception:
+            flag = "-L" if action == "suspend" else "-U"
+            subprocess.run(["sudo", "usermod", flag, u_name], check=False)
+        if action == "suspend":
+            subprocess.run(["sudo", "pkill", "-9", "-u", u_name], check=False)
+
+    action_text = "TẠM KHÓA" if req.status == "suspended" else "MỞ KHÓA"
+    return {"status": "ok", "message": f"Đã {action_text} thành công {len(target_users)} tài khoản khách hàng và {len(user_domains)} website liên quan."}
 
 @router.post("/customers/batch-delete")
 async def batch_delete_customers(req: CustomerDeleteRequest, current_user: dict = Depends(require_role("admin", "reseller"))):

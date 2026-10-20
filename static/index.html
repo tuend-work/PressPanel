@@ -1938,6 +1938,7 @@
                             alert(data.message || 'Cập nhật trạng thái thành công!');
                             selectedCustomerIds.value = [];
                             fetchCustomers();
+                            fetchDomains();
                         } else {
                             alert('Lỗi: ' + (data.detail || 'Không thể cập nhật trạng thái'));
                         }

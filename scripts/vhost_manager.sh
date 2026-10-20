@@ -547,6 +547,150 @@ EOF_RW
         exit 0
         ;;
 
+    suspend)
+        echo "[+] Tam khoa website $DOMAIN cua user $USERNAME ($WEBSERVER)..."
+        # 1. Khoa tai khoan Linux user va dung tien trinh
+        if [ "$USERNAME" != "root" ] && [ "$USERNAME" != "wpc" ] && id "$USERNAME" &>/dev/null; then
+            usermod -L "$USERNAME" 2>/dev/null || true
+            pkill -9 -u "$USERNAME" 2>/dev/null || true
+        fi
+
+        # 2. Xoa socket LSAPI cua user
+        rm -f "/tmp/lshttpd/lsphp_${USERNAME}.sock" 2>/dev/null || true
+
+        # 3. Chuan bi trang suspended tinh
+        SUSPENDED_DIR="/opt/wpc/static/suspended"
+        mkdir -p "$SUSPENDED_DIR" 2>/dev/null || true
+        if [ ! -f "$SUSPENDED_DIR/index.html" ]; then
+            if [ -f "$WPC_DIR/templates/suspended/index.html" ]; then
+                cp -f "$WPC_DIR/templates/suspended/index.html" "$SUSPENDED_DIR/index.html" 2>/dev/null || true
+            else
+                cat << 'EOF_SUSP_HTML' > "$SUSPENDED_DIR/index.html"
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Website Suspended</title></head>
+<body style="font-family:sans-serif;text-align:center;padding:50px;background:#0f172a;color:#fff;">
+<h1>Website Tam Thoi Bi Khoa</h1><p>Website nay dang tam ngung hoat dong.</p></body></html>
+EOF_SUSP_HTML
+            fi
+        fi
+        chmod 755 "$SUSPENDED_DIR" 2>/dev/null || true
+        chmod 644 "$SUSPENDED_DIR/index.html" 2>/dev/null || true
+
+        # 4. Xu ly OpenLiteSpeed
+        if [ "$WEBSERVER" = "ols" ] || [ -d "/usr/local/lsws/conf/vhosts/$DOMAIN" ]; then
+            VH_DIR="/usr/local/lsws/conf/vhosts/$DOMAIN"
+            if [ -d "$VH_DIR" ]; then
+                if [ -f "$VH_DIR/vhconf.conf" ] && [ ! -f "$VH_DIR/vhconf.conf.active" ]; then
+                    cp -f "$VH_DIR/vhconf.conf" "$VH_DIR/vhconf.conf.active" 2>/dev/null || true
+                fi
+                cat << EOF_OLS_SUSP > "$VH_DIR/vhconf.conf"
+docRoot                   $SUSPENDED_DIR
+vhDomain                  $DOMAIN
+vhAliases                 www.$DOMAIN
+adminEmails               admin@$DOMAIN
+enableGzip                1
+enableBr                  1
+indexFiles                index.html
+
+accessControl {
+  allow                   *
+}
+
+context / {
+  type                    null
+  location                $SUSPENDED_DIR/
+  allow                   *
+  addDefaultCharset       utf-8
+}
+EOF_OLS_SUSP
+                chmod 755 "$VH_DIR" 2>/dev/null || true
+                chmod 644 "$VH_DIR/vhconf.conf" 2>/dev/null || true
+                chown -R lsadm:lsadm "$VH_DIR" 2>/dev/null || true
+                /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lshttpd 2>/dev/null || true
+            fi
+        fi
+
+        # 5. Xu ly Nginx
+        if [ "$WEBSERVER" = "nginx" ] || [ -f "/etc/nginx/conf.d/$DOMAIN.conf" ]; then
+            NGX_CONF="/etc/nginx/conf.d/$DOMAIN.conf"
+            if [ -f "$NGX_CONF" ] && [ ! -f "$NGX_CONF.active" ]; then
+                cp -f "$NGX_CONF" "$NGX_CONF.active" 2>/dev/null || true
+            fi
+            cat << EOF_NGX_SUSP > "$NGX_CONF"
+server {
+    listen 80;
+    server_name $DOMAIN www.$DOMAIN;
+    root $SUSPENDED_DIR;
+    index index.html;
+
+    location / {
+        try_files /index.html =503;
+    }
+}
+EOF_NGX_SUSP
+            nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+            systemctl stop "wpc-php*-fpm@${USERNAME}.service" 2>/dev/null || true
+        fi
+
+        echo "[+] Da tam khoa website $DOMAIN thanh cong!"
+        exit 0
+        ;;
+
+    unsuspend)
+        echo "[+] Mo khoa website $DOMAIN cua user $USERNAME ($WEBSERVER)..."
+        # 1. Mo khoa tai khoan Linux user
+        if [ "$USERNAME" != "root" ] && [ "$USERNAME" != "wpc" ] && id "$USERNAME" &>/dev/null; then
+            usermod -U "$USERNAME" 2>/dev/null || true
+        fi
+
+        # 2. Xu ly OpenLiteSpeed
+        if [ "$WEBSERVER" = "ols" ] || [ -d "/usr/local/lsws/conf/vhosts/$DOMAIN" ]; then
+            VH_DIR="/usr/local/lsws/conf/vhosts/$DOMAIN"
+            if [ -f "$VH_DIR/vhconf.conf.active" ]; then
+                mv -f "$VH_DIR/vhconf.conf.active" "$VH_DIR/vhconf.conf" 2>/dev/null || true
+            else
+                PHP_NUM=$(echo "$PHP_VER" | tr -d '.')
+                [ -z "$PHP_NUM" ] && PHP_NUM="84"
+                DOC_ROOT="/home/$USERNAME/domains/$DOMAIN/public_html"
+                [ ! -d "$DOC_ROOT" ] && DOC_ROOT="/home/$USERNAME/httpdocs/$DOMAIN"
+                if [ -f "$WPC_DIR/templates/vhost_ols/default.tpl" ]; then
+                    sed -e "s/{{DOMAIN}}/$DOMAIN/g" \
+                        -e "s/{{PHP_VERSION}}/$PHP_NUM/g" \
+                        -e "s/{{USERNAME}}/$USERNAME/g" \
+                        -e "s|{{DOCUMENT_ROOT}}|$DOC_ROOT|g" \
+                        "$WPC_DIR/templates/vhost_ols/default.tpl" > "$VH_DIR/vhconf.conf"
+                fi
+                setup_ols_vhost_php "$DOMAIN" "$USERNAME" "$PHP_VER" "$HOSTING_USER" "$VH_DIR/vhconf.conf"
+            fi
+            chmod 755 "$VH_DIR" 2>/dev/null || true
+            chmod 644 "$VH_DIR/vhconf.conf" 2>/dev/null || true
+            chown -R lsadm:lsadm "$VH_DIR" 2>/dev/null || true
+            
+            # Chuan hoa phan quyen 0711 Shared Hosting
+            chmod 711 "/home" 2>/dev/null || true
+            chmod 711 "/home/$USERNAME" 2>/dev/null || true
+            chmod 711 "/home/$USERNAME/domains" 2>/dev/null || true
+            chmod 711 "/home/$USERNAME/domains/$DOMAIN" 2>/dev/null || true
+            chmod 755 "/home/$USERNAME/domains/$DOMAIN/public_html" 2>/dev/null || true
+            
+            mkdir -p /tmp/lshttpd && chmod 1777 /tmp/lshttpd 2>/dev/null || true
+            /usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lshttpd 2>/dev/null || true
+        fi
+
+        # 3. Xu ly Nginx
+        if [ "$WEBSERVER" = "nginx" ] || [ -f "/etc/nginx/conf.d/$DOMAIN.conf" ]; then
+            NGX_CONF="/etc/nginx/conf.d/$DOMAIN.conf"
+            if [ -f "$NGX_CONF.active" ]; then
+                mv -f "$NGX_CONF.active" "$NGX_CONF" 2>/dev/null || true
+            fi
+            systemctl start "wpc-php*-fpm@${USERNAME}.service" 2>/dev/null || true
+            nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+        fi
+
+        echo "[+] Da mo khoa website $DOMAIN thanh cong!"
+        exit 0
+        ;;
+
     ssl)
         echo "[+] Cap phat SSL Let's Encrypt cho $DOMAIN..."
         SSL_WEBROOT="/home/$USERNAME/domains/$DOMAIN/public_html"

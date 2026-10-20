@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Tạm Khóa | Account Suspended</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: radial-gradient(circle at 50% 20%, #171d2b 0%, #0b0f17 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .container {
+            max-width: 620px;
+            width: 100%;
+            background: rgba(18, 24, 38, 0.75);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(244, 63, 94, 0.25);
+            border-radius: 28px;
+            padding: 48px 40px;
+            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 50px -10px rgba(244, 63, 94, 0.15);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #f43f5e, #fb7185, #fda4af, #f43f5e);
+            background-size: 200% 100%;
+            animation: gradientBorder 4s linear infinite;
+        }
+        @keyframes gradientBorder {
+            0% { background-position: 0% 0%; }
+            100% { background-position: 200% 0%; }
+        }
+        .icon-wrapper {
+            width: 88px;
+            height: 88px;
+            border-radius: 24px;
+            background: linear-gradient(135deg, rgba(244, 63, 94, 0.2), rgba(225, 29, 72, 0.05));
+            border: 1px solid rgba(244, 63, 94, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 28px auto;
+            box-shadow: 0 10px 25px -5px rgba(244, 63, 94, 0.3);
+        }
+        .icon-wrapper svg {
+            width: 44px;
+            height: 44px;
+            color: #fb7185;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 9999px;
+            background: rgba(244, 63, 94, 0.12);
+            border: 1px solid rgba(244, 63, 94, 0.3);
+            color: #fb7185;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+        .badge-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #f43f5e;
+            animation: pulseDot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulseDot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+        h1 {
+            font-size: 28px;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 14px;
+            letter-spacing: -0.02em;
+            line-height: 1.25;
+        }
+        p.subtitle {
+            font-size: 15px;
+            color: #94a3b8;
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+        .notice-card {
+            background: rgba(11, 15, 23, 0.6);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            border-radius: 18px;
+            padding: 20px;
+            text-align: left;
+            margin-bottom: 32px;
+        }
+        .notice-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            color: #cbd5e1;
+            line-height: 1.5;
+        }
+        .notice-item:last-child {
+            margin-bottom: 0;
+        }
+        .notice-bullet {
+            color: #fb7185;
+            font-size: 16px;
+            line-height: 1;
+            margin-top: 2px;
+        }
+        .action-group {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 14px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: #2563eb;
+            color: #ffffff;
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+        }
+        .btn-primary:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background: rgba(30, 41, 59, 0.8);
+            color: #e2e8f0;
+            border: 1px solid rgba(71, 85, 105, 0.4);
+        }
+        .btn-secondary:hover {
+            background: rgba(51, 65, 85, 0.8);
+            color: #ffffff;
+        }
+        .footer {
+            margin-top: 36px;
+            font-size: 12px;
+            color: #64748b;
+            border-top: 1px solid rgba(51, 65, 85, 0.3);
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon-wrapper">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="6" y="4" width="4" height="16" rx="1.5"></rect>
+                <rect x="14" y="4" width="4" height="16" rx="1.5"></rect>
+            </svg>
+        </div>
+        <div class="badge">
+            <span class="badge-dot"></span>
+            <span>Trạng Thái: Tạm Khóa (Suspended)</span>
+        </div>
+        <h1>Website Tạm Thời Bị Khóa</h1>
+        <p class="subtitle">
+            Website này đang tạm ngừng hoạt động do yêu cầu từ người quản trị hệ thống hosting hoặc tài khoản đã hết hạn dịch vụ.
+        </p>
+
+        <div class="notice-card">
+            <div class="notice-item">
+                <span class="notice-bullet">✦</span>
+                <span><strong>Đối với khách truy cập:</strong> Dịch vụ web tạm thời không khả dụng. Vui lòng quay lại sau ít phút hoặc liên hệ chủ sở hữu website.</span>
+            </div>
+            <div class="notice-item">
+                <span class="notice-bullet">✦</span>
+                <span><strong>Đối với chủ sở hữu website:</strong> Vui lòng đăng nhập vào tài khoản quản trị Control Panel để kiểm tra trạng thái hoặc liên hệ bộ phận hỗ trợ kỹ thuật để mở khóa ngay lập tức.</span>
+            </div>
+        </div>
+
+        <div class="action-group">
+            <a href="javascript:location.reload()" class="btn btn-primary">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                <span>Tải Lại Trang</span>
+            </a>
+            <a href="mailto:support@wpcloud.vn" class="btn btn-secondary">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                <span>Liên Hệ Hỗ Trợ</span>
+            </a>
+        </div>
+
+        <div class="footer">
+            Powered by WPCloud &bull; LiteSpeed SAPI Web Accelerator
+        </div>
+    </div>
+</body>
+</html>
