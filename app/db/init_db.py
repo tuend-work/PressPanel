@@ -298,6 +298,9 @@ async def init_database():
 
         await db.commit()
 
+        # Tự động quét và chuẩn hóa toàn bộ file vhost OpenLiteSpeed để loại bỏ triệt để lỗi shell metacharacters / {{PHP_VERSION}}
+        await auto_fix_ols_vhosts(db)
+
     print("[+] SQLite Database initialized successfully with 12 tables!")
 
     # Đảm bảo phân quyền đọc/ghi cho user wpc trên database và thư mục data
@@ -318,6 +321,57 @@ async def init_database():
                         shutil.chown(f, user="wpc", group="wpc")
                     except Exception:
                         pass
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+async def auto_fix_ols_vhosts(db):
+    """Tự động quét và chuẩn hóa toàn bộ file cấu hình vhost OLS, loại bỏ hoàn toàn shell metacharacters / {{PHP_VERSION}}"""
+    try:
+        import glob, re
+        ols_vhosts_dir = "/usr/local/lsws/conf/vhosts"
+        if not os.path.isdir(ols_vhosts_dir):
+            return
+
+        # Lấy map domain_name -> php_version từ database
+        dom_map = {}
+        try:
+            cursor = await db.execute("SELECT domain_name, php_version FROM domains")
+            rows = await cursor.fetchall()
+            for r in rows:
+                dom_map[r[0]] = r[1]
+        except Exception:
+            pass
+
+        for vh_conf in glob.glob(f"{ols_vhosts_dir}/*/vhconf.conf"):
+            try:
+                dom_name = os.path.basename(os.path.dirname(vh_conf))
+                p_ver = dom_map.get(dom_name) or "8.2"
+                p_num = str(p_ver).replace(".", "").strip() or "82"
+
+                with open(vh_conf, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+
+                content = content.replace("\r\n", "\n").replace("\r", "\n")
+                new_content = re.sub(r"/usr/local/lsws/lsphp\{\{[^}]+\}\}/bin/lsphp", f"/usr/local/lsws/lsphp{p_num}/bin/lsphp", content)
+                new_content = new_content.replace("{{PHP_VERSION}}", p_num).replace("{{PHP_NUM}}", p_num)
+
+                # Kiểm tra binary lsphp
+                m = re.search(r"^\s*path\s+(\S+)", new_content, re.MULTILINE)
+                if m:
+                    bin_path = m.group(1)
+                    if not os.path.exists(bin_path):
+                        for fb in ["84", "83", "82", "81", "74"]:
+                            if os.path.exists(f"/usr/local/lsws/lsphp{fb}/bin/lsphp"):
+                                new_content = re.sub(r"^\s*path\s+\S+", f"  path                    /usr/local/lsws/lsphp{fb}/bin/lsphp", new_content, flags=re.MULTILINE)
+                                break
+
+                if new_content != content:
+                    with open(vh_conf, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+                    print(f"[+] Da chuan hoa vhost OLS: {dom_name} (PHP {p_num})")
             except Exception:
                 pass
     except Exception:

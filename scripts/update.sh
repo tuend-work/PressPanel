@@ -53,6 +53,13 @@ echo "[+] Đang tải mã nguồn mới nhất từ $REPO_URL..."
 rm -rf "$TMP_DIR"
 git clone --depth 1 "$REPO_URL" "$TMP_DIR"
 
+# Tự động chuyển quyền sang update.sh mới nhất vừa clone để luôn thực thi toàn bộ logic mới nhất
+if [ -z "${WPC_UPDATE_STAGE2:-}" ] && [ -f "$TMP_DIR/scripts/update.sh" ]; then
+    echo "[+] Nạp bộ cài đặt cập nhật phiên bản mới nhất từ GitHub..."
+    export WPC_UPDATE_STAGE2=1
+    exec bash "$TMP_DIR/scripts/update.sh" "$@"
+fi
+
 # 2. Biên dịch lại các module C Gatekeeper
 echo "[+] Biên dịch lại các binary C Gatekeeper..."
 cd "$TMP_DIR/gatekeepers"
@@ -319,6 +326,43 @@ if [ -f /etc/ssh/sshd_config ]; then
         echo "DenyUsers admin" >> /etc/ssh/sshd_config
     fi
     systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true
+fi
+
+# 7.4 Tự động quét và vá triệt để lỗi shell metacharacters / {{PHP_VERSION}} trong toàn bộ VirtualHost OpenLiteSpeed
+echo "[+] Quét và chuẩn hóa cấu hình toàn bộ VirtualHost OpenLiteSpeed..."
+if [ -d "/usr/local/lsws/conf/vhosts" ]; then
+    for vh_conf in /usr/local/lsws/conf/vhosts/*/vhconf.conf; do
+        [ -f "$vh_conf" ] || continue
+        # Xóa bỏ ký tự \r (CR) gây hỏng cú pháp OLS
+        sed -i 's/\r$//' "$vh_conf" 2>/dev/null || true
+
+        # Thay thế triệt để placeholder {{PHP_VERSION}} hoặc {{PHP_NUM}} còn sót lại
+        sed -i 's/{{PHP_VERSION}}/82/g' "$vh_conf" 2>/dev/null || true
+        sed -i 's/{{PHP_NUM}}/82/g' "$vh_conf" 2>/dev/null || true
+        sed -i -E 's|/usr/local/lsws/lsphp\{\{[^}]+\}\}/bin/lsphp|/usr/local/lsws/lsphp82/bin/lsphp|g' "$vh_conf" 2>/dev/null || true
+
+        # Kiểm tra binary lsphp trong file cấu hình, nếu không tồn tại thì tự động fallback về binary có sẵn
+        curr_lsphp=$(grep -E '^[[:space:]]*path[[:space:]]+' "$vh_conf" | awk '{print $2}' | head -n 1)
+        if [ -n "$curr_lsphp" ] && [ ! -x "$curr_lsphp" ]; then
+            for fb in 84 83 82 81 74; do
+                if [ -x "/usr/local/lsws/lsphp${fb}/bin/lsphp" ]; then
+                    sed -i -E "s|path[[:space:]]+.*|path                    /usr/local/lsws/lsphp${fb}/bin/lsphp|g" "$vh_conf" 2>/dev/null || true
+                    break
+                fi
+            done
+        fi
+
+        # Đảm bảo phân quyền 644 cho vhconf.conf và thư mục vhost
+        vh_dir=$(dirname "$vh_conf")
+        chmod 755 "$vh_dir" 2>/dev/null || true
+        chmod 644 "$vh_conf" 2>/dev/null || true
+        chown -R lsadm:lsadm "$vh_dir" 2>/dev/null || true
+    done
+
+    # Dọn socket cũ và đảm bảo thư mục runtime có sticky bit 1777
+    pkill -9 -f "lsphp" 2>/dev/null || true
+    rm -rf /tmp/lshttpd/*.sock 2>/dev/null || true
+    mkdir -p /tmp/lshttpd && chmod 1777 /tmp/lshttpd 2>/dev/null || true
 fi
 
 # Restart Webserver để nạp lại danh sách supplementary groups cho nobody & www-data

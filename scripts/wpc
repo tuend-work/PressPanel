@@ -36,8 +36,17 @@ ACTION="${1:-help}"
 
 case "$ACTION" in
     update)
+        echo "[+] Bắt đầu cập nhật WPCloud Control Panel lên phiên bản mới nhất từ GitHub..."
         TMP_RUNNER=$(mktemp /tmp/wpc_update_runner_XXXXXX.sh 2>/dev/null || echo "/tmp/wpc_update_$$.sh")
-        cp "$INSTALL_DIR/scripts/update.sh" "$TMP_RUNNER" 2>/dev/null || true
+        # Ưu tiên tải update.sh mới nhất trực tiếp từ GitHub
+        if command -v curl &>/dev/null; then
+            curl -sSL "https://raw.githubusercontent.com/tuend-work/PressPanel/main/scripts/update.sh" -o "$TMP_RUNNER" 2>/dev/null || true
+        elif command -v wget &>/dev/null; then
+            wget -qO "$TMP_RUNNER" "https://raw.githubusercontent.com/tuend-work/PressPanel/main/scripts/update.sh" 2>/dev/null || true
+        fi
+        if [ ! -s "$TMP_RUNNER" ] && [ -f "$INSTALL_DIR/scripts/update.sh" ]; then
+            cp "$INSTALL_DIR/scripts/update.sh" "$TMP_RUNNER" 2>/dev/null || true
+        fi
         chmod 700 "$TMP_RUNNER" 2>/dev/null || true
         sudo bash "$TMP_RUNNER"
         rm -f "$TMP_RUNNER" 2>/dev/null || true
