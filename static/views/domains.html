@@ -600,8 +600,8 @@
                                                 </div>
                                             </div>
 
-                                            <!-- Terminal -->
-                                            <div @click="openWebTerminal(domains[0]?.owner_username)"
+                                            <!-- Terminal: Chỉ Admin và Website User (caged), tắt cho Hosting User -->
+                                            <div v-if="currentUser.role === 'admin' || currentUser.web_domain_id" @click="openWebTerminal(domains[0]?.domain_name)"
                                                 class="p-3.5 rounded-2xl bg-white dark:bg-[#111722] border border-slate-200/90 dark:border-[#1e2736] hover:border-emerald-500/50 shadow-sm cursor-pointer transition flex items-start space-x-3 group">
                                                 <div class="w-9 h-9 rounded-xl bg-slate-900 text-emerald-400 border border-slate-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
                                                     <i data-lucide="terminal" class="w-4 h-4"></i>

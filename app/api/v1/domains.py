@@ -1431,6 +1431,347 @@ async def save_domain_php_extensions(
         "extensions": req.extensions
     }
 
+class DomainFpmSettingsUpdate(BaseModel):
+    mode: str = "form"  # "form" or "raw"
+    pm: Optional[str] = "dynamic"
+    pm_max_children: Optional[int] = 10
+    pm_start_servers: Optional[int] = 2
+    pm_min_spare_servers: Optional[int] = 1
+    pm_max_spare_servers: Optional[int] = 3
+    pm_max_requests: Optional[int] = 500
+    request_terminate_timeout: Optional[str] = "0s"
+    raw_config: Optional[str] = None
+
+class DomainFpmControlRequest(BaseModel):
+    action: str  # "start", "stop", "restart", "reload"
+
+@router.get("/{domain_id}/fpm-service")
+async def get_domain_fpm_service(
+    domain_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Lấy thông tin và trạng thái PHP-FPM Service độc lập của website (Nginx)"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    php_ver = str(domain["php_version"] or "8.2")
+    service_name = f"wpc-php{php_ver}-fpm@{isolated_user}.service"
+    conf_dir = f"/etc/php/{php_ver}/fpm/users"
+    conf_path = f"{conf_dir}/{isolated_user}.conf"
+    sock_path = f"/run/php/php{php_ver}-fpm-{isolated_user}.sock"
+    pid_path = f"/run/php/php{php_ver}-fpm-{isolated_user}.pid"
+
+    # Trạng thái service từ systemd
+    status = "inactive"
+    enabled = "unknown"
+    pid = ""
+    memory_mb = 0.0
+    active_since = ""
+
+    if platform.system() == "Linux":
+        try:
+            r_act = subprocess.run(["systemctl", "is-active", service_name], capture_output=True, text=True)
+            status = r_act.stdout.strip() or "inactive"
+
+            r_en = subprocess.run(["systemctl", "is-enabled", service_name], capture_output=True, text=True)
+            enabled = r_en.stdout.strip() or "disabled"
+
+            r_show = subprocess.run(
+                ["systemctl", "show", "-p", "MainPID", "-p", "ActiveEnterTimestamp", "-p", "MemoryCurrent", service_name],
+                capture_output=True, text=True
+            )
+            for line in r_show.stdout.splitlines():
+                if line.startswith("MainPID="):
+                    val = line.split("=", 1)[1].strip()
+                    if val and val != "0":
+                        pid = val
+                elif line.startswith("ActiveEnterTimestamp="):
+                    active_since = line.split("=", 1)[1].strip()
+                elif line.startswith("MemoryCurrent="):
+                    val = line.split("=", 1)[1].strip()
+                    if val.isdigit() and int(val) > 0:
+                        memory_mb = round(int(val) / (1024 * 1024), 2)
+        except Exception:
+            pass
+
+    # Đọc cấu hình pool nếu có
+    settings = {
+        "pm": "dynamic",
+        "pm_max_children": 10,
+        "pm_start_servers": 2,
+        "pm_min_spare_servers": 1,
+        "pm_max_spare_servers": 3,
+        "pm_max_requests": 500,
+        "request_terminate_timeout": "0s"
+    }
+    raw_config = ""
+    if os.path.exists(conf_path):
+        try:
+            with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+                raw_config = f.read()
+            for line in raw_config.splitlines():
+                line = line.strip()
+                if not line or line.startswith(";") or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    k = k.strip()
+                    v = v.strip().strip('"').strip("'")
+                    if k == "pm":
+                        settings["pm"] = v
+                    elif k == "pm.max_children" and v.isdigit():
+                        settings["pm_max_children"] = int(v)
+                    elif k == "pm.start_servers" and v.isdigit():
+                        settings["pm_start_servers"] = int(v)
+                    elif k == "pm.min_spare_servers" and v.isdigit():
+                        settings["pm_min_spare_servers"] = int(v)
+                    elif k == "pm.max_spare_servers" and v.isdigit():
+                        settings["pm_max_spare_servers"] = int(v)
+                    elif k == "pm.max_requests" and v.isdigit():
+                        settings["pm_max_requests"] = int(v)
+                    elif k == "request_terminate_timeout":
+                        settings["request_terminate_timeout"] = v
+        except Exception:
+            pass
+    else:
+        # Template mặc định
+        raw_config = f"""; WPCloud PHP-FPM Pool Configuration
+[global]
+pid = {pid_path}
+error_log = /var/log/php{php_ver}-fpm-{isolated_user}.log
+log_level = notice
+daemonize = no
+
+[{isolated_user}]
+user = {isolated_user}
+group = {isolated_user}
+listen = {sock_path}
+listen.owner = www-data
+listen.group = www-data
+listen.mode = 0666
+
+pm = dynamic
+pm.max_children = 10
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 3
+pm.max_requests = 500
+request_terminate_timeout = 0s
+
+pm.status_path = /status-{isolated_user}
+ping.path = /ping-{isolated_user}
+
+php_admin_value[open_basedir] = /home/{isolated_user}/:/tmp/:/var/tmp/
+php_admin_value[upload_tmp_dir] = /home/{isolated_user}/.tmp
+php_admin_value[session.save_path] = /home/{isolated_user}/.sessions
+php_admin_value[disable_functions] = exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source
+php_admin_flag[log_errors] = on
+php_admin_value[error_log] = /home/{isolated_user}/logs/php-fpm.error.log
+"""
+
+    return {
+        "status": "success",
+        "domain_name": clean_domain,
+        "user": isolated_user,
+        "php_version": php_ver,
+        "service_name": service_name,
+        "service_status": status,
+        "service_enabled": enabled,
+        "pid": pid,
+        "memory_mb": memory_mb,
+        "active_since": active_since,
+        "conf_path": conf_path,
+        "sock_path": sock_path,
+        "sock_exists": os.path.exists(sock_path),
+        "settings": settings,
+        "raw_config": raw_config
+    }
+
+@router.post("/{domain_id}/fpm-service")
+async def save_domain_fpm_service(
+    domain_id: int,
+    req: DomainFpmSettingsUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Lưu cấu hình và tự động reload PHP-FPM Service của website"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    php_ver = str(domain["php_version"] or "8.2")
+    service_name = f"wpc-php{php_ver}-fpm@{isolated_user}.service"
+    conf_dir = f"/etc/php/{php_ver}/fpm/users"
+    conf_path = f"{conf_dir}/{isolated_user}.conf"
+    sock_path = f"/run/php/php{php_ver}-fpm-{isolated_user}.sock"
+    pid_path = f"/run/php/php{php_ver}-fpm-{isolated_user}.pid"
+
+    os.makedirs(conf_dir, exist_ok=True)
+
+    if req.mode == "raw" and req.raw_config:
+        content = req.raw_config
+    else:
+        # Sinh nội dung từ form
+        pm_mode = req.pm if req.pm in ["dynamic", "ondemand", "static"] else "dynamic"
+        max_ch = max(1, min(100, int(req.pm_max_children or 10)))
+        start_s = max(1, min(max_ch, int(req.pm_start_servers or 2)))
+        min_s = max(1, min(start_s, int(req.pm_min_spare_servers or 1)))
+        max_s = max(min_s, min(max_ch, int(req.pm_max_spare_servers or 3)))
+        max_req = max(0, int(req.pm_max_requests or 500))
+        timeout = str(req.request_terminate_timeout or "0s").strip()
+
+        content = f"""; WPCloud PHP-FPM Pool Configuration
+[global]
+pid = {pid_path}
+error_log = /var/log/php{php_ver}-fpm-{isolated_user}.log
+log_level = notice
+daemonize = no
+
+[{isolated_user}]
+user = {isolated_user}
+group = {isolated_user}
+listen = {sock_path}
+listen.owner = www-data
+listen.group = www-data
+listen.mode = 0666
+
+pm = {pm_mode}
+pm.max_children = {max_ch}
+pm.start_servers = {start_s}
+pm.min_spare_servers = {min_s}
+pm.max_spare_servers = {max_s}
+pm.max_requests = {max_req}
+request_terminate_timeout = {timeout}
+
+pm.status_path = /status-{isolated_user}
+ping.path = /ping-{isolated_user}
+
+php_admin_value[open_basedir] = /home/{isolated_user}/:/tmp/:/var/tmp/
+php_admin_value[upload_tmp_dir] = /home/{isolated_user}/.tmp
+php_admin_value[session.save_path] = /home/{isolated_user}/.sessions
+php_admin_value[disable_functions] = exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source
+php_admin_flag[log_errors] = on
+php_admin_value[error_log] = /home/{isolated_user}/logs/php-fpm.error.log
+"""
+
+    # Ghi file cấu hình an toàn qua sudo/python
+    try:
+        tmp_conf = f"/tmp/wpc_fpm_{isolated_user}_{int(time.time())}.conf"
+        with open(tmp_conf, "w", encoding="utf-8") as f:
+            f.write(content)
+        subprocess.run(["sudo", "mv", tmp_conf, conf_path], check=False)
+        subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Không thể ghi file cấu hình FPM: {str(e)}")
+
+    # Đảm bảo template service tồn tại và tự động reload service
+    if platform.system() == "Linux":
+        try:
+            subprocess.run(
+                ["sudo", "/opt/wpc/scripts/php_fpm_service.sh", "reload", isolated_user, php_ver],
+                check=False
+            )
+        except Exception:
+            pass
+
+    return {
+        "status": "success",
+        "message": f"Đã lưu cấu hình và tự động reload dịch vụ {service_name} thành công!"
+    }
+
+@router.post("/{domain_id}/fpm-service/control")
+async def control_domain_fpm_service(
+    domain_id: int,
+    req: DomainFpmControlRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Điều khiển dịch vụ PHP-FPM của website: start, stop, restart, reload"""
+    if req.action not in ["start", "stop", "restart", "reload"]:
+        raise HTTPException(status_code=400, detail="Thao tác không hợp lệ. Chọn start, stop, restart hoặc reload")
+
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    php_ver = str(domain["php_version"] or "8.2")
+    service_name = f"wpc-php{php_ver}-fpm@{isolated_user}.service"
+
+    if platform.system() == "Linux":
+        try:
+            subprocess.run(
+                ["sudo", "/opt/wpc/scripts/php_fpm_service.sh", req.action, isolated_user, php_ver],
+                check=False
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Lỗi thực thi lệnh {req.action}: {str(e)}")
+
+    # Lấy trạng thái mới
+    new_status = "inactive"
+    if platform.system() == "Linux":
+        try:
+            r = subprocess.run(["systemctl", "is-active", service_name], capture_output=True, text=True)
+            new_status = r.stdout.strip() or "inactive"
+        except Exception:
+            pass
+
+    action_vn = {
+        "start": "khởi chạy",
+        "stop": "dừng",
+        "restart": "khởi động lại",
+        "reload": "nạp lại cấu hình"
+    }.get(req.action, req.action)
+
+    return {
+        "status": "success",
+        "message": f"Đã {action_vn} dịch vụ {service_name} thành công!",
+        "service_status": new_status
+    }
+
 class DomainToggleSshRequest(BaseModel):
     allow_ssh: bool
 

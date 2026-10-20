@@ -98,6 +98,12 @@
                             class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
                             <span>🧩 PHP Extensions</span>
                         </button>
+                        <button v-if="targetPhpDomain?.webserver === 'nginx' || currentWebserver === 'nginx'"
+                            type="button" @click="phpModalTab = 'fpm'; loadDomainFpmSettings(targetPhpDomain)"
+                            :class="phpModalTab === 'fpm' ? 'border-amber-500 text-amber-400 font-bold bg-amber-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
+                            class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
+                            <span>🚀 FPM Settings</span>
+                        </button>
                     </div>
 
                     <!-- TAB 1: ĐỔI PHIÊN BẢN PHP -->
@@ -512,6 +518,191 @@
                                     class="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-bold shadow-lg shadow-emerald-500/25 transition flex items-center space-x-1.5 disabled:opacity-50">
                                     <span v-if="savingDomainPhpExtensions" class="animate-spin">⏳</span>
                                     <span>{{ savingDomainPhpExtensions ? 'Đang lưu & áp dụng...' : 'Lưu & Áp Dụng Extension' }}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 4: FPM SETTINGS (NGINX EXCLUSIVE) -->
+                    <div v-if="phpModalTab === 'fpm'" class="space-y-4 text-xs overflow-y-auto pr-1 flex-1">
+                        <!-- Loading State -->
+                        <div v-if="loadingDomainFpm" class="py-8 text-center text-slate-400">
+                            <span class="animate-spin text-lg inline-block mr-2">⏳</span> Đang đọc thông tin PHP-FPM Service của website...
+                        </div>
+
+                        <div v-else class="space-y-4">
+                            <!-- Banner chi tiết Service & Trạng thái -->
+                            <div class="p-4 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-3 shadow-inner">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <div class="text-slate-400 text-xs">Tên PHP-FPM Dedicated Service:</div>
+                                        <div class="font-bold text-white text-sm font-mono mt-0.5 flex items-center gap-2">
+                                            <span>{{ domainFpmData?.service_name || ('wpc-php' + targetPhpDomain?.php_version + '-fpm@' + targetPhpDomain?.domain_name?.replace(/[^a-zA-Z0-9]/g, '').slice(0, 30) + '.service') }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="px-2.5 py-1 rounded-full text-xs font-mono font-semibold flex items-center gap-1.5"
+                                            :class="domainFpmData?.service_status === 'active' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'">
+                                            <span class="w-2 h-2 rounded-full" :class="domainFpmData?.service_status === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'"></span>
+                                            <span>{{ domainFpmData?.service_status === 'active' ? 'Active (Running)' : (domainFpmData?.service_status || 'Inactive') }}</span>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Metric Badges: PID, Memory, Socket -->
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
+                                    <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-700/60">
+                                        <div class="text-slate-400">Master PID:</div>
+                                        <div class="font-bold text-slate-200 font-mono mt-0.5">{{ domainFpmData?.pid || 'N/A' }}</div>
+                                    </div>
+                                    <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-700/60">
+                                        <div class="text-slate-400">Bộ nhớ (RAM):</div>
+                                        <div class="font-bold text-slate-200 font-mono mt-0.5">{{ domainFpmData?.memory_mb ? domainFpmData.memory_mb + ' MB' : '0 MB' }}</div>
+                                    </div>
+                                    <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-700/60">
+                                        <div class="text-slate-400">Unix Socket:</div>
+                                        <div class="font-bold font-mono mt-0.5 truncate" :class="domainFpmData?.sock_exists ? 'text-emerald-400' : 'text-amber-400'" :title="domainFpmData?.sock_path">
+                                            {{ domainFpmData?.sock_exists ? '✓ Sẵn sàng' : 'Chưa tạo' }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="text-[11px] text-slate-400 space-y-1 pt-1 border-t border-slate-700/60">
+                                    <div class="flex justify-between items-center">
+                                        <span>Đường dẫn Socket:</span>
+                                        <code class="text-cyan-300 font-mono text-[10px] bg-slate-900 px-2 py-0.5 rounded">{{ domainFpmData?.sock_path }}</code>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span>File cấu hình Pool:</span>
+                                        <code class="text-slate-300 font-mono text-[10px] bg-slate-900 px-2 py-0.5 rounded">{{ domainFpmData?.conf_path }}</code>
+                                    </div>
+                                </div>
+
+                                <!-- CONTROL BUTTONS: Start, Stop, Restart, Reload -->
+                                <div class="pt-2 border-t border-slate-700/60 flex flex-wrap gap-2">
+                                    <button type="button" @click="controlDomainFpm('start')" :disabled="controllingFpm"
+                                        class="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 font-semibold transition flex items-center space-x-1 shadow-sm">
+                                        <span>▶️</span>
+                                        <span>Start</span>
+                                    </button>
+                                    <button type="button" @click="controlDomainFpm('stop')" :disabled="controllingFpm"
+                                        class="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 font-semibold transition flex items-center space-x-1 shadow-sm">
+                                        <span>⏹️</span>
+                                        <span>Stop</span>
+                                    </button>
+                                    <button type="button" @click="controlDomainFpm('restart')" :disabled="controllingFpm"
+                                        class="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 font-semibold transition flex items-center space-x-1 shadow-sm">
+                                        <span>🔄</span>
+                                        <span>Restart</span>
+                                    </button>
+                                    <button type="button" @click="controlDomainFpm('reload')" :disabled="controllingFpm"
+                                        class="px-3 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 font-semibold transition flex items-center space-x-1 shadow-sm">
+                                        <span>⚡</span>
+                                        <span>Reload</span>
+                                    </button>
+                                    <span v-if="controllingFpm" class="text-amber-400 text-xs self-center ml-2 animate-pulse">
+                                        ⏳ Đang thực thi...
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Mode Switcher: Form vs Raw Config Editor -->
+                            <div class="flex items-center justify-between border-b border-slate-700/80 pb-2">
+                                <label class="font-bold text-slate-200">Cấu hình tham số PHP-FPM Pool:</label>
+                                <div class="flex rounded-lg bg-slate-900 p-0.5 border border-slate-700">
+                                    <button type="button" @click="fpmConfigMode = 'form'"
+                                        :class="fpmConfigMode === 'form' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                        class="px-2.5 py-1 text-[11px] rounded transition">
+                                        Biểu mẫu (Form)
+                                    </button>
+                                    <button type="button" @click="fpmConfigMode = 'raw'"
+                                        :class="fpmConfigMode === 'raw' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                        class="px-2.5 py-1 text-[11px] rounded transition">
+                                        File thô (.conf)
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- FORM MODE -->
+                            <div v-if="fpmConfigMode === 'form'" class="space-y-3">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <!-- pm mode -->
+                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                        <label class="font-bold text-slate-200 block">pm (Process Manager)</label>
+                                        <select v-model="domainFpmData.settings.pm"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                            <option value="dynamic">dynamic — Tự động co giãn theo tải (Khuyên dùng)</option>
+                                            <option value="ondemand">ondemand — Chỉ bật worker khi có request</option>
+                                            <option value="static">static — Cố định số worker</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- pm.max_children -->
+                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                        <label class="font-bold text-slate-200 block">pm.max_children (Tiến trình tối đa)</label>
+                                        <input type="number" min="1" max="100" v-model.number="domainFpmData.settings.pm_max_children"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                    </div>
+
+                                    <!-- pm.start_servers -->
+                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                        <label class="font-bold text-slate-200 block">pm.start_servers</label>
+                                        <input type="number" min="1" max="100" v-model.number="domainFpmData.settings.pm_start_servers"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                    </div>
+
+                                    <!-- pm.min_spare_servers -->
+                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                        <label class="font-bold text-slate-200 block">pm.min_spare_servers</label>
+                                        <input type="number" min="1" max="100" v-model.number="domainFpmData.settings.pm_min_spare_servers"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                    </div>
+
+                                    <!-- pm.max_spare_servers -->
+                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                        <label class="font-bold text-slate-200 block">pm.max_spare_servers</label>
+                                        <input type="number" min="1" max="100" v-model.number="domainFpmData.settings.pm_max_spare_servers"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                    </div>
+
+                                    <!-- pm.max_requests -->
+                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                        <label class="font-bold text-slate-200 block">pm.max_requests (Tái sinh sau n request)</label>
+                                        <input type="number" min="0" max="10000" v-model.number="domainFpmData.settings.pm_max_requests"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                    </div>
+
+                                    <!-- request_terminate_timeout -->
+                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                        <label class="font-bold text-slate-200 block">request_terminate_timeout</label>
+                                        <input type="text" v-model="domainFpmData.settings.request_terminate_timeout"
+                                            placeholder="0s hoặc 300s"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- RAW MODE -->
+                            <div v-else class="space-y-1.5">
+                                <textarea v-model="domainFpmData.raw_config" rows="12"
+                                    class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-amber-300 font-mono text-xs focus:outline-none focus:border-amber-500 resize-none custom-scrollbar leading-relaxed"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex justify-between items-center pt-3 border-t border-slate-800">
+                            <span class="text-[10px] text-slate-400">
+                                Dịch vụ PHP-FPM sẽ tự động reload ngay sau khi lưu.
+                            </span>
+                            <div class="flex space-x-2">
+                                <button type="button" @click="showChangePhpModal = false" :disabled="savingDomainFpm"
+                                    class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700 transition">
+                                    Đóng
+                                </button>
+                                <button type="button" @click="saveDomainFpmSettings" :disabled="savingDomainFpm || loadingDomainFpm"
+                                    class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white font-bold shadow-lg shadow-amber-500/25 transition flex items-center space-x-1.5 disabled:opacity-50">
+                                    <span v-if="savingDomainFpm" class="animate-spin">⏳</span>
+                                    <span>{{ savingDomainFpm ? 'Đang lưu & Reload...' : 'Lưu & Tự Động Reload Service' }}</span>
                                 </button>
                             </div>
                         </div>
@@ -932,11 +1123,11 @@
                             <div class="flex items-center space-x-2 pl-2">
                                 <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
                                 <span class="text-xs font-mono font-bold text-slate-200 tracking-wide">
-                                    SSH Terminal &mdash; root@{{ terminalHost || 'wpc' }}
+                                    SSH Terminal &mdash; {{ terminalTargetUser || 'root' }}@{{ terminalHost || 'wpc' }}
                                 </span>
                                 <span class="text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1">
                                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    <span>{{ terminalConnected ? 'Connected (root)' : 'Connecting...' }}</span>
+                                    <span>{{ terminalConnected ? ('Connected (' + (terminalTargetUser || 'root') + ')') : 'Connecting...' }}</span>
                                 </span>
                             </div>
                         </div>
@@ -955,7 +1146,10 @@
                     <div class="h-7 px-4 bg-[#111827] border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400 shrink-0">
                         <div class="flex items-center space-x-4">
                             <span>Phím tắt: <kbd class="px-1 bg-slate-800 rounded text-slate-300">Ctrl+C</kbd> (Ngắt)</span>
-                            <span>Quyền hạn: <strong class="text-emerald-400 font-mono">root (Full System Privileges)</strong></span>
+                            <span>Quyền hạn: 
+                                <strong v-if="terminalTargetUser === 'root' || !terminalTargetUser" class="text-emerald-400 font-mono">root (Full System Privileges)</strong>
+                                <strong v-else class="text-amber-400 font-mono">{{ terminalTargetUser }} (Caged Linux Sandbox)</strong>
+                            </span>
                         </div>
                         <span class="text-slate-500">Session ID: #{{ currentUser.id }}</span>
                     </div>
@@ -1119,7 +1313,12 @@
 
                                     <!-- Horizontal Tabs Bar (Image 1 Style) -->
                                     <div class="flex items-center space-x-1 overflow-x-auto custom-scrollbar pt-1">
-                                        <button v-for="tab in [
+                                        <button v-for="tab in (selectedSettingApp?.id === 'nginx' ? [
+                                            { id: 'general', label: 'General' },
+                                            { id: 'log', label: 'Log' },
+                                            { id: 'tuning', label: 'Tuning' },
+                                            { id: 'security', label: 'Security' }
+                                        ] : [
                                             { id: 'general', label: 'General' },
                                             { id: 'log', label: 'Log' },
                                             { id: 'tuning', label: 'Tuning' },
@@ -1128,7 +1327,7 @@
                                             { id: 'script_handler', label: 'Script Handler' },
                                             { id: 'app_server', label: 'App Server' },
                                             { id: 'modules', label: 'Modules' }
-                                        ]" :key="tab.id"
+                                        ])" :key="tab.id"
                                             @click="wsServerTab = tab.id"
                                             :class="wsServerTab === tab.id ? 'border-b-2 border-emerald-400 text-emerald-400 font-bold bg-[#1a212d]' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'"
                                             class="px-3.5 py-2 text-xs font-medium transition whitespace-nowrap rounded-t-lg">
@@ -1423,6 +1622,49 @@
                                     <div class="flex items-center justify-between text-slate-400">
                                         <span>Tên Daemon Service:</span>
                                         <span class="font-mono text-white font-bold">{{ selectedSettingApp?.service || 'Không có service' }}</span>
+                                    </div>
+
+                                    <!-- CHI TIẾT RIÊNG CHO PHPMYADMIN (PHP-FPM SERVICE & LSPHP PATH) -->
+                                    <div v-if="selectedSettingApp?.id === 'phpmyadmin'" class="mt-3 pt-3 border-t border-slate-800/80 space-y-2 text-xs">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-slate-400">Cổng truy cập Web:</span>
+                                            <div class="flex items-center gap-2">
+                                                <span class="font-mono text-cyan-400 font-bold bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/50">Port 888</span>
+                                                <a :href="'http://' + (terminalHost || window.location.hostname) + ':888'" target="_blank"
+                                                    class="text-[11px] px-2 py-0.5 rounded bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 font-bold border border-emerald-500/40 inline-flex items-center gap-1">
+                                                    <span>Mở phpMyAdmin</span>
+                                                    <span>↗</span>
+                                                </a>
+                                            </div>
+                                        </div>
+
+                                        <!-- Khi chạy Nginx: Hiển thị PHP-FPM Service riêng -->
+                                        <template v-if="selectedSettingApp?.pma_info?.fpm_service || selectedSettingApp?.pma_info?.webserver === 'Nginx'">
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-slate-400">PHP-FPM Service riêng:</span>
+                                                <span class="font-mono text-emerald-400 font-bold">{{ selectedSettingApp?.pma_info?.fpm_service || 'wpc-php-fpm@phpmyadmin.service' }}</span>
+                                            </div>
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-slate-400">PHP-FPM Socket:</span>
+                                                <span class="font-mono text-amber-300 text-[11px]">{{ selectedSettingApp?.pma_info?.fpm_sock || '/run/php/php*-fpm-phpmyadmin.sock' }}</span>
+                                            </div>
+                                        </template>
+
+                                        <!-- Khi chạy OpenLiteSpeed: Hiển thị path LSPHP -->
+                                        <template v-if="selectedSettingApp?.pma_info?.lsphp_path || selectedSettingApp?.pma_info?.webserver === 'OpenLiteSpeed'">
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-slate-400">Cơ chế thực thi:</span>
+                                                <span class="font-mono text-emerald-400 font-bold">LiteSpeed LSAPI suEXEC (Port 888)</span>
+                                            </div>
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-slate-400">Đường dẫn LSPHP Binary:</span>
+                                                <span class="font-mono text-cyan-300 text-[11px]">{{ selectedSettingApp?.pma_info?.lsphp_path || '/usr/local/lsws/lsphp82/bin/lsphp' }}</span>
+                                            </div>
+                                        </template>
+
+                                        <div class="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+                                            💡 <b>Cách ly hoàn toàn:</b> phpMyAdmin sử dụng tiến trình PHP riêng biệt và cổng 888 độc lập, không dùng chung pool FPM với bất kỳ website nào để bảo đảm an toàn dữ liệu và bộ nhớ.
+                                        </div>
                                     </div>
                                 </div>
 

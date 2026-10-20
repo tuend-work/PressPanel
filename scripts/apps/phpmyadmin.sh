@@ -328,12 +328,21 @@ EOF
             /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lshttpd 2>/dev/null || systemctl restart lsws 2>/dev/null || true
 
         elif [ -d "/etc/nginx/conf.d" ]; then
-            # Cấu hình trên Nginx độc lập
+            # Cấu hình trên Nginx độc lập với PHP-FPM Service riêng cho phpMyAdmin
             ACTIVE_PHP=$(detect_php_version)
-            PHP_FPM_SOCK="/run/php/php${ACTIVE_PHP}-fpm.sock"
-            if [ ! -e "$PHP_FPM_SOCK" ]; then
-                PHP_FPM_SOCK=$(ls /run/php/php*-fpm.sock /var/run/php/php*-fpm.sock 2>/dev/null | head -n 1 || echo "/run/php/php8.2-fpm.sock")
+            WPC_BASE="/opt/wpc"
+            [ ! -d "$WPC_BASE" ] && WPC_BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+            # Tạo Systemd Service PHP-FPM riêng cho phpMyAdmin
+            if [ -f "$WPC_BASE/scripts/php_fpm_service.sh" ]; then
+                bash "$WPC_BASE/scripts/php_fpm_service.sh" create phpmyadmin "$ACTIVE_PHP" 2>/dev/null || true
             fi
+
+            PMA_FPM_SOCK="/run/php/php${ACTIVE_PHP}-fpm-phpmyadmin.sock"
+            if [ ! -e "$PMA_FPM_SOCK" ]; then
+                PMA_FPM_SOCK=$(ls /run/php/php*-fpm-phpmyadmin.sock 2>/dev/null | head -n 1 || echo "/run/php/php${ACTIVE_PHP}-fpm.sock")
+            fi
+            echo "[+] Khởi tạo PHP-FPM riêng cho phpMyAdmin (Service: wpc-php${ACTIVE_PHP}-fpm@phpmyadmin, Sock: $PMA_FPM_SOCK)"
 
             cat <<EOF > "/etc/nginx/conf.d/00_phpmyadmin.conf"
 server {
@@ -351,7 +360,7 @@ server {
     location ~ \.php$ {
         try_files \$uri =404;
         fastcgi_split_path_info ^(.+\.php)(/.+)$;
-        fastcgi_pass unix:$PHP_FPM_SOCK;
+        fastcgi_pass unix:$PMA_FPM_SOCK;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
         fastcgi_param PHP_VALUE "session.save_path=$TARGET_DIR/tmp\nupload_tmp_dir=$TARGET_DIR/tmp";
@@ -382,19 +391,57 @@ EOF
         echo "[+] Cài đặt và cấu hình phpMyAdmin thành công tại $TARGET_DIR (Port $PMA_PORT)!"
         ;;
 
+    start|stop|restart|reload)
+        echo "[+] Đang thực hiện $ACTION dịch vụ phpMyAdmin..."
+        # 1. Điều khiển PHP-FPM Service riêng nếu chạy Nginx
+        ACTIVE_PHP=$(detect_php_version)
+        for pver in 8.5 8.4 8.3 8.2 8.1 8.0 7.4; do
+            systemctl "$ACTION" "wpc-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
+        done
+        # 2. Điều khiển OpenLiteSpeed LSPHP nếu chạy OpenLiteSpeed
+        if [ -d "/usr/local/lsws" ]; then
+            pkill -9 -f "pma_lsphp" 2>/dev/null || true
+            /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lshttpd 2>/dev/null || systemctl restart lsws 2>/dev/null || true
+        fi
+        # 3. Reload Nginx
+        if [ -f "/etc/nginx/conf.d/00_phpmyadmin.conf" ]; then
+            nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+        fi
+        echo "[+] Thao tác $ACTION dịch vụ phpMyAdmin hoàn tất!"
+        ;;
+
+    status)
+        ACTIVE_PHP=$(detect_php_version)
+        PMA_SVC="wpc-php${ACTIVE_PHP}-fpm@phpmyadmin"
+        if systemctl is-active --quiet "$PMA_SVC" 2>/dev/null; then
+            echo "active (Nginx PHP-FPM: $PMA_SVC)"
+        elif [ -d "/usr/local/lsws" ] && (systemctl is-active --quiet lsws 2>/dev/null || systemctl is-active --quiet lshttpd 2>/dev/null); then
+            echo "active (OpenLiteSpeed LSPHP: $(detect_ols_lsphp))"
+        else
+            echo "inactive"
+        fi
+        ;;
+
     remove)
         echo "[+] Đang gỡ bỏ phpMyAdmin..."
-        # 1. Xóa thư mục cài đặt
+        # 1. Dừng và xoá PHP-FPM Service riêng
+        for pver in 8.5 8.4 8.3 8.2 8.1 8.0 7.4; do
+            systemctl stop "wpc-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
+            systemctl disable "wpc-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
+            rm -f "/etc/php/${pver}/fpm/users/phpmyadmin.conf" "/run/php/php${pver}-fpm-phpmyadmin.sock" "/run/php/php${pver}-fpm-phpmyadmin.pid" 2>/dev/null || true
+        done
+
+        # 2. Xóa thư mục cài đặt
         rm -rf "$TARGET_DIR" 2>/dev/null || true
         rm -f "/usr/share/phpmyadmin/index.php" 2>/dev/null || true
 
-        # 2. Xóa cấu hình Nginx
+        # 3. Xóa cấu hình Nginx
         if [ -f "/etc/nginx/conf.d/00_phpmyadmin.conf" ]; then
             rm -f "/etc/nginx/conf.d/00_phpmyadmin.conf"
             nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
         fi
 
-        # 3. Dọn dẹp cấu hình OpenLiteSpeed
+        # 4. Dọn dẹp cấu hình OpenLiteSpeed
         OLS_MAIN_CONF="/usr/local/lsws/conf/httpd_config.conf"
         if [ -f "$OLS_MAIN_CONF" ]; then
             sed -i '/virtualhost[[:space:]]\+phpmyadmin[[:space:]]*{/,/^[[:space:]]*}/d' "$OLS_MAIN_CONF" 2>/dev/null || true
@@ -407,7 +454,7 @@ EOF
         ;;
 
     *)
-        echo "[-] Lệnh không hợp lệ. Sử dụng: phpmyadmin.sh <install|remove>"
+        echo "[-] Lệnh không hợp lệ. Sử dụng: phpmyadmin.sh <install|remove|start|stop|restart|reload|status>"
         exit 1
         ;;
 esac

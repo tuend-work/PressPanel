@@ -14,16 +14,15 @@ router = APIRouter(prefix="/terminal", tags=["SSH Web Terminal"])
 @router.websocket("/ws")
 async def terminal_websocket(
     websocket: WebSocket,
-    token: str = Query(...)
+    token: str = Query(...),
+    target_user: str = Query(None)
 ):
     """
     WebSocket Terminal giả lập PTY an toàn cho từng Hosting User / Web User.
     - Token bắt buộc phải hợp lệ
-    - Nếu là Admin: Spawn bash dưới user root (hoặc switch user theo chỉ định)
-    - Nếu là Hosting User / Web User:
-        + Spawn PTY và lập tức chuyển đổi UID/GID hoặc su/runuser sang đúng Linux User của họ
-        + Thư mục khởi đầu: /home/<username>
-        + Áp trần Cgroups và quyền hạn tệp tin chặt chẽ của Linux
+    - Nếu là Admin: Spawn bash dưới user root (hoặc caged website user nếu chỉ định)
+    - Nếu là Website User: Spawn caged shell dưới danh tính Linux của chính website đó (/opt/wpc/scripts/cage_terminal.sh)
+    - Nếu là Hosting User: Tắt hoàn toàn tính năng Terminal SSH vì lý do bảo mật
     """
     await websocket.accept()
 
@@ -50,20 +49,45 @@ async def terminal_websocket(
         return
 
     is_admin = (user["role"] == "admin" or user["username"] == "admin")
+    is_web_user = "web_domain_id" in payload and "web_user_name" in payload
+    web_domain_id = payload.get("web_domain_id")
+    web_user_name = payload.get("web_user_name")
 
-    # Quyền truy cập Terminal SSH chỉ dành riêng cho Admin. Hosting User bị tắt hoàn toàn.
-    if not is_admin:
-        await websocket.send_text("\r\n\x1b[31m[Lỗi] Quyền truy cập Terminal SSH chỉ dành riêng cho Quản trị viên (Admin)! Tài khoản Hosting User không được phép truy cập.\x1b[0m\r\n")
+    # Xác định user mục tiêu trên Linux
+    if is_web_user:
+        # Website User: Kết nối bằng quyền của chính mình trong Cage cách ly
+        target_username = web_user_name
+        home_dir = f"/home/{target_username}" if os.path.exists(f"/home/{target_username}") else "/"
+        shell_cmd = ["sudo", "-n", "/opt/wpc/scripts/cage_terminal.sh", target_username]
+    elif is_admin:
+        if target_user and target_user != "root":
+            # Admin mở terminal của một Website User cụ thể
+            target_username = target_user.strip()
+            home_dir = f"/home/{target_username}" if os.path.exists(f"/home/{target_username}") else "/"
+            shell_cmd = ["sudo", "-n", "/opt/wpc/scripts/cage_terminal.sh", target_username]
+        else:
+            # Admin mở terminal quản trị hệ thống: Kết nối thẳng quyền ROOT
+            target_username = "root"
+            home_dir = "/root" if os.path.exists("/root") else "/"
+            if os.getuid() == 0:
+                shell_cmd = ["/bin/bash", "--login"]
+            else:
+                shell_cmd = ["sudo", "-n", "-u", "root", "/bin/bash", "--login"]
+    else:
+        # Hosting User: Tắt tính năng, tắt quyền SSH
+        await websocket.send_text("\r\n\x1b[31m[Chính sách bảo mật] Tài khoản Hosting User bị tắt tính năng Terminal SSH. Chỉ Quản trị viên (Admin) và Tài khoản Website User mới có quyền truy cập Terminal.\x1b[0m\r\n")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-
-    # Khi Admin vào Terminal SSH: Kết nối trực tiếp dưới quyền ROOT (không phải quyền admin)
-    target_username = "root"
-    home_dir = "/root" if os.path.exists("/root") else "/"
 
     # Mở PTY (Pseudo-Terminal)
     try:
         master_fd, slave_fd = pty.openpty()
+        # Đảm bảo slave_fd có quyền đọc/ghi cho process con bất kể user nào
+        try:
+            slave_name = os.ttyname(slave_fd)
+            os.chmod(slave_name, 0o666)
+        except Exception:
+            pass
     except Exception as e:
         await websocket.send_text(f"\r\n\x1b[31m[Lỗi] Không thể khởi tạo Terminal PTY: {str(e)}\x1b[0m\r\n")
         await websocket.close()
@@ -73,20 +97,12 @@ async def terminal_websocket(
     flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
     fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
-    # Khởi động Shell process:
-    # Nếu đang chạy trực tiếp là root (UID 0): Chạy /bin/bash --login
-    # Nếu đang chạy là user unprivileged (wpc): Dùng sudo -n -u root /bin/bash --login để vào thẳng quyền root
-    if os.getuid() == 0:
-        shell_cmd = ["/bin/bash", "--login"]
-    else:
-        shell_cmd = ["sudo", "-n", "-u", "root", "/bin/bash", "--login"]
-
     env = {
         "TERM": "xterm-256color",
         "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         "HOME": home_dir,
-        "USER": "root",
-        "LOGNAME": "root",
+        "USER": target_username,
+        "LOGNAME": target_username,
         "SHELL": "/bin/bash",
         "LANG": "en_US.UTF-8"
     }
@@ -115,7 +131,7 @@ async def terminal_websocket(
             close_fds=True
         )
     except Exception as e:
-        # Thử fallback chạy bash trực tiếp
+        # Fallback chạy bash trực tiếp
         try:
             fallback_cmd = ["/bin/bash", "--login"]
             proc = await asyncio.create_subprocess_exec(

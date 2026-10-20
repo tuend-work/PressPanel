@@ -133,8 +133,8 @@ SUPPORTED_APPS = [
         "category": "php",
         "icon": "🐘",
         "desc": "Phiên bản PHP 8.5 thử nghiệm mới nhất của PHP Core Team.",
-        "service": "php8.5-fpm",
-        "binary_checks": ["/usr/sbin/php-fpm8.5", "/usr/local/lsws/lsphp85/bin/lsphp"],
+        "service": "",
+        "binary_checks": ["/usr/sbin/php-fpm8.5", "/usr/local/lsws/lsphp85/bin/lsphp", "/usr/bin/php8.5"],
         "default_version": "8.5"
     },
     {
@@ -143,8 +143,8 @@ SUPPORTED_APPS = [
         "category": "php",
         "icon": "🐘",
         "desc": "Phiên bản PHP 8.4 hiện đại nhất, hỗ trợ Property Hooks, Asymmetric Visibility.",
-        "service": "php8.4-fpm",
-        "binary_checks": ["/usr/sbin/php-fpm8.4", "/usr/local/lsws/lsphp84/bin/lsphp"],
+        "service": "",
+        "binary_checks": ["/usr/sbin/php-fpm8.4", "/usr/local/lsws/lsphp84/bin/lsphp", "/usr/bin/php8.4"],
         "default_version": "8.4"
     },
     {
@@ -153,8 +153,8 @@ SUPPORTED_APPS = [
         "category": "php",
         "icon": "🐘",
         "desc": "Phiên bản PHP 8.3 hiệu năng cao, bổ sung Typed Class Constants và json_validate.",
-        "service": "php8.3-fpm",
-        "binary_checks": ["/usr/sbin/php-fpm8.3", "/usr/local/lsws/lsphp83/bin/lsphp"],
+        "service": "",
+        "binary_checks": ["/usr/sbin/php-fpm8.3", "/usr/local/lsws/lsphp83/bin/lsphp", "/usr/bin/php8.3"],
         "default_version": "8.3"
     },
     {
@@ -163,8 +163,8 @@ SUPPORTED_APPS = [
         "category": "php",
         "icon": "🐘",
         "desc": "Phiên bản PHP 8.2 ổn định cao, khuyên dùng cho hầu hết website WordPress.",
-        "service": "php8.2-fpm",
-        "binary_checks": ["/usr/sbin/php-fpm8.2", "/usr/local/lsws/lsphp82/bin/lsphp"],
+        "service": "",
+        "binary_checks": ["/usr/sbin/php-fpm8.2", "/usr/local/lsws/lsphp82/bin/lsphp", "/usr/bin/php8.2"],
         "default_version": "8.2"
     },
     {
@@ -173,8 +173,8 @@ SUPPORTED_APPS = [
         "category": "php",
         "icon": "🐘",
         "desc": "PHP 8.1 hỗ trợ Enums, Readonly Properties, First-class Callables.",
-        "service": "php8.1-fpm",
-        "binary_checks": ["/usr/sbin/php-fpm8.1", "/usr/local/lsws/lsphp81/bin/lsphp"],
+        "service": "",
+        "binary_checks": ["/usr/sbin/php-fpm8.1", "/usr/local/lsws/lsphp81/bin/lsphp", "/usr/bin/php8.1"],
         "default_version": "8.1"
     },
     {
@@ -183,8 +183,8 @@ SUPPORTED_APPS = [
         "category": "php",
         "icon": "🐘",
         "desc": "PHP 8.0 giới thiệu JIT Compiler, Named Arguments và Union Types.",
-        "service": "php8.0-fpm",
-        "binary_checks": ["/usr/sbin/php-fpm8.0", "/usr/local/lsws/lsphp80/bin/lsphp"],
+        "service": "",
+        "binary_checks": ["/usr/sbin/php-fpm8.0", "/usr/local/lsws/lsphp80/bin/lsphp", "/usr/bin/php8.0"],
         "default_version": "8.0"
     },
     {
@@ -193,8 +193,8 @@ SUPPORTED_APPS = [
         "category": "php",
         "icon": "🐘",
         "desc": "Phiên bản PHP 7.4 Legacy ổn định nhất thế hệ PHP 7.x.",
-        "service": "php7.4-fpm",
-        "binary_checks": ["/usr/sbin/php-fpm7.4", "/usr/local/lsws/lsphp74/bin/lsphp"],
+        "service": "",
+        "binary_checks": ["/usr/sbin/php-fpm7.4", "/usr/local/lsws/lsphp74/bin/lsphp", "/usr/bin/php7.4"],
         "default_version": "7.4"
     },
     {
@@ -203,8 +203,8 @@ SUPPORTED_APPS = [
         "category": "php",
         "icon": "🐘",
         "desc": "PHP 7.3 dành cho các dự án và theme WordPress cũ.",
-        "service": "php7.3-fpm",
-        "binary_checks": ["/usr/sbin/php-fpm7.3", "/usr/local/lsws/lsphp73/bin/lsphp"],
+        "service": "",
+        "binary_checks": ["/usr/sbin/php-fpm7.3", "/usr/local/lsws/lsphp73/bin/lsphp", "/usr/bin/php7.3"],
         "default_version": "7.3"
     },
     {
@@ -213,8 +213,8 @@ SUPPORTED_APPS = [
         "category": "php",
         "icon": "🐘",
         "desc": "PHP 7.2 hỗ trợ mã nguồn WordPress 4.x - 5.x.",
-        "service": "php7.2-fpm",
-        "binary_checks": ["/usr/sbin/php-fpm7.2", "/usr/local/lsws/lsphp72/bin/lsphp"],
+        "service": "",
+        "binary_checks": ["/usr/sbin/php-fpm7.2", "/usr/local/lsws/lsphp72/bin/lsphp", "/usr/bin/php7.2"],
         "default_version": "7.2"
     },
     {
@@ -223,8 +223,8 @@ SUPPORTED_APPS = [
         "category": "php",
         "icon": "🐘",
         "desc": "PHP 7.1 hỗ trợ tương thích mã nguồn cũ.",
-        "service": "php7.1-fpm",
-        "binary_checks": ["/usr/sbin/php-fpm7.1", "/usr/local/lsws/lsphp71/bin/lsphp"],
+        "service": "",
+        "binary_checks": ["/usr/sbin/php-fpm7.1", "/usr/local/lsws/lsphp71/bin/lsphp", "/usr/bin/php7.1"],
         "default_version": "7.1"
     },
     {
@@ -233,8 +233,8 @@ SUPPORTED_APPS = [
         "category": "php",
         "icon": "🐘",
         "desc": "PHP 7.0 phiên bản nâng cấp tốc độ đột phá so với PHP 5.6.",
-        "service": "php7.0-fpm",
-        "binary_checks": ["/usr/sbin/php-fpm7.0", "/usr/local/lsws/lsphp70/bin/lsphp"],
+        "service": "",
+        "binary_checks": ["/usr/sbin/php-fpm7.0", "/usr/local/lsws/lsphp70/bin/lsphp", "/usr/bin/php7.0"],
         "default_version": "7.0"
     },
     {
@@ -243,8 +243,8 @@ SUPPORTED_APPS = [
         "category": "php",
         "icon": "🐘",
         "desc": "PHP 5.6 Legacy dành cho các website cổ, tương thích cao với script cũ.",
-        "service": "php5.6-fpm",
-        "binary_checks": ["/usr/sbin/php-fpm5.6", "/usr/local/lsws/lsphp56/bin/lsphp"],
+        "service": "",
+        "binary_checks": ["/usr/sbin/php-fpm5.6", "/usr/local/lsws/lsphp56/bin/lsphp", "/usr/bin/php5.6"],
         "default_version": "5.6"
     },
     {
@@ -253,7 +253,7 @@ SUPPORTED_APPS = [
         "category": "tools",
         "icon": "🧭",
         "desc": "Giao diện Web trực quan quản lý CSDL MariaDB/MySQL nhanh chóng và an toàn (Port 888).",
-        "service": "",
+        "service": "phpmyadmin",
         "binary_checks": ["/opt/wpc/apps/phpmyadmin/index.php", "/usr/share/phpmyadmin/index.php"],
         "default_version": "5.2.x"
     },
@@ -349,11 +349,13 @@ def get_app_service_candidates(app_id: str) -> List[str]:
     if app_id in APP_SERVICE_CANDIDATES:
         return APP_SERVICE_CANDIDATES[app_id]
     if app_id == "phpmyadmin":
-        return ["lsws", "lshttpd", "nginx", "openresty"]
-    if app_id.startswith("php") and len(app_id) >= 5 and app_id[3].isdigit():
-        ver = f"{app_id[3]}.{app_id[4]}"
-        clean_ver = app_id[3:5]
-        return [f"php{ver}-fpm", f"php{clean_ver}-php-fpm", "php-fpm"]
+        return [
+            "wpc-php8.5-fpm@phpmyadmin", "wpc-php8.4-fpm@phpmyadmin",
+            "wpc-php8.3-fpm@phpmyadmin", "wpc-php8.2-fpm@phpmyadmin",
+            "wpc-php8.1-fpm@phpmyadmin", "wpc-php8.0-fpm@phpmyadmin",
+            "wpc-php7.4-fpm@phpmyadmin", "lsws", "lshttpd", "nginx", "openresty"
+        ]
+    # Các phiên bản PHP chỉ là runtime binary, không quản lý theo service toàn cục
     return []
 
 def resolve_app_service(app_id: str) -> str:
@@ -538,50 +540,85 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
         except Exception:
             pass
 
-    # 3. Đặc thù phpMyAdmin: Chạy vhost Port 888 qua Web Server (OLS / Nginx)
+    # 3. Đặc thù phpMyAdmin: Chạy vhost Port 888 qua Web Server (OLS / Nginx) với service quản trị riêng
     if app["id"] == "phpmyadmin":
-        active_service = "webserver (Port 888)"
+        active_service = "phpmyadmin (Port 888)"
+        pma_info = {
+            "lsphp_path": "",
+            "fpm_service": "",
+            "fpm_sock": "",
+            "webserver": "unknown"
+        }
         if installed:
             running = False
-            for ws in ["lsws", "lshttpd", "nginx", "openresty"]:
+            # Kiểm tra xem đang chạy trên OpenLiteSpeed hay Nginx
+            is_ols = False
+            for ws in ["lsws", "lshttpd"]:
                 try:
                     r = subprocess.run(["systemctl", "is-active", "--quiet", ws], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     if r.returncode == 0:
-                        active_service = f"{ws} (Port 888)"
-                        running = True
+                        is_ols = True
+                        pma_info["webserver"] = "OpenLiteSpeed"
                         break
                 except Exception:
                     pass
+
+            if is_ols:
+                # Phát hiện LSPHP path của phpmyadmin
+                for lsp in ["lsphp82", "lsphp83", "lsphp81", "lsphp84", "lsphp80", "lsphp74"]:
+                    cand_path = f"/usr/local/lsws/{lsp}/bin/lsphp"
+                    if os.path.exists(cand_path):
+                        pma_info["lsphp_path"] = cand_path
+                        break
+                active_service = f"OLS LSPHP ({pma_info['lsphp_path'] or 'lsphp'})"
+                running = True
+            else:
+                # Nginx: Kiểm tra PHP-FPM Service riêng của phpmyadmin
+                for pver in ["8.5", "8.4", "8.3", "8.2", "8.1", "8.0", "7.4"]:
+                    svc_cand = f"wpc-php{pver}-fpm@phpmyadmin"
+                    sock_cand = f"/run/php/php{pver}-fpm-phpmyadmin.sock"
+                    try:
+                        r = subprocess.run(["systemctl", "is-active", "--quiet", svc_cand], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        if r.returncode == 0:
+                            pma_info["fpm_service"] = f"{svc_cand}.service"
+                            pma_info["fpm_sock"] = sock_cand
+                            pma_info["webserver"] = "Nginx"
+                            active_service = f"{svc_cand}.service"
+                            running = True
+                            break
+                    except Exception:
+                        pass
+                if not running:
+                    # Check fallback nginx port 888
+                    for ws in ["nginx", "openresty"]:
+                        try:
+                            r = subprocess.run(["systemctl", "is-active", "--quiet", ws], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            if r.returncode == 0:
+                                pma_info["webserver"] = "Nginx"
+                                active_service = f"{ws} (Port 888)"
+                                running = True
+                                break
+                        except Exception:
+                            pass
             if not running and os.name == "nt":
                 running = True
                 active_service = "localhost:888"
-        app = {**app, "service": active_service}
+        app = {**app, "service": active_service, "pma_info": pma_info}
 
-    # 4. Đặc thù PHP: Trên OpenLiteSpeed, LSPHP chạy on-demand qua suEXEC chứ không chạy PHP-FPM service
-    elif app.get("category") == "php" and installed:
-        if not running and os.name != "nt":
-            ver_clean = app.get("default_version", "").replace(".", "")
-            lsphp_bin = f"/usr/local/lsws/lsphp{ver_clean}/bin/lsphp"
-            if os.path.exists(lsphp_bin):
-                try:
-                    res_ols = subprocess.run(
-                        ["systemctl", "is-active", "--quiet", "lsws"],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL
-                    )
-                    if res_ols.returncode == 0:
-                        running = True
-                    else:
-                        res_ols2 = subprocess.run(
-                            ["systemctl", "is-active", "--quiet", "lshttpd"],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL
-                        )
-                        if res_ols2.returncode == 0:
-                            running = True
-                except Exception:
-                    pass
-    elif installed and not app["service"]:
+    # 4. Đặc thù PHP: PHP Packages chỉ là Runtime Binary (CLI/LSAPI), không chạy FPM daemon toàn cục
+    elif app.get("category") == "php":
+        is_default_cli = False
+        if installed and os.name != "nt":
+            try:
+                r_cli = subprocess.run(["php", "-v"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1)
+                ver_check = app.get("default_version", "")
+                if f"PHP {ver_check}" in r_cli.stdout:
+                    is_default_cli = True
+            except Exception:
+                pass
+        app = {**app, "service": "", "is_default_cli": is_default_cli}
+        running = installed
+    elif installed and not app.get("service"):
         running = True
 
     return {
@@ -735,15 +772,40 @@ async def app_action(
             "message": f"Đã thêm tác vụ gỡ cài đặt {app['name']} vào danh sách tiến trình chạy ngầm (Task list)."
         }
 
+    # 2.5 HÀNH ĐỘNG THIẾT LẬP PHP CLI MẶC ĐỊNH HỆ THỐNG
+    if req.action == "set-cli":
+        if app.get("category") != "php":
+            raise HTTPException(status_code=400, detail="Chỉ có thể đặt CLI mặc định cho các phiên bản PHP.")
+        ver = app.get("default_version", "8.2")
+        script_path = f"{WPC_BASE}/scripts/apps/php.sh"
+        if os.path.exists(script_path):
+            try:
+                proc = subprocess.run(
+                    ["sudo", "bash", script_path, "set-cli", ver],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10
+                )
+                if proc.returncode == 0:
+                    return {"status": "ok", "message": f"Đã thiết lập PHP {ver} làm PHP CLI mặc định (/usr/bin/php) thành công!"}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Lỗi khi đặt PHP CLI: {str(e)}")
+        # Fallback update-alternatives
+        try:
+            subprocess.run(["sudo", "update-alternatives", "--set", "php", f"/usr/bin/php{ver}"], check=False)
+            subprocess.run(["sudo", "ln", "-sf", f"/usr/bin/php{ver}", "/usr/bin/php"], check=False)
+        except Exception:
+            pass
+        return {"status": "ok", "message": f"Đã thiết lập PHP {ver} làm PHP CLI mặc định (/usr/bin/php) thành công!"}
+
     # 3. HÀNH ĐỘNG ĐIỀU KHIỂN DỊCH VỤ (START / STOP / RESTART / RELOAD)
     if req.action in ["start", "stop", "restart", "reload"]:
         if req.app_id == "phpmyadmin":
             script_pma = f"{WPC_BASE}/scripts/apps/phpmyadmin.sh"
             if os.path.exists(script_pma):
                 try:
-                    subprocess.run(["bash", script_pma, "install"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
-                except Exception:
-                    pass
+                    proc = subprocess.run(["sudo", "bash", script_pma, req.action], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
+                    return {"status": "ok", "message": f"Đã {req.action} dịch vụ phpMyAdmin (Port 888) thành công!"}
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=f"Lỗi thao tác dịch vụ phpMyAdmin: {str(e)}")
             for ws in ["lsws", "lshttpd", "nginx"]:
                 try:
                     subprocess.run(["sudo", "systemctl", "reload", ws], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)

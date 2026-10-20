@@ -49,16 +49,32 @@
                                             {{ app.icon }}
                                         </div>
                                         <div class="flex flex-col items-end">
-                                            <span v-if="app.running" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
-                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                                <span>Đang Chạy</span>
-                                            </span>
-                                            <span v-else-if="app.installed" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                                                Đã Dừng
-                                            </span>
-                                            <span v-else class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-                                                Chưa Cài Đặt
-                                            </span>
+                                            <!-- Hiển thị đặc thù cho PHP Runtime (Binary CLI/LSAPI, không phải Daemon FPM) -->
+                                            <template v-if="app.category === 'php'">
+                                                <span v-if="app.installed" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                    <span>Đã Cài Đặt</span>
+                                                </span>
+                                                <span v-else class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                                    Chưa Cài Đặt
+                                                </span>
+                                                <span v-if="app.is_default_cli" class="mt-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-0.5">
+                                                    <span>⭐</span> CLI Mặc Định
+                                                </span>
+                                            </template>
+                                            <!-- Hiển thị cho các App Daemon thông thường -->
+                                            <template v-else>
+                                                <span v-if="app.running" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                    <span>Đang Chạy</span>
+                                                </span>
+                                                <span v-else-if="app.installed" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                                    Đã Dừng
+                                                </span>
+                                                <span v-else class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                                    Chưa Cài Đặt
+                                                </span>
+                                            </template>
                                         </div>
                                     </div>
 
@@ -89,44 +105,62 @@
                                             class="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 font-medium text-xs text-white shadow-sm transition flex items-center justify-center space-x-1.5">
                                             <span v-if="installingAppId === app.id" class="animate-spin">⏳</span>
                                             <span v-else>⚡</span>
-                                            <span>{{ installingAppId === app.id ? 'Đang gửi lệnh...' : 'Cài Đặt (1-Click)' }}</span>
+                                            <span>{{ installingAppId === app.id ? 'Đang gửi lệnh...' : (app.category === 'php' ? 'Cài Đặt PHP Binary' : 'Cài Đặt (1-Click)') }}</span>
                                         </button>
                                     </div>
 
                                     <div v-else class="space-y-2">
-                                        <!-- Hàng 1: Nút Setting & Tự khởi động -->
-                                        <div class="flex items-center justify-between gap-2">
-                                            <button @click="openAppSettings(app)"
-                                                class="flex-1 py-1.5 px-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition flex items-center justify-center space-x-1.5 font-medium text-xs">
-                                                <span>⚙️</span>
-                                                <span>Cài Đặt (Setting)</span>
-                                            </button>
-                                            
-                                            <!-- Checkbox Tự khởi động lại khi bị tắt -->
-                                            <label v-if="app.service" class="flex items-center space-x-1.5 text-[11px] text-slate-600 cursor-pointer select-none bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100">
-                                                <input type="checkbox" :checked="app.autorestart" @change="toggleAppAutorestart(app, $event.target.checked)"
-                                                    class="rounded border-slate-300 text-blue-600 focus:ring-0">
-                                                <span>Tự khởi động</span>
-                                            </label>
-                                        </div>
-
-                                        <!-- Hàng 2: Bật / Tắt / Restart / Gỡ cài đặt -->
-                                        <div class="w-full flex items-center justify-between gap-2 pt-0.5">
-                                            <button v-if="app.service" @click="handleAppAction(app.id, 'restart')"
-                                                class="flex-1 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition text-[11px] border border-slate-200">
-                                                Khởi động lại
-                                            </button>
-                                            <button v-if="app.service" @click="handleAppAction(app.id, app.running ? 'stop' : 'start')"
-                                                class="flex-1 py-1.5 rounded-xl transition text-[11px] font-semibold"
-                                                :class="app.running ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'">
-                                                {{ app.running ? 'Dừng' : 'Bật' }}
+                                        <!-- GIAO DIỆN DÀNH RIÊNG CHO PHP BINARY (Theo yêu cầu: Chỉ Cài đặt, Xóa folder, Set CLI hệ thống) -->
+                                        <div v-if="app.category === 'php'" class="flex items-center gap-2 pt-0.5">
+                                            <button @click="handleAppAction(app.id, 'set-cli')"
+                                                :disabled="app.is_default_cli"
+                                                class="flex-1 py-1.5 px-2.5 rounded-xl transition text-[11px] font-semibold flex items-center justify-center space-x-1"
+                                                :class="app.is_default_cli ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 opacity-80 cursor-default' : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200'">
+                                                <span>{{ app.is_default_cli ? '⭐ Đang là CLI Mặc Định' : '⭐ Đặt làm PHP CLI' }}</span>
                                             </button>
                                             <button @click="handleAppAction(app.id, 'uninstall')"
-                                                class="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition text-[11px]"
-                                                title="Gỡ cài đặt">
-                                                🗑️
+                                                class="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition text-[11px] flex items-center space-x-1 font-medium"
+                                                title="Gỡ bỏ PHP và xóa folder cấu hình">
+                                                <span>🗑️ Xóa / Gỡ</span>
                                             </button>
                                         </div>
+
+                                        <!-- GIAO DIỆN DÀNH CHO CÁC ỨNG DỤNG DAEMON KHÁC (Nginx, OLS, MySQL, phpMyAdmin...) -->
+                                        <template v-else>
+                                            <!-- Hàng 1: Nút Setting & Tự khởi động -->
+                                            <div class="flex items-center justify-between gap-2">
+                                                <button @click="openAppSettings(app)"
+                                                    class="flex-1 py-1.5 px-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition flex items-center justify-center space-x-1.5 font-medium text-xs">
+                                                    <span>⚙️</span>
+                                                    <span>Cài Đặt (Setting)</span>
+                                                </button>
+                                                
+                                                <!-- Checkbox Tự khởi động lại khi bị tắt -->
+                                                <label v-if="app.service" class="flex items-center space-x-1.5 text-[11px] text-slate-600 cursor-pointer select-none bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100">
+                                                    <input type="checkbox" :checked="app.autorestart" @change="toggleAppAutorestart(app, $event.target.checked)"
+                                                        class="rounded border-slate-300 text-blue-600 focus:ring-0">
+                                                    <span>Tự khởi động</span>
+                                                </label>
+                                            </div>
+
+                                            <!-- Hàng 2: Bật / Tắt / Restart / Gỡ cài đặt -->
+                                            <div class="w-full flex items-center justify-between gap-2 pt-0.5">
+                                                <button v-if="app.service" @click="handleAppAction(app.id, 'restart')"
+                                                    class="flex-1 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition text-[11px] border border-slate-200">
+                                                    Khởi động lại
+                                                </button>
+                                                <button v-if="app.service" @click="handleAppAction(app.id, app.running ? 'stop' : 'start')"
+                                                    class="flex-1 py-1.5 rounded-xl transition text-[11px] font-semibold"
+                                                    :class="app.running ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'">
+                                                    {{ app.running ? 'Dừng' : 'Bật' }}
+                                                </button>
+                                                <button @click="handleAppAction(app.id, 'uninstall')"
+                                                    class="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition text-[11px]"
+                                                    title="Gỡ cài đặt">
+                                                    🗑️
+                                                </button>
+                                            </div>
+                                        </template>
                                     </div>
                                 </div>
                             </div>

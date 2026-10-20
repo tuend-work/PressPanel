@@ -86,11 +86,9 @@ ExecStartPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
 ExecReloadPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
 EOF
 
-            # Kích hoạt và khởi chạy service PHP-FPM
-            systemctl daemon-reload 2>/dev/null || true
-            systemctl enable "php${VERSION_CLEAN}-fpm" || true
-            systemctl restart "php${VERSION_CLEAN}-fpm" || true
-            /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true
+            # Không bật service FPM toàn cục để tiết kiệm RAM; FPM được quản lý độc lập theo từng website/user
+            systemctl stop "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
+            systemctl disable "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
 
             # Nếu có OpenLiteSpeed thì cài thêm cả LSPHP tương ứng nếu có repo
             LSPHP_PKG="lsphp${LSPHP_NUM}"
@@ -210,18 +208,35 @@ EOF
         ;;
 
     remove)
-        echo "[+] Đang gỡ bỏ PHP-FPM $VERSION_CLEAN..."
+        echo "[+] Đang gỡ bỏ PHP Binary $VERSION_CLEAN..."
         systemctl stop "${PHP_PKG_PREFIX}-php-fpm" "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
         systemctl disable "${PHP_PKG_PREFIX}-php-fpm" "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
         if command -v apt-get &>/dev/null; then
-            apt-get remove -y "php${VERSION_CLEAN}-fpm" "php${VERSION_CLEAN}-cli" 2>/dev/null || true
+            apt-get purge -y "php${VERSION_CLEAN}*" "lsphp${LSPHP_NUM}*" 2>/dev/null || apt-get remove -y "php${VERSION_CLEAN}-fpm" "php${VERSION_CLEAN}-cli" 2>/dev/null || true
         elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
             PKG_MGR="dnf"
             command -v dnf &>/dev/null || PKG_MGR="yum"
-            $PKG_MGR remove -y "${PHP_PKG_PREFIX}-php-fpm" "${PHP_PKG_PREFIX}-php-cli" 2>/dev/null || true
+            $PKG_MGR remove -y "${PHP_PKG_PREFIX}*" "lsphp${LSPHP_NUM}*" 2>/dev/null || true
         fi
+        rm -rf "/etc/php/${VERSION_CLEAN}" "/usr/local/lsws/lsphp${LSPHP_NUM}" "/opt/remi/${PHP_PKG_PREFIX}" 2>/dev/null || true
         rm -f "/usr/sbin/php-fpm${VERSION_CLEAN}" "/usr/bin/php${VERSION_CLEAN}" "/etc/systemd/system/php${VERSION_CLEAN}-fpm.service" 2>/dev/null || true
-        echo "[+] Đã gỡ bỏ PHP-FPM $VERSION_CLEAN!"
+        echo "[+] Đã gỡ bỏ PHP $VERSION_CLEAN và xoá thư mục cấu hình hoàn tất!"
+        ;;
+
+    set-cli)
+        echo "[+] Đang thiết lập PHP $VERSION_CLEAN làm PHP CLI mặc định hệ thống (/usr/bin/php)..."
+        if command -v update-alternatives &>/dev/null && [ -x "/usr/bin/php${VERSION_CLEAN}" ]; then
+            update-alternatives --set php "/usr/bin/php${VERSION_CLEAN}" 2>/dev/null || true
+        fi
+        if [ -x "/usr/bin/php${VERSION_CLEAN}" ]; then
+            ln -sf "/usr/bin/php${VERSION_CLEAN}" /usr/bin/php
+        elif [ -x "/usr/bin/${PHP_PKG_PREFIX}" ]; then
+            ln -sf "/usr/bin/${PHP_PKG_PREFIX}" /usr/bin/php
+        elif [ -x "/usr/local/lsws/lsphp${LSPHP_NUM}/bin/lsphp" ]; then
+            ln -sf "/usr/local/lsws/lsphp${LSPHP_NUM}/bin/lsphp" /usr/bin/php
+        fi
+        echo "[+] PHP CLI hệ thống hiện tại:"
+        /usr/bin/php -v 2>/dev/null | head -n 1 || true
         ;;
 
     install-ext)

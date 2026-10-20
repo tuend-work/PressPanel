@@ -43,9 +43,9 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
         
         cd '$REAL_HOME' 2>/dev/null || cd /
         if [ -x '/sbin/runuser' ]; then
-            exec /sbin/runuser -u '$TARGET_USER' -- /bin/bash --login
+            exec /sbin/runuser -s /bin/bash -u '$TARGET_USER' -- /bin/bash --login
         else
-            exec /bin/su - '$TARGET_USER'
+            exec /bin/su -s /bin/bash - '$TARGET_USER'
         fi
     "
 else
@@ -53,9 +53,9 @@ else
     cd "$REAL_HOME" 2>/dev/null || cd /
     if [ "$EUID" -eq 0 ]; then
         if [ -x '/sbin/runuser' ]; then
-            exec /sbin/runuser -u "$TARGET_USER" -- /bin/bash --login
+            exec /sbin/runuser -s /bin/bash -u "$TARGET_USER" -- /bin/bash --login
         else
-            exec /bin/su - "$TARGET_USER"
+            exec /bin/su -s /bin/bash - "$TARGET_USER"
         fi
     else
         exec sudo -n -u "$TARGET_USER" /bin/bash --login

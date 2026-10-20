@@ -288,13 +288,15 @@
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- Terminal SSH: Chỉ hiển thị cho Admin -->
-                            <button v-if="currentUser.role === 'admin'" @click="openWebTerminal()" :class="navClass('terminal')">
+                            <!-- Terminal SSH: Hiển thị cho Admin (root) và Website User (caged), Tắt hoàn toàn cho Hosting User -->
+                            <button v-if="currentUser.role === 'admin' || currentUser.web_domain_id" @click="openWebTerminal()" :class="navClass('terminal')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
                                     <span>Terminal SSH</span>
                                 </div>
-                                <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono border border-emerald-800">root</span>
+                                <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono border border-emerald-800">
+                                    {{ currentUser.role === 'admin' ? 'root' : 'caged' }}
+                                </span>
                             </button>
 
                             <!-- 8. Service Plans / Website Plans (Chỉ Admin & Hosting User, Website User không cần) -->
@@ -2566,6 +2568,9 @@
 
                     loadDomainPhpIni(domain);
                     loadDomainPhpExtensions(domain);
+                    if (domain.webserver === 'nginx' || currentWebserver.value === 'nginx') {
+                        loadDomainFpmSettings(domain);
+                    }
                 };
 
                 const loadDomainPhpIni = async (domain) => {
@@ -2754,6 +2759,138 @@
                         alert('Lỗi kết nối: ' + e.message);
                     } finally {
                         changingPhp.value = false;
+                    }
+                };
+
+                // ==========================================
+                // QUẢN LÝ PHP-FPM SERVICE CHO TỪNG WEBSITE (NGINX)
+                // ==========================================
+                const domainFpmData = ref({
+                    service_name: '',
+                    service_status: 'inactive',
+                    service_enabled: 'unknown',
+                    pid: '',
+                    memory_mb: 0,
+                    conf_path: '',
+                    sock_path: '',
+                    sock_exists: false,
+                    settings: {
+                        pm: 'dynamic',
+                        pm_max_children: 10,
+                        pm_start_servers: 2,
+                        pm_min_spare_servers: 1,
+                        pm_max_spare_servers: 3,
+                        pm_max_requests: 500,
+                        request_terminate_timeout: '0s'
+                    },
+                    raw_config: ''
+                });
+                const loadingDomainFpm = ref(false);
+                const savingDomainFpm = ref(false);
+                const controllingFpm = ref(false);
+                const fpmConfigMode = ref('form');
+
+                const loadDomainFpmSettings = async (domain) => {
+                    const dom = domain || targetPhpDomain.value;
+                    if (!dom) return;
+                    loadingDomainFpm.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${dom.id}/fpm-service`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            domainFpmData.value = {
+                                service_name: data.service_name || '',
+                                service_status: data.service_status || 'inactive',
+                                service_enabled: data.service_enabled || 'unknown',
+                                pid: data.pid || '',
+                                memory_mb: data.memory_mb || 0,
+                                conf_path: data.conf_path || '',
+                                sock_path: data.sock_path || '',
+                                sock_exists: !!data.sock_exists,
+                                settings: {
+                                    pm: data.settings?.pm || 'dynamic',
+                                    pm_max_children: data.settings?.pm_max_children || 10,
+                                    pm_start_servers: data.settings?.pm_start_servers || 2,
+                                    pm_min_spare_servers: data.settings?.pm_min_spare_servers || 1,
+                                    pm_max_spare_servers: data.settings?.pm_max_spare_servers || 3,
+                                    pm_max_requests: data.settings?.pm_max_requests || 500,
+                                    request_terminate_timeout: data.settings?.request_terminate_timeout || '0s'
+                                },
+                                raw_config: data.raw_config || ''
+                            };
+                        }
+                    } catch (e) {
+                        console.error('Lỗi nạp thông tin PHP-FPM:', e);
+                    } finally {
+                        loadingDomainFpm.value = false;
+                    }
+                };
+
+                const saveDomainFpmSettings = async () => {
+                    if (!targetPhpDomain.value) return;
+                    savingDomainFpm.value = true;
+                    try {
+                        const payload = {
+                            mode: fpmConfigMode.value,
+                            pm: domainFpmData.value.settings.pm,
+                            pm_max_children: domainFpmData.value.settings.pm_max_children,
+                            pm_start_servers: domainFpmData.value.settings.pm_start_servers,
+                            pm_min_spare_servers: domainFpmData.value.settings.pm_min_spare_servers,
+                            pm_max_spare_servers: domainFpmData.value.settings.pm_max_spare_servers,
+                            pm_max_requests: domainFpmData.value.settings.pm_max_requests,
+                            request_terminate_timeout: domainFpmData.value.settings.request_terminate_timeout,
+                            raw_config: domainFpmData.value.raw_config
+                        };
+                        const res = await fetch(`/api/v1/domains/${targetPhpDomain.value.id}/fpm-service`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify(payload)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Đã lưu cấu hình và tự động reload PHP-FPM Service thành công!');
+                            loadDomainFpmSettings(targetPhpDomain.value);
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình PHP-FPM'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        savingDomainFpm.value = false;
+                    }
+                };
+
+                const controlDomainFpm = async (action) => {
+                    if (!targetPhpDomain.value) return;
+                    controllingFpm.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${targetPhpDomain.value.id}/fpm-service/control`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ action: action })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || `Đã ${action} dịch vụ thành công!`);
+                            if (data.service_status) {
+                                domainFpmData.value.service_status = data.service_status;
+                            }
+                            loadDomainFpmSettings(targetPhpDomain.value);
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể thực thi lệnh'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        controllingFpm.value = false;
                     }
                 };
 
@@ -3857,9 +3994,16 @@
                 let fitAddonInstance = null;
                 let terminalSocket = null;
 
-                const openWebTerminal = (domain = null) => {
-                    // Admin khi vào chức năng Terminal SSH luôn kết nối bằng quyền root theo yêu cầu
-                    terminalTargetUser.value = 'root';
+                const openWebTerminal = (target = null) => {
+                    if (currentUser.value?.role !== 'admin' && !currentUser.value?.web_domain_id) {
+                        alert('Tài khoản Hosting User không có quyền truy cập Terminal SSH vì lý do bảo mật.');
+                        return;
+                    }
+                    if (currentUser.value?.role === 'admin') {
+                        terminalTargetUser.value = target || 'root';
+                    } else {
+                        terminalTargetUser.value = currentUser.value?.web_user_name || currentUser.value?.username || 'user';
+                    }
                     showTerminalModal.value = true;
                     nextTick(() => {
                         initTerminalSession();
@@ -3905,7 +4049,7 @@
 
                     // Kết nối WebSocket Terminal
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    const wsUrl = `${protocol}//${window.location.host}/api/v1/terminal/ws?token=${token.value}`;
+                    const wsUrl = `${protocol}//${window.location.host}/api/v1/terminal/ws?token=${token.value}&target_user=${encodeURIComponent(terminalTargetUser.value || 'root')}`;
                     
                     xtermInstance.writeln('\x1b[36m⚡ Đang kết nối phiên SSH Terminal an toàn cho tài khoản ' + terminalTargetUser.value + '...\x1b[0m\r\n');
 
@@ -5491,6 +5635,7 @@
                     openChangePhpModal, confirmChangePhp,
                     phpModalTab, domainPhpIni, loadingDomainPhpIni, savingDomainPhpIni, applyPhpPreset, loadDomainPhpIni, saveDomainPhpIni,
                     domainPhpExtensions, loadingDomainPhpExtensions, savingDomainPhpExtensions, loadDomainPhpExtensions, saveDomainPhpExtensions, applyPhpExtPreset,
+                    domainFpmData, loadingDomainFpm, savingDomainFpm, controllingFpm, fpmConfigMode, loadDomainFpmSettings, saveDomainFpmSettings, controlDomainFpm,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain, handleToggleDomainStatus,
                     showEditDomainModal, selectedEditDomain, editDomainForm, savingDomainEdit, openEditDomainModal, handleSaveDomainEdit,
                     showDomainChangePlanModal, selectedDomainForPlan, targetDomainPlanId, changingDomainPlan, selectedDomainPlanPreview, openChangeDomainPlanModal, confirmChangeDomainPlan,
