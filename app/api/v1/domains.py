@@ -1131,8 +1131,62 @@ AVAILABLE_PHP_EXTENSIONS = [
     }
 ]
 
-class DomainPhpExtensionsUpdate(BaseModel):
-    extensions: Dict[str, bool]
+def get_installed_php_modules(php_version: str) -> set:
+    ver_clean = (php_version or "8.2").replace("php", "")
+    if len(ver_clean) == 2 and "." not in ver_clean:
+        ver_clean = f"{ver_clean[0]}.{ver_clean[1]}"
+    php_num = ver_clean.replace(".", "")
+
+    modules = set()
+    # 1. Quét nhị phân LSPHP (OpenLiteSpeed) và PHP CLI
+    lsphp_bin = f"/usr/local/lsws/lsphp{php_num}/bin/lsphp"
+    php_cli = f"/usr/bin/php{ver_clean}"
+
+    for bin_path in [lsphp_bin, php_cli]:
+        if os.path.exists(bin_path):
+            try:
+                res = subprocess.run([bin_path, "-m"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3)
+                if res.returncode == 0:
+                    for line in res.stdout.splitlines():
+                        m = line.strip().lower()
+                        if m and not m.startswith("["):
+                            modules.add(m)
+            except Exception:
+                pass
+
+    # 2. Quét conf.d / mods-available
+    for check_dir in [
+        f"/etc/php/{ver_clean}/mods-available",
+        f"/etc/php/{ver_clean}/fpm/conf.d",
+        f"/usr/local/lsws/lsphp{php_num}/etc/php/{ver_clean}/mods-available",
+        f"/usr/local/lsws/lsphp{php_num}/etc/php.d"
+    ]:
+        if os.path.isdir(check_dir):
+            try:
+                for f_name in os.listdir(check_dir):
+                    f_clean = f_name.lower().replace(".ini", "")
+                    if "-" in f_clean:
+                        f_clean = f_clean.split("-", 1)[-1]
+                    if f_clean:
+                        modules.add(f_clean)
+            except Exception:
+                pass
+
+    return modules
+
+def is_ext_module_installed(ext_id: str, installed_modules: set) -> bool:
+    if not installed_modules:
+        return True
+    
+    if ext_id == "opcache":
+        return ("zend opcache" in installed_modules or "opcache" in installed_modules)
+    elif ext_id == "redis":
+        return ("redis" in installed_modules)
+    elif ext_id == "imagick":
+        return ("imagick" in installed_modules or "imagemagick" in installed_modules)
+    elif ext_id in ["gd", "intl", "zip", "curl", "mbstring", "exif", "bcmath", "fileinfo", "sodium", "soap", "memcached", "xdebug"]:
+        return (ext_id in installed_modules)
+    return True
 
 @router.get("/{domain_id}/php-extensions")
 async def get_domain_php_extensions(
@@ -1185,14 +1239,18 @@ async def get_domain_php_extensions(
         except Exception:
             pass
 
+    installed_mods = get_installed_php_modules(domain["php_version"])
+
     # Build response list
     result_list = []
     for item in AVAILABLE_PHP_EXTENSIONS:
         ext_id = item["id"]
         is_enabled = saved_exts.get(ext_id, item["default"])
+        is_inst = is_ext_module_installed(ext_id, installed_mods)
         result_list.append({
             **item,
-            "enabled": bool(is_enabled)
+            "enabled": bool(is_enabled),
+            "installed": is_inst
         })
 
     return {
@@ -1209,7 +1267,7 @@ async def save_domain_php_extensions(
     req: DomainPhpExtensionsUpdate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Lưu và áp dụng bật/tắt PHP extensions cho từng website"""
+    """Lưu và áp dụng bật/tắt PHP extensions cho từng website, tự động cài extension nếu còn thiếu"""
     db = await get_db_connection()
     cursor = await db.execute("""
         SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.parent_id
@@ -1238,13 +1296,48 @@ async def save_domain_php_extensions(
     isolated_user = domain_to_linux_user(clean_domain)
     active_ws = domain["webserver"] or "ols"
 
+    php_ver = (domain["php_version"] or "8.2").replace("php", "")
+    if len(php_ver) == 2 and "." not in php_ver:
+        php_ver = f"{php_ver[0]}.{php_ver[1]}"
+    php_num = php_ver.replace(".", "")
+
+    # 2. Tự động phát hiện và cài đặt gói extension còn thiếu nếu người dùng bật ON
+    PKG_EXT_LIST = ["redis", "imagick", "intl", "soap", "memcached", "bcmath"]
+    installed_mods = get_installed_php_modules(domain["php_version"])
+    
+    installed_any = False
+    for pkg_ext in PKG_EXT_LIST:
+        if req.extensions.get(pkg_ext) is True:
+            # Nếu đã xác định được danh sách modules mà extension chưa có, tự động kích hoạt cài đặt
+            if installed_mods and not is_ext_module_installed(pkg_ext, installed_mods):
+                try:
+                    await run_gatekeeper("app", "php-ext", "install", php_ver, pkg_ext)
+                    installed_any = True
+                except Exception:
+                    try:
+                        subprocess.run(
+                            ["sudo", "/opt/wpc/scripts/apps/php.sh", "install-ext", php_ver, pkg_ext],
+                            check=False,
+                            timeout=60
+                        )
+                        installed_any = True
+                    except Exception:
+                        pass
+
+    if installed_any:
+        try:
+            subprocess.run(["pkill", "-9", "-f", f"lsphp{php_num}"], check=False)
+            subprocess.run(["/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
+        except Exception:
+            pass
+
     doc_root = f"/home/{isolated_user}/domains/{clean_domain}/public_html"
     if not os.path.exists(doc_root) and os.path.exists(f"/home/{isolated_user}/httpdocs/{clean_domain}"):
         doc_root = f"/home/{isolated_user}/httpdocs/{clean_domain}"
 
     ini_path = os.path.join(doc_root, ".user.ini")
 
-    # 2. Đọc nội dung .user.ini hiện tại và cập nhật directives liên quan đến extension
+    # 3. Đọc nội dung .user.ini hiện tại và cập nhật directives liên quan đến extension
     existing_content = ""
     if os.path.exists(ini_path):
         try:
@@ -1265,7 +1358,7 @@ async def save_domain_php_extensions(
                 in_ext_block = False
             continue
         line_s = line.strip()
-        if line_s.startswith("opcache.enable") or line_s.startswith("xdebug.mode"):
+        if line_s.startswith("opcache.enable") or line_s.startswith("xdebug.mode") or line_s.startswith("disable_classes"):
             continue
         clean_lines.append(line)
 
@@ -1284,6 +1377,20 @@ async def save_domain_php_extensions(
     redis_on = req.extensions.get("redis", True)
     if redis_on:
         ext_lines.append("redis.session.locking_enabled = 1")
+
+    # Cách ly theo từng website: Vô hiệu hóa classes của các extension bị tắt
+    disabled_classes = []
+    if not redis_on:
+        disabled_classes.extend(["Redis", "RedisCluster", "RedisSentinel", "RedisException"])
+    if not req.extensions.get("imagick", True):
+        disabled_classes.extend(["Imagick", "ImagickDraw", "ImagickPixel"])
+    if not req.extensions.get("soap", False):
+        disabled_classes.extend(["SoapClient", "SoapServer", "SoapFault"])
+    if not req.extensions.get("memcached", False):
+        disabled_classes.append("Memcached")
+
+    if disabled_classes:
+        ext_lines.append(f'disable_classes = "{",".join(disabled_classes)}"')
 
     ext_lines.append("; --- END PHP EXTENSIONS ---")
 
@@ -1304,11 +1411,10 @@ async def save_domain_php_extensions(
     except Exception:
         pass
 
-    # 3. Kích hoạt Gatekeeper apply-php-ini để đồng bộ vhconf.conf và reload worker
+    # 4. Kích hoạt Gatekeeper apply-php-ini để đồng bộ vhconf.conf và reload worker
     res = await run_gatekeeper("vhost", "apply-php-ini", isolated_user, clean_domain, active_ws)
     if res.get("status") == "error":
         try:
-            import subprocess
             subprocess.run(
                 ["sudo", "/opt/wpc/scripts/vhost_manager.sh", "apply-php-ini", isolated_user, clean_domain, active_ws],
                 check=False
@@ -1318,7 +1424,7 @@ async def save_domain_php_extensions(
 
     return {
         "status": "success",
-        "message": f"Cấu hình PHP Extensions cho website {clean_domain} đã được lưu và áp dụng thành công!",
+        "message": f"Cấu hình PHP Extensions cho website {clean_domain} đã được lưu và áp dụng thành công!" + (" (Đã cài đặt các extension còn thiếu)" if installed_any else ""),
         "extensions": req.extensions
     }
 

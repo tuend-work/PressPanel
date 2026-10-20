@@ -94,7 +94,7 @@ EOF
 
             # Nếu có OpenLiteSpeed thì cài thêm cả LSPHP tương ứng nếu có repo
             LSPHP_PKG="lsphp${LSPHP_NUM}"
-            apt-get install -y "$LSPHP_PKG" "${LSPHP_PKG}-mysql" "${LSPHP_PKG}-curl" "${LSPHP_PKG}-opcache" 2>/dev/null || true
+            apt-get install -y "$LSPHP_PKG" "${LSPHP_PKG}-mysql" "${LSPHP_PKG}-curl" "${LSPHP_PKG}-opcache" "${LSPHP_PKG}-redis" "${LSPHP_PKG}-imagick" "${LSPHP_PKG}-intl" "${LSPHP_PKG}-soap" "${LSPHP_PKG}-bcmath" 2>/dev/null || true
 
             # Xác thực thực tế
             INSTALLED_OK=0
@@ -227,30 +227,34 @@ EOF
     install-ext)
         EXT="${3:-}"
         if [ -n "$EXT" ]; then
-            echo "[+] Đang cài đặt PHP extension: php${VERSION_CLEAN}-${EXT}..."
+            echo "[+] Đang cài đặt PHP extension: $EXT cho PHP ${VERSION_CLEAN} / LSPHP ${LSPHP_NUM}..."
             if command -v apt-get &>/dev/null; then
-                apt-get install -y "php${VERSION_CLEAN}-${EXT}" || true
+                apt-get install -y "php${VERSION_CLEAN}-${EXT}" "lsphp${LSPHP_NUM}-${EXT}" 2>/dev/null || true
             elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
                 PKG_MGR="dnf"
                 command -v dnf &>/dev/null || PKG_MGR="yum"
-                $PKG_MGR install -y "${PHP_PKG_PREFIX}-php-${EXT}" "${PHP_PKG_PREFIX}-php-pecl-${EXT}" 2>/dev/null || true
+                $PKG_MGR install -y "${PHP_PKG_PREFIX}-php-${EXT}" "${PHP_PKG_PREFIX}-php-pecl-${EXT}" "lsphp${LSPHP_NUM}-${EXT}" "lsphp${LSPHP_NUM}-pecl-${EXT}" 2>/dev/null || true
             fi
             systemctl restart "${PHP_PKG_PREFIX}-php-fpm" "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
+            pkill -9 -f "lsphp${LSPHP_NUM}" 2>/dev/null || true
+            /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || true
         fi
         ;;
 
     remove-ext)
         EXT="${3:-}"
         if [ -n "$EXT" ]; then
-            echo "[+] Đang gỡ bỏ PHP extension: php${VERSION_CLEAN}-${EXT}..."
+            echo "[+] Đang gỡ bỏ PHP extension: $EXT cho PHP ${VERSION_CLEAN} / LSPHP ${LSPHP_NUM}..."
             if command -v apt-get &>/dev/null; then
-                apt-get remove -y "php${VERSION_CLEAN}-${EXT}" || true
+                apt-get remove -y "php${VERSION_CLEAN}-${EXT}" "lsphp${LSPHP_NUM}-${EXT}" 2>/dev/null || true
             elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
                 PKG_MGR="dnf"
                 command -v dnf &>/dev/null || PKG_MGR="yum"
-                $PKG_MGR remove -y "${PHP_PKG_PREFIX}-php-${EXT}" "${PHP_PKG_PREFIX}-php-pecl-${EXT}" 2>/dev/null || true
+                $PKG_MGR remove -y "${PHP_PKG_PREFIX}-php-${EXT}" "${PHP_PKG_PREFIX}-php-pecl-${EXT}" "lsphp${LSPHP_NUM}-${EXT}" "lsphp${LSPHP_NUM}-pecl-${EXT}" 2>/dev/null || true
             fi
             systemctl restart "${PHP_PKG_PREFIX}-php-fpm" "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
+            pkill -9 -f "lsphp${LSPHP_NUM}" 2>/dev/null || true
+            /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || true
         fi
         ;;
 

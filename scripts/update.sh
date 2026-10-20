@@ -463,6 +463,37 @@ if [ -d "$INSTALL_DIR/apps/phpmyadmin" ] || [ -f "/etc/nginx/conf.d/00_phpmyadmi
     bash "$INSTALL_DIR/scripts/apps/phpmyadmin.sh" install 2>/dev/null || true
 fi
 
+# 8.1.1 Đảm bảo cài đặt các PHP/LSPHP extensions quan trọng (Redis, Imagick, Intl, Zip, OPcache, MySQL)
+echo "[+] Cài đặt và cập nhật các extension PHP & LiteSpeed LSPHP (Redis, Imagick, OPcache, Intl)..."
+if command -v apt-get &>/dev/null; then
+    for v in 84 83 82 81 80 74; do
+        if [ -d "/usr/local/lsws/lsphp$v" ] || [ -f "/usr/local/lsws/lsphp$v/bin/lsphp" ]; then
+            DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                "lsphp$v-redis" "lsphp$v-imagick" "lsphp$v-intl" "lsphp$v-memcached" "lsphp$v-soap" "lsphp$v-bcmath" 2>/dev/null || true
+        fi
+    done
+    for pv in 8.4 8.3 8.2 8.1 8.0 7.4; do
+        if [ -d "/etc/php/$pv" ] || [ -f "/usr/bin/php$pv" ] || [ -f "/usr/sbin/php-fpm$pv" ]; then
+            DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                "php$pv-redis" "php$pv-imagick" "php$pv-intl" "php$pv-memcached" "php$pv-soap" "php$pv-bcmath" 2>/dev/null || true
+        fi
+    done
+elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
+    PKG_MGR="dnf"
+    command -v dnf &>/dev/null || PKG_MGR="yum"
+    for v in 84 83 82 81 80 74; do
+        if [ -d "/usr/local/lsws/lsphp$v" ]; then
+            $PKG_MGR install -y "lsphp$v-redis" "lsphp$v-pecl-redis" "lsphp$v-imagick" "lsphp$v-pecl-imagick" "lsphp$v-intl" "lsphp$v-soap" 2>/dev/null || true
+        fi
+    done
+fi
+
+if [ -d "/usr/local/lsws" ]; then
+    pkill -9 -f "lsphp" 2>/dev/null || true
+    rm -f /tmp/lshttpd/*.sock 2>/dev/null || true
+    /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
+fi
+
 # 8.2 Cấu hình dịch vụ giám sát Cgroups v2 thời gian thực (wpc-cgroup)
 cat << 'EOF_CGSVC' > /etc/systemd/system/wpc-cgroup.service
 [Unit]

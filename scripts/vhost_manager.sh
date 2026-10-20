@@ -870,8 +870,14 @@ EOF_NGX_SUSP
                     [ -z "$clean_k" ] && continue
                     case "$clean_k" in \#*|\;*) continue ;; esac
                     
-                    if [ "$clean_k" = "display_errors" ]; then
-                        echo "  php_flag display_errors $clean_v" >> "$VH_CONF"
+                    if [ "$clean_k" = "display_errors" ] || [ "$clean_k" = "opcache.enable" ]; then
+                        clean_flag="Off"
+                        if [ "$clean_v" = "1" ] || [ "$clean_v" = "On" ] || [ "$clean_v" = "on" ] || [ "$clean_v" = "true" ]; then
+                            clean_flag="On"
+                        fi
+                        echo "  php_flag $clean_k $clean_flag" >> "$VH_CONF"
+                    elif [ "$clean_k" = "disable_classes" ] || [ "$clean_k" = "disable_functions" ]; then
+                        echo "  php_admin_value $clean_k \"$clean_v\"" >> "$VH_CONF"
                     else
                         echo "  php_value $clean_k $clean_v" >> "$VH_CONF"
                     fi
