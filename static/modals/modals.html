@@ -5022,3 +5022,322 @@
                     </div>
                 </div>
             </div>
+
+            <!-- ========================================================================= -->
+            <!-- MODAL: THÊM / SỬA CRONJOB (CHO TẤT CẢ LOẠI WEB USER)                    -->
+            <!-- ========================================================================= -->
+            <div v-if="showCronModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4">
+                <div class="bg-[#0f131a] rounded-2xl max-w-xl w-full shadow-2xl border border-[#2b3545] overflow-hidden flex flex-col text-xs text-slate-300">
+                    <!-- Header -->
+                    <div class="h-12 px-5 border-b border-[#232b36] flex items-center justify-between bg-[#151a22] shrink-0">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="text-amber-400 text-lg">⏰</span>
+                            <span class="text-sm font-bold text-white">{{ cronForm.id ? 'Chỉnh Sửa Cronjob' : 'Tạo Cronjob Mới' }}</span>
+                        </div>
+                        <button @click="showCronModal = false" class="text-slate-400 hover:text-white text-2xl p-1 leading-none">&times;</button>
+                    </div>
+
+                    <!-- Body -->
+                    <div class="p-5 space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar">
+                        <!-- Tên tác vụ -->
+                        <div class="space-y-1">
+                            <label class="font-bold text-slate-200">Tên Tác Vụ / Mô Tả:</label>
+                            <input type="text" v-model="cronForm.name" placeholder="VD: WP-Cron tự động, Backup DB hàng ngày..."
+                                class="w-full px-3 py-2 rounded-xl bg-[#141922] border border-[#232b36] text-white focus:outline-none focus:border-amber-500 font-medium">
+                        </div>
+
+                        <!-- Mẫu Lịch Biểu Thường Dùng (Preset) -->
+                        <div class="space-y-1">
+                            <label class="font-bold text-slate-200">Mẫu Lịch Biểu Thông Dụng:</label>
+                            <select @change="applyCronPreset($event.target.value)"
+                                class="w-full px-3 py-2 rounded-xl bg-[#141922] border border-[#232b36] text-amber-400 font-mono focus:outline-none focus:border-amber-500 font-medium">
+                                <option value="">-- Chọn lịch biểu nhanh --</option>
+                                <option value="* * * * *">Mỗi phút (* * * * *)</option>
+                                <option value="*/5 * * * *">Mỗi 5 phút (*/5 * * * *)</option>
+                                <option value="*/15 * * * *">Mỗi 15 phút (*/15 * * * *) - Khuyên dùng WP-Cron</option>
+                                <option value="*/30 * * * *">Mỗi 30 phút (*/30 * * * *)</option>
+                                <option value="0 * * * *">Mỗi giờ (0 * * * *)</option>
+                                <option value="0 0 * * *">Hàng ngày lúc 00:00 (0 0 * * *)</option>
+                                <option value="0 3 * * *">Hàng ngày lúc 03:00 sáng (0 3 * * *)</option>
+                                <option value="0 0 * * 0">Hàng tuần vào Chủ Nhật (0 0 * * 0)</option>
+                                <option value="0 0 1 * *">Hàng tháng vào ngày 1 (0 0 1 * *)</option>
+                            </select>
+                        </div>
+
+                        <!-- Cú pháp Cron 5 trường -->
+                        <div class="space-y-1">
+                            <div class="flex items-center justify-between">
+                                <label class="font-bold text-slate-200">Cú pháp Cron (5 trường):</label>
+                                <span class="text-[10px] text-amber-400 font-mono">{{ formatCronHuman(cronForm.schedule) }}</span>
+                            </div>
+                            <input type="text" v-model="cronForm.schedule" placeholder="*/15 * * * *"
+                                class="w-full px-3 py-2 rounded-xl bg-[#141922] border border-[#232b36] text-amber-400 font-mono text-sm focus:outline-none focus:border-amber-500 font-bold">
+                            <p class="text-[10px] text-slate-500 font-mono">Định dạng: Phút (0-59) | Giờ (0-23) | Ngày (1-31) | Tháng (1-12) | Thứ (0-7)</p>
+                        </div>
+
+                        <!-- Mẫu Lệnh Nhanh -->
+                        <div class="space-y-1">
+                            <label class="font-bold text-slate-200 text-[11px]">Chèn Mẫu Câu Lệnh Nhanh:</label>
+                            <div class="flex flex-wrap gap-1.5">
+                                <button type="button" @click="applyCommandTemplate('wp-cron')"
+                                    class="px-2 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[11px] font-semibold transition">
+                                    WordPress WP-Cron
+                                </button>
+                                <button type="button" @click="applyCommandTemplate('php-script')"
+                                    class="px-2 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold transition">
+                                    PHP Script
+                                </button>
+                                <button type="button" @click="applyCommandTemplate('curl')"
+                                    class="px-2 py-1 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 text-[11px] font-semibold transition">
+                                    cURL HTTP
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Câu lệnh thực thi -->
+                        <div class="space-y-1">
+                            <label class="font-bold text-slate-200">Câu Lệnh Thực Thi (Command):</label>
+                            <textarea v-model="cronForm.command" rows="3" placeholder="/usr/bin/php /home/user/domains/domain.com/public_html/cron.php"
+                                class="w-full px-3 py-2 rounded-xl bg-[#141922] border border-[#232b36] text-emerald-400 font-mono text-xs focus:outline-none focus:border-amber-500 leading-relaxed"></textarea>
+                            <p class="text-[10px] text-slate-400">Tác vụ sẽ chạy độc lập bên trong Cage Sandbox dưới danh tính Linux của Web User.</p>
+                        </div>
+
+                        <!-- Chọn Website / User liên kết (Nếu là Admin hoặc Hosting User có nhiều site) -->
+                        <div v-if="currentUser.role === 'admin' || isHostingUser" class="space-y-1">
+                            <label class="font-bold text-slate-200">Website / User Liên Kết:</label>
+                            <select v-model="cronForm.domain_id"
+                                class="w-full px-3 py-2 rounded-xl bg-[#141922] border border-[#232b36] text-slate-200 focus:outline-none focus:border-amber-500 font-mono">
+                                <option :value="null">-- Tài khoản mặc định --</option>
+                                <option v-for="d in domains" :key="d.id" :value="d.id">
+                                    {{ d.domain_name }} ({{ d.owner_username }})
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="h-14 px-5 border-t border-[#232b36] flex items-center justify-end space-x-2.5 bg-[#141922] shrink-0">
+                        <button type="button" @click="showCronModal = false" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition">
+                            Hủy Bỏ
+                        </button>
+                        <button type="button" @click="submitSaveCron()" :disabled="savingCron"
+                            class="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold text-white shadow-lg shadow-amber-500/20 transition flex items-center space-x-1.5">
+                            <span v-if="savingCron" class="animate-spin">⏳</span>
+                            <span v-else>💾</span>
+                            <span>{{ savingCron ? 'Đang lưu...' : 'Lưu Cronjob' }}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================================================= -->
+            <!-- MODAL: KẾT QUẢ RUN NOW CRONJOB                                           -->
+            <!-- ========================================================================= -->
+            <div v-if="showCronOutputModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4">
+                <div class="bg-[#0f131a] rounded-2xl max-w-2xl w-full shadow-2xl border border-[#2b3545] overflow-hidden flex flex-col text-xs text-slate-300">
+                    <div class="h-12 px-5 border-b border-[#232b36] flex items-center justify-between bg-[#151a22] shrink-0">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="text-emerald-400">⚡</span>
+                            <span class="text-sm font-bold text-white">Kết Quả Thực Thi Cronjob</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold"
+                                :class="cronRunResult.exit_code === 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'">
+                                Exit Code: {{ cronRunResult.exit_code }}
+                            </span>
+                        </div>
+                        <button @click="showCronOutputModal = false" class="text-slate-400 hover:text-white text-2xl p-1 leading-none">&times;</button>
+                    </div>
+                    <div class="p-5 space-y-3">
+                        <div class="p-4 rounded-xl bg-[#090d14] border border-[#232b36] font-mono text-[11px] text-emerald-400 max-h-96 overflow-y-auto whitespace-pre-wrap select-all">
+                            {{ cronRunResult.output }}
+                        </div>
+                    </div>
+                    <div class="h-12 px-5 border-t border-[#232b36] flex items-center justify-end bg-[#141922] shrink-0">
+                        <button type="button" @click="showCronOutputModal = false" class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold transition">
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================================================= -->
+            <!-- MODAL: REWRITE RULES & .HTACCESS DÀNH CHO WEB USER                        -->
+            <!-- ========================================================================= -->
+            <div v-if="showWebsiteRewriteModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4">
+                <div class="bg-[#0f131a] rounded-2xl max-w-3xl w-full shadow-2xl border border-[#2b3545] overflow-hidden flex flex-col text-xs text-slate-300 h-[650px]">
+                    <div class="h-12 px-5 border-b border-[#232b36] flex items-center justify-between bg-[#151a22] shrink-0">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="text-indigo-400 text-lg">🔀</span>
+                            <span class="text-sm font-bold text-white">Quy Tắc Rewrite (.htaccess) &mdash; {{ currentRewriteDomain?.domain_name }}</span>
+                        </div>
+                        <button @click="showWebsiteRewriteModal = false" class="text-slate-400 hover:text-white text-2xl p-1 leading-none">&times;</button>
+                    </div>
+
+                    <!-- Presets Bar -->
+                    <div class="px-5 py-2.5 bg-[#121620] border-b border-[#232b36] flex items-center justify-between shrink-0">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-[11px] text-slate-400 font-semibold">Chèn Preset Nhanh:</span>
+                            <button @click="applyRewritePreset('wordpress')" class="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[11px] font-semibold transition">
+                                WordPress Permalink
+                            </button>
+                            <button @click="applyRewritePreset('laravel')" class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] font-semibold transition">
+                                Laravel Public
+                            </button>
+                            <button @click="applyRewritePreset('spa')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold transition">
+                                Single Page App
+                            </button>
+                        </div>
+                        <span class="text-[10px] text-slate-400 font-mono">{{ websiteRewritePath }}</span>
+                    </div>
+
+                    <!-- Code Editor Textarea -->
+                    <div class="flex-1 p-4 bg-[#0a0d14] overflow-hidden flex flex-col">
+                        <textarea v-model="websiteRewriteRules" rows="18"
+                            class="w-full flex-1 p-4 rounded-xl bg-[#0d1117] border border-[#232b36] text-emerald-300 font-mono text-xs focus:outline-none focus:border-indigo-500 leading-relaxed resize-none custom-scrollbar"
+                            placeholder="# Nhập các quy tắc Rewrite Rules hoặc .htaccess..."></textarea>
+                    </div>
+
+                    <div class="h-14 px-5 border-t border-[#232b36] flex items-center justify-between bg-[#141922] shrink-0">
+                        <span class="text-[11px] text-slate-400">💡 File được lưu an toàn trong thư mục docroot của website và tự động nạp lại máy chủ web.</span>
+                        <div class="flex items-center space-x-2.5">
+                            <button type="button" @click="showWebsiteRewriteModal = false" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition">
+                                Đóng
+                            </button>
+                            <button type="button" @click="submitSaveWebsiteRewrite()" :disabled="savingRewriteRules"
+                                class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-white shadow-lg shadow-indigo-500/20 transition flex items-center space-x-1.5">
+                                <span v-if="savingRewriteRules" class="animate-spin">⏳</span>
+                                <span v-else>💾</span>
+                                <span>{{ savingRewriteRules ? 'Đang lưu...' : 'Lưu Quy Tắc' }}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================================================= -->
+            <!-- MODAL: NHẬT KÝ ACCESS & ERROR LOGS DÀNH CHO WEB USER                      -->
+            <!-- ========================================================================= -->
+            <div v-if="showWebsiteLogsModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4">
+                <div class="bg-[#0f131a] rounded-2xl max-w-4xl w-full shadow-2xl border border-[#2b3545] overflow-hidden flex flex-col text-xs text-slate-300 h-[650px]">
+                    <div class="h-12 px-5 border-b border-[#232b36] flex items-center justify-between bg-[#151a22] shrink-0">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="text-cyan-400 text-lg">📄</span>
+                            <span class="text-sm font-bold text-white">Nhật Ký (Logs) &mdash; {{ currentLogsDomain?.domain_name }}</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button @click="fetchWebsiteLogs(currentLogsDomain, websiteLogsType)" :disabled="loadingLogs"
+                                class="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 transition flex items-center gap-1">
+                                <span :class="{'animate-spin': loadingLogs}">🔄</span>
+                                <span>Làm mới</span>
+                            </button>
+                            <button @click="clearWebsiteLogs(currentLogsDomain)"
+                                class="px-3 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition">
+                                🗑️ Xóa Log
+                            </button>
+                            <button @click="showWebsiteLogsModal = false" class="text-slate-400 hover:text-white text-2xl p-1 leading-none">&times;</button>
+                        </div>
+                    </div>
+
+                    <!-- Log Type Tabs -->
+                    <div class="px-5 bg-[#121620] border-b border-[#232b36] flex items-center space-x-3 shrink-0 pt-2">
+                        <button @click="switchWebsiteLogType('access')"
+                            :class="websiteLogsType === 'access' ? 'text-cyan-400 border-b-2 border-cyan-400 pb-2 font-bold' : 'text-slate-400 hover:text-slate-200 pb-2'"
+                            class="transition px-2">
+                            Access Log (Nhật ký truy cập)
+                        </button>
+                        <button @click="switchWebsiteLogType('error')"
+                            :class="websiteLogsType === 'error' ? 'text-rose-400 border-b-2 border-rose-400 pb-2 font-bold' : 'text-slate-400 hover:text-slate-200 pb-2'"
+                            class="transition px-2">
+                            Error Log (Nhật ký lỗi)
+                        </button>
+                    </div>
+
+                    <!-- Log Content Viewer -->
+                    <div class="flex-1 p-4 bg-[#080b11] overflow-hidden flex flex-col">
+                        <div class="flex-1 p-4 rounded-xl bg-[#0c1017] border border-[#232b36] font-mono text-[11px] overflow-y-auto whitespace-pre-wrap select-all custom-scrollbar leading-relaxed"
+                            :class="websiteLogsType === 'error' ? 'text-rose-300' : 'text-slate-300'">
+                            {{ websiteLogsContent || 'Đang tải bản ghi nhật ký...' }}
+                        </div>
+                    </div>
+
+                    <div class="h-12 px-5 border-t border-[#232b36] flex items-center justify-between bg-[#141922] shrink-0 text-slate-400 text-[11px]">
+                        <span>Tự động hiển thị 200 bản ghi mới nhất.</span>
+                        <button type="button" @click="showWebsiteLogsModal = false" class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold transition">
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================================================= -->
+            <!-- MODAL: BẢO MẬT & SECURITY HEADERS DÀNH CHO WEB USER                       -->
+            <!-- ========================================================================= -->
+            <div v-if="showWebsiteSecurityModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4">
+                <div class="bg-[#0f131a] rounded-2xl max-w-xl w-full shadow-2xl border border-[#2b3545] overflow-hidden flex flex-col text-xs text-slate-300">
+                    <div class="h-12 px-5 border-b border-[#232b36] flex items-center justify-between bg-[#151a22] shrink-0">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="text-rose-400 text-lg">🛡️</span>
+                            <span class="text-sm font-bold text-white">Bảo Mật Website &mdash; {{ currentSecurityDomain?.domain_name }}</span>
+                        </div>
+                        <button @click="showWebsiteSecurityModal = false" class="text-slate-400 hover:text-white text-2xl p-1 leading-none">&times;</button>
+                    </div>
+
+                    <div class="p-5 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                        <!-- Toggle Force HTTPS -->
+                        <div class="p-3.5 rounded-xl bg-[#141922] border border-[#232b36] flex items-center justify-between">
+                            <div>
+                                <div class="font-bold text-white flex items-center gap-1.5">
+                                    <span>🔒 Bắt Buộc HTTPS (Force HTTPS)</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 mt-0.5">Tự động chuyển hướng toàn bộ traffic HTTP cổng 80 sang HTTPS cổng 443.</p>
+                            </div>
+                            <input type="checkbox" v-model="websiteSecuritySettings.force_ssl" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer">
+                        </div>
+
+                        <!-- Toggle HSTS -->
+                        <div class="p-3.5 rounded-xl bg-[#141922] border border-[#232b36] flex items-center justify-between">
+                            <div>
+                                <div class="font-bold text-white flex items-center gap-1.5">
+                                    <span>⚡ HTTP Strict Transport Security (HSTS)</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 mt-0.5">Buộc trình duyệt web luôn kết nối mã hóa an toàn cao cấp trong 1 năm.</p>
+                            </div>
+                            <input type="checkbox" v-model="websiteSecuritySettings.hsts" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer">
+                        </div>
+
+                        <!-- Toggle Anti-Hotlink -->
+                        <div class="p-3.5 rounded-xl bg-[#141922] border border-[#232b36] flex items-center justify-between">
+                            <div>
+                                <div class="font-bold text-white flex items-center gap-1.5">
+                                    <span>🚫 Chống Trộm Băng Thông Ảnh (Hotlink Protection)</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 mt-0.5">Chặn các website khác nhúng trực tiếp hình ảnh (.jpg, .png, .webp) của bạn.</p>
+                            </div>
+                            <input type="checkbox" v-model="websiteSecuritySettings.anti_hotlink" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer">
+                        </div>
+
+                        <!-- Toggle X-Frame-Options -->
+                        <div class="p-3.5 rounded-xl bg-[#141922] border border-[#232b36] flex items-center justify-between">
+                            <div>
+                                <div class="font-bold text-white flex items-center gap-1.5">
+                                    <span>🛡️ Chống Clickjacking (X-Frame-Options: SAMEORIGIN)</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 mt-0.5">Ngăn chặn kẻ xấu nhúng website của bạn vào trong thẻ &lt;iframe&gt; giả mạo.</p>
+                            </div>
+                            <input type="checkbox" v-model="websiteSecuritySettings.x_frame_options" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer">
+                        </div>
+                    </div>
+
+                    <div class="h-14 px-5 border-t border-[#232b36] flex items-center justify-end space-x-2.5 bg-[#141922] shrink-0">
+                        <button type="button" @click="showWebsiteSecurityModal = false" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition">
+                            Hủy
+                        </button>
+                        <button type="button" @click="submitSaveWebsiteSecurity()" :disabled="savingSecuritySettings"
+                            class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 font-bold text-white shadow-lg shadow-rose-500/20 transition flex items-center space-x-1.5">
+                            <span v-if="savingSecuritySettings" class="animate-spin">⏳</span>
+                            <span v-else>💾</span>
+                            <span>{{ savingSecuritySettings ? 'Đang lưu...' : 'Lưu Thiết Lập' }}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+

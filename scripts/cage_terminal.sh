@@ -6,9 +6,21 @@
 set -euo pipefail
 
 TARGET_USER="${1:-}"
-if [ -z "$TARGET_USER" ] || [[ ! "$TARGET_USER" =~ ^[a-z0-9_-]{1,32}$ ]]; then
-    echo "[-] Thieu tham so hoac username khong hop le cho cage terminal"
+if [ -z "$TARGET_USER" ] || [[ ! "$TARGET_USER" =~ ^[a-zA-Z0-9_.-]{1,32}$ ]]; then
+    echo "[-] Thieu tham so hoac username khong hop le cho cage terminal: '$TARGET_USER'"
     exit 1
+fi
+
+# Kiểm tra xem user có tồn tại trên Linux không
+if ! id "$TARGET_USER" &>/dev/null; then
+    # Thử chuyển domain thành linux user (bỏ ký tự đặc biệt, lấy tối đa 16 ký tự)
+    CLEAN_USER=$(echo "$TARGET_USER" | tr -cd '[:alnum:]' | cut -c 1-16)
+    if id "$CLEAN_USER" &>/dev/null; then
+        TARGET_USER="$CLEAN_USER"
+    else
+        echo "[-] Nguoi dung Linux '$TARGET_USER' khong ton tai tren he thong."
+        exit 1
+    fi
 fi
 
 REAL_HOME="/home/$TARGET_USER"

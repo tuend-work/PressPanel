@@ -176,22 +176,17 @@ EOF
         # Đảm bảo cây thư mục cha /opt/wpc có quyền thực thi (755) cho webserver
         chmod 755 /opt /opt/wpc /opt/wpc/apps "$TARGET_DIR" 2>/dev/null || true
 
-        # Thêm nobody và www-data vào nhóm wpc nếu cần
-        if id "wpc" &>/dev/null; then
-            id "nobody" &>/dev/null && usermod -a -G wpc nobody 2>/dev/null || true
-            id "www-data" &>/dev/null && usermod -a -G wpc www-data 2>/dev/null || true
-        fi
+        # Tạo user & group riêng cho phpMyAdmin: pma:pma
+        groupadd -r pma 2>/dev/null || true
+        id "pma" &>/dev/null || useradd -r -g pma -s /usr/sbin/nologin -d "$TARGET_DIR" pma 2>/dev/null || true
+        id "nobody" &>/dev/null && usermod -a -G pma nobody 2>/dev/null || true
+        id "www-data" &>/dev/null && usermod -a -G pma www-data 2>/dev/null || true
+        id "pma" &>/dev/null && usermod -a -G www-data pma 2>/dev/null || true
 
+        chown -R pma:pma "$TARGET_DIR" 2>/dev/null || true
         find "$TARGET_DIR" -type d -exec chmod 755 {} + 2>/dev/null || true
         find "$TARGET_DIR" -type f -exec chmod 644 {} + 2>/dev/null || true
         chmod 1777 "$TARGET_DIR/tmp" 2>/dev/null || chmod 777 "$TARGET_DIR/tmp" 2>/dev/null || true
-        chmod -R a+rX "$TARGET_DIR" 2>/dev/null || true
-
-        if [ -d "/usr/local/lsws" ]; then
-            chown -R nobody:nogroup "$TARGET_DIR" 2>/dev/null || true
-        else
-            chown -R www-data:www-data "$TARGET_DIR" 2>/dev/null || true
-        fi
 
         # Tạo symlink phpmyadmin để hỗ trợ cả URI / và /phpmyadmin/
         ln -snf "$TARGET_DIR" "$TARGET_DIR/phpmyadmin" 2>/dev/null || true
@@ -230,7 +225,7 @@ EOF
             if [ ! -x "$OLS_LSPHP_BIN" ]; then
                 OLS_LSPHP_BIN=$(find /usr/local/lsws/ -name "lsphp" -type f -executable 2>/dev/null | head -n 1 || echo "/usr/local/lsws/lsphp82/bin/lsphp")
             fi
-            echo "[+] Cấu hình OpenLiteSpeed cho phpMyAdmin (LSPHP: $OLS_LSPHP, Bin: $OLS_LSPHP_BIN)..."
+            echo "[+] Cấu hình OpenLiteSpeed cho phpMyAdmin (LSPHP: $OLS_LSPHP, Bin: $OLS_LSPHP_BIN, User: pma)..."
 
             mkdir -p "/usr/local/lsws/conf/vhosts/phpmyadmin"
             mkdir -p "/usr/local/lsws/logs"
@@ -281,6 +276,8 @@ extprocessor pma_lsphp {
   memHardLimit            1024M
   procSoftLimit           200
   procHardLimit           200
+  extUser                 pma
+  extGroup                pma
 }
 
 scripthandler {

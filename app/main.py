@@ -17,6 +17,7 @@ from app.api.v1.tasks import router as tasks_router
 from app.api.v1.users import router as users_router
 from app.api.v1.terminal import router as terminal_router
 from app.api.v1.databases import router as databases_router
+from app.api.v1.crons import router as crons_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -54,6 +55,7 @@ app.include_router(tasks_router, prefix=settings.API_V1_STR)
 app.include_router(users_router, prefix=settings.API_V1_STR)
 app.include_router(terminal_router, prefix=settings.API_V1_STR)
 app.include_router(databases_router, prefix=settings.API_V1_STR)
+app.include_router(crons_router, prefix=settings.API_V1_STR)
 
 @app.get("/health", tags=["System"])
 async def health_check():

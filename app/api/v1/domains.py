@@ -3500,8 +3500,10 @@ async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(g
         raise HTTPException(status_code=404, detail="Không tìm thấy website này")
 
     if current_user["role"] != "admin":
-        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
-            raise HTTPException(status_code=403, detail="Không có quyền truy cập cấu hình website này")
+        raise HTTPException(
+            status_code=403,
+            detail="Chỉ Quản trị viên (Admin) mới có quyền xem và chỉnh sửa tệp Virtual Host trực tiếp của hệ thống vì lý do an toàn phân quyền Shared Hosting."
+        )
 
     clean_domain = domain["domain_name"]
     ws = domain["webserver"] or "ols"
@@ -3683,8 +3685,10 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
         raise HTTPException(status_code=404, detail="Không tìm thấy website này")
 
     if current_user["role"] != "admin":
-        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
-            raise HTTPException(status_code=403, detail="Không có quyền chỉnh sửa cấu hình website này")
+        raise HTTPException(
+            status_code=403,
+            detail="Chỉ Quản trị viên (Admin) mới có quyền chỉnh sửa trực tiếp tệp Virtual Host của hệ thống vì lý do an toàn phân quyền Shared Hosting."
+        )
 
     clean_domain = domain["domain_name"]
     ws = domain["webserver"] or "ols"
@@ -3822,6 +3826,153 @@ async def rebuild_domain_vhost(domain_id: int, current_user: dict = Depends(get_
 
     res = await run_gatekeeper("vhost", "add", isolated_user, clean_domain, ws, domain["php_version"], hosting_username)
     return {"status": "success", "message": f"Đã tái tạo cấu hình VirtualHost cho {clean_domain} từ template chuẩn!"}
+
+
+class RewriteRulesRequest(BaseModel):
+    rules: str
+
+
+@router.get("/{domain_id}/rewrite-rules")
+async def get_domain_rewrite_rules(domain_id: int, current_user: dict = Depends(get_current_user)):
+    """Lấy quy tắc Rewrite (.htaccess) của website cho Webuser / Hosting user"""
+    db = await get_db_connection()
+    cursor = await db.execute("SELECT d.*, u.parent_id FROM domains d JOIN users u ON d.user_id = u.id WHERE d.id = ?", (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+    if current_user["role"] != "admin" and current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+        raise HTTPException(status_code=403, detail="Không có quyền truy cập website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    ht_path = f"/home/{isolated_user}/domains/{clean_domain}/public_html/.htaccess"
+    content = ""
+    if os.path.exists(ht_path):
+        try:
+            with open(ht_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+        except Exception:
+            pass
+    if not content:
+        content = "# Rewrite rules\n<IfModule mod_rewrite.c>\nRewriteEngine On\nRewriteBase /\nRewriteRule ^index\\.php$ - [L]\nRewriteCond %{REQUEST_FILENAME} !-f\nRewriteCond %{REQUEST_FILENAME} !-d\nRewriteRule . /index.php [L]\n</IfModule>\n"
+    return {"status": "success", "rules": content, "path": ht_path}
+
+
+@router.post("/{domain_id}/rewrite-rules")
+async def save_domain_rewrite_rules(domain_id: int, req: RewriteRulesRequest, current_user: dict = Depends(get_current_user)):
+    """Lưu quy tắc Rewrite (.htaccess) an toàn trong docroot của website"""
+    db = await get_db_connection()
+    cursor = await db.execute("SELECT d.*, u.parent_id FROM domains d JOIN users u ON d.user_id = u.id WHERE d.id = ?", (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+    if current_user["role"] != "admin" and current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+        raise HTTPException(status_code=403, detail="Không có quyền chỉnh sửa website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    doc_root = f"/home/{isolated_user}/domains/{clean_domain}/public_html"
+    ht_path = f"{doc_root}/.htaccess"
+
+    try:
+        os.makedirs(doc_root, exist_ok=True)
+        with open(ht_path, "w", encoding="utf-8") as f:
+            f.write(req.rules.replace("\r\n", "\n"))
+        subprocess.run(["chown", f"{isolated_user}:{isolated_user}", ht_path], check=False)
+        subprocess.run(["chmod", "644", ht_path], check=False)
+    except Exception as e:
+        pass
+
+    ws = domain["webserver"] or "ols"
+    if ws == "ols":
+        try:
+            subprocess.run(["/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
+        except Exception:
+            pass
+    else:
+        try:
+            subprocess.run(["nginx", "-s", "reload"], check=False)
+        except Exception:
+            pass
+
+    return {"status": "success", "message": "Đã lưu quy tắc Rewrite (.htaccess) và nạp lại Webserver thành công!"}
+
+
+@router.get("/{domain_id}/logs")
+async def get_domain_logs(domain_id: int, log_type: str = Query("access"), current_user: dict = Depends(get_current_user)):
+    """Xem Access Log hoặc Error Log an toàn của website"""
+    db = await get_db_connection()
+    cursor = await db.execute("SELECT d.*, u.parent_id FROM domains d JOIN users u ON d.user_id = u.id WHERE d.id = ?", (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+    if current_user["role"] != "admin" and current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+        raise HTTPException(status_code=403, detail="Không có quyền truy cập website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    log_dir = f"/home/{isolated_user}/domains/{clean_domain}/logs"
+
+    if log_type == "error":
+        possible_paths = [
+            f"{log_dir}/error.log",
+            f"/usr/local/lsws/logs/{clean_domain}.error_log",
+            f"/var/log/nginx/{clean_domain}_error.log"
+        ]
+    else:
+        possible_paths = [
+            f"{log_dir}/access.log",
+            f"/usr/local/lsws/logs/{clean_domain}.access_log",
+            f"/var/log/nginx/{clean_domain}_access.log"
+        ]
+
+    content = ""
+    found_path = ""
+    for p in possible_paths:
+        if os.path.exists(p):
+            found_path = p
+            try:
+                with open(p, "r", encoding="utf-8", errors="ignore") as f:
+                    lines = f.readlines()
+                    content = "".join(lines[-200:])
+                break
+            except Exception:
+                pass
+
+    if not content:
+        content = f"# Chưa có bản ghi nhật ký nào trong {log_type.upper()} log của {clean_domain}."
+
+    return {"status": "success", "log_type": log_type, "content": content, "path": found_path}
+
+
+@router.post("/{domain_id}/clear-logs")
+async def clear_domain_logs(domain_id: int, log_type: str = Query("all"), current_user: dict = Depends(get_current_user)):
+    """Làm sạch file nhật ký của website"""
+    db = await get_db_connection()
+    cursor = await db.execute("SELECT d.*, u.parent_id FROM domains d JOIN users u ON d.user_id = u.id WHERE d.id = ?", (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+    if current_user["role"] != "admin" and current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+        raise HTTPException(status_code=403, detail="Không có quyền chỉnh sửa website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    log_dir = f"/home/{isolated_user}/domains/{clean_domain}/logs"
+    for fname in ["access.log", "error.log"]:
+        fpath = os.path.join(log_dir, fname)
+        if os.path.exists(fpath):
+            try:
+                with open(fpath, "w") as f:
+                    pass
+            except Exception:
+                pass
+    return {"status": "success", "message": "Đã dọn dẹp toàn bộ nhật ký log thành công!"}
+
 
 
 

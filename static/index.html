@@ -34,7 +34,21 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Google Font Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <!-- Xterm.js & Addon Fit cho Web Terminal SSH -->
+<script>
+function showAlert(message) {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            text: message,
+            icon: 'info',
+            confirmButtonText: 'OK',
+        });
+    } else {
+        alert(message);
+    }
+}
+</script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
@@ -296,6 +310,17 @@
                                 </div>
                                 <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono border border-emerald-800">
                                     {{ currentUser.role === 'admin' ? 'root' : 'caged' }}
+                                </span>
+                            </button>
+
+                            <!-- Cronjobs (Tất cả vai trò) -->
+                            <button @click="currentTab = 'crons'; fetchCronJobs();" :class="navClass('crons')">
+                                <div class="flex items-center space-x-3">
+                                    <i data-lucide="clock" class="w-4 h-4 text-amber-400"></i>
+                                    <span>Cronjobs</span>
+                                </div>
+                                <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-400 font-mono border border-amber-800">
+                                    {{ cronJobs.length }}
                                 </span>
                             </button>
 
@@ -592,7 +617,7 @@
             const viewFiles = [
                 'dashboard.html', 'domains.html', 'wp.html', 'apps.html',
                 'customers.html', 'service_plans.html', 'databases.html',
-                'files.html', 'others.html', 'profile.html'
+                'files.html', 'others.html', 'profile.html', 'crons.html'
             ];
             try {
                 const cacheBuster = Date.now();
@@ -671,7 +696,7 @@
                     const validTabs = [
                         'dashboard', 'domains', 'mail', 'files', 'databases',
                         'monitoring', 'wp', 'service_plans', 'customers',
-                        'apps', 'firewall', 'tools_settings', 'profile'
+                        'apps', 'firewall', 'tools_settings', 'profile', 'crons'
                     ];
                     let chosen = validTabs.includes(hash) ? hash : (isWebUser.value ? 'domains' : 'dashboard');
                     if (isWebUser.value && (chosen === 'dashboard' || chosen === 'service_plans' || chosen === 'customers' || chosen === 'apps' || chosen === 'firewall' || chosen === 'tools_settings')) {
@@ -1052,13 +1077,13 @@
                             if (data.details && data.details.backup_info && data.details.backup_info.length > 0) {
                                 msg += '\n\n' + data.details.backup_info.join('\n');
                             }
-                            alert(msg);
+                            showAlert(msg);
                             loadAppConfig(webserver);
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể tái tạo cấu hình'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể tái tạo cấu hình'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         rewritingConfig.value = false;
                     }
@@ -1114,14 +1139,14 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || `Đã gửi lệnh ${actionName} extension!`);
+                            showAlert(data.message || `Đã gửi lệnh ${actionName} extension!`);
                             fetchTasks();
                             setTimeout(() => fetchPhpExtensions(appId), 2500);
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể thực thi'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể thực thi'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
@@ -1157,12 +1182,12 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Lưu cấu hình thành công!');
+                            showAlert(data.message || 'Lưu cấu hình thành công!');
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể lưu'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể lưu'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingDirectives.value = false;
                     }
@@ -1240,12 +1265,12 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Lưu file cấu hình thành công!');
+                            showAlert(data.message || 'Lưu file cấu hình thành công!');
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể lưu file cấu hình'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể lưu file cấu hình'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingConfig.value = false;
                     }
@@ -1289,12 +1314,12 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Lưu đối số biên dịch thành công!');
+                            showAlert(data.message || 'Lưu đối số biên dịch thành công!');
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể lưu đối số biên dịch.'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể lưu đối số biên dịch.'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingBuildSettings.value = false;
                     }
@@ -1322,15 +1347,15 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Đã kích hoạt tiến trình biên dịch từ nguồn!');
+                            showAlert(data.message || 'Đã kích hoạt tiến trình biên dịch từ nguồn!');
                             showMessagesBox.value = true;
                             msgBoxTab.value = 'tasks';
                             fetchRunningTasks();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể kích hoạt tiến trình biên dịch.'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể kích hoạt tiến trình biên dịch.'));
                         }
                     } catch (e) {
-                        alert('Lỗi: ' + e.message);
+                        showAlert('Lỗi: ' + e.message);
                     } finally {
                         buildingApp.value = false;
                     }
@@ -1386,12 +1411,12 @@
                         const data = await res.json();
                         if (res.ok) {
                             app.autorestart = enabled;
-                            alert(data.message || 'Cập nhật tự khởi động thành công!');
+                            showAlert(data.message || 'Cập nhật tự khởi động thành công!');
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể cập nhật'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể cập nhật'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
@@ -1414,7 +1439,7 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Thực thi thành công!');
+                            showAlert(data.message || 'Thực thi thành công!');
                             // Nếu vừa khởi động (start/restart) Webserver (OLS hoặc Nginx), tự động đồng bộ cấu hình VirtualHost cho toàn bộ websites
                             if (['start', 'restart'].includes(action) && ['ols', 'nginx'].includes(appId)) {
                                 handleRewriteWebserverConfig(appId);
@@ -1424,10 +1449,10 @@
                                 fetchSystemStatus();
                             }, 1500);
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể thực hiện tác vụ'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể thực hiện tác vụ'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         if (action === 'install') {
                             installingAppId.value = '';
@@ -1818,12 +1843,12 @@
                             fetchDomains();
                             fetchSystemStatus();
                             fetchAppsList();
-                            alert('Tạo website thành công!');
+                            showAlert('Tạo website thành công!');
                         } else {
-                            alert('Lỗi: ' + (data.detail || data.message || 'Không thể tạo website'));
+                            showAlert('Lỗi: ' + (data.detail || data.message || 'Không thể tạo website'));
                         }
                     } catch (e) {
-                        alert('Lỗi: ' + e.message);
+                        showAlert('Lỗi: ' + e.message);
                     }
                 };
 
@@ -1840,17 +1865,17 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || `Đã xóa website ${domain.domain_name} thành công!`);
+                            showAlert(data.message || `Đã xóa website ${domain.domain_name} thành công!`);
                             fetchDomains();
                             fetchSystemStatus();
                             if (currentTab.value === 'customers') {
                                 fetchCustomers();
                             }
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể xóa website này'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể xóa website này'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
@@ -1871,13 +1896,13 @@
                         const data = await res.json();
                         if (res.ok) {
                             domain.status = newStatus;
-                            alert(data.message || `Đã cập nhật trạng thái website ${domain.domain_name} thành công!`);
+                            showAlert(data.message || `Đã cập nhật trạng thái website ${domain.domain_name} thành công!`);
                             fetchDomains();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể cập nhật trạng thái website'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể cập nhật trạng thái website'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
@@ -1917,13 +1942,13 @@
                         const data = await res.json();
                         if (res.ok) {
                             showEditDomainModal.value = false;
-                            alert(data.message || 'Đã cập nhật website thành công!');
+                            showAlert(data.message || 'Đã cập nhật website thành công!');
                             fetchDomains();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể cập nhật website'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể cập nhật website'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingDomainEdit.value = false;
                     }
@@ -1964,13 +1989,13 @@
                         const data = await res.json();
                         if (res.ok) {
                             showDomainChangePlanModal.value = false;
-                            alert(data.message || 'Đã đổi gói dịch vụ website thành công!');
+                            showAlert(data.message || 'Đã đổi gói dịch vụ website thành công!');
                             fetchDomains();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể đổi gói cho website'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể đổi gói cho website'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         changingDomainPlan.value = false;
                     }
@@ -2053,7 +2078,7 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Tạo gói dịch vụ thành công!');
+                            showAlert(data.message || 'Tạo gói dịch vụ thành công!');
                             showAddPlanModal.value = false;
                             newPlan.value = {
                                 name: '',
@@ -2068,10 +2093,10 @@
                             };
                             fetchServicePlans();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể tạo Service Plan'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể tạo Service Plan'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         creatingPlan.value = false;
                     }
@@ -2091,10 +2116,10 @@
                         if (res.ok) {
                             plan.allow_ssh = newStatus ? 1 : 0;
                         } else {
-                            alert('Không thể thay đổi quyền SSH của gói');
+                            showAlert('Không thể thay đổi quyền SSH của gói');
                         }
                     } catch (e) {
-                        alert('Lỗi: ' + e.message);
+                        showAlert('Lỗi: ' + e.message);
                     }
                 };
 
@@ -2112,11 +2137,11 @@
                         if (res.ok) {
                             domain.allow_ssh = allow ? 1 : 0;
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể đổi quyền SSH cho website'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể đổi quyền SSH cho website'));
                             domain.allow_ssh = !allow ? 1 : 0;
                         }
                     } catch (e) {
-                        alert('Lỗi: ' + e.message);
+                        showAlert('Lỗi: ' + e.message);
                         domain.allow_ssh = !allow ? 1 : 0;
                     }
                 };
@@ -2147,14 +2172,14 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Đổi gói dịch vụ thành công!');
+                            showAlert(data.message || 'Đổi gói dịch vụ thành công!');
                             showChangePlanModal.value = false;
                             fetchCustomers();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể đổi gói dịch vụ'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể đổi gói dịch vụ'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         changingPlan.value = false;
                     }
@@ -2181,15 +2206,15 @@
                     // 1. Kiểm tra validation phía client để tránh lỗi Pydantic 422 không rõ ràng
                     const form = newCustomer.value;
                     if (!form.username || !form.username.trim()) {
-                        alert('Vui lòng nhập Tên tài khoản Hosting User!');
+                        showAlert('Vui lòng nhập Tên tài khoản Hosting User!');
                         return;
                     }
                     if (!form.password || form.password.length < 6) {
-                        alert('Vui lòng nhập Mật khẩu (tối thiểu 6 ký tự)!');
+                        showAlert('Vui lòng nhập Mật khẩu (tối thiểu 6 ký tự)!');
                         return;
                     }
                     if (!form.email || !form.email.trim()) {
-                        alert('Vui lòng nhập Email khách hàng!');
+                        showAlert('Vui lòng nhập Email khách hàng!');
                         return;
                     }
                     // Mặc định an toàn nếu trường số bị để trống
@@ -2209,7 +2234,7 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Tạo Customer thành công!');
+                            showAlert(data.message || 'Tạo Customer thành công!');
                             showAddCustomerModal.value = false;
                             newCustomer.value = {
                                 username: '',
@@ -2229,10 +2254,10 @@
                             fetchCustomers();
                             fetchDomains();
                         } else {
-                            alert('Lỗi: ' + formatErrorDetail(data.detail, 'Không thể tạo Customer'));
+                            showAlert('Lỗi: ' + formatErrorDetail(data.detail, 'Không thể tạo Customer'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         creatingCustomer.value = false;
                     }
@@ -2241,7 +2266,7 @@
                 const handleSetCustomerStatus = async (status) => {
                     showCustomerStatusMenu.value = false;
                     if (!selectedCustomerIds.value.length) {
-                        alert('Vui lòng chọn ít nhất một Customer!');
+                        showAlert('Vui lòng chọn ít nhất một Customer!');
                         return;
                     }
                     try {
@@ -2255,21 +2280,21 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Cập nhật trạng thái thành công!');
+                            showAlert(data.message || 'Cập nhật trạng thái thành công!');
                             selectedCustomerIds.value = [];
                             fetchCustomers();
                             fetchDomains();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể cập nhật trạng thái'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể cập nhật trạng thái'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
                 const handleBatchDeleteCustomers = async () => {
                     if (!selectedCustomerIds.value.length) {
-                        alert('Vui lòng chọn ít nhất một Customer!');
+                        showAlert('Vui lòng chọn ít nhất một Customer!');
                         return;
                     }
                     if (!confirm(`Bạn có chắc chắn muốn XÓA vĩnh viễn ${selectedCustomerIds.value.length} Customer đã chọn?\nMọi website và dữ liệu Linux liên quan sẽ bị dọn dẹp!`)) return;
@@ -2285,15 +2310,15 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Đã xóa thành công!');
+                            showAlert(data.message || 'Đã xóa thành công!');
                             selectedCustomerIds.value = [];
                             fetchCustomers();
                             fetchDomains();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể xóa'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể xóa'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
@@ -2343,14 +2368,14 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Cập nhật thông tin user thành công!');
+                            showAlert(data.message || 'Cập nhật thông tin user thành công!');
                             showEditCustomerModal.value = false;
                             fetchCustomers();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể cập nhật thông tin user'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể cập nhật thông tin user'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingCustomerEdit.value = false;
                     }
@@ -2514,7 +2539,7 @@
                 const handleBatchDeleteDomains = async (ids) => {
                     const targetIds = ids || selectedDomainIds.value;
                     if (!targetIds.length) {
-                        alert('Vui lòng chọn ít nhất một website/subscription!');
+                        showAlert('Vui lòng chọn ít nhất một website/subscription!');
                         return;
                     }
                     if (!confirm(`Bạn có chắc chắn muốn XÓA ${targetIds.length} website/subscription đã chọn?\nMôi trường Linux user và cấu hình máy chủ sẽ được dọn dẹp an toàn.`)) return;
@@ -2530,15 +2555,15 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Đã xóa thành công!');
+                            showAlert(data.message || 'Đã xóa thành công!');
                             selectedDomainIds.value = [];
                             selectedSubIds.value = [];
                             fetchDomains();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể xóa website'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể xóa website'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
@@ -2570,10 +2595,10 @@
                             window.location.href = window.location.pathname + '#dashboard';
                             window.location.reload();
                         } else {
-                            alert('Lỗi Login As: ' + (data.detail || 'Không thể đăng nhập dưới quyền Customer này'));
+                            showAlert('Lỗi Login As: ' + (data.detail || 'Không thể đăng nhập dưới quyền Customer này'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
@@ -2609,10 +2634,10 @@
                             window.location.href = window.location.pathname + '#domains';
                             window.location.reload();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể đăng nhập dưới quyền Web User này'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể đăng nhập dưới quyền Web User này'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
@@ -2642,19 +2667,19 @@
                         if (data.sso_url) {
                             window.open(data.sso_url, '_blank');
                         } else {
-                            alert('Chưa có WordPress trên domain này hoặc chưa cài WP-CLI login nonce.');
+                            showAlert('Chưa có WordPress trên domain này hoặc chưa cài WP-CLI login nonce.');
                         }
                     } catch (e) {
-                        alert('Lỗi SSO: ' + e.message);
+                        showAlert('Lỗi SSO: ' + e.message);
                     }
                 };
 
                 const installSSL = async (domain) => {
-                    alert(`Đang gửi yêu cầu cấp chứng chỉ Let's Encrypt cho ${domain.domain_name}...`);
+                    showAlert(`Đang gửi yêu cầu cấp chứng chỉ Let's Encrypt cho ${domain.domain_name}...`);
                 };
 
-                const handleWPClone = (d) => alert(`Chức năng Clone Staging cho ${d.domain_name}`);
-                const handleWPSecure = (d) => alert(`Đã kích hoạt Security Hardening cho ${d.domain_name}`);
+                const handleWPClone = (d) => showAlert(`Chức năng Clone Staging cho ${d.domain_name}`);
+                const handleWPSecure = (d) => showAlert(`Đã kích hoạt Security Hardening cho ${d.domain_name}`);
 
                 const getDomainSubTab = (domainId) => {
                     return activeDomainSubTab.value[domainId] || 'dashboard';
@@ -2758,13 +2783,13 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Đã lưu và áp dụng cấu hình php.ini thành công!');
+                            showAlert(data.message || 'Đã lưu và áp dụng cấu hình php.ini thành công!');
                             domainPhpIni.value.file_exists = true;
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình php.ini'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình php.ini'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingDomainPhpIni.value = false;
                     }
@@ -2836,12 +2861,12 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Đã lưu và áp dụng cấu hình PHP Extensions thành công!');
+                            showAlert(data.message || 'Đã lưu và áp dụng cấu hình PHP Extensions thành công!');
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình PHP extensions'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình PHP extensions'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingDomainPhpExtensions.value = false;
                     }
@@ -2884,15 +2909,15 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || `Đã chuyển sang PHP ${selectedNewPhpVersion.value} thành công!`);
+                            showAlert(data.message || `Đã chuyển sang PHP ${selectedNewPhpVersion.value} thành công!`);
                             targetPhpDomain.value.php_version = selectedNewPhpVersion.value;
                             showChangePhpModal.value = false;
                             fetchDomains();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể đổi phiên bản PHP'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể đổi phiên bản PHP'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         changingPhp.value = false;
                     }
@@ -3074,13 +3099,13 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Đã lưu cấu hình và tự động reload PHP-FPM Service thành công!');
+                            showAlert(data.message || 'Đã lưu cấu hình và tự động reload PHP-FPM Service thành công!');
                             loadDomainFpmSettings(targetPhpDomain.value);
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình PHP-FPM'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình PHP-FPM'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingDomainFpm.value = false;
                     }
@@ -3102,13 +3127,13 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Đã khôi phục cấu hình PHP-FPM về mặc định hệ thống thành công!');
+                            showAlert(data.message || 'Đã khôi phục cấu hình PHP-FPM về mặc định hệ thống thành công!');
                             await loadDomainFpmSettings(targetPhpDomain.value);
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể khôi phục cấu hình PHP-FPM'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể khôi phục cấu hình PHP-FPM'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         resettingDomainFpm.value = false;
                     }
@@ -3128,16 +3153,16 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || `Đã ${action} dịch vụ thành công!`);
+                            showAlert(data.message || `Đã ${action} dịch vụ thành công!`);
                             if (data.service_status) {
                                 domainFpmData.value.service_status = data.service_status;
                             }
                             loadDomainFpmSettings(targetPhpDomain.value);
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể thực thi lệnh'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể thực thi lệnh'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         controllingFpm.value = false;
                     }
@@ -3294,13 +3319,13 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Đã lưu cấu hình và tự động reload OpenLiteSpeed LSAPI thành công!');
+                            showAlert(data.message || 'Đã lưu cấu hình và tự động reload OpenLiteSpeed LSAPI thành công!');
                             loadDomainLsapiSettings(targetPhpDomain.value);
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình LSAPI'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình LSAPI'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingDomainLsapi.value = false;
                     }
@@ -3322,13 +3347,13 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Đã khôi phục cấu hình LSAPI về mặc định thành công!');
+                            showAlert(data.message || 'Đã khôi phục cấu hình LSAPI về mặc định thành công!');
                             await loadDomainLsapiSettings(targetPhpDomain.value);
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể khôi phục cấu hình LSAPI'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể khôi phục cấu hình LSAPI'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         resettingDomainLsapi.value = false;
                     }
@@ -3348,13 +3373,13 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Đã khởi động lại LSPHP thành công!');
+                            showAlert(data.message || 'Đã khởi động lại LSPHP thành công!');
                             loadDomainLsapiSettings(targetPhpDomain.value);
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể thực thi thao tác'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể thực thi thao tác'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         controllingLsapi.value = false;
                     }
@@ -3438,6 +3463,10 @@
                 const rebuildingVhost = ref(false);
 
                 const openDomainVhostModal = async (domain, initialTab = 'registration') => {
+                    if (currentUser.value?.role !== 'admin') {
+                        showAlert('Chỉ Quản trị viên (Admin) mới có quyền truy cập cấu hình Virtual Host trực tiếp. Vui lòng sử dụng các cửa sổ thiết lập con (Rewrite rules, SSL, Logs).');
+                        return;
+                    }
                     selectedVhostDomain.value = domain;
                     setDomainVhostTab(domain.id, initialTab);
                     showDomainVhostModal.value = true;
@@ -3491,12 +3520,12 @@
                                     [dom.id]: { ...defaultVhostSettings(), ...data.settings }
                                 };
                             }
-                            alert(data.message || 'Lưu cấu hình VirtualHost thành công!');
+                            showAlert(data.message || 'Lưu cấu hình VirtualHost thành công!');
                         } else {
-                            alert(data.detail || 'Lỗi khi lưu cấu hình VirtualHost.');
+                            showAlert(data.detail || 'Lỗi khi lưu cấu hình VirtualHost.');
                         }
                     } catch (e) {
-                        alert('Lỗi: ' + e.message);
+                        showAlert('Lỗi: ' + e.message);
                     } finally {
                         savingVhostConfig.value = false;
                     }
@@ -3532,12 +3561,12 @@
                             if (data.content) {
                                 domainVhostConfigContent.value = data.content;
                             }
-                            alert(data.message || 'Đã lưu và áp dụng cấu hình VirtualHost thành công!');
+                            showAlert(data.message || 'Đã lưu và áp dụng cấu hình VirtualHost thành công!');
                         } else {
-                            alert(data.message || data.detail || 'Lỗi khi lưu cấu hình VirtualHost.');
+                            showAlert(data.message || data.detail || 'Lỗi khi lưu cấu hình VirtualHost.');
                         }
                     } catch (e) {
-                        alert('Lỗi: ' + e.message);
+                        showAlert('Lỗi: ' + e.message);
                     } finally {
                         savingVhostConfig.value = false;
                     }
@@ -3555,13 +3584,13 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Tái tạo VirtualHost thành công!');
+                            showAlert(data.message || 'Tái tạo VirtualHost thành công!');
                             await fetchDomainVhostConfig(dom);
                         } else {
-                            alert(data.detail || 'Lỗi khi tái tạo VirtualHost.');
+                            showAlert(data.detail || 'Lỗi khi tái tạo VirtualHost.');
                         }
                     } catch (e) {
-                        alert('Lỗi: ' + e.message);
+                        showAlert('Lỗi: ' + e.message);
                     } finally {
                         rebuildingVhost.value = false;
                     }
@@ -3602,12 +3631,12 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Đã cập nhật cấu hình Web Server thành công!');
+                            showAlert(data.message || 'Đã cập nhật cấu hình Web Server thành công!');
                         } else {
-                            alert(data.detail || 'Lỗi khi lưu cấu hình Web Server.');
+                            showAlert(data.detail || 'Lỗi khi lưu cấu hình Web Server.');
                         }
                     } catch (e) {
-                        alert('Lỗi: ' + e.message);
+                        showAlert('Lỗi: ' + e.message);
                     } finally {
                         savingWsServerConfig.value = false;
                     }
@@ -3858,13 +3887,13 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Tải lên tệp tin thành công!');
+                            showAlert(data.message || 'Tải lên tệp tin thành công!');
                             fetchFilesList(fileCurrentPath.value);
                         } else {
-                            alert('Lỗi tải lên: ' + (data.detail || 'Không thể tải lên tệp'));
+                            showAlert('Lỗi tải lên: ' + (data.detail || 'Không thể tải lên tệp'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối tải lên: ' + e.message);
+                        showAlert('Lỗi kết nối tải lên: ' + e.message);
                     } finally {
                         event.target.value = '';
                     }
@@ -3872,18 +3901,18 @@
 
                 const handleBatchAction = (action) => {
                     if (selectedFileNames.value.length === 0) {
-                        alert('Vui lòng chọn ít nhất một tệp hoặc thư mục!');
+                        showAlert('Vui lòng chọn ít nhất một tệp hoặc thư mục!');
                         return;
                     }
                     clipboardAction.value = action;
                     clipboardSrcPath.value = fileCurrentPath.value;
                     clipboardItems.value = [...selectedFileNames.value];
-                    alert(`Đã ${action === 'copy' ? 'sao chép (Copy)' : 'cắt (Cut)'} ${clipboardItems.value.length} mục vào bộ nhớ tạm! Chuyển đến thư mục muốn dán rồi bấm "File Operations > Dán".`);
+                    showAlert(`Đã ${action === 'copy' ? 'sao chép (Copy)' : 'cắt (Cut)'} ${clipboardItems.value.length} mục vào bộ nhớ tạm! Chuyển đến thư mục muốn dán rồi bấm "File Operations > Dán".`);
                 };
 
                 const handlePasteClipboard = async () => {
                     if (clipboardItems.value.length === 0) {
-                        alert('Bộ nhớ tạm đang trống!');
+                        showAlert('Bộ nhớ tạm đang trống!');
                         return;
                     }
                     try {
@@ -3903,7 +3932,7 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Dán mục thành công!');
+                            showAlert(data.message || 'Dán mục thành công!');
                             if (clipboardAction.value === 'cut') {
                                 clipboardAction.value = '';
                                 clipboardItems.value = [];
@@ -3911,16 +3940,16 @@
                             }
                             fetchFilesList(fileCurrentPath.value);
                         } else {
-                            alert('Lỗi khi dán mục: ' + (data.detail || 'Thất bại'));
+                            showAlert('Lỗi khi dán mục: ' + (data.detail || 'Thất bại'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
                 const confirmBatchDelete = async () => {
                     if (selectedFileNames.value.length === 0) {
-                        alert('Vui lòng chọn ít nhất một mục để xóa!');
+                        showAlert('Vui lòng chọn ít nhất một mục để xóa!');
                         return;
                     }
                     if (!confirm(`Bạn có chắc chắn muốn chuyển ${selectedFileNames.value.length} mục đã chọn vào Thùng rác (Recycle Bin)?`)) {
@@ -3945,12 +3974,12 @@
                             selectedFileNames.value = [];
                             fetchFilesList(fileCurrentPath.value);
                             fetchRecycleBinCount();
-                            alert(data.message || 'Đã chuyển vào Thùng rác thành công!');
+                            showAlert(data.message || 'Đã chuyển vào Thùng rác thành công!');
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể xóa'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể xóa'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
@@ -4004,12 +4033,12 @@
                         if (res.ok) {
                             fetchRecycleBinList();
                             fetchFilesList(fileCurrentPath.value);
-                            alert(data.message || 'Khôi phục mục thành công!');
+                            showAlert(data.message || 'Khôi phục mục thành công!');
                         } else {
-                            alert('Lỗi khôi phục: ' + (data.detail || 'Thất bại'));
+                            showAlert('Lỗi khôi phục: ' + (data.detail || 'Thất bại'));
                         }
                     } catch (e) {
-                        alert('Lỗi: ' + e.message);
+                        showAlert('Lỗi: ' + e.message);
                     }
                 };
 
@@ -4026,12 +4055,12 @@
                         const data = await res.json();
                         if (res.ok) {
                             fetchRecycleBinList();
-                            alert(data.message || 'Đã dọn sạch thùng rác!');
+                            showAlert(data.message || 'Đã dọn sạch thùng rác!');
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Thất bại'));
+                            showAlert('Lỗi: ' + (data.detail || 'Thất bại'));
                         }
                     } catch (e) {
-                        alert('Lỗi: ' + e.message);
+                        showAlert('Lỗi: ' + e.message);
                     }
                 };
 
@@ -4043,7 +4072,7 @@
 
                 const confirmRename = async () => {
                     if (!renameNewName.value.trim()) {
-                        alert('Vui lòng nhập tên mới!');
+                        showAlert('Vui lòng nhập tên mới!');
                         return;
                     }
                     try {
@@ -4065,10 +4094,10 @@
                             showRenameModal.value = false;
                             fetchFilesList(fileCurrentPath.value);
                         } else {
-                            alert('Lỗi đổi tên: ' + (data.detail || 'Không thể đổi tên'));
+                            showAlert('Lỗi đổi tên: ' + (data.detail || 'Không thể đổi tên'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
@@ -4080,7 +4109,7 @@
 
                 const handleBatchChmod = () => {
                     if (selectedFileNames.value.length === 0) {
-                        alert('Vui lòng chọn ít nhất một mục!');
+                        showAlert('Vui lòng chọn ít nhất một mục!');
                         return;
                     }
                     openChmodModal(selectedFileNames.value.join(', '), '755');
@@ -4088,7 +4117,7 @@
 
                 const confirmChmod = async () => {
                     if (!chmodMode.value.trim()) {
-                        alert('Vui lòng nhập mã phân quyền!');
+                        showAlert('Vui lòng nhập mã phân quyền!');
                         return;
                     }
                     const targets = chmodTargetName.value.split(',').map(s => s.trim()).filter(Boolean);
@@ -4110,15 +4139,15 @@
                         }
                         showChmodModal.value = false;
                         fetchFilesList(fileCurrentPath.value);
-                        alert('Áp dụng phân quyền thành công!');
+                        showAlert('Áp dụng phân quyền thành công!');
                     } catch (e) {
-                        alert('Lỗi phân quyền: ' + e.message);
+                        showAlert('Lỗi phân quyền: ' + e.message);
                     }
                 };
 
                 const handleRemoteDownload = async () => {
                     if (!remoteDownloadUrl.value.trim()) {
-                        alert('Vui lòng nhập đường dẫn URL!');
+                        showAlert('Vui lòng nhập đường dẫn URL!');
                         return;
                     }
                     downloadingRemote.value = true;
@@ -4142,12 +4171,12 @@
                             remoteDownloadUrl.value = '';
                             remoteDownloadName.value = '';
                             fetchFilesList(fileCurrentPath.value);
-                            alert(data.message || 'Tải tệp từ xa thành công!');
+                            showAlert(data.message || 'Tải tệp từ xa thành công!');
                         } else {
-                            alert('Lỗi tải từ xa: ' + (data.detail || 'Không thể tải'));
+                            showAlert('Lỗi tải từ xa: ' + (data.detail || 'Không thể tải'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         downloadingRemote.value = false;
                     }
@@ -4161,7 +4190,7 @@
                             headers: { 'Authorization': `Bearer ${token.value}` }
                         });
                         if (!res.ok) {
-                            alert('Lỗi tải tệp: Không thể tải xuống');
+                            showAlert('Lỗi tải tệp: Không thể tải xuống');
                             return;
                         }
                         const blob = await res.blob();
@@ -4174,13 +4203,13 @@
                         a.remove();
                         window.URL.revokeObjectURL(url);
                     } catch (e) {
-                        alert('Lỗi: ' + e.message);
+                        showAlert('Lỗi: ' + e.message);
                     }
                 };
 
                 const openCompressModal = () => {
                     if (selectedFileNames.value.length === 0) {
-                        alert('Vui lòng chọn ít nhất một tệp hoặc thư mục để nén!');
+                        showAlert('Vui lòng chọn ít nhất một tệp hoặc thư mục để nén!');
                         return;
                     }
                     const defaultName = selectedFileNames.value.length === 1 
@@ -4194,7 +4223,7 @@
 
                 const confirmCompressFiles = async () => {
                     if (!compressArchiveName.value.trim()) {
-                        alert('Vui lòng nhập tên tệp nén!');
+                        showAlert('Vui lòng nhập tên tệp nén!');
                         return;
                     }
                     compressingFiles.value = true;
@@ -4218,12 +4247,12 @@
                             showCompressModal.value = false;
                             selectedFileNames.value = [];
                             fetchFilesList(fileCurrentPath.value);
-                            alert(data.message || 'Nén tệp tin thành công!');
+                            showAlert(data.message || 'Nén tệp tin thành công!');
                         } else {
-                            alert('Lỗi nén tệp: ' + (data.detail || 'Không thể tạo file nén'));
+                            showAlert('Lỗi nén tệp: ' + (data.detail || 'Không thể tạo file nén'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         compressingFiles.value = false;
                     }
@@ -4309,7 +4338,7 @@
 
                 const handleSearchContentSubmit = async () => {
                     if (!searchContentQuery.value || !searchContentQuery.value.trim()) {
-                        alert('Vui lòng nhập từ khóa cần tìm kiếm!');
+                        showAlert('Vui lòng nhập từ khóa cần tìm kiếm!');
                         return;
                     }
                     searchingContent.value = true;
@@ -4332,13 +4361,13 @@
                         if (res.ok) {
                             searchContentResults.value = data.items || [];
                             if (searchContentResults.value.length === 0) {
-                                alert('Không tìm thấy tệp tin nào chứa từ khóa chỉ định.');
+                                showAlert('Không tìm thấy tệp tin nào chứa từ khóa chỉ định.');
                             }
                         } else {
-                            alert('Lỗi tìm kiếm: ' + (data.detail || 'Không thể tìm kiếm nội dung'));
+                            showAlert('Lỗi tìm kiếm: ' + (data.detail || 'Không thể tìm kiếm nội dung'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         searchingContent.value = false;
                     }
@@ -4366,13 +4395,13 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Lưu tệp tin thành công!');
+                            showAlert(data.message || 'Lưu tệp tin thành công!');
                             showEditFileModal.value = false;
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể lưu tệp'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể lưu tệp'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingFile.value = false;
                     }
@@ -4387,7 +4416,7 @@
 
                 const confirmCreateItem = async () => {
                     if (!newItemName.value.trim()) {
-                        alert('Vui lòng nhập tên!');
+                        showAlert('Vui lòng nhập tên!');
                         return;
                     }
                     const fullItemPath = fileCurrentPath.value ? `${fileCurrentPath.value}/${newItemName.value.trim()}` : newItemName.value.trim();
@@ -4409,10 +4438,10 @@
                             showCreateItemModal.value = false;
                             fetchFilesList(fileCurrentPath.value);
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể tạo'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể tạo'));
                         }
                     } catch (e) {
-                        alert('Lỗi: ' + e.message);
+                        showAlert('Lỗi: ' + e.message);
                     }
                 };
 
@@ -4435,10 +4464,10 @@
                         if (res.ok) {
                             fetchFilesList(fileCurrentPath.value);
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể xóa'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể xóa'));
                         }
                     } catch (e) {
-                        alert('Lỗi: ' + e.message);
+                        showAlert('Lỗi: ' + e.message);
                     }
                 };
 
@@ -4485,10 +4514,16 @@
 
                 const openWebTerminal = (target = null) => {
                     if (currentUser.value?.role !== 'admin' && !currentUser.value?.web_domain_id) {
-                        alert('Tài khoản Hosting User không có quyền truy cập Terminal SSH vì lý do bảo mật.');
+                        showAlert('Tài khoản Hosting User không có quyền truy cập Terminal SSH vì lý do bảo mật.');
                         return;
                     }
                     if (currentUser.value?.role === 'admin') {
+                        if (target && target.includes('.')) {
+                            const foundDom = domains.value?.find(d => d.domain_name === target);
+                            if (foundDom && foundDom.owner_username) {
+                                target = foundDom.owner_username;
+                            }
+                        }
                         terminalTargetUser.value = target || 'root';
                     } else {
                         terminalTargetUser.value = currentUser.value?.web_user_name || currentUser.value?.username || 'user';
@@ -4712,9 +4747,9 @@
                             document.execCommand('copy');
                             document.body.removeChild(ta);
                         }
-                        alert('Đã sao chép vào bộ nhớ tạm (Clipboard)!');
+                        showAlert('Đã sao chép vào bộ nhớ tạm (Clipboard)!');
                     } catch (e) {
-                        alert('Không thể sao chép: ' + e.message);
+                        showAlert('Không thể sao chép: ' + e.message);
                     }
                 };
 
@@ -4785,7 +4820,7 @@
 
                 const handleCreateDatabase = async () => {
                     if (!newDb.value.db_name.trim() || !newDb.value.db_user.trim()) {
-                        alert('Vui lòng nhập tên Database và User!');
+                        showAlert('Vui lòng nhập tên Database và User!');
                         return;
                     }
                     creatingDb.value = true;
@@ -4803,14 +4838,14 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Khởi tạo cơ sở dữ liệu thành công!');
+                            showAlert(data.message || 'Khởi tạo cơ sở dữ liệu thành công!');
                             showAddDbModal.value = false;
                             await fetchDatabasesList();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể tạo CSDL'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể tạo CSDL'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         creatingDb.value = false;
                     }
@@ -4825,13 +4860,13 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Đã xóa CSDL thành công');
+                            showAlert(data.message || 'Đã xóa CSDL thành công');
                             await fetchDatabasesList();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể xóa CSDL'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể xóa CSDL'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
@@ -4843,18 +4878,18 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || `Đã sao lưu CSDL ${dbItem.db_name} thành công!`);
+                            showAlert(data.message || `Đã sao lưu CSDL ${dbItem.db_name} thành công!`);
                         } else {
-                            alert('Lỗi sao lưu: ' + (data.detail || 'Không thể backup CSDL'));
+                            showAlert('Lỗi sao lưu: ' + (data.detail || 'Không thể backup CSDL'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
                 const handleUpdateRootPassword = async () => {
                     if (!rootPasswordForm.value.new_password.trim()) {
-                        alert('Vui lòng nhập mật khẩu root mới!');
+                        showAlert('Vui lòng nhập mật khẩu root mới!');
                         return;
                     }
                     updatingRootPassword.value = true;
@@ -4873,15 +4908,15 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Cập nhật mật khẩu root CSDL thành công!');
+                            showAlert(data.message || 'Cập nhật mật khẩu root CSDL thành công!');
                             showRootPasswordModal.value = false;
                             rootPasswordForm.value.new_password = '';
                             rootPasswordForm.value.current_password = '';
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể đổi mật khẩu root'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể đổi mật khẩu root'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         updatingRootPassword.value = false;
                     }
@@ -4900,13 +4935,13 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Lưu cấu hình Remote Access thành công!');
+                            showAlert(data.message || 'Lưu cấu hình Remote Access thành công!');
                             showRemoteDbModal.value = false;
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingRemoteDb.value = false;
                     }
@@ -4914,7 +4949,7 @@
 
                 const handleFlushRedis = async () => {
                     if (!confirm('Bạn có chắc chắn muốn xóa TOÀN BỘ cache Redis (FLUSHALL)?\nCác website sẽ cần tạo lại cache object.')) return;
-                    alert('Đã thực thi FLUSHALL xóa toàn bộ dữ liệu cache Redis thành công!');
+                    showAlert('Đã thực thi FLUSHALL xóa toàn bộ dữ liệu cache Redis thành công!');
                     redisStats.value.total_keys = '0';
                     redisStats.value.memory_used = '1.2 MB';
                 };
@@ -4973,19 +5008,19 @@
                             })
                         });
                         if (res.status === 405 || res.status === 404) {
-                            alert('Lỗi: Dịch vụ backend trên máy chủ chưa nạp mã nguồn mới nhất (v0.5.94). Vui lòng chạy lệnh: sudo bash /opt/wpc/scripts/update.sh trên máy chủ!');
+                            showAlert('Lỗi: Dịch vụ backend trên máy chủ chưa nạp mã nguồn mới nhất (v0.5.94). Vui lòng chạy lệnh: sudo bash /opt/wpc/scripts/update.sh trên máy chủ!');
                             return;
                         }
                         const ct = res.headers.get('content-type') || '';
                         const data = ct.includes('application/json') ? await res.json() : {};
                         if (res.ok) {
-                            alert(data.message || 'Thao tác thành công!');
+                            showAlert(data.message || 'Thao tác thành công!');
                             fetchUserRedisStatus();
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể thực hiện'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể thực hiện'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         userRedis.value.loading = false;
                         refreshLucideIcons();
@@ -5022,12 +5057,12 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            alert(data.message || 'Đã cấu hình Redis Socket vào wp-config.php thành công!');
+                            showAlert(data.message || 'Đã cấu hình Redis Socket vào wp-config.php thành công!');
                         } else {
-                            alert('Lỗi: ' + (data.detail || 'Không thể cấu hình'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể cấu hình'));
                         }
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         applyingRedisWp.value = false;
                     }
@@ -5081,7 +5116,7 @@
                         });
                         const data = await res.json();
                         if (!res.ok) {
-                            alert('Lỗi: ' + (data.detail || 'Không thể bắt đầu cập nhật'));
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể bắt đầu cập nhật'));
                             isUpdating.value = false;
                             return;
                         }
@@ -5156,7 +5191,7 @@
                         }, 800);
 
                     } catch (e) {
-                        alert('Lỗi kết nối: ' + e.message);
+                        showAlert('Lỗi kết nối: ' + e.message);
                         isUpdating.value = false;
                     }
                 };
@@ -5169,12 +5204,12 @@
                             headers: { 'Authorization': `Bearer ${token.value}` }
                         });
                         const data = await res.json();
-                        alert(data.message || 'Đang khởi động lại dịch vụ... Trang sẽ tự tải lại sau 3 giây.');
+                        showAlert(data.message || 'Đang khởi động lại dịch vụ... Trang sẽ tự tải lại sau 3 giây.');
                         setTimeout(() => {
                             window.location.reload();
                         }, 3000);
                     } catch (e) {
-                        alert('Lỗi: ' + e.message);
+                        showAlert('Lỗi: ' + e.message);
                     }
                 };
 
@@ -5276,13 +5311,13 @@
                         });
                         const d = await res.json();
                         if (d.status === 'ok') {
-                            alert(d.message || 'Quét WordPress thành công');
+                            showAlert(d.message || 'Quét WordPress thành công');
                             await fetchWpInstances();
                         } else {
-                            alert(d.detail || 'Quét thất bại');
+                            showAlert(d.detail || 'Quét thất bại');
                         }
                     } catch(e) {
-                        alert('Lỗi kết nối khi quét hệ thống: ' + e);
+                        showAlert('Lỗi kết nối khi quét hệ thống: ' + e);
                     } finally {
                         scanningWp.value = false;
                         refreshLucideIcons();
@@ -5358,10 +5393,10 @@
                         if (d.status === 'ok' && d.sso_url) {
                             window.open(d.sso_url, '_blank');
                         } else {
-                            alert(d.detail || d.message || 'Không thể tạo phiên Magic Login');
+                            showAlert(d.detail || d.message || 'Không thể tạo phiên Magic Login');
                         }
                     } catch(e) {
-                        alert('Lỗi tạo liên kết SSO: ' + e);
+                        showAlert('Lỗi tạo liên kết SSO: ' + e);
                     }
                 };
 
@@ -5374,10 +5409,10 @@
                         if (d.status === 'ok' && d.sso_url) {
                             window.open(d.sso_url, '_blank');
                         } else {
-                            alert(d.detail || d.message || 'Không thể tạo phiên Magic Login cho User');
+                            showAlert(d.detail || d.message || 'Không thể tạo phiên Magic Login cho User');
                         }
                     } catch(e) {
-                        alert('Lỗi tạo SSO: ' + e);
+                        showAlert('Lỗi tạo SSO: ' + e);
                     }
                 };
 
@@ -5389,14 +5424,14 @@
                         });
                         const d = await res.json();
                         if (d.status === 'ok') {
-                            alert(d.message);
+                            showAlert(d.message);
                             await fetchWpDetail(instId);
                             await fetchWpInstances();
                         } else {
-                            alert(d.detail || 'Thao tác thất bại');
+                            showAlert(d.detail || 'Thao tác thất bại');
                         }
                     } catch(e) {
-                        alert('Lỗi thực hiện Lockdown: ' + e);
+                        showAlert('Lỗi thực hiện Lockdown: ' + e);
                     } finally {
                         refreshLucideIcons();
                     }
@@ -5409,9 +5444,9 @@
                             headers: { 'Authorization': `Bearer ${token.value}` }
                         });
                         const d = await res.json();
-                        alert(d.message || 'Đã sửa quyền thành công');
+                        showAlert(d.message || 'Đã sửa quyền thành công');
                     } catch(e) {
-                        alert('Lỗi phân quyền: ' + e);
+                        showAlert('Lỗi phân quyền: ' + e);
                     }
                 };
 
@@ -5423,10 +5458,10 @@
                             headers: { 'Authorization': `Bearer ${token.value}` }
                         });
                         const d = await res.json();
-                        alert(d.message || 'Dọn dẹp database thành công!');
+                        showAlert(d.message || 'Dọn dẹp database thành công!');
                         await fetchWpDetail(instId);
                     } catch(e) {
-                        alert('Lỗi dọn dẹp database: ' + e);
+                        showAlert('Lỗi dọn dẹp database: ' + e);
                     }
                 };
 
@@ -5442,10 +5477,10 @@
                         if (d.status === 'ok') {
                             await fetchWpDetail(selectedWpInstance.value.id);
                         } else {
-                            alert(d.detail || 'Cập nhật define thất bại');
+                            showAlert(d.detail || 'Cập nhật define thất bại');
                         }
                     } catch(e) {
-                        alert('Lỗi cập nhật define: ' + e);
+                        showAlert('Lỗi cập nhật define: ' + e);
                     }
                 };
 
@@ -5460,10 +5495,10 @@
                         if (d.status === 'ok') {
                             await fetchWpDetail(instId);
                         } else {
-                            alert(d.detail || 'Thao tác thất bại');
+                            showAlert(d.detail || 'Thao tác thất bại');
                         }
                     } catch(e) {
-                        alert('Lỗi WPC Optimize: ' + e);
+                        showAlert('Lỗi WPC Optimize: ' + e);
                     }
                 };
 
@@ -5502,10 +5537,10 @@
                         if (d.status === 'ok') {
                             await fetchWpPlugins(instId);
                         } else {
-                            alert(d.detail || 'Bật/tắt plugin thất bại');
+                            showAlert(d.detail || 'Bật/tắt plugin thất bại');
                         }
                     } catch(e) {
-                        alert('Lỗi toggle plugin: ' + e);
+                        showAlert('Lỗi toggle plugin: ' + e);
                     }
                 };
 
@@ -5519,13 +5554,13 @@
                         });
                         const d = await res.json();
                         if (d.status === 'ok') {
-                            alert(d.message || 'Làm sạch và cài đặt lại Plugin thành công!');
+                            showAlert(d.message || 'Làm sạch và cài đặt lại Plugin thành công!');
                             await fetchWpPlugins(instId);
                         } else {
-                            alert(d.detail || 'Cài lại thất bại');
+                            showAlert(d.detail || 'Cài lại thất bại');
                         }
                     } catch(e) {
-                        alert('Lỗi cài lại plugin: ' + e);
+                        showAlert('Lỗi cài lại plugin: ' + e);
                     }
                 };
 
@@ -5541,10 +5576,10 @@
                         if (d.status === 'ok') {
                             await fetchWpPlugins(instId);
                         } else {
-                            alert(d.detail || 'Xóa plugin thất bại');
+                            showAlert(d.detail || 'Xóa plugin thất bại');
                         }
                     } catch(e) {
-                        alert('Lỗi xóa plugin: ' + e);
+                        showAlert('Lỗi xóa plugin: ' + e);
                     }
                 };
 
@@ -5581,13 +5616,13 @@
                         });
                         const d = await res.json();
                         if (d.status === 'ok') {
-                            alert(d.message || 'Kích hoạt theme thành công!');
+                            showAlert(d.message || 'Kích hoạt theme thành công!');
                             await fetchWpThemes(instId);
                         } else {
-                            alert(d.detail || 'Kích hoạt theme thất bại');
+                            showAlert(d.detail || 'Kích hoạt theme thất bại');
                         }
                     } catch(e) {
-                        alert('Lỗi kích hoạt theme: ' + e);
+                        showAlert('Lỗi kích hoạt theme: ' + e);
                     }
                 };
 
@@ -5601,13 +5636,13 @@
                         });
                         const d = await res.json();
                         if (d.status === 'ok') {
-                            alert(d.message || 'Cài lại theme thành công!');
+                            showAlert(d.message || 'Cài lại theme thành công!');
                             await fetchWpThemes(instId);
                         } else {
-                            alert(d.detail || 'Cài lại theme thất bại');
+                            showAlert(d.detail || 'Cài lại theme thất bại');
                         }
                     } catch(e) {
-                        alert('Lỗi cài lại theme: ' + e);
+                        showAlert('Lỗi cài lại theme: ' + e);
                     }
                 };
 
@@ -5664,14 +5699,14 @@
                         });
                         const d = await res.json();
                         if (d.status === 'ok') {
-                            alert(d.message || 'Cập nhật user thành công!');
+                            showAlert(d.message || 'Cập nhật user thành công!');
                             showWpEditUserModal.value = false;
                             await fetchWpUsers(selectedWpInstance.value.id);
                         } else {
-                            alert(d.detail || 'Cập nhật thất bại');
+                            showAlert(d.detail || 'Cập nhật thất bại');
                         }
                     } catch(e) {
-                        alert('Lỗi lưu user: ' + e);
+                        showAlert('Lỗi lưu user: ' + e);
                     } finally {
                         savingWpUser.value = false;
                     }
@@ -5732,13 +5767,13 @@
                         });
                         const d = await res.json();
                         if (d.status === 'ok') {
-                            alert(d.message || 'Cập nhật hàng loạt thành công!');
+                            showAlert(d.message || 'Cập nhật hàng loạt thành công!');
                             await fetchGlobalPlugins();
                         } else {
-                            alert(d.detail || 'Cập nhật thất bại');
+                            showAlert(d.detail || 'Cập nhật thất bại');
                         }
                     } catch(e) {
-                        alert('Lỗi bulk update: ' + e);
+                        showAlert('Lỗi bulk update: ' + e);
                     }
                 };
 
@@ -5794,15 +5829,15 @@
 
                 const handleWpInstallNew = async () => {
                     if (!wpInstallForm.value.domain && !wpInstallForm.value.domain_id) {
-                        alert('Vui lòng nhập hoặc chọn tên miền muốn cài đặt WordPress!');
+                        showAlert('Vui lòng nhập hoặc chọn tên miền muốn cài đặt WordPress!');
                         return;
                     }
                     if (!wpInstallForm.value.admin_email) {
-                        alert('Vui lòng nhập địa chỉ email quản trị!');
+                        showAlert('Vui lòng nhập địa chỉ email quản trị!');
                         return;
                     }
                     if (!wpInstallForm.value.admin_pass) {
-                        alert('Vui lòng nhập mật khẩu quản trị!');
+                        showAlert('Vui lòng nhập mật khẩu quản trị!');
                         return;
                     }
 
@@ -5822,15 +5857,15 @@
                         });
                         const d = await res.json();
                         if (res.ok && d.status === 'ok') {
-                            alert(d.message || 'Cài đặt WordPress thành công!');
+                            showAlert(d.message || 'Cài đặt WordPress thành công!');
                             showWpInstallModal.value = false;
                             await fetchWpInstances();
                         } else {
                             const errMsg = d.detail || d.message || 'Cài đặt thất bại';
-                            alert('LỖI CÀI ĐẶT WORDPRESS:\n' + errMsg);
+                            showAlert('LỖI CÀI ĐẶT WORDPRESS:\n' + errMsg);
                         }
                     } catch(e) {
-                        alert('Lỗi kết nối khi cài đặt WordPress: ' + e);
+                        showAlert('Lỗi kết nối khi cài đặt WordPress: ' + e);
                     } finally {
                         wpInstalling.value = false;
                     }
@@ -5856,14 +5891,14 @@
                         });
                         const d = await res.json();
                         if (d.status === 'ok') {
-                            alert(d.message || 'Clone website thành công!');
+                            showAlert(d.message || 'Clone website thành công!');
                             showWpCloneModal.value = false;
                             await fetchWpInstances();
                         } else {
-                            alert(d.detail || 'Clone thất bại');
+                            showAlert(d.detail || 'Clone thất bại');
                         }
                     } catch(e) {
-                        alert('Lỗi clone website: ' + e);
+                        showAlert('Lỗi clone website: ' + e);
                     } finally {
                         wpCloning.value = false;
                     }
@@ -5888,14 +5923,14 @@
                         });
                         const d = await res.json();
                         if (d.status === 'ok') {
-                            alert(d.message || 'Cài đặt Plugin thành công!');
+                            showAlert(d.message || 'Cài đặt Plugin thành công!');
                             showWpAddPluginModal.value = false;
                             await fetchWpPlugins(selectedWpInstance.value.id);
                         } else {
-                            alert(d.detail || 'Cài đặt plugin thất bại');
+                            showAlert(d.detail || 'Cài đặt plugin thất bại');
                         }
                     } catch(e) {
-                        alert('Lỗi cài đặt plugin: ' + e);
+                        showAlert('Lỗi cài đặt plugin: ' + e);
                     } finally {
                         installingPlugin.value = false;
                     }
@@ -5920,14 +5955,14 @@
                         });
                         const d = await res.json();
                         if (d.status === 'ok') {
-                            alert(d.message || 'Cài đặt Theme thành công!');
+                            showAlert(d.message || 'Cài đặt Theme thành công!');
                             showWpAddThemeModal.value = false;
                             await fetchWpThemes(selectedWpInstance.value.id);
                         } else {
-                            alert(d.detail || 'Cài đặt theme thất bại');
+                            showAlert(d.detail || 'Cài đặt theme thất bại');
                         }
                     } catch(e) {
-                        alert('Lỗi cài theme: ' + e);
+                        showAlert('Lỗi cài theme: ' + e);
                     } finally {
                         installingTheme.value = false;
                     }
@@ -5962,8 +5997,17 @@
                     if (newTab === 'wp') {
                         fetchWpInstances();
                     }
+                    if (newTab === 'crons') {
+                        fetchCrons();
+                    }
                     refreshLucideIcons();
                 });
+
+                watch(showCronModal, () => { refreshLucideIcons(); });
+                watch(showCronOutputModal, () => { refreshLucideIcons(); });
+                watch(showWebsiteRewriteModal, () => { refreshLucideIcons(); });
+                watch(showWebsiteLogsModal, () => { refreshLucideIcons(); });
+                watch(showWebsiteSecurityModal, () => { refreshLucideIcons(); });
 
                 watch(showMessagesBox, () => {
                     refreshLucideIcons();
@@ -6066,6 +6110,8 @@
                         if (currentUser.value?.role === 'admin') {
                             fetchPanelVersion();
                         }
+                        fetchCrons();
+                        fetchSystemWebsites();
                     }
                     refreshLucideIcons();
                     // Tự động làm mới số liệu và kiểm tra task chạy ngầm mỗi 3 giây
@@ -6084,6 +6130,437 @@
                     window.removeEventListener('hashchange', onHashChange);
                     if (timer) clearInterval(timer);
                 });
+
+                // ==========================================
+                // CRONJOBS MANAGEMENT LOGIC
+                // ==========================================
+                const crons = ref([]);
+                const loadingCrons = ref(false);
+                const cronSearch = ref('');
+                const cronStatusFilter = ref('');
+                const cronUserFilter = ref('');
+                const showCronModal = ref(false);
+                const editingCron = ref(null);
+                const savingCron = ref(false);
+                const showCronOutputModal = ref(false);
+                const cronOutputTitle = ref('');
+                const cronOutputText = ref('');
+                const runningCronId = ref(null);
+
+                const cronForm = ref({
+                    name: '',
+                    minute: '*',
+                    hour: '*',
+                    day_of_month: '*',
+                    month: '*',
+                    day_of_week: '*',
+                    command: '',
+                    target_user: '',
+                    is_active: 1
+                });
+
+                const filteredCrons = computed(() => {
+                    return crons.value.filter(c => {
+                        const matchesSearch = !cronSearch.value || 
+                            (c.name && c.name.toLowerCase().includes(cronSearch.value.toLowerCase())) ||
+                            (c.command && c.command.toLowerCase().includes(cronSearch.value.toLowerCase())) ||
+                            (c.target_user && c.target_user.toLowerCase().includes(cronSearch.value.toLowerCase()));
+                        const matchesStatus = !cronStatusFilter.value || 
+                            (cronStatusFilter.value === 'active' && c.is_active) ||
+                            (cronStatusFilter.value === 'inactive' && !c.is_active);
+                        const matchesUser = !cronUserFilter.value || c.target_user === cronUserFilter.value;
+                        return matchesSearch && matchesStatus && matchesUser;
+                    });
+                });
+
+                const fetchCrons = async () => {
+                    loadingCrons.value = true;
+                    try {
+                        const res = await fetch('/api/v1/crons', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            crons.value = data.crons || [];
+                        } else {
+                            const err = await res.json();
+                            console.error('Lỗi tải crons:', err.detail);
+                        }
+                    } catch (e) {
+                        console.error('Lỗi kết nối tải crons:', e);
+                    } finally {
+                        loadingCrons.value = false;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const openCreateCronModal = () => {
+                    editingCron.value = null;
+                    cronForm.value = {
+                        name: '',
+                        minute: '*',
+                        hour: '*',
+                        day_of_month: '*',
+                        month: '*',
+                        day_of_week: '*',
+                        command: '',
+                        target_user: currentUser.value?.role === 'admin' ? 'root' : (currentUser.value?.web_user_name || currentUser.value?.username || 'tuend'),
+                        is_active: 1
+                    };
+                    showCronModal.value = true;
+                    refreshLucideIcons();
+                };
+
+                const openEditCronModal = (cron) => {
+                    editingCron.value = cron;
+                    cronForm.value = {
+                        name: cron.name || '',
+                        minute: cron.minute || '*',
+                        hour: cron.hour || '*',
+                        day_of_month: cron.day_of_month || '*',
+                        month: cron.month || '*',
+                        day_of_week: cron.day_of_week || '*',
+                        command: cron.command || '',
+                        target_user: cron.target_user || '',
+                        is_active: cron.is_active ? 1 : 0
+                    };
+                    showCronModal.value = true;
+                    refreshLucideIcons();
+                };
+
+                const saveCron = async () => {
+                    if (!cronForm.value.name.trim()) {
+                        Swal.fire({ icon: 'warning', title: 'Thiếu thông tin', text: 'Vui lòng nhập tên tác vụ Cronjob.' });
+                        return;
+                    }
+                    if (!cronForm.value.command.trim()) {
+                        Swal.fire({ icon: 'warning', title: 'Thiếu thông tin', text: 'Vui lòng nhập lệnh thực thi Command.' });
+                        return;
+                    }
+                    savingCron.value = true;
+                    try {
+                        const url = editingCron.value ? `/api/v1/crons/${editingCron.value.id}` : '/api/v1/crons';
+                        const method = editingCron.value ? 'PUT' : 'POST';
+                        const res = await fetch(url, {
+                            method,
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify(cronForm.value)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            Swal.fire({ icon: 'success', title: 'Thành công', text: data.message || 'Lưu Cronjob thành công!' });
+                            showCronModal.value = false;
+                            fetchCrons();
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Lỗi', text: data.detail || 'Không thể lưu Cronjob.' });
+                        }
+                    } catch (e) {
+                        Swal.fire({ icon: 'error', title: 'Lỗi kết nối', text: e.message });
+                    } finally {
+                        savingCron.value = false;
+                    }
+                };
+
+                const toggleCronStatus = async (cron) => {
+                    try {
+                        const res = await fetch(`/api/v1/crons/${cron.id}/toggle`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            cron.is_active = data.is_active;
+                            Swal.fire({ icon: 'success', title: 'Cập nhật', text: data.message, timer: 1500, showConfirmButton: false });
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Lỗi', text: data.detail || 'Không thể đổi trạng thái.' });
+                        }
+                    } catch (e) {
+                        Swal.fire({ icon: 'error', title: 'Lỗi kết nối', text: e.message });
+                    }
+                };
+
+                const deleteCron = async (cron) => {
+                    const confirmRes = await Swal.fire({
+                        title: 'Xóa Cronjob?',
+                        text: `Bạn có chắc chắn muốn xóa tác vụ [${cron.name}]? Thao tác này không thể hoàn tác.`,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#ef4444',
+                        cancelButtonColor: '#64748b',
+                        confirmButtonText: 'Xác nhận xóa',
+                        cancelButtonText: 'Hủy'
+                    });
+                    if (!confirmRes.isConfirmed) return;
+
+                    try {
+                        const res = await fetch(`/api/v1/crons/${cron.id}`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            Swal.fire({ icon: 'success', title: 'Đã xóa', text: data.message, timer: 1500, showConfirmButton: false });
+                            fetchCrons();
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Lỗi', text: data.detail || 'Không thể xóa Cronjob.' });
+                        }
+                    } catch (e) {
+                        Swal.fire({ icon: 'error', title: 'Lỗi kết nối', text: e.message });
+                    }
+                };
+
+                const runCronNow = async (cron) => {
+                    runningCronId.value = cron.id;
+                    try {
+                        const res = await fetch(`/api/v1/crons/${cron.id}/run`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        cronOutputTitle.value = `Kết quả thực thi: ${cron.name} (Exit code: ${data.exit_code})`;
+                        cronOutputText.value = data.output || '(Không có kết quả trả về hoặc lệnh chạy nền thành công)';
+                        showCronOutputModal.value = true;
+                    } catch (e) {
+                        Swal.fire({ icon: 'error', title: 'Lỗi kết nối', text: e.message });
+                    } finally {
+                        runningCronId.value = null;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const openWebsiteCronsModal = (username) => {
+                    currentTab.value = 'crons';
+                    cronUserFilter.value = username || '';
+                    fetchCrons();
+                };
+
+                // ==========================================
+                // SYSTEM WEBSITES (phpMyAdmin, pgAdmin, Roundcube...)
+                // ==========================================
+                const systemWebsites = ref([]);
+                const loadingSystemWebsites = ref(false);
+
+                const fetchSystemWebsites = async () => {
+                    loadingSystemWebsites.value = true;
+                    try {
+                        const res = await fetch('/api/v1/apps/system-websites', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            systemWebsites.value = data.apps || [];
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải danh sách app hệ thống:', e);
+                    } finally {
+                        loadingSystemWebsites.value = false;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const restartSystemWebsite = async (app) => {
+                    try {
+                        const res = await fetch(`/api/v1/apps/${app.id}/action`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ action: 'restart' })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            Swal.fire({ icon: 'success', title: 'Thành công', text: data.message || `Đã khởi động lại ${app.name}!`, timer: 2000, showConfirmButton: false });
+                            setTimeout(fetchSystemWebsites, 2000);
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Lỗi', text: data.detail || 'Không thể khởi động lại app.' });
+                        }
+                    } catch (e) {
+                        Swal.fire({ icon: 'error', title: 'Lỗi kết nối', text: e.message });
+                    }
+                };
+
+                // ==========================================
+                // WEBSITE SUB-MODALS: REWRITE RULES, LOGS, SECURITY
+                // ==========================================
+                const showWebsiteRewriteModal = ref(false);
+                const selectedRewriteDomain = ref(null);
+                const rewriteRulesContent = ref('');
+                const loadingRewriteRules = ref(false);
+                const savingRewriteRules = ref(false);
+
+                const openWebsiteRewriteModal = async (domain) => {
+                    selectedRewriteDomain.value = domain;
+                    showWebsiteRewriteModal.value = true;
+                    loadingRewriteRules.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${domain.id}/rewrite-rules`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            rewriteRulesContent.value = data.rules || '';
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải rewrite rules:', e);
+                    } finally {
+                        loadingRewriteRules.value = false;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const applyRewritePreset = (preset) => {
+                    if (preset === 'wordpress') {
+                        rewriteRulesContent.value = `# BEGIN WordPress\n<IfModule mod_rewrite.c>\nRewriteEngine On\nRewriteBase /\nRewriteRule ^index\\.php$ - [L]\nRewriteCond %{REQUEST_FILENAME} !-f\nRewriteCond %{REQUEST_FILENAME} !-d\nRewriteRule . /index.php [L]\n</IfModule>\n# END WordPress\n`;
+                    } else if (preset === 'laravel') {
+                        rewriteRulesContent.value = `<IfModule mod_rewrite.c>\n    <IfModule mod_negotiation.c>\n        Options -MultiViews -Indexes\n    </IfModule>\n    RewriteEngine On\n    RewriteCond %{HTTP:Authorization} .\n    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]\n    RewriteCond %{REQUEST_FILENAME} !-d\n    RewriteCond %{REQUEST_FILENAME} !-f\n    RewriteRule ^ index.php [L]\n</IfModule>\n`;
+                    } else if (preset === 'spa') {
+                        rewriteRulesContent.value = `<IfModule mod_rewrite.c>\n  RewriteEngine On\n  RewriteBase /\n  RewriteRule ^index\\.html$ - [L]\n  RewriteCond %{REQUEST_FILENAME} !-f\n  RewriteCond %{REQUEST_FILENAME} !-d\n  RewriteRule . /index.html [L]\n</IfModule>\n`;
+                    }
+                };
+
+                const saveWebsiteRewriteRules = async () => {
+                    if (!selectedRewriteDomain.value) return;
+                    savingRewriteRules.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${selectedRewriteDomain.value.id}/rewrite-rules`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ rules: rewriteRulesContent.value })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            Swal.fire({ icon: 'success', title: 'Thành công', text: data.message || 'Lưu Rewrite rules thành công!' });
+                            showWebsiteRewriteModal.value = false;
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Lỗi', text: data.detail || 'Không thể lưu Rewrite rules.' });
+                        }
+                    } catch (e) {
+                        Swal.fire({ icon: 'error', title: 'Lỗi kết nối', text: e.message });
+                    } finally {
+                        savingRewriteRules.value = false;
+                    }
+                };
+
+                // Logs Modal
+                const showWebsiteLogsModal = ref(false);
+                const selectedLogsDomain = ref(null);
+                const websiteLogsTab = ref('error');
+                const websiteLogsContent = ref('');
+                const loadingWebsiteLogs = ref(false);
+                const clearingWebsiteLogs = ref(false);
+
+                const openWebsiteLogsModal = async (domain) => {
+                    selectedLogsDomain.value = domain;
+                    websiteLogsTab.value = 'error';
+                    showWebsiteLogsModal.value = true;
+                    await fetchWebsiteLogs();
+                };
+
+                const fetchWebsiteLogs = async () => {
+                    if (!selectedLogsDomain.value) return;
+                    loadingWebsiteLogs.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${selectedLogsDomain.value.id}/logs?log_type=${websiteLogsTab.value}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            websiteLogsContent.value = data.content || '(Nhật ký trống)';
+                        } else {
+                            websiteLogsContent.value = '(Không thể đọc tệp nhật ký)';
+                        }
+                    } catch (e) {
+                        websiteLogsContent.value = 'Lỗi kết nối: ' + e.message;
+                    } finally {
+                        loadingWebsiteLogs.value = false;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const clearWebsiteLogs = async () => {
+                    if (!selectedLogsDomain.value) return;
+                    const confirmRes = await Swal.fire({
+                        title: 'Xóa nhật ký?',
+                        text: `Bạn có chắc muốn làm trống tệp nhật ký ${websiteLogsTab.value} log này?`,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Đồng ý',
+                        cancelButtonText: 'Hủy'
+                    });
+                    if (!confirmRes.isConfirmed) return;
+
+                    clearingWebsiteLogs.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${selectedLogsDomain.value.id}/clear-logs`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ log_type: websiteLogsTab.value })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            Swal.fire({ icon: 'success', title: 'Thành công', text: data.message, timer: 1500, showConfirmButton: false });
+                            await fetchWebsiteLogs();
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Lỗi', text: data.detail || 'Không thể xóa log.' });
+                        }
+                    } catch (e) {
+                        Swal.fire({ icon: 'error', title: 'Lỗi kết nối', text: e.message });
+                    } finally {
+                        clearingWebsiteLogs.value = false;
+                    }
+                };
+
+                // Security Modal
+                const showWebsiteSecurityModal = ref(false);
+                const selectedSecurityDomain = ref(null);
+                const savingWebsiteSecurity = ref(false);
+                const websiteSecuritySettings = ref({
+                    forceHttps: false,
+                    hsts: false,
+                    blockDotfiles: true,
+                    noSniff: true,
+                    xFrameOptions: 'SAMEORIGIN'
+                });
+
+                const openWebsiteSecurityModal = (domain) => {
+                    selectedSecurityDomain.value = domain;
+                    const vhost = getDomainVhostSettings(domain.id);
+                    websiteSecuritySettings.value = {
+                        forceHttps: !!vhost.forceHttps,
+                        hsts: !!vhost.hsts,
+                        blockDotfiles: vhost.blockDotfiles !== false,
+                        noSniff: vhost.noSniff !== false,
+                        xFrameOptions: vhost.xFrameOptions || 'SAMEORIGIN'
+                    };
+                    showWebsiteSecurityModal.value = true;
+                    refreshLucideIcons();
+                };
+
+                const saveWebsiteSecurity = async () => {
+                    if (!selectedSecurityDomain.value) return;
+                    savingWebsiteSecurity.value = true;
+                    try {
+                        const vhost = getDomainVhostSettings(selectedSecurityDomain.value.id);
+                        Object.assign(vhost, websiteSecuritySettings.value);
+                        await saveDomainVhostSettings(selectedSecurityDomain.value);
+                        Swal.fire({ icon: 'success', title: 'Thành công', text: 'Cập nhật thiết lập bảo mật website thành công!' });
+                        showWebsiteSecurityModal.value = false;
+                    } catch (e) {
+                        Swal.fire({ icon: 'error', title: 'Lỗi', text: e.message });
+                    } finally {
+                        savingWebsiteSecurity.value = false;
+                    }
+                };
 
                 return {
                     token, currentUser, currentTab, domains, showAddDomainModal, isHostingUser, isWebUser,
@@ -6185,7 +6662,24 @@
                     openWpUsersTab, fetchWpUsers, openEditWpUserModal, handleSaveWpUserEdit,
                     openWpLogsTab, fetchWpLogs, openGlobalPluginsTab, fetchGlobalPlugins, bulkUpdateGlobalPlugin,
                     openWpInstallModal, handleWpInstallNew, openWpCloneModal, handleWpCloneSite,
-                    openAddPluginModal, handleInstallPluginSubmit, openAddThemeModal, handleInstallThemeSubmit
+                    openAddPluginModal, handleInstallPluginSubmit, openAddThemeModal, handleInstallThemeSubmit,
+                    // Crons Management
+                    crons, loadingCrons, cronSearch, cronStatusFilter, cronUserFilter,
+                    showCronModal, editingCron, savingCron, showCronOutputModal,
+                    cronOutputTitle, cronOutputText, runningCronId, cronForm, filteredCrons,
+                    fetchCrons, openCreateCronModal, openEditCronModal, saveCron,
+                    toggleCronStatus, deleteCron, runCronNow, openWebsiteCronsModal,
+                    // System Websites
+                    systemWebsites, loadingSystemWebsites, fetchSystemWebsites, restartSystemWebsite,
+                    // Website Sub-modals: Rewrite, Logs, Security
+                    showWebsiteRewriteModal, selectedRewriteDomain, rewriteRulesContent,
+                    loadingRewriteRules, savingRewriteRules, openWebsiteRewriteModal,
+                    applyRewritePreset, saveWebsiteRewriteRules,
+                    showWebsiteLogsModal, selectedLogsDomain, websiteLogsTab, websiteLogsContent,
+                    loadingWebsiteLogs, clearingWebsiteLogs, openWebsiteLogsModal,
+                    fetchWebsiteLogs, clearWebsiteLogs,
+                    showWebsiteSecurityModal, selectedSecurityDomain, savingWebsiteSecurity,
+                    websiteSecuritySettings, openWebsiteSecurityModal, saveWebsiteSecurity
                 };
             }
         }).mount('#app');

@@ -1890,5 +1890,126 @@ async def trigger_app_build(app_id: str, background_tasks: BackgroundTasks, curr
     }
 
 
+@router.get("/system-websites")
+async def get_system_websites(current_user: dict = Depends(get_current_user)):
+    """Lấy danh sách các ứng dụng Web hệ thống (phpMyAdmin, pgAdmin, Roundcube, etc.) dưới dạng Website độc lập"""
+    pma_installed = os.path.exists("/opt/wpc/apps/phpmyadmin/index.php") or os.path.exists("/usr/share/phpmyadmin/index.php")
+    pma_running = False
+    if pma_installed:
+        try:
+            r = subprocess.run(["pgrep", "-f", "phpmyadmin"], capture_output=True, text=True, check=False)
+            if r.returncode == 0:
+                pma_running = True
+            else:
+                r2 = subprocess.run(["systemctl", "is-active", "wpc-php8.2-fpm@phpmyadmin"], capture_output=True, text=True, check=False)
+                if "active" in r2.stdout:
+                    pma_running = True
+        except Exception:
+            pass
+
+    pgadmin_installed = os.path.exists("/usr/pgadmin4/bin/pgadmin4") or os.path.exists("/usr/bin/pgadmin4")
+    pgadmin_running = False
+    if pgadmin_installed:
+        try:
+            r = subprocess.run(["pgrep", "-f", "pgadmin"], capture_output=True, text=True, check=False)
+            pgadmin_running = (r.returncode == 0)
+        except Exception:
+            pass
+
+    rc_installed = os.path.exists("/opt/wpc/apps/roundcube/index.php") or os.path.exists("/var/lib/roundcube/index.php")
+    rc_running = False
+    if rc_installed:
+        try:
+            r = subprocess.run(["pgrep", "-f", "roundcube"], capture_output=True, text=True, check=False)
+            rc_running = (r.returncode == 0)
+        except Exception:
+            pass
+
+    ols_active = os.path.exists("/usr/local/lsws")
+
+    system_apps = [
+        {
+            "id": 9001,
+            "domain_name": "phpmyadmin.sys",
+            "app_id": "phpmyadmin",
+            "site_title": "phpMyAdmin (MySQL / MariaDB GUI)",
+            "icon": "🐬",
+            "url_port": 888,
+            "doc_root": "/opt/wpc/apps/phpmyadmin",
+            "owner_username": "pma",
+            "owner_group": "pma",
+            "webserver": "OLS" if ols_active else "NGINX",
+            "engine": "LSPHP 8.2 (lsapi)" if ols_active else "PHP-FPM 8.2 (pool)",
+            "php_version": "8.2",
+            "cpu_usage_pct": 2,
+            "cpu_pct": 50,
+            "mem_usage_mb": 42,
+            "mem_mb": 256,
+            "disk_usage_mb": 35.4,
+            "disk_mb": 1024,
+            "ssl_enabled": 0,
+            "status": "active" if (pma_running or pma_installed) else "stopped",
+            "installed": pma_installed,
+            "category": "system",
+            "app_type": "system_app",
+            "remarks": "Quản trị Cơ sở dữ liệu MySQL / MariaDB bảo mật trên port 888"
+        },
+        {
+            "id": 9002,
+            "domain_name": "pgadmin.sys",
+            "app_id": "pgadmin",
+            "site_title": "pgAdmin 4 (PostgreSQL Web GUI)",
+            "icon": "🐘",
+            "url_port": 5050,
+            "doc_root": "/var/lib/pgadmin",
+            "owner_username": "pgadmin",
+            "owner_group": "pgadmin",
+            "webserver": "Gunicorn / Python",
+            "engine": "Python WSGI Sandbox",
+            "php_version": "Python 3.x",
+            "cpu_usage_pct": 1,
+            "cpu_pct": 50,
+            "mem_usage_mb": 65,
+            "mem_mb": 256,
+            "disk_usage_mb": 85.0,
+            "disk_mb": 1024,
+            "ssl_enabled": 0,
+            "status": "active" if (pgadmin_running or pgadmin_installed) else "stopped",
+            "installed": pgadmin_installed,
+            "category": "system",
+            "app_type": "system_app",
+            "remarks": "Quản trị Cơ sở dữ liệu PostgreSQL trực quan trên port 5050"
+        },
+        {
+            "id": 9003,
+            "domain_name": "webmail.sys",
+            "app_id": "roundcube",
+            "site_title": "Roundcube Webmail",
+            "icon": "✉️",
+            "url_port": 8800,
+            "doc_root": "/opt/wpc/apps/roundcube",
+            "owner_username": "roundcube",
+            "owner_group": "roundcube",
+            "webserver": "OLS" if ols_active else "NGINX",
+            "engine": "LSPHP 8.2 (lsapi)" if ols_active else "PHP-FPM 8.2 (pool)",
+            "php_version": "8.2",
+            "cpu_usage_pct": 0,
+            "cpu_pct": 50,
+            "mem_usage_mb": 38,
+            "mem_mb": 256,
+            "disk_usage_mb": 42.1,
+            "disk_mb": 1024,
+            "ssl_enabled": 0,
+            "status": "active" if (rc_running or rc_installed) else "stopped",
+            "installed": rc_installed,
+            "category": "system",
+            "app_type": "system_app",
+            "remarks": "Hộp thư Webmail Roundcube tích hợp IMAP/SMTP"
+        }
+    ]
+
+    return {"status": "ok", "websites": system_apps}
+
+
 
 

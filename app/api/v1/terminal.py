@@ -54,30 +54,68 @@ async def terminal_websocket(
     web_user_name = payload.get("web_user_name")
 
     # Xác định user mục tiêu trên Linux
+    db = await get_db_connection()
     if is_web_user:
         # Website User: Kết nối bằng quyền của chính mình trong Cage cách ly
         target_username = web_user_name
-        home_dir = f"/home/{target_username}" if os.path.exists(f"/home/{target_username}") else "/"
-        shell_cmd = ["sudo", "-n", "/opt/wpc/scripts/cage_terminal.sh", target_username]
     elif is_admin:
         if target_user and target_user != "root":
-            # Admin mở terminal của một Website User cụ thể
-            target_username = target_user.strip()
-            home_dir = f"/home/{target_username}" if os.path.exists(f"/home/{target_username}") else "/"
-            shell_cmd = ["sudo", "-n", "/opt/wpc/scripts/cage_terminal.sh", target_username]
-        else:
-            # Admin mở terminal quản trị hệ thống: Kết nối thẳng quyền ROOT
-            target_username = "root"
-            home_dir = "/root" if os.path.exists("/root") else "/"
-            if os.getuid() == 0:
-                shell_cmd = ["/bin/bash", "--login"]
+            t_clean = target_user.strip()
+            # Kiểm tra xem target_user có phải là domain_name không
+            cursor = await db.execute("""
+                SELECT u.username 
+                FROM domains d 
+                JOIN users u ON d.user_id = u.id 
+                WHERE d.domain_name = ?
+            """, (t_clean,))
+            d_row = await cursor.fetchone()
+            if d_row and d_row["username"]:
+                target_username = d_row["username"]
             else:
-                shell_cmd = ["sudo", "-n", "-u", "root", "/bin/bash", "--login"]
+                cursor = await db.execute("SELECT username FROM users WHERE username = ?", (t_clean,))
+                u_row = await cursor.fetchone()
+                if u_row and u_row["username"]:
+                    target_username = u_row["username"]
+                else:
+                    target_username = t_clean
+        else:
+            target_username = "root"
     else:
+        await db.close()
         # Hosting User: Tắt tính năng, tắt quyền SSH
         await websocket.send_text("\r\n\x1b[31m[Chính sách bảo mật] Tài khoản Hosting User bị tắt tính năng Terminal SSH. Chỉ Quản trị viên (Admin) và Tài khoản Website User mới có quyền truy cập Terminal.\x1b[0m\r\n")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
+
+    await db.close()
+
+    # Tìm đường dẫn script cage_terminal
+    cage_script = "/opt/wpc/scripts/cage_terminal.sh"
+    if not os.path.exists(cage_script):
+        # Thử đường dẫn trong workspace dev
+        dev_cage = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "scripts", "cage_terminal.sh")
+        if os.path.exists(dev_cage):
+            cage_script = dev_cage
+
+    if target_username == "root":
+        home_dir = "/root" if os.path.exists("/root") else "/"
+        if os.getuid() == 0:
+            shell_cmd = ["/bin/bash", "--login"]
+        else:
+            shell_cmd = ["sudo", "-n", "-u", "root", "/bin/bash", "--login"]
+    else:
+        home_dir = f"/home/{target_username}" if os.path.exists(f"/home/{target_username}") else "/"
+        if os.path.exists(cage_script):
+            if os.getuid() == 0:
+                shell_cmd = [cage_script, target_username]
+            else:
+                shell_cmd = ["sudo", "-n", cage_script, target_username]
+        else:
+            # Fallback trực tiếp nếu không có cage_script
+            if os.getuid() == 0:
+                shell_cmd = ["su", "-s", "/bin/bash", "-", target_username]
+            else:
+                shell_cmd = ["sudo", "-n", "-u", target_username, "/bin/bash", "--login"]
 
     # Mở PTY (Pseudo-Terminal)
     try:
@@ -158,13 +196,18 @@ async def terminal_websocket(
 
     async def pty_reader():
         nonlocal closed
-        while not closed and proc.returncode is None:
+        empty_count = 0
+        while not closed:
             try:
                 # Đọc output từ PTY
                 data = await loop.run_in_executor(None, _read_fd, master_fd)
                 if data:
                     await websocket.send_text(data.decode("utf-8", errors="replace"))
+                    empty_count = 0
                 else:
+                    empty_count += 1
+                    if proc.returncode is not None and empty_count > 5:
+                        break
                     await asyncio.sleep(0.02)
             except Exception:
                 break
