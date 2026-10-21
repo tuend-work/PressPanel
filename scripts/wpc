@@ -28,6 +28,7 @@ function show_help() {
     echo "  password    - Đổi mật khẩu tài khoản quản trị admin"
     echo "  port <số>   - Đổi cổng truy cập panel (tránh trùng cổng khác)"
     echo "  fix-perms   - Chuẩn hóa quyền 0711 toàn bộ /home/* chống xem trộm file và fix lỗi 403"
+    echo "  security [check|fix] - Kiểm tra hoặc áp dụng bảo mật tầng sâu chuẩn CloudLinux"
     echo "  help        - Hiển thị menu hướng dẫn này"
     echo "=========================================================="
 }
@@ -258,6 +259,17 @@ asyncio.run(reset_pass())
             systemctl restart nginx 2>/dev/null || true
         fi
         echo "[+] Hoàn tất! Tất cả thư mục người dùng đã được cô lập an toàn và website hoạt động trơn tru."
+        ;;
+    security|secure|harden)
+        sub_act="${2:-check}"
+        if [ -f "$INSTALL_DIR/scripts/security_hardening.sh" ]; then
+            sudo bash "$INSTALL_DIR/scripts/security_hardening.sh" "$sub_act"
+        elif [ -f "./scripts/security_hardening.sh" ]; then
+            sudo bash "./scripts/security_hardening.sh" "$sub_act"
+        else
+            echo "[-] Không tìm thấy script security_hardening.sh tại $INSTALL_DIR/scripts/"
+            exit 1
+        fi
         ;;
     help|--help|-h)
         show_help

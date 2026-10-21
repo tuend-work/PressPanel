@@ -672,6 +672,12 @@ if [ -x "/usr/local/lsws/lsns/bin/lssetup" ]; then
     /usr/local/lsws/lsns/bin/lssetup -i 1 2>/dev/null || true
 fi
 
+# 8.3 Tự động kiểm tra và chuẩn hóa bảo mật toàn diện (CloudLinux Hardening)
+if [ -f "$INSTALL_DIR/scripts/security_hardening.sh" ]; then
+    echo "[+] Đang kích hoạt chế độ bảo mật toàn diện CloudLinux-Grade Hardening..."
+    /bin/bash "$INSTALL_DIR/scripts/security_hardening.sh" fix || true
+fi
+
 rm -rf "$TMP_DIR"
 
 NEW_VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "latest")

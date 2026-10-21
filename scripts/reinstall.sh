@@ -56,12 +56,16 @@ if [ -f "$BACKUP_DIR/wpc.conf" ]; then
     cp "$BACKUP_DIR/wpc.conf" "$INSTALL_DIR/conf/wpc.conf"
     chmod 640 "$INSTALL_DIR/conf/wpc.conf"
     chown wpc:wpc "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null || true
+# 5. Tự động kiểm tra và chuẩn hóa bảo mật toàn diện (CloudLinux Hardening)
+if [ -f "$INSTALL_DIR/scripts/security_hardening.sh" ]; then
+    echo "[+] Đang kích hoạt chế độ bảo mật toàn diện CloudLinux-Grade Hardening..."
+    /bin/bash "$INSTALL_DIR/scripts/security_hardening.sh" fix || true
 fi
 
-# 5. Khởi động lại dịch vụ
+# 6. Khởi động lại dịch vụ
 systemctl restart wpc
 
-# 6. Dọn dẹp thư mục tạm
+# 7. Dọn dẹp thư mục tạm
 rm -rf "$TMP_DIR" "$BACKUP_DIR"
 
 echo "=========================================================="

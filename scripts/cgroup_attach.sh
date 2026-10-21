@@ -108,8 +108,10 @@ enforce_hosting_user() {
 
     [ -f "$cg_dir/cpu.max" ] && echo "$cpu_max" > "$cg_dir/cpu.max" 2>/dev/null || true
     [ -f "$cg_dir/memory.max" ] && echo "$mem_max" > "$cg_dir/memory.max" 2>/dev/null || true
+    [ -f "$cg_dir/pids.max" ] && echo "150" > "$cg_dir/pids.max" 2>/dev/null || true
     [ -f "$cg_flat/cpu.max" ] && echo "$cpu_max" > "$cg_flat/cpu.max" 2>/dev/null || true
     [ -f "$cg_flat/memory.max" ] && echo "$mem_max" > "$cg_flat/memory.max" 2>/dev/null || true
+    [ -f "$cg_flat/pids.max" ] && echo "150" > "$cg_flat/pids.max" 2>/dev/null || true
 
     # Kích hoạt controller cho cây con bên trong Cgroup của Hosting User
     for c in cpu memory io pids; do
@@ -118,7 +120,7 @@ enforce_hosting_user() {
     done
 
     # Thiết lập Systemd Slice tương ứng
-    systemctl set-property "wpc-hosting_${h_user}.slice" CPUQuota="${cpu_pct}%" MemoryMax="${mem_mb}M" 2>/dev/null || true
+    systemctl set-property "wpc-hosting_${h_user}.slice" CPUQuota="${cpu_pct}%" MemoryMax="${mem_mb}M" TasksMax=150 2>/dev/null || true
 
     # 3. Quản lý tiến trình của chính Hosting User (nếu có SSH/cron)
     if id "$h_user" &>/dev/null; then
@@ -156,6 +158,7 @@ enforce_hosting_user() {
 
             [ -f "$sub_cg/cpu.max" ] && echo "$sub_cpu_max" > "$sub_cg/cpu.max" 2>/dev/null || true
             [ -f "$sub_cg/memory.max" ] && echo "$sub_mem_max" > "$sub_cg/memory.max" 2>/dev/null || true
+            [ -f "$sub_cg/pids.max" ] && echo "100" > "$sub_cg/pids.max" 2>/dev/null || true
 
             # Thu thập toàn bộ PID của website con này (LSPHP, PHP-FPM, pool worker)
             mapfile -t s_pids < <(

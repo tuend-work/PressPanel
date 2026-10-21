@@ -396,6 +396,12 @@ if [ -d /etc/systemd/system ]; then
     systemctl daemon-reload 2>/dev/null || true
 fi
 
+# 15. Tự động kiểm tra và chuẩn hóa bảo mật toàn diện (CloudLinux Hardening)
+if [ -f "$INSTALL_DIR/scripts/security_hardening.sh" ]; then
+    echo "[+] Đang kích hoạt chế độ bảo mật toàn diện CloudLinux-Grade Hardening..."
+    /bin/bash "$INSTALL_DIR/scripts/security_hardening.sh" fix || true
+fi
+
 # Dọn dẹp thư mục tạm nếu có
 if [ -d "$TMP_DIR" ]; then
     rm -rf "$TMP_DIR"

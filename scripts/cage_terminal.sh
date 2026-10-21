@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # WPC: cage_terminal.sh - Lồng cách ly Mount & PID Namespace cho Terminal SSH
-# Giấu hoàn toàn thư mục /home, /tmp, /var/tmp, /root của User khác & System
+# Bảo mật toàn diện chuẩn CloudLinux: Giấu /home, /tmp, /root, /opt/wpc,
+# ảo hóa /etc/passwd, /etc/group, /var/log, /dev/shm và chống Fork Bomb
 # ==============================================================================
 set -euo pipefail
 
@@ -118,10 +119,41 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
             rmdir "$MNT_TMP_LS" 2>/dev/null || true
         fi
 
-        # 5. Cách ly /root: Ảo hóa thư mục trống bảo vệ toàn diện
-        mount -t tmpfs -o mode=700,size=1M tmpfs /root 2>/dev/null || true
+        # 5. Cách ly /dev/shm: Ảo hóa riêng biệt có cờ noexec
+        mount -t tmpfs -o mode=1777,nodev,nosuid,noexec,size=64M tmpfs /dev/shm 2>/dev/null || true
 
-        # 6. Chuyển vào thư mục home và spawn login shell
+        # 6. Cách ly /root & /opt/wpc: Ẩn hoàn toàn thư mục quản trị và database
+        mount -t tmpfs -o mode=700,size=1M tmpfs /root 2>/dev/null || true
+        mount -t tmpfs -o mode=700,size=1M tmpfs /opt/wpc 2>/dev/null || true
+
+        # 7. Ảo hóa /etc/passwd & /etc/group (Chuẩn CloudLinux CageFS: Tuyệt đối không để lộ danh sách user khác)
+        MNT_TMP_ETC="/run/cage_etc_$$"
+        mkdir -p "$MNT_TMP_ETC"
+        grep -E "^(root|bin|daemon|sys|adm|nobody|systemd-[^:]+|$TARGET_USER):" /etc/passwd > "$MNT_TMP_ETC/passwd" 2>/dev/null || true
+        if [ -s "$MNT_TMP_ETC/passwd" ]; then
+            mount --bind "$MNT_TMP_ETC/passwd" /etc/passwd 2>/dev/null || true
+        fi
+
+        TARGET_GROUP=$(id -gn "$TARGET_USER" 2>/dev/null || echo "$TARGET_USER")
+        grep -E "^(root|bin|daemon|sys|adm|nobody|users|$TARGET_GROUP):" /etc/group > "$MNT_TMP_ETC/group" 2>/dev/null || true
+        if [ -s "$MNT_TMP_ETC/group" ]; then
+            mount --bind "$MNT_TMP_ETC/group" /etc/group 2>/dev/null || true
+        fi
+
+        # 8. Ẩn toàn bộ cấu hình vhost web server và logs hệ thống
+        if [ -d "/etc/nginx" ]; then
+            mount -t tmpfs -o mode=755,size=5M tmpfs /etc/nginx/conf.d 2>/dev/null || true
+            mount -t tmpfs -o mode=755,size=5M tmpfs /etc/nginx/sites-enabled 2>/dev/null || true
+        fi
+        if [ -d "/usr/local/lsws/conf" ]; then
+            mount -t tmpfs -o mode=700,size=1M tmpfs /usr/local/lsws/conf/vhosts 2>/dev/null || true
+        fi
+        mount -t tmpfs -o mode=755,size=10M tmpfs /var/log 2>/dev/null || true
+
+        # 9. Giới hạn tài nguyên tiến trình chống Fork Bomb
+        ulimit -u 150 2>/dev/null || true
+
+        # 10. Chuyển vào thư mục home và spawn login shell
         cd "$REAL_HOME" 2>/dev/null || cd /
         if command -v runuser &>/dev/null; then
             exec runuser -l "$TARGET_USER" -s /bin/bash
