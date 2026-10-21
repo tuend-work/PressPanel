@@ -724,17 +724,17 @@
                                     </div>
                                 </div>
 
-                                <!-- Dynamic Input Fields based on PM mode -->
+                                <!-- 1. Dynamic Input Fields based on PM mode -->
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <!-- pm.max_children (Cả 3 mode đều cần) -->
                                     <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
                                         <div class="flex items-center justify-between">
-                                            <label class="font-bold text-slate-200">pm.max_children</label>
+                                            <label class="font-bold text-slate-200">pm.max_children *</label>
                                             <span class="text-[10px] text-slate-400">Số worker tối đa</span>
                                         </div>
-                                        <input type="number" min="1" max="200" v-model.number="domainFpmData.settings.pm_max_children"
+                                        <input type="number" min="1" max="500" v-model.number="domainFpmData.settings.pm_max_children"
                                             class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
-                                        <p class="text-[10px] text-slate-400">Giới hạn số tiến trình con PHP tối đa chạy song song.</p>
+                                        <p class="text-[10px] text-slate-400">Giới hạn số tiến trình con PHP tối đa chạy song song (1 - 500).</p>
                                     </div>
 
                                     <!-- pm.process_idle_timeout (Chỉ cho mode ondemand) -->
@@ -800,49 +800,214 @@
                                     </div>
                                 </div>
 
-                                <!-- ADVANCED TIMEOUT & RUNTIME SETTINGS -->
+                                <!-- 2. Healthcheck & Metrics Status Card -->
                                 <div class="p-3.5 rounded-xl bg-slate-800/40 border border-slate-700/60 space-y-3">
-                                    <div class="font-bold text-slate-300 text-xs flex items-center gap-1.5 border-b border-slate-700/60 pb-2">
-                                        <span>⚙️</span>
-                                        <span>Các thông số kiểm soát & Timeouts nâng cao:</span>
+                                    <div class="font-bold text-slate-300 text-xs flex items-center justify-between border-b border-slate-700/60 pb-2">
+                                        <div class="flex items-center gap-1.5">
+                                            <span>🩺</span>
+                                            <span>Theo dõi & Kiểm tra Sức khỏe (Healthcheck / Metrics):</span>
+                                        </div>
+                                        <span class="text-[10px] text-slate-400 font-mono">FPM Status & Ping</span>
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">pm.status_path:</label>
+                                            <input type="text" v-model="domainFpmData.settings.pm_status_path" placeholder="/status"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Đường dẫn URI xem trạng thái metrics FPM</span>
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">ping.path:</label>
+                                            <input type="text" v-model="domainFpmData.settings.ping_path" placeholder="/ping"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Đường dẫn probe kiểm tra dịch vụ sống</span>
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">ping.response:</label>
+                                            <input type="text" v-model="domainFpmData.settings.ping_response" placeholder="pong"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Chuỗi phản hồi khi ping thành công</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 3. ADVANCED TIMEOUT & RUNTIME SETTINGS -->
+                                <div class="p-3.5 rounded-xl bg-slate-800/40 border border-slate-700/60 space-y-3">
+                                    <div class="font-bold text-slate-300 text-xs flex items-center justify-between border-b border-slate-700/60 pb-2">
+                                        <div class="flex items-center gap-1.5">
+                                            <span>⏱️</span>
+                                            <span>Kiểm soát Thời Gian Chạy, Slowlog & Worker Output:</span>
+                                        </div>
+                                        <span class="text-[10px] text-slate-400 font-mono">Timeouts & Output</span>
                                     </div>
 
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                         <!-- request_terminate_timeout -->
                                         <div>
-                                            <label class="font-bold text-slate-300 block mb-1">request_terminate_timeout:</label>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">request_terminate_timeout:</label>
                                             <input type="text" v-model="domainFpmData.settings.request_terminate_timeout" placeholder="0s hoặc 300s"
                                                 class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
-                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Tự động kill worker nếu 1 request chạy vượt quá thời gian này (0s = tắt).</span>
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Tự động kill worker nếu 1 request vượt quá thời gian (0s = tắt).</span>
                                         </div>
 
                                         <!-- request_slowlog_timeout -->
                                         <div>
-                                            <label class="font-bold text-slate-300 block mb-1">request_slowlog_timeout:</label>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">request_slowlog_timeout:</label>
                                             <input type="text" v-model="domainFpmData.settings.request_slowlog_timeout" placeholder="0s hoặc 5s"
                                                 class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
-                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Ghi lại vết stacktrace nếu request xử lý chậm hơn n giây (0s = tắt).</span>
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Ghi lại vết stacktrace nếu request chạy chậm hơn n giây (0s = tắt).</span>
+                                        </div>
+
+                                        <!-- slowlog path -->
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">slowlog (file path):</label>
+                                            <input type="text" v-model="domainFpmData.settings.slowlog" placeholder="Để trống = Mặc định"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Đường dẫn file ghi lại các request chạy quá chậm.</span>
                                         </div>
 
                                         <!-- catch_workers_output -->
                                         <div>
-                                            <label class="font-bold text-slate-300 block mb-1">catch_workers_output:</label>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">catch_workers_output:</label>
                                             <select v-model="domainFpmData.settings.catch_workers_output"
                                                 class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
-                                                <option value="yes">yes — Bắt toàn bộ stdout/stderr của worker vào error log (Khuyên dùng)</option>
+                                                <option value="yes">yes — Bắt stdout/stderr của worker vào error log (Khuyên dùng)</option>
                                                 <option value="no">no — Không thu thập output của worker</option>
+                                            </select>
+                                        </div>
+
+                                        <!-- decorate_workers_output -->
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">decorate_workers_output:</label>
+                                            <select v-model="domainFpmData.settings.decorate_workers_output"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                                <option value="no">no — Giữ nguyên output gốc không gắn tiền tố</option>
+                                                <option value="yes">yes — Gắn tiền tố thời gian & log level vào worker output</option>
                                             </select>
                                         </div>
 
                                         <!-- clear_env -->
                                         <div>
-                                            <label class="font-bold text-slate-300 block mb-1">clear_env:</label>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">clear_env:</label>
                                             <select v-model="domainFpmData.settings.clear_env"
                                                 class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
                                                 <option value="no">no — Cho phép đọc các biến môi trường hệ thống (Khuyên dùng)</option>
                                                 <option value="yes">yes — Xóa trắng biến môi trường trong worker</option>
                                             </select>
                                         </div>
+                                    </div>
+                                </div>
+
+                                <!-- 4. Socket Network & System Limits (rlimit) -->
+                                <div class="p-3.5 rounded-xl bg-slate-800/40 border border-slate-700/60 space-y-3">
+                                    <div class="font-bold text-slate-300 text-xs flex items-center justify-between border-b border-slate-700/60 pb-2">
+                                        <div class="flex items-center gap-1.5">
+                                            <span>🛡️</span>
+                                            <span>Mạng Socket & Giới Hạn Tài Nguyên Hệ Thống (rlimit):</span>
+                                        </div>
+                                        <span class="text-[10px] text-slate-400 font-mono">Backlog & Rlimit</span>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">listen.backlog:</label>
+                                            <input type="number" v-model.number="domainFpmData.settings.listen_backlog" placeholder="511"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Độ dài hàng đợi socket (-1 = OS default)</span>
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">listen.mode:</label>
+                                            <input type="text" v-model="domainFpmData.settings.listen_mode" placeholder="0660"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Quyền socket (ví dụ: 0660)</span>
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">rlimit_files:</label>
+                                            <input type="number" v-model.number="domainFpmData.settings.rlimit_files" placeholder="65535"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Giới hạn file descriptor mở</span>
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">rlimit_core:</label>
+                                            <input type="number" v-model.number="domainFpmData.settings.rlimit_core" placeholder="0"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Kích thước core dump (0 = tắt)</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 5. PHP Directives & Admin Overrides (php_admin_value) -->
+                                <div class="p-3.5 rounded-xl bg-slate-800/40 border border-slate-700/60 space-y-3">
+                                    <div class="font-bold text-slate-300 text-xs flex items-center justify-between border-b border-slate-700/60 pb-2">
+                                        <div class="flex items-center gap-1.5">
+                                            <span>🎛️</span>
+                                            <span>Ghi Đè Thông Số PHP Theo Từng Website (php_admin_value):</span>
+                                        </div>
+                                        <span class="text-[10px] text-slate-400 font-mono">PHP Directives Overrides</span>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                                        <div>
+                                            <div class="flex justify-between items-center mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">memory_limit:</label>
+                                                <div class="flex gap-1">
+                                                    <button v-for="m in ['256M', '512M', '1024M']" :key="'m_' + m" type="button"
+                                                        @click="domainFpmData.settings.php_memory_limit = m"
+                                                        class="text-[9px] px-1 rounded bg-slate-700 text-slate-300 hover:text-white font-mono">
+                                                        {{ m }}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <input type="text" v-model="domainFpmData.settings.php_memory_limit" placeholder="256M"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                        </div>
+
+                                        <div>
+                                            <div class="flex justify-between items-center mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">max_execution_time:</label>
+                                                <div class="flex gap-1">
+                                                    <button v-for="s in [60, 120, 300]" :key="'s_' + s" type="button"
+                                                        @click="domainFpmData.settings.php_max_execution_time = s"
+                                                        class="text-[9px] px-1 rounded bg-slate-700 text-slate-300 hover:text-white font-mono">
+                                                        {{ s }}s
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <input type="number" v-model.number="domainFpmData.settings.php_max_execution_time" placeholder="120"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                        </div>
+
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">upload_max_filesize:</label>
+                                            <input type="text" v-model="domainFpmData.settings.php_upload_max_filesize" placeholder="64M"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                        </div>
+
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">post_max_size:</label>
+                                            <input type="text" v-model="domainFpmData.settings.php_post_max_size" placeholder="64M"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">open_basedir (Cô lập thư mục website):</label>
+                                            <input type="text" v-model="domainFpmData.settings.php_open_basedir" placeholder="Để trống = Mặc định thư mục website an toàn"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">disable_functions (Chặn hàm nguy hiểm):</label>
+                                            <input type="text" v-model="domainFpmData.settings.php_disable_functions" placeholder="exec,passthru,shell_exec,system,popen,proc_open"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="text-slate-300 text-[11px] font-semibold block mb-1">Chỉ thị tùy chỉnh bổ sung (Custom Directives):</label>
+                                        <textarea v-model="domainFpmData.settings.custom_directives" rows="2" placeholder="php_admin_value[opcache.revalidate_freq] = 60&#10;php_admin_flag[display_errors] = off"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-amber-300 font-mono text-xs focus:outline-none focus:border-amber-500"></textarea>
+                                        <span class="text-[10px] text-slate-400">Cho phép bổ sung bất kỳ cấu hình php_admin_value[...] nào mà bạn cần.</span>
                                     </div>
                                 </div>
                             </div>
@@ -1001,14 +1166,93 @@
                                 </div>
                             </div>
 
-                            <!-- FORM MODE -->
+                            <!-- FORM MODE: ALL OPENLITESPEED LSAPI APP FIELDS -->
                             <div v-if="lsapiConfigMode === 'form'" class="space-y-3.5">
-                                <!-- LSAPI MODE SELECTOR (TRỌNG TÂM: LSAPI_AVOID_FORK) -->
-                                <div class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700 space-y-2">
-                                    <div class="flex items-center justify-between">
+                                <!-- CARD 1: SERVER & PROCESS IDENTITY (ĐỊNH DANH ỨNG DỤNG NGOÀI & SOCKET) -->
+                                <div class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-3">
+                                    <div class="font-bold text-slate-200 text-xs flex items-center justify-between border-b border-slate-700/60 pb-2">
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-cyan-400">🏷️</span>
+                                            <span>Định Danh Ứng Dụng Ngoài & Đường Dẫn (External App Addressing):</span>
+                                        </div>
+                                        <span class="text-[10px] text-cyan-300 font-mono">Process Identity</span>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                        <!-- Name * -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Name *:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">Tên Processor</span>
+                                            </div>
+                                            <input type="text" v-model="domainLsapiData.settings.name" placeholder="lsphp_cloudpanel.local"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-cyan-300 font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Tên duy nhất định danh app trong Virtual Host.</span>
+                                        </div>
+
+                                        <!-- Address * -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Address *:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">Socket Address</span>
+                                            </div>
+                                            <input type="text" v-model="domainLsapiData.settings.address" placeholder="uds://tmp/lshttpd/lsphp_name.sock"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-cyan-300 font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Địa chỉ Unix domain socket (UDS) hoặc TCP socket.</span>
+                                        </div>
+
+                                        <!-- Command / Path -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Command (Path):</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">Binary Executable</span>
+                                            </div>
+                                            <input type="text" v-model="domainLsapiData.settings.path" placeholder="/usr/local/lsws/lsphp84/bin/lsphp"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Đường dẫn thực thi của trình biên dịch LSPHP.</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                                        <!-- Run As User -->
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">Run As User (extUser):</label>
+                                            <input type="text" v-model="domainLsapiData.settings.ext_user" placeholder="cloudpanel.local"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">User Linux sở hữu website cách ly.</span>
+                                        </div>
+
+                                        <!-- Run As Group -->
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">Run As Group (extGroup):</label>
+                                            <input type="text" v-model="domainLsapiData.settings.ext_group" placeholder="cloudpanel.local"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Group Linux quyền của tiến trình.</span>
+                                        </div>
+
+                                        <!-- umask -->
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">umask:</label>
+                                            <input type="text" v-model="domainLsapiData.settings.umask" placeholder="022"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Mặt nạ phân quyền file tạo mới (mặc định: 022).</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Notes -->
+                                    <div class="pt-1">
+                                        <label class="text-slate-300 text-[11px] font-semibold block mb-1">Notes (Ghi chú):</label>
+                                        <input type="text" v-model="domainLsapiData.settings.notes" placeholder="Mô tả cấu hình external app này..."
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-cyan-500">
+                                    </div>
+                                </div>
+
+                                <!-- CARD 2: LSAPI MODE & ENVIRONMENT VARIABLES (LSAPI_AVOID_FORK, LSAPI_CHILDREN) -->
+                                <div class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-3">
+                                    <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
                                         <label class="font-bold text-white text-xs flex items-center gap-1.5">
                                             <span class="text-cyan-400">⚡</span>
-                                            <span>Chế Độ Thực Thi LSAPI (LSAPI Process Mode):</span>
+                                            <span>Chế Độ Thực Thi LSAPI & Biến Môi Trường (Environment Variables):</span>
                                         </label>
                                         <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-cyan-300 border border-slate-700 font-bold">
                                             AVOID_FORK = {{ domainLsapiData.settings.lsapi_avoid_fork }}
@@ -1044,84 +1288,257 @@
                                             <span class="text-[9px] text-emerald-400 font-semibold mt-2">LSAPI_AVOID_FORK=0 &bull; Tiết kiệm bộ nhớ</span>
                                         </div>
                                     </div>
-                                </div>
 
-                                <!-- WORKER & CONNECTION NUMBERS -->
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <!-- LSAPI_CHILDREN -->
-                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
-                                        <div class="flex items-center justify-between">
-                                            <label class="font-bold text-slate-200">LSAPI_CHILDREN</label>
-                                            <span class="text-[10px] text-slate-400">Tiến trình worker con</span>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                                        <!-- LSAPI_CHILDREN -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">LSAPI_CHILDREN:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">1 - 2000 workers</span>
+                                            </div>
+                                            <input type="number" min="1" max="2000" v-model.number="domainLsapiData.settings.lsapi_children"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Số lượng worker con tối đa được phép sinh ra bởi master process.</span>
                                         </div>
-                                        <input type="number" min="1" max="200" v-model.number="domainLsapiData.settings.lsapi_children"
-                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
-                                        <p class="text-[10px] text-slate-400">Số lượng worker con tối đa được phép sinh ra (Tương đương pm.max_children trong PHP-FPM).</p>
+
+                                        <!-- PHP_LSAPI_MAX_REQUESTS -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">PHP_LSAPI_MAX_REQUESTS:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">0 - 50000 reqs</span>
+                                            </div>
+                                            <input type="number" min="0" max="50000" v-model.number="domainLsapiData.settings.max_requests"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Số request tối đa mỗi worker xử lý trước khi tái sinh (chống leak RAM).</span>
+                                        </div>
                                     </div>
 
-                                    <!-- maxConns -->
-                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
-                                        <div class="flex items-center justify-between">
-                                            <label class="font-bold text-slate-200">maxConns</label>
-                                            <span class="text-[10px] text-slate-400">Kết nối đồng thời</span>
+                                    <!-- Environment (env_custom multi-line) -->
+                                    <div class="pt-1">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <label class="text-slate-300 text-[11px] font-semibold">Environment (Biến môi trường tùy chỉnh):</label>
+                                            <span class="text-[9px] text-slate-400 font-mono">Mỗi dòng 1 biến: KEY=VALUE</span>
                                         </div>
-                                        <input type="number" min="1" max="200" v-model.number="domainLsapiData.settings.max_conns"
-                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
-                                        <p class="text-[10px] text-slate-400">Số kết nối đồng thời tối đa giữa OpenLiteSpeed và LSPHP pool.</p>
-                                    </div>
-
-                                    <!-- PHP_LSAPI_MAX_REQUESTS -->
-                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
-                                        <div class="flex items-center justify-between">
-                                            <label class="font-bold text-slate-200">PHP_LSAPI_MAX_REQUESTS</label>
-                                            <span class="text-[10px] text-slate-400">Tái sinh tiến trình</span>
-                                        </div>
-                                        <input type="number" min="0" max="50000" v-model.number="domainLsapiData.settings.max_requests"
-                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
-                                        <p class="text-[10px] text-slate-400">Số lượt request tối đa mỗi worker xử lý trước khi tái tạo (chống rò rỉ bộ nhớ).</p>
-                                    </div>
-
-                                    <!-- persistConn -->
-                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
-                                        <div class="flex items-center justify-between">
-                                            <label class="font-bold text-slate-200">persistConn (Keep-Alive)</label>
-                                            <span class="text-[10px] text-slate-400">Duy trì kết nối</span>
-                                        </div>
-                                        <select v-model.number="domainLsapiData.settings.persist_conn"
-                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
-                                            <option :value="1">1 — Bật Keep-Alive (Khuyên dùng, giảm chi phí mở kết nối)</option>
-                                            <option :value="0">0 — Tắt Keep-Alive</option>
-                                        </select>
+                                        <textarea v-model="domainLsapiData.settings.env_custom" rows="2" placeholder="LSAPI_EXTRA_CHILDREN=5&#10;LSAPI_PGRP_MAX_IDLE=30"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-cyan-300 font-mono text-xs focus:outline-none focus:border-cyan-500"></textarea>
+                                        <span class="text-[10px] text-slate-400">Các biến môi trường bổ sung truyền vào process (tự động gộp cùng LSAPI_CHILDREN và AVOID_FORK).</span>
                                     </div>
                                 </div>
 
-                                <!-- ADVANCED TIMEOUTS & MEMORY LIMITS -->
-                                <div class="p-3.5 rounded-xl bg-slate-800/40 border border-slate-700/60 space-y-3">
-                                    <div class="font-bold text-slate-300 text-xs flex items-center gap-1.5 border-b border-slate-700/60 pb-2">
-                                        <span>⚙️</span>
-                                        <span>Giới hạn bộ nhớ & Timeouts (LSAPI Tuning):</span>
+                                <!-- CARD 3: CONNECTION, CONCURRENCY & BUFFERING -->
+                                <div class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-3">
+                                    <div class="font-bold text-slate-200 text-xs flex items-center justify-between border-b border-slate-700/60 pb-2">
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-cyan-400">🔌</span>
+                                            <span>Kết Nối Đồng Thời & Quản Lý Bộ Đệm (Connection & Buffering):</span>
+                                        </div>
+                                        <span class="text-[10px] text-cyan-300 font-mono">Concurrency Tuning</span>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                        <!-- Max Connections * -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Max Connections *:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">1 - 2000</span>
+                                            </div>
+                                            <input type="number" min="1" max="2000" v-model.number="domainLsapiData.settings.max_conns"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Số kết nối đồng thời tối đa tới external app (maxConns).</span>
+                                        </div>
+
+                                        <!-- Persistent Connection -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Persistent Connection:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">persistConn</span>
+                                            </div>
+                                            <select v-model.number="domainLsapiData.settings.persist_conn"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                                <option :value="1">Yes (Khuyên dùng, tái sử dụng socket)</option>
+                                                <option :value="0">No (Đóng kết nối sau mỗi request)</option>
+                                                <option :value="-1">Not Set (Theo mặc định server)</option>
+                                            </select>
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Duy trì kết nối Keep-Alive giảm chi phí handshake.</span>
+                                        </div>
+
+                                        <!-- Connection Keep Alive Timeout -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Connection Keep Alive Timeout:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">-1 đến 10000s</span>
+                                            </div>
+                                            <input type="number" min="-1" max="10000" v-model.number="domainLsapiData.settings.pc_keep_alive_timeout" placeholder="-1"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Thời gian rỗi tối đa duy trì keep-alive (-1 = mặc định).</span>
+                                        </div>
+
+                                        <!-- Response Buffering * -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Response Buffering *:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">respBuffer</span>
+                                            </div>
+                                            <select v-model.number="domainLsapiData.settings.resp_buffer"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                                <option :value="0">No (Khuyên dùng - Streaming tức thì)</option>
+                                                <option :value="1">Yes (Đệm toàn bộ phản hồi trước khi gửi)</option>
+                                            </select>
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Đệm dữ liệu phản hồi từ LSPHP trước khi gửi tới client.</span>
+                                        </div>
+
+                                        <!-- Back Log -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Back Log:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">1 - 100</span>
+                                            </div>
+                                            <input type="number" min="1" max="100" v-model.number="domainLsapiData.settings.backlog" placeholder="100"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Độ dài hàng đợi socket backlog chờ kết nối.</span>
+                                        </div>
+
+                                        <!-- Instances -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Instances:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">0 - 1000</span>
+                                            </div>
+                                            <input type="number" min="0" max="1000" v-model.number="domainLsapiData.settings.instances" placeholder="1"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Số instance độc lập của External App (thường là 1).</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- CARD 4: PROCESS LIFECYCLE, TIMEOUTS & PRIORITY -->
+                                <div class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-3">
+                                    <div class="font-bold text-slate-200 text-xs flex items-center justify-between border-b border-slate-700/60 pb-2">
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-cyan-400">⏱️</span>
+                                            <span>Vòng Đời, Timeouts & Lập Lịch Khởi Động (Lifecycle & Timeouts):</span>
+                                        </div>
+                                        <span class="text-[10px] text-cyan-300 font-mono">Scheduling & Timeouts</span>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                        <!-- Start By Server * -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Start By Server *:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">autoStart</span>
+                                            </div>
+                                            <select v-model.number="domainLsapiData.settings.auto_start"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                                <option :value="1">Yes (Through CGI Daemon) — Khuyên dùng</option>
+                                                <option :value="2">Yes</option>
+                                                <option :value="0">No</option>
+                                            </select>
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Cho phép webserver tự động spawn tiến trình.</span>
+                                        </div>
+
+                                        <!-- Run On Start Up -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Run On Start Up:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">runOn</span>
+                                            </div>
+                                            <select v-model.number="domainLsapiData.settings.run_on"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                                <option :value="1">Yes (Local)</option>
+                                                <option :value="2">Yes (All / Daemon)</option>
+                                                <option :value="0">None / No</option>
+                                            </select>
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Tự động kích hoạt ngay khi OpenLiteSpeed start.</span>
+                                        </div>
+
+                                        <!-- Initial Request Timeout (secs) * -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Initial Request Timeout (secs) *:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">initTimeout >= 1</span>
+                                            </div>
+                                            <input type="number" min="1" v-model.number="domainLsapiData.settings.init_timeout" placeholder="60"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Thời gian tối đa chờ phản hồi request đầu tiên.</span>
+                                        </div>
+
+                                        <!-- Retry Timeout (secs) * -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Retry Timeout (secs) *:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">retryTimeout >= 0</span>
+                                            </div>
+                                            <input type="number" min="0" v-model.number="domainLsapiData.settings.retry_timeout" placeholder="0"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Thời gian chờ thử lại nếu kết nối gặp lỗi (0 = tắt).</span>
+                                        </div>
+
+                                        <!-- Max Idle Time -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Max Idle Time:</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">maxIdleTime >= -1</span>
+                                            </div>
+                                            <input type="number" min="-1" v-model.number="domainLsapiData.settings.max_idle_time" placeholder="-1"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Thời gian nhàn rỗi tối đa trước khi kill worker (-1 = vô hạn).</span>
+                                        </div>
+
+                                        <!-- Priority -->
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">Priority (Độ ưu tiên):</label>
+                                                <span class="text-[9px] text-slate-400 font-mono">-20 đến 20</span>
+                                            </div>
+                                            <input type="number" min="-20" max="20" v-model.number="domainLsapiData.settings.priority" placeholder="0"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Nice priority của tiến trình trên hệ điều hành (-20 đến 20).</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- CARD 5: RESOURCE & SECURITY LIMITS (GIỚI HẠN BỘ NHỚ & TIẾN TRÌNH) -->
+                                <div class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-3">
+                                    <div class="font-bold text-slate-200 text-xs flex items-center justify-between border-b border-slate-700/60 pb-2">
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-cyan-400">🛡️</span>
+                                            <span>Giới Hạn Tài Nguyên Hệ Thống (Resource Limits):</span>
+                                        </div>
+                                        <span class="text-[10px] text-cyan-300 font-mono">Memory & Process Limits</span>
                                     </div>
 
                                     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                                        <!-- Memory Soft Limit (bytes) -->
                                         <div>
-                                            <label class="text-slate-400 text-[11px] block mb-1">initTimeout (giây):</label>
-                                            <input type="number" v-model.number="domainLsapiData.settings.init_timeout" placeholder="60"
-                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
-                                        </div>
-                                        <div>
-                                            <label class="text-slate-400 text-[11px] block mb-1">retryTimeout (giây):</label>
-                                            <input type="number" v-model.number="domainLsapiData.settings.retry_timeout" placeholder="0"
-                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
-                                        </div>
-                                        <div>
-                                            <label class="text-slate-400 text-[11px] block mb-1">Memory Soft Limit:</label>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">Memory Soft Limit:</label>
                                             <input type="text" v-model="domainLsapiData.settings.mem_soft_limit" placeholder="1024M"
                                                 class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Ngưỡng cảnh báo bộ nhớ (ví dụ: 1024M).</span>
                                         </div>
+
+                                        <!-- Memory Hard Limit (bytes) -->
                                         <div>
-                                            <label class="text-slate-400 text-[11px] block mb-1">Memory Hard Limit:</label>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">Memory Hard Limit:</label>
                                             <input type="text" v-model="domainLsapiData.settings.mem_hard_limit" placeholder="2048M"
                                                 class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Giới hạn bộ nhớ tối đa trước khi bị ngắt.</span>
+                                        </div>
+
+                                        <!-- Process Soft Limit -->
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">Process Soft Limit:</label>
+                                            <input type="number" min="0" v-model.number="domainLsapiData.settings.proc_soft_limit" placeholder="200"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Số tiến trình soft limit (>= 0).</span>
+                                        </div>
+
+                                        <!-- Process Hard Limit -->
+                                        <div>
+                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">Process Hard Limit:</label>
+                                            <input type="number" min="0" v-model.number="domainLsapiData.settings.proc_hard_limit" placeholder="300"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Số tiến trình hard limit (>= 0).</span>
                                         </div>
                                     </div>
                                 </div>

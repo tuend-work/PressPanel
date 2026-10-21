@@ -1527,10 +1527,26 @@ class DomainFpmSettingsUpdate(BaseModel):
     pm_max_spare_servers: Optional[int] = 3
     pm_process_idle_timeout: Optional[str] = "10s"
     pm_max_requests: Optional[int] = 500
+    pm_status_path: Optional[str] = ""
+    ping_path: Optional[str] = ""
+    ping_response: Optional[str] = "pong"
     request_terminate_timeout: Optional[str] = "0s"
     request_slowlog_timeout: Optional[str] = "0s"
+    slowlog: Optional[str] = ""
     catch_workers_output: Optional[str] = "yes"
+    decorate_workers_output: Optional[str] = "no"
     clear_env: Optional[str] = "no"
+    listen_backlog: Optional[int] = 511
+    listen_mode: Optional[str] = "0666"
+    rlimit_files: Optional[int] = 65535
+    rlimit_core: Optional[str] = "0"
+    php_memory_limit: Optional[str] = "512M"
+    php_max_execution_time: Optional[int] = 300
+    php_upload_max_filesize: Optional[str] = "128M"
+    php_post_max_size: Optional[str] = "128M"
+    php_open_basedir: Optional[str] = None
+    php_disable_functions: Optional[str] = None
+    custom_directives: Optional[str] = ""
     raw_config: Optional[str] = None
 
 class DomainFpmControlRequest(BaseModel):
@@ -1546,11 +1562,24 @@ class DomainLsapiSettingsUpdate(BaseModel):
     init_timeout: Optional[int] = 60
     retry_timeout: Optional[int] = 0
     persist_conn: Optional[int] = 1
+    pc_keep_alive_timeout: Optional[int] = -1
+    resp_buffer: Optional[int] = 0
+    auto_start: Optional[int] = 1
+    path: Optional[str] = None
+    backlog: Optional[int] = 100
     instances: Optional[int] = 1
+    ext_user: Optional[str] = None
+    ext_group: Optional[str] = None
+    umask: Optional[str] = ""
+    run_on: Optional[int] = 1
+    max_idle_time: Optional[int] = -1
+    priority: Optional[int] = 0
     mem_soft_limit: Optional[str] = "1024M"
     mem_hard_limit: Optional[str] = "2048M"
     proc_soft_limit: Optional[int] = 200
     proc_hard_limit: Optional[int] = 300
+    env_custom: Optional[str] = ""
+    notes: Optional[str] = ""
     raw_config: Optional[str] = None
 
 class DomainLsapiControlRequest(BaseModel):
@@ -1630,51 +1659,98 @@ async def get_domain_fpm_service(
         "pm_max_spare_servers": 3,
         "pm_process_idle_timeout": "10s",
         "pm_max_requests": 500,
+        "pm_status_path": f"/status-{isolated_user}",
+        "ping_path": f"/ping-{isolated_user}",
+        "ping_response": "pong",
         "request_terminate_timeout": "0s",
         "request_slowlog_timeout": "0s",
+        "slowlog": f"/home/{isolated_user}/logs/php-fpm.slow.log",
         "catch_workers_output": "yes",
-        "clear_env": "no"
+        "decorate_workers_output": "no",
+        "clear_env": "no",
+        "listen_backlog": 511,
+        "listen_mode": "0666",
+        "rlimit_files": 65535,
+        "rlimit_core": "0",
+        "php_memory_limit": "512M",
+        "php_max_execution_time": 300,
+        "php_upload_max_filesize": "128M",
+        "php_post_max_size": "128M",
+        "php_open_basedir": f"/home/{isolated_user}/:/tmp/:/var/tmp/",
+        "php_disable_functions": "exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source",
+        "custom_directives": ""
     }
     raw_config = ""
     sock_owner, sock_group = get_safe_fpm_socket_owner(isolated_user)
 
-    if os.path.exists(conf_path):
-        try:
-            with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
-                raw_config = f.read()
-            raw_config = sanitize_fpm_config_content(raw_config, isolated_user)
-            for line in raw_config.splitlines():
-                line = line.strip()
-                if not line or line.startswith(";") or line.startswith("#"):
-                    continue
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    k = k.strip()
-                    v = v.strip().strip('"').strip("'")
-                    if k == "pm":
-                        settings["pm"] = v
-                    elif k == "pm.max_children" and v.isdigit():
-                        settings["pm_max_children"] = int(v)
-                    elif k == "pm.start_servers" and v.isdigit():
-                        settings["pm_start_servers"] = int(v)
-                    elif k == "pm.min_spare_servers" and v.isdigit():
-                        settings["pm_min_spare_servers"] = int(v)
-                    elif k == "pm.max_spare_servers" and v.isdigit():
-                        settings["pm_max_spare_servers"] = int(v)
-                    elif k == "pm.process_idle_timeout":
-                        settings["pm_process_idle_timeout"] = v
-                    elif k == "pm.max_requests" and v.isdigit():
-                        settings["pm_max_requests"] = int(v)
-                    elif k == "request_terminate_timeout":
-                        settings["request_terminate_timeout"] = v
-                    elif k == "request_slowlog_timeout":
-                        settings["request_slowlog_timeout"] = v
-                    elif k == "catch_workers_output":
-                        settings["catch_workers_output"] = v.lower()
-                    elif k == "clear_env":
-                        settings["clear_env"] = v.lower()
-        except Exception:
-            pass
+    content_fpm = read_file_privileged(conf_path)
+    if content_fpm:
+        raw_config = sanitize_fpm_config_content(content_fpm, isolated_user)
+        custom_lines = []
+        for line in raw_config.splitlines():
+            line = line.strip()
+            if not line or line.startswith(";") or line.startswith("#"):
+                continue
+            if "=" in line:
+                k, v = line.split("=", 1)
+                k = k.strip()
+                v = v.strip().strip('"').strip("'")
+                if k == "pm":
+                    settings["pm"] = v
+                elif k == "pm.max_children" and v.isdigit():
+                    settings["pm_max_children"] = int(v)
+                elif k == "pm.start_servers" and v.isdigit():
+                    settings["pm_start_servers"] = int(v)
+                elif k == "pm.min_spare_servers" and v.isdigit():
+                    settings["pm_min_spare_servers"] = int(v)
+                elif k == "pm.max_spare_servers" and v.isdigit():
+                    settings["pm_max_spare_servers"] = int(v)
+                elif k == "pm.process_idle_timeout":
+                    settings["pm_process_idle_timeout"] = v
+                elif k == "pm.max_requests" and v.isdigit():
+                    settings["pm_max_requests"] = int(v)
+                elif k == "pm.status_path":
+                    settings["pm_status_path"] = v
+                elif k == "ping.path":
+                    settings["ping_path"] = v
+                elif k == "ping.response":
+                    settings["ping_response"] = v
+                elif k == "request_terminate_timeout":
+                    settings["request_terminate_timeout"] = v
+                elif k == "request_slowlog_timeout":
+                    settings["request_slowlog_timeout"] = v
+                elif k == "slowlog":
+                    settings["slowlog"] = v
+                elif k == "catch_workers_output":
+                    settings["catch_workers_output"] = v.lower()
+                elif k == "decorate_workers_output":
+                    settings["decorate_workers_output"] = v.lower()
+                elif k == "clear_env":
+                    settings["clear_env"] = v.lower()
+                elif k == "listen.backlog" and (v.isdigit() or v.startswith("-")):
+                    settings["listen_backlog"] = int(v)
+                elif k == "listen.mode":
+                    settings["listen_mode"] = v
+                elif k == "rlimit_files" and v.isdigit():
+                    settings["rlimit_files"] = int(v)
+                elif k == "rlimit_core":
+                    settings["rlimit_core"] = v
+                elif k == "php_admin_value[memory_limit]":
+                    settings["php_memory_limit"] = v
+                elif k == "php_admin_value[max_execution_time]" and v.isdigit():
+                    settings["php_max_execution_time"] = int(v)
+                elif k == "php_admin_value[upload_max_filesize]":
+                    settings["php_upload_max_filesize"] = v
+                elif k == "php_admin_value[post_max_size]":
+                    settings["php_post_max_size"] = v
+                elif k == "php_admin_value[open_basedir]":
+                    settings["php_open_basedir"] = v
+                elif k == "php_admin_value[disable_functions]":
+                    settings["php_disable_functions"] = v
+                elif not any(k.startswith(p) for p in ["user", "group", "listen", "pid", "error_log", "log_level", "daemonize", "php_admin_value[upload_tmp_dir]", "php_admin_value[session.save_path]", "php_admin_flag[log_errors]", "php_admin_value[error_log]"]):
+                    custom_lines.append(f"{k} = {v}")
+        if custom_lines:
+            settings["custom_directives"] = "\n".join(custom_lines)
     else:
         # Template mặc định an toàn
         raw_config = f"""; WPCloud PHP-FPM Pool Configuration
@@ -1691,6 +1767,7 @@ listen = {sock_path}
 listen.owner = {sock_owner}
 listen.group = {sock_group}
 listen.mode = 0666
+listen.backlog = 511
 
 pm = dynamic
 pm.max_children = 10
@@ -1701,12 +1778,22 @@ pm.process_idle_timeout = 10s
 pm.max_requests = 500
 request_terminate_timeout = 0s
 request_slowlog_timeout = 0s
+slowlog = /home/{isolated_user}/logs/php-fpm.slow.log
 catch_workers_output = yes
+decorate_workers_output = no
 clear_env = no
 
 pm.status_path = /status-{isolated_user}
 ping.path = /ping-{isolated_user}
+ping.response = pong
 
+rlimit_files = 65535
+rlimit_core = 0
+
+php_admin_value[memory_limit] = 512M
+php_admin_value[max_execution_time] = 300
+php_admin_value[upload_max_filesize] = 128M
+php_admin_value[post_max_size] = 128M
 php_admin_value[open_basedir] = /home/{isolated_user}/:/tmp/:/var/tmp/
 php_admin_value[upload_tmp_dir] = /home/{isolated_user}/.tmp
 php_admin_value[session.save_path] = /home/{isolated_user}/.sessions
@@ -1728,7 +1815,7 @@ php_admin_value[error_log] = /home/{isolated_user}/logs/php-fpm.error.log
         "active_since": active_since,
         "conf_path": conf_path,
         "sock_path": sock_path,
-        "sock_exists": os.path.exists(sock_path),
+        "sock_exists": check_file_exists_privileged(sock_path),
         "settings": settings,
         "raw_config": raw_config
     }
@@ -1774,7 +1861,7 @@ async def save_domain_fpm_service(
     else:
         # Sinh nội dung từ form với socket owner an toàn đã nhận diện theo OS
         pm_mode = req.pm if req.pm in ["dynamic", "ondemand", "static"] else "dynamic"
-        max_ch = max(1, min(100, int(req.pm_max_children or 10)))
+        max_ch = max(1, min(200, int(req.pm_max_children or 10)))
         start_s = max(1, min(max_ch, int(req.pm_start_servers or 2)))
         min_s = max(1, min(start_s, int(req.pm_min_spare_servers or 1)))
         max_s = max(min_s, min(max_ch, int(req.pm_max_spare_servers or 3)))
@@ -1782,8 +1869,35 @@ async def save_domain_fpm_service(
         max_req = max(0, int(req.pm_max_requests or 500))
         timeout = str(req.request_terminate_timeout or "0s").strip()
         slowlog_timeout = str(req.request_slowlog_timeout or "0s").strip()
+        slow_log_path = (req.slowlog or f"/home/{isolated_user}/logs/php-fpm.slow.log").strip()
         catch_workers = "yes" if req.catch_workers_output != "no" else "no"
+        decorate_workers = "yes" if req.decorate_workers_output == "yes" else "no"
         clear_env = "yes" if req.clear_env == "yes" else "no"
+
+        status_path = (req.pm_status_path or f"/status-{isolated_user}").strip()
+        if status_path and not status_path.startswith("/"):
+            status_path = "/" + status_path
+
+        ping_p = (req.ping_path or f"/ping-{isolated_user}").strip()
+        if ping_p and not ping_p.startswith("/"):
+            ping_p = "/" + ping_p
+        ping_resp = (req.ping_response or "pong").strip()
+
+        listen_backlog_v = int(req.listen_backlog or 511)
+        listen_mode_v = (req.listen_mode or "0666").strip()
+        rlimit_files_v = int(req.rlimit_files or 65535)
+        rlimit_core_v = str(req.rlimit_core or "0").strip()
+
+        mem_limit_v = str(req.php_memory_limit or "512M").strip()
+        max_exec_v = int(req.php_max_execution_time or 300)
+        upload_max_v = str(req.php_upload_max_filesize or "128M").strip()
+        post_max_v = str(req.php_post_max_size or "128M").strip()
+        open_basedir_v = (req.php_open_basedir or f"/home/{isolated_user}/:/tmp/:/var/tmp/").strip()
+        disable_funcs_v = (req.php_disable_functions or "exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source").strip()
+
+        custom_block = ""
+        if req.custom_directives and req.custom_directives.strip():
+            custom_block = f"\n; Custom User Directives\n{req.custom_directives.strip()}\n"
 
         if pm_mode == "ondemand":
             pm_directives = f"""pm = ondemand
@@ -1815,24 +1929,35 @@ group = {isolated_user}
 listen = {sock_path}
 listen.owner = {sock_owner}
 listen.group = {sock_group}
-listen.mode = 0666
+listen.mode = {listen_mode_v}
+listen.backlog = {listen_backlog_v}
 
 {pm_directives}
 request_terminate_timeout = {timeout}
 request_slowlog_timeout = {slowlog_timeout}
+slowlog = {slow_log_path}
 catch_workers_output = {catch_workers}
+decorate_workers_output = {decorate_workers}
 clear_env = {clear_env}
 
-pm.status_path = /status-{isolated_user}
-ping.path = /ping-{isolated_user}
+pm.status_path = {status_path}
+ping.path = {ping_p}
+ping.response = {ping_resp}
 
-php_admin_value[open_basedir] = /home/{isolated_user}/:/tmp/:/var/tmp/
+rlimit_files = {rlimit_files_v}
+rlimit_core = {rlimit_core_v}
+
+php_admin_value[memory_limit] = {mem_limit_v}
+php_admin_value[max_execution_time] = {max_exec_v}
+php_admin_value[upload_max_filesize] = {upload_max_v}
+php_admin_value[post_max_size] = {post_max_v}
+php_admin_value[open_basedir] = {open_basedir_v}
 php_admin_value[upload_tmp_dir] = /home/{isolated_user}/.tmp
 php_admin_value[session.save_path] = /home/{isolated_user}/.sessions
-php_admin_value[disable_functions] = exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source
+php_admin_value[disable_functions] = {disable_funcs_v}
 php_admin_flag[log_errors] = on
 php_admin_value[error_log] = /home/{isolated_user}/logs/php-fpm.error.log
-"""
+{custom_block}"""
 
     # Luôn kiểm tra khử lỗi listen.owner/listen.group không tồn tại (như www-data trên AlmaLinux)
     content = sanitize_fpm_config_content(content, isolated_user)
@@ -2074,6 +2199,9 @@ async def get_domain_lsapi_service(
             pass
 
     settings = {
+        "name": f"lsphp_{isolated_user}",
+        "address": f"uds://tmp/lshttpd/lsphp_{isolated_user}.sock",
+        "notes": "",
         "lsapi_mode": "avoid_fork",
         "lsapi_children": 10,
         "lsapi_avoid_fork": "1",
@@ -2082,11 +2210,23 @@ async def get_domain_lsapi_service(
         "init_timeout": 60,
         "retry_timeout": 0,
         "persist_conn": 1,
+        "pc_keep_alive_timeout": -1,
+        "resp_buffer": 0,
+        "auto_start": 1,
+        "path": f"/usr/local/lsws/lsphp{php_num}/bin/lsphp",
+        "backlog": 100,
         "instances": 1,
+        "ext_user": isolated_user,
+        "ext_group": isolated_user,
+        "umask": "",
+        "run_on": 1,
+        "max_idle_time": -1,
+        "priority": 0,
         "mem_soft_limit": "1024M",
         "mem_hard_limit": "2048M",
         "proc_soft_limit": 200,
-        "proc_hard_limit": 300
+        "proc_hard_limit": 300,
+        "env_custom": ""
     }
     raw_config = ""
 
@@ -2095,19 +2235,35 @@ async def get_domain_lsapi_service(
         m_block = re.search(rf"(extprocessor\s+lsphp_{isolated_user}\s*\{{[\s\S]*?\n\}})", content)
         if m_block:
             raw_config = m_block.group(1)
+            m_addr = re.search(r"address\s+([^\r\n]+)", raw_config)
+            if m_addr:
+                settings["address"] = m_addr.group(1).strip()
+            m_notes = re.search(r"note(?:s)?\s+([^\r\n]+)", raw_config)
+            if m_notes:
+                settings["notes"] = m_notes.group(1).strip()
             m_mc = re.search(r"maxConns\s+(\d+)", raw_config)
             if m_mc:
                 settings["max_conns"] = int(m_mc.group(1))
-            m_ch = re.search(r"(?:PHP_)?LSAPI_CHILDREN=(\d+)", raw_config)
-            if m_ch:
-                settings["lsapi_children"] = int(m_ch.group(1))
-            m_af = re.search(r"LSAPI_AVOID_FORK=([^\s\r\n]+)", raw_config)
-            if m_af:
-                settings["lsapi_avoid_fork"] = m_af.group(1).strip()
-                settings["lsapi_mode"] = "ondemand" if m_af.group(1).strip() == "0" else "avoid_fork"
-            m_req = re.search(r"(?:PHP_LSAPI_MAX_REQUESTS|LSAPI_MAX_REQS)=(\d+)", raw_config)
-            if m_req:
-                settings["max_requests"] = int(m_req.group(1))
+
+            custom_envs = []
+            for env_m in re.finditer(r"env\s+([^\r\n]+)", raw_config):
+                ev = env_m.group(1).strip()
+                if ev.startswith("LSAPI_CHILDREN="):
+                    val = ev.split("=", 1)[1]
+                    if val.isdigit():
+                        settings["lsapi_children"] = int(val)
+                elif ev.startswith("LSAPI_AVOID_FORK="):
+                    settings["lsapi_avoid_fork"] = ev.split("=", 1)[1].strip()
+                    settings["lsapi_mode"] = "ondemand" if settings["lsapi_avoid_fork"] == "0" else "avoid_fork"
+                elif ev.startswith("PHP_LSAPI_MAX_REQUESTS=") or ev.startswith("LSAPI_MAX_REQS="):
+                    val = ev.split("=", 1)[1]
+                    if val.isdigit():
+                        settings["max_requests"] = int(val)
+                else:
+                    custom_envs.append(ev)
+            if custom_envs:
+                settings["env_custom"] = "\n".join(custom_envs)
+
             m_it = re.search(r"initTimeout\s+(\d+)", raw_config)
             if m_it:
                 settings["init_timeout"] = int(m_it.group(1))
@@ -2117,9 +2273,42 @@ async def get_domain_lsapi_service(
             m_pc = re.search(r"persistConn\s+(\d+)", raw_config)
             if m_pc:
                 settings["persist_conn"] = int(m_pc.group(1))
+            m_pckt = re.search(r"pcKeepAliveTimeout\s+(-?\d+)", raw_config)
+            if m_pckt:
+                settings["pc_keep_alive_timeout"] = int(m_pckt.group(1))
+            m_rb = re.search(r"respBuffer\s+(\d+)", raw_config)
+            if m_rb:
+                settings["resp_buffer"] = int(m_rb.group(1))
+            m_as = re.search(r"autoStart\s+(\d+)", raw_config)
+            if m_as:
+                settings["auto_start"] = int(m_as.group(1))
+            m_path = re.search(r"path\s+([^\r\n]+)", raw_config)
+            if m_path:
+                settings["path"] = m_path.group(1).strip()
+            m_bl = re.search(r"backlog\s+(\d+)", raw_config)
+            if m_bl:
+                settings["backlog"] = int(m_bl.group(1))
             m_in = re.search(r"instances\s+(\d+)", raw_config)
             if m_in:
                 settings["instances"] = int(m_in.group(1))
+            m_eu = re.search(r"extUser\s+([^\r\n]+)", raw_config)
+            if m_eu:
+                settings["ext_user"] = m_eu.group(1).strip()
+            m_eg = re.search(r"extGroup\s+([^\r\n]+)", raw_config)
+            if m_eg:
+                settings["ext_group"] = m_eg.group(1).strip()
+            m_um = re.search(r"umask\s+([^\r\n]+)", raw_config)
+            if m_um:
+                settings["umask"] = m_um.group(1).strip()
+            m_ro = re.search(r"runOn\s+(\d+)", raw_config)
+            if m_ro:
+                settings["run_on"] = int(m_ro.group(1))
+            m_mi = re.search(r"maxIdleTime\s+(-?\d+)", raw_config)
+            if m_mi:
+                settings["max_idle_time"] = int(m_mi.group(1))
+            m_pr = re.search(r"priority\s+(-?\d+)", raw_config)
+            if m_pr:
+                settings["priority"] = int(m_pr.group(1))
             m_ms = re.search(r"memSoftLimit\s+([^\r\n]+)", raw_config)
             if m_ms:
                 settings["mem_soft_limit"] = m_ms.group(1).strip()
@@ -2203,44 +2392,70 @@ async def save_domain_lsapi_service(
                 content += "\n\n" + req.raw_config.strip() + "\n"
         else:
             avoid_fork = req.lsapi_avoid_fork if req.lsapi_avoid_fork is not None else ("0" if req.lsapi_mode == "ondemand" else "1")
-            max_ch = max(1, min(100, int(req.lsapi_children or 10)))
-            max_conns = max(1, min(200, int(req.max_conns or max_ch)))
+            max_ch = max(1, min(200, int(req.lsapi_children or 10)))
+            max_conns = max(1, min(2000, int(req.max_conns or max_ch)))
             max_req = max(0, int(req.max_requests or 1000))
-            init_t = max(5, int(req.init_timeout or 60))
+            init_t = max(1, int(req.init_timeout or 60))
             retry_t = max(0, int(req.retry_timeout or 0))
-            persist_c = 1 if req.persist_conn in [1, "1", True] else 0
-            inst = max(1, int(req.instances or 1))
+            persist_c = 1 if req.persist_conn in [1, "1", True] else (0 if req.persist_conn in [0, "0", False] else -1)
+            pc_keep_alive = int(req.pc_keep_alive_timeout if req.pc_keep_alive_timeout is not None else -1)
+            resp_buf = 1 if req.resp_buffer in [1, "1", True] else 0
+            auto_st = int(req.auto_start if req.auto_start is not None else 1)
+            backlog_v = max(1, min(100, int(req.backlog or 100)))
+            inst = max(0, min(1000, int(req.instances if req.instances is not None else 1)))
+            ext_u = (req.ext_user or isolated_user).strip()
+            ext_g = (req.ext_group or isolated_user).strip()
+            umask_v = str(req.umask or "").strip()
+            run_on_v = int(req.run_on if req.run_on is not None else 1)
+            max_idle = int(req.max_idle_time if req.max_idle_time is not None else -1)
+            prio = max(-20, min(20, int(req.priority if req.priority is not None else 0)))
             mem_s = str(req.mem_soft_limit or "1024M").strip()
             mem_h = str(req.mem_hard_limit or "2048M").strip()
-            proc_s = max(10, int(req.proc_soft_limit or 200))
-            proc_h = max(20, int(req.proc_hard_limit or 300))
+            proc_s = max(0, int(req.proc_soft_limit or 200))
+            proc_h = max(0, int(req.proc_hard_limit or 300))
+            notes_v = str(req.notes or "").strip()
+            path_v = str(req.path or f"/usr/local/lsws/lsphp{php_num}/bin/lsphp").strip()
 
-            m_path = re.search(r"path\s+([^\r\n]+)", content)
-            path = m_path.group(1).strip() if m_path else f"/usr/local/lsws/lsphp{php_num}/bin/lsphp"
+            env_lines = [
+                f"  env                     LSAPI_CHILDREN={max_ch}",
+                f"  env                     LSAPI_AVOID_FORK={avoid_fork}",
+                f"  env                     PHP_LSAPI_MAX_REQUESTS={max_req}"
+            ]
+            if req.env_custom:
+                for eline in req.env_custom.splitlines():
+                    eline = eline.strip()
+                    if eline:
+                        if not eline.startswith("env "):
+                            eline = f"env                     {eline}"
+                        env_lines.append(f"  {eline}")
+            env_block = "\n".join(env_lines)
+
+            notes_line = f"\n  notes                   {notes_v}" if notes_v else ""
+            umask_line = f"\n  umask                   {umask_v}" if umask_v else ""
+            keepalive_line = f"\n  pcKeepAliveTimeout      {pc_keep_alive}" if pc_keep_alive != -1 else ""
+            max_idle_line = f"\n  maxIdleTime             {max_idle}" if max_idle != -1 else ""
 
             new_block = f"""extprocessor lsphp_{isolated_user} {{
   type                    lsapi
   address                 uds://tmp/lshttpd/lsphp_{isolated_user}.sock
   maxConns                {max_conns}
-  env                     LSAPI_CHILDREN={max_ch}
-  env                     LSAPI_AVOID_FORK={avoid_fork}
-  env                     PHP_LSAPI_MAX_REQUESTS={max_req}
+{env_block}
   initTimeout             {init_t}
   retryTimeout            {retry_t}
-  persistConn             {persist_c}
-  respBuffer              0
-  autoStart               1
-  path                    {path}
-  backlog                 100
+  persistConn             {persist_c}{keepalive_line}
+  respBuffer              {resp_buf}
+  autoStart               {auto_st}
+  path                    {path_v}
+  backlog                 {backlog_v}
   instances               {inst}
-  runOn                   1
-  extUser                 {isolated_user}
-  extGroup                {isolated_user}
-  priority                0
+  runOn                   {run_on_v}
+  extUser                 {ext_u}
+  extGroup                {ext_g}{umask_line}{max_idle_line}
+  priority                {prio}
   memSoftLimit            {mem_s}
   memHardLimit            {mem_h}
   procSoftLimit           {proc_s}
-  procHardLimit           {proc_h}
+  procHardLimit           {proc_h}{notes_line}
 }}"""
 
             pattern = rf"(extprocessor\s+lsphp_{isolated_user}\s*\{{[\s\S]*?\n\}})"
