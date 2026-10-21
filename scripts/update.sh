@@ -18,7 +18,9 @@ fi
 
 INSTALL_DIR="/opt/wpc"
 REPO_URL="https://github.com/tuend-work/PressPanel.git"
+rm -rf /tmp/wpc-update-* 2>/dev/null || true
 TMP_DIR=$(mktemp -d /tmp/wpc-update-XXXXXX 2>/dev/null || echo "/tmp/wpc-update-$$")
+chmod 700 "$TMP_DIR" 2>/dev/null || true
 
 echo "=========================================================="
 echo "         CẬP NHẬT WPCLOUD CONTROL PANEL TỪ GITHUB         "
