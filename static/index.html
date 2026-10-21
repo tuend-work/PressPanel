@@ -4753,18 +4753,6 @@ function showAlert(message) {
                     }
                 };
 
-                const isAllDbsSelected = computed(() => {
-                    return filteredDatabases.value.length > 0 && selectedDbIds.value.length === filteredDatabases.value.length;
-                });
-
-                const toggleSelectAllDbs = () => {
-                    if (isAllDbsSelected.value) {
-                        selectedDbIds.value = [];
-                    } else {
-                        selectedDbIds.value = filteredDatabases.value.map(d => d.id);
-                    }
-                };
-
                 const filteredDatabases = computed(() => {
                     return (databasesList.value || []).filter(db => {
                         // Lọc theo loại DB của tab đang chọn
@@ -4782,6 +4770,18 @@ function showAlert(message) {
                         return true;
                     });
                 });
+
+                const isAllDbsSelected = computed(() => {
+                    return (filteredDatabases.value || []).length > 0 && selectedDbIds.value.length === filteredDatabases.value.length;
+                });
+
+                const toggleSelectAllDbs = () => {
+                    if (isAllDbsSelected.value) {
+                        selectedDbIds.value = [];
+                    } else {
+                        selectedDbIds.value = (filteredDatabases.value || []).map(d => d.id);
+                    }
+                };
 
                 const fetchDatabasesList = async () => {
                     if (!token.value) return;
@@ -5976,161 +5976,6 @@ function showAlert(message) {
                     });
                 };
 
-                watch(currentTab, (newTab) => {
-                    if (newTab === 'service_plans' && isWebUser.value) {
-                        currentTab.value = 'dashboard';
-                        window.location.hash = 'dashboard';
-                        return;
-                    }
-                    if (window.location.hash.replace('#', '') !== newTab) {
-                        window.location.hash = newTab;
-                    }
-                    if (newTab === 'files') {
-                        fetchFilesList(fileCurrentPath.value || '');
-                    }
-                    if (newTab === 'profile') {
-                        fetchUserProfile();
-                    }
-                    if (newTab === 'databases') {
-                        fetchDatabasesList();
-                    }
-                    if (newTab === 'wp') {
-                        fetchWpInstances();
-                    }
-                    if (newTab === 'crons') {
-                        fetchCrons();
-                    }
-                    refreshLucideIcons();
-                });
-
-                watch(showCronModal, () => { refreshLucideIcons(); });
-                watch(showCronOutputModal, () => { refreshLucideIcons(); });
-                watch(showWebsiteRewriteModal, () => { refreshLucideIcons(); });
-                watch(showWebsiteLogsModal, () => { refreshLucideIcons(); });
-                watch(showWebsiteSecurityModal, () => { refreshLucideIcons(); });
-
-                watch(showMessagesBox, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showAddCustomerModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showEditCustomerModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showAddDomainModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showEditFileModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showCreateItemModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showSearchContentModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showCompressModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showRecycleBinModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showTerminalModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showAddDbModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showRootPasswordModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showRemoteDbModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showAdvDbModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showGetDbModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(dbTypeTab, (newTab) => {
-                    if (newTab === 'redis' && (isWebUser.value || currentUser.value?.role === 'user')) {
-                        fetchUserRedisStatus();
-                    }
-                    refreshLucideIcons();
-                });
-
-                const onHashChange = () => {
-                    const newTab = getTabFromHash();
-                    if (currentTab.value !== newTab) {
-                        currentTab.value = newTab;
-                    }
-                };
-
-                let timer = null;
-                onMounted(() => {
-                    applyThemeToDom(isDarkMode.value);
-                    window.addEventListener('hashchange', onHashChange);
-                    const savedUser = localStorage.getItem('wpc_user');
-                    if (savedUser) {
-                        try { currentUser.value = JSON.parse(savedUser); } catch(e){}
-                    }
-                    if (token.value) {
-                        fetchDomains();
-                        if (currentUser.value?.role === 'admin' || currentUser.value?.role === 'reseller') {
-                            fetchCustomers();
-                            fetchServicePlans();
-                        }
-                        fetchSystemStatus();
-                        fetchAppsList();
-                        fetchTasks();
-                        fetchUserProfile();
-                        fetchDatabasesList();
-                        fetchInstalledPhpList();
-                        fetchWpInstances();
-                        if (isWebUser.value || currentUser.value?.role === 'user') {
-                            fetchUserRedisStatus();
-                        }
-                        if (currentUser.value?.role === 'admin') {
-                            fetchPanelVersion();
-                        }
-                        fetchCrons();
-                        fetchSystemWebsites();
-                    }
-                    refreshLucideIcons();
-                    // Tự động làm mới số liệu và kiểm tra task chạy ngầm mỗi 3 giây
-                    timer = setInterval(() => {
-                        if (token.value) {
-                            fetchSystemStatus(); // Cập nhật live tài nguyên CPU, RAM, Disk trên Header
-                            if (currentTab.value === 'domains') {
-                                fetchDomains();
-                            }
-                            fetchTasks();
-                        }
-                    }, 3000);
-                });
-
-                onUnmounted(() => {
-                    window.removeEventListener('hashchange', onHashChange);
-                    if (timer) clearInterval(timer);
-                });
-
                 // ==========================================
                 // CRONJOBS MANAGEMENT LOGIC
                 // ==========================================
@@ -6561,6 +6406,161 @@ function showAlert(message) {
                         savingWebsiteSecurity.value = false;
                     }
                 };
+
+                watch(currentTab, (newTab) => {
+                    if (newTab === 'service_plans' && isWebUser.value) {
+                        currentTab.value = 'dashboard';
+                        window.location.hash = 'dashboard';
+                        return;
+                    }
+                    if (window.location.hash.replace('#', '') !== newTab) {
+                        window.location.hash = newTab;
+                    }
+                    if (newTab === 'files') {
+                        fetchFilesList(fileCurrentPath.value || '');
+                    }
+                    if (newTab === 'profile') {
+                        fetchUserProfile();
+                    }
+                    if (newTab === 'databases') {
+                        fetchDatabasesList();
+                    }
+                    if (newTab === 'wp') {
+                        fetchWpInstances();
+                    }
+                    if (newTab === 'crons') {
+                        fetchCrons();
+                    }
+                    refreshLucideIcons();
+                });
+
+                watch(showCronModal, () => { refreshLucideIcons(); });
+                watch(showCronOutputModal, () => { refreshLucideIcons(); });
+                watch(showWebsiteRewriteModal, () => { refreshLucideIcons(); });
+                watch(showWebsiteLogsModal, () => { refreshLucideIcons(); });
+                watch(showWebsiteSecurityModal, () => { refreshLucideIcons(); });
+
+                watch(showMessagesBox, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showAddCustomerModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showEditCustomerModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showAddDomainModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showEditFileModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showCreateItemModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showSearchContentModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showCompressModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showRecycleBinModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showTerminalModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showAddDbModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showRootPasswordModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showRemoteDbModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showAdvDbModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showGetDbModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(dbTypeTab, (newTab) => {
+                    if (newTab === 'redis' && (isWebUser.value || currentUser.value?.role === 'user')) {
+                        fetchUserRedisStatus();
+                    }
+                    refreshLucideIcons();
+                });
+
+                const onHashChange = () => {
+                    const newTab = getTabFromHash();
+                    if (currentTab.value !== newTab) {
+                        currentTab.value = newTab;
+                    }
+                };
+
+                let timer = null;
+                onMounted(() => {
+                    applyThemeToDom(isDarkMode.value);
+                    window.addEventListener('hashchange', onHashChange);
+                    const savedUser = localStorage.getItem('wpc_user');
+                    if (savedUser) {
+                        try { currentUser.value = JSON.parse(savedUser); } catch(e){}
+                    }
+                    if (token.value) {
+                        fetchDomains();
+                        if (currentUser.value?.role === 'admin' || currentUser.value?.role === 'reseller') {
+                            fetchCustomers();
+                            fetchServicePlans();
+                        }
+                        fetchSystemStatus();
+                        fetchAppsList();
+                        fetchTasks();
+                        fetchUserProfile();
+                        fetchDatabasesList();
+                        fetchInstalledPhpList();
+                        fetchWpInstances();
+                        if (isWebUser.value || currentUser.value?.role === 'user') {
+                            fetchUserRedisStatus();
+                        }
+                        if (currentUser.value?.role === 'admin') {
+                            fetchPanelVersion();
+                        }
+                        fetchCrons();
+                        fetchSystemWebsites();
+                    }
+                    refreshLucideIcons();
+                    // Tự động làm mới số liệu và kiểm tra task chạy ngầm mỗi 3 giây
+                    timer = setInterval(() => {
+                        if (token.value) {
+                            fetchSystemStatus(); // Cập nhật live tài nguyên CPU, RAM, Disk trên Header
+                            if (currentTab.value === 'domains') {
+                                fetchDomains();
+                            }
+                            fetchTasks();
+                        }
+                    }, 3000);
+                });
+
+                onUnmounted(() => {
+                    window.removeEventListener('hashchange', onHashChange);
+                    if (timer) clearInterval(timer);
+                });
 
                 return {
                     token, currentUser, currentTab, domains, showAddDomainModal, isHostingUser, isWebUser,
