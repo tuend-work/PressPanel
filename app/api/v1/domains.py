@@ -29,6 +29,43 @@ def domain_to_linux_user(domain: str) -> str:
     # Giới hạn 30 ký tự để phù hợp giới hạn username của Linux (thường max 32)
     return clean[:30]
 
+def check_file_exists_privileged(path: str) -> bool:
+    """Kiểm tra sự tồn tại của file, tự động fallback qua sudo nếu bị chặn quyền thư mục cha"""
+    if not path:
+        return False
+    try:
+        if os.path.exists(path):
+            return True
+    except Exception:
+        pass
+    if platform.system() == "Linux":
+        try:
+            res = subprocess.run(["sudo", "test", "-f", path], check=False)
+            return res.returncode == 0
+        except Exception:
+            pass
+    return False
+
+def read_file_privileged(path: str) -> str:
+    """Đọc nội dung file an toàn, fallback qua sudo cat nếu user wpc bị PermissionError hoặc thư mục cha bị khóa quyền"""
+    if not path:
+        return ""
+    content = ""
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+    except Exception:
+        pass
+    if not content and platform.system() == "Linux":
+        try:
+            proc = subprocess.run(["sudo", "cat", path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+            if proc.returncode == 0:
+                content = proc.stdout
+        except Exception:
+            pass
+    return content
+
 async def get_path_disk_usage_mb(path: str) -> float:
     if not path or not os.path.exists(path):
         return 0.0
@@ -843,24 +880,20 @@ async def get_domain_php_ini(
             pass
     elif active_ws == "ols":
         vh_conf = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
-        if os.path.exists(vh_conf):
-            try:
-                with open(vh_conf, "r", encoding="utf-8", errors="ignore") as f:
-                    content = f.read()
-                m_block = re.search(r"phpIniOverride\s*\{([^}]+)\}", content)
-                if m_block:
-                    for line in m_block.group(1).splitlines():
-                        parts = line.strip().split()
-                        if len(parts) >= 3 and parts[0] in ("php_value", "php_flag"):
-                            k, v = parts[1], parts[2]
-                            if k == "date.timezone":
-                                directives["date_timezone"] = v
-                            elif k in directives:
-                                directives[k] = v
-                            else:
-                                custom_lines.append(f"{k} = {v}")
-            except Exception:
-                pass
+        content = read_file_privileged(vh_conf)
+        if content:
+            m_block = re.search(r"phpIniOverride\s*\{([^}]+)\}", content)
+            if m_block:
+                for line in m_block.group(1).splitlines():
+                    parts = line.strip().split()
+                    if len(parts) >= 3 and parts[0] in ("php_value", "php_flag"):
+                        k, v = parts[1], parts[2]
+                        if k == "date.timezone":
+                            directives["date_timezone"] = v
+                        elif k in directives:
+                            directives[k] = v
+                        else:
+                            custom_lines.append(f"{k} = {v}")
 
     return {
         "domain_id": domain_id,
@@ -2036,7 +2069,7 @@ async def get_domain_lsapi_service(
                             total_kb += int(parts[0])
                 memory_mb = round(total_kb / 1024, 2)
             else:
-                status = "idle" if os.path.exists(conf_path) else "inactive"
+                status = "idle" if check_file_exists_privileged(conf_path) else "inactive"
         except Exception:
             pass
 
@@ -2057,52 +2090,48 @@ async def get_domain_lsapi_service(
     }
     raw_config = ""
 
-    if os.path.exists(conf_path):
-        try:
-            with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read()
-            m_block = re.search(rf"(extprocessor\s+lsphp_{isolated_user}\s*\{{[\s\S]*?\n\}})", content)
-            if m_block:
-                raw_config = m_block.group(1)
-                m_mc = re.search(r"maxConns\s+(\d+)", raw_config)
-                if m_mc:
-                    settings["max_conns"] = int(m_mc.group(1))
-                m_ch = re.search(r"(?:PHP_)?LSAPI_CHILDREN=(\d+)", raw_config)
-                if m_ch:
-                    settings["lsapi_children"] = int(m_ch.group(1))
-                m_af = re.search(r"LSAPI_AVOID_FORK=([^\s\r\n]+)", raw_config)
-                if m_af:
-                    settings["lsapi_avoid_fork"] = m_af.group(1).strip()
-                    settings["lsapi_mode"] = "ondemand" if m_af.group(1).strip() == "0" else "avoid_fork"
-                m_req = re.search(r"(?:PHP_LSAPI_MAX_REQUESTS|LSAPI_MAX_REQS)=(\d+)", raw_config)
-                if m_req:
-                    settings["max_requests"] = int(m_req.group(1))
-                m_it = re.search(r"initTimeout\s+(\d+)", raw_config)
-                if m_it:
-                    settings["init_timeout"] = int(m_it.group(1))
-                m_rt = re.search(r"retryTimeout\s+(\d+)", raw_config)
-                if m_rt:
-                    settings["retry_timeout"] = int(m_rt.group(1))
-                m_pc = re.search(r"persistConn\s+(\d+)", raw_config)
-                if m_pc:
-                    settings["persist_conn"] = int(m_pc.group(1))
-                m_in = re.search(r"instances\s+(\d+)", raw_config)
-                if m_in:
-                    settings["instances"] = int(m_in.group(1))
-                m_ms = re.search(r"memSoftLimit\s+([^\r\n]+)", raw_config)
-                if m_ms:
-                    settings["mem_soft_limit"] = m_ms.group(1).strip()
-                m_mh = re.search(r"memHardLimit\s+([^\r\n]+)", raw_config)
-                if m_mh:
-                    settings["mem_hard_limit"] = m_mh.group(1).strip()
-                m_ps = re.search(r"procSoftLimit\s+(\d+)", raw_config)
-                if m_ps:
-                    settings["proc_soft_limit"] = int(m_ps.group(1))
-                m_ph = re.search(r"procHardLimit\s+(\d+)", raw_config)
-                if m_ph:
-                    settings["proc_hard_limit"] = int(m_ph.group(1))
-        except Exception:
-            pass
+    content = read_file_privileged(conf_path)
+    if content:
+        m_block = re.search(rf"(extprocessor\s+lsphp_{isolated_user}\s*\{{[\s\S]*?\n\}})", content)
+        if m_block:
+            raw_config = m_block.group(1)
+            m_mc = re.search(r"maxConns\s+(\d+)", raw_config)
+            if m_mc:
+                settings["max_conns"] = int(m_mc.group(1))
+            m_ch = re.search(r"(?:PHP_)?LSAPI_CHILDREN=(\d+)", raw_config)
+            if m_ch:
+                settings["lsapi_children"] = int(m_ch.group(1))
+            m_af = re.search(r"LSAPI_AVOID_FORK=([^\s\r\n]+)", raw_config)
+            if m_af:
+                settings["lsapi_avoid_fork"] = m_af.group(1).strip()
+                settings["lsapi_mode"] = "ondemand" if m_af.group(1).strip() == "0" else "avoid_fork"
+            m_req = re.search(r"(?:PHP_LSAPI_MAX_REQUESTS|LSAPI_MAX_REQS)=(\d+)", raw_config)
+            if m_req:
+                settings["max_requests"] = int(m_req.group(1))
+            m_it = re.search(r"initTimeout\s+(\d+)", raw_config)
+            if m_it:
+                settings["init_timeout"] = int(m_it.group(1))
+            m_rt = re.search(r"retryTimeout\s+(\d+)", raw_config)
+            if m_rt:
+                settings["retry_timeout"] = int(m_rt.group(1))
+            m_pc = re.search(r"persistConn\s+(\d+)", raw_config)
+            if m_pc:
+                settings["persist_conn"] = int(m_pc.group(1))
+            m_in = re.search(r"instances\s+(\d+)", raw_config)
+            if m_in:
+                settings["instances"] = int(m_in.group(1))
+            m_ms = re.search(r"memSoftLimit\s+([^\r\n]+)", raw_config)
+            if m_ms:
+                settings["mem_soft_limit"] = m_ms.group(1).strip()
+            m_mh = re.search(r"memHardLimit\s+([^\r\n]+)", raw_config)
+            if m_mh:
+                settings["mem_hard_limit"] = m_mh.group(1).strip()
+            m_ps = re.search(r"procSoftLimit\s+(\d+)", raw_config)
+            if m_ps:
+                settings["proc_soft_limit"] = int(m_ps.group(1))
+            m_ph = re.search(r"procHardLimit\s+(\d+)", raw_config)
+            if m_ph:
+                settings["proc_hard_limit"] = int(m_ph.group(1))
 
     return {
         "status": "success",
@@ -2115,7 +2144,7 @@ async def get_domain_lsapi_service(
         "memory_mb": memory_mb,
         "conf_path": conf_path,
         "sock_path": sock_path,
-        "sock_exists": os.path.exists(sock_path),
+        "sock_exists": check_file_exists_privileged(sock_path),
         "settings": settings,
         "raw_config": raw_config
     }
@@ -2152,13 +2181,20 @@ async def save_domain_lsapi_service(
     conf_path = f"{conf_dir}/vhconf.conf"
     sock_path = f"/tmp/lshttpd/lsphp_{isolated_user}.sock"
 
-    if not os.path.exists(conf_path):
-        raise HTTPException(status_code=404, detail=f"Không tìm thấy file cấu hình VHost OpenLiteSpeed: {conf_path}")
+    content = read_file_privileged(conf_path)
+    if not content:
+        # Nếu chưa có file vhost, lấy từ template chuẩn của OpenLiteSpeed
+        tpl_path = "/opt/wpc/templates/vhost_ols/default.tpl"
+        if os.path.exists(tpl_path):
+            try:
+                with open(tpl_path, "r", encoding="utf-8", errors="ignore") as tf:
+                    content = tf.read().replace("{{DOMAIN}}", clean_domain).replace("{{USERNAME}}", isolated_user).replace("{{PHP_VERSION}}", php_num).replace("{{PHP_NUM}}", php_num)
+            except Exception:
+                pass
+        if not content:
+            content = f"docRoot                   /home/{isolated_user}/domains/{clean_domain}/public_html\nenableGzip                1\n"
 
     try:
-        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
-            content = f.read()
-
         if req.mode == "raw" and req.raw_config:
             pattern = rf"(extprocessor\s+lsphp_{isolated_user}\s*\{{[\s\S]*?\n\}})"
             if re.search(pattern, content):
@@ -2213,11 +2249,15 @@ async def save_domain_lsapi_service(
             else:
                 content += "\n\n" + new_block + "\n"
 
-        tmp_conf = f"/tmp/wpc_lsapi_{isolated_user}_{int(time.time())}.conf"
-        with open(tmp_conf, "w", encoding="utf-8") as f:
-            f.write(content)
-        subprocess.run(["sudo", "mv", tmp_conf, conf_path], check=False)
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, prefix=f"wpc_lsapi_{isolated_user}_", suffix=".tmp") as tf:
+            tf.write(content)
+            tmp_conf = tf.name
+
+        subprocess.run(["sudo", "mkdir", "-p", conf_dir], check=False)
+        subprocess.run(["sudo", "mv", "-f", tmp_conf, conf_path], check=False)
         subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
+        subprocess.run(["sudo", "chmod", "755", conf_dir], check=False)
         subprocess.run(["sudo", "chown", "lsadm:lsadm", conf_path], check=False)
 
         if platform.system() == "Linux":
@@ -2266,12 +2306,20 @@ async def reset_domain_lsapi_service(
     conf_path = f"{conf_dir}/vhconf.conf"
     sock_path = f"/tmp/lshttpd/lsphp_{isolated_user}.sock"
 
-    if os.path.exists(conf_path):
-        try:
-            with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read()
+    content = read_file_privileged(conf_path)
+    if not content:
+        tpl_path = "/opt/wpc/templates/vhost_ols/default.tpl"
+        if os.path.exists(tpl_path):
+            try:
+                with open(tpl_path, "r", encoding="utf-8", errors="ignore") as tf:
+                    content = tf.read().replace("{{DOMAIN}}", clean_domain).replace("{{USERNAME}}", isolated_user).replace("{{PHP_VERSION}}", php_num).replace("{{PHP_NUM}}", php_num)
+            except Exception:
+                pass
+        if not content:
+            content = f"docRoot                   /home/{isolated_user}/domains/{clean_domain}/public_html\nenableGzip                1\n"
 
-            default_block = f"""extprocessor lsphp_{isolated_user} {{
+    try:
+        default_block = f"""extprocessor lsphp_{isolated_user} {{
   type                    lsapi
   address                 uds://tmp/lshttpd/lsphp_{isolated_user}.sock
   maxConns                10
@@ -2296,25 +2344,29 @@ async def reset_domain_lsapi_service(
   procHardLimit           300
 }}"""
 
-            pattern = rf"(extprocessor\s+lsphp_{isolated_user}\s*\{{[\s\S]*?\n\}})"
-            if re.search(pattern, content):
-                content = re.sub(pattern, default_block, content)
-            else:
-                content += "\n\n" + default_block + "\n"
+        pattern = rf"(extprocessor\s+lsphp_{isolated_user}\s*\{{[\s\S]*?\n\}})"
+        if re.search(pattern, content):
+            content = re.sub(pattern, default_block, content)
+        else:
+            content += "\n\n" + default_block + "\n"
 
-            tmp_conf = f"/tmp/wpc_lsapi_{isolated_user}_{int(time.time())}.conf"
-            with open(tmp_conf, "w", encoding="utf-8") as f:
-                f.write(content)
-            subprocess.run(["sudo", "mv", tmp_conf, conf_path], check=False)
-            subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
-            subprocess.run(["sudo", "chown", "lsadm:lsadm", conf_path], check=False)
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, prefix=f"wpc_lsapi_rst_{isolated_user}_", suffix=".tmp") as tf:
+            tf.write(content)
+            tmp_conf = tf.name
 
-            if platform.system() == "Linux":
-                subprocess.run(["sudo", "pkill", "-9", "-u", isolated_user, "-f", "lsphp"], check=False)
-                subprocess.run(["sudo", "rm", "-f", sock_path], check=False)
-                subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Lỗi khi khôi phục cấu hình LSAPI: {str(e)}")
+        subprocess.run(["sudo", "mkdir", "-p", conf_dir], check=False)
+        subprocess.run(["sudo", "mv", "-f", tmp_conf, conf_path], check=False)
+        subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
+        subprocess.run(["sudo", "chmod", "755", conf_dir], check=False)
+        subprocess.run(["sudo", "chown", "lsadm:lsadm", conf_path], check=False)
+
+        if platform.system() == "Linux":
+            subprocess.run(["sudo", "pkill", "-9", "-u", isolated_user, "-f", "lsphp"], check=False)
+            subprocess.run(["sudo", "rm", "-f", sock_path], check=False)
+            subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi khi khôi phục cấu hình LSAPI: {str(e)}")
 
     return {
         "status": "success",
@@ -2818,21 +2870,8 @@ async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(g
     else:
         conf_path = f"/etc/nginx/conf.d/{clean_domain}.conf"
 
-    content = ""
-    if os.path.exists(conf_path):
-        try:
-            with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read()
-        except PermissionError:
-            try:
-                proc = subprocess.run(["sudo", "cat", conf_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                if proc.returncode == 0:
-                    content = proc.stdout
-            except Exception:
-                pass
-        except Exception as e:
-            content = f"# Lỗi đọc file cấu hình: {str(e)}"
-    else:
+    content = read_file_privileged(conf_path)
+    if not content:
         content = f"# Chưa tìm thấy file vhost cấu hình tại {conf_path}.\n# Bấm 'Tái Tạo VHost Từ Template' để tự động tạo lại."
 
     if content and ws == "ols":
@@ -2887,18 +2926,7 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
         conf_path = f"/etc/nginx/conf.d/{clean_domain}.conf"
 
     # Đọc cấu hình hiện tại
-    content = ""
-    if os.path.exists(conf_path):
-        try:
-            with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read()
-        except Exception:
-            try:
-                proc = subprocess.run(["sudo", "cat", conf_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                if proc.returncode == 0:
-                    content = proc.stdout
-            except Exception:
-                pass
+    content = read_file_privileged(conf_path)
 
     php_ver = str(domain["php_version"] or "8.2").strip()
     if req.php_version and req.php_version in ALLOWED_PHP_VERSIONS and req.php_version != php_ver:

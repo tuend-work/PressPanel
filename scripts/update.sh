@@ -276,6 +276,17 @@ fi
 mkdir -p /tmp/lshttpd 2>/dev/null || true
 chmod 1777 /tmp/lshttpd 2>/dev/null || true
 
+# Bổ sung user wpc vào group lsadm và chuẩn hóa phân quyền thư mục conf OpenLiteSpeed
+if id "lsadm" &>/dev/null; then
+    usermod -a -G lsadm "$PANEL_USER" 2>/dev/null || true
+fi
+if [ -d "/usr/local/lsws/conf" ]; then
+    chmod 755 /usr/local/lsws/conf 2>/dev/null || true
+    chmod 755 /usr/local/lsws/conf/vhosts 2>/dev/null || true
+    find /usr/local/lsws/conf/vhosts -maxdepth 1 -type d -exec chmod 755 {} + 2>/dev/null || true
+    find /usr/local/lsws/conf/vhosts -type f -name "*.conf" -exec chmod 644 {} + 2>/dev/null || true
+fi
+
 # 7.2 Cấu hình bảo mật procfs (hidepid=2) cách ly tiến trình giữa các user
 echo "[+] Kiểm tra và cấu hình cách ly tiến trình /proc (hidepid=2)..."
 groupadd -r procview 2>/dev/null || true
