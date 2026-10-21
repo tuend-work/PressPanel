@@ -88,6 +88,28 @@ setup_ols_vhost_php() {
         lsphp_bin="/usr/local/lsws/lsphp${php_num}/bin/lsphp"
     fi
 
+    # 2.1 Đảm bảo thư mục conf.d riêng cho user tồn tại để nạp extension theo nhu cầu (tiết kiệm RAM)
+    local user_conf_d="/etc/php/${php_ver}/fpm/users/${username}/conf.d"
+    if [ ! -d "$user_conf_d" ]; then
+        mkdir -p "$user_conf_d" 2>/dev/null || true
+        chmod 755 "$user_conf_d" 2>/dev/null || true
+        echo "PHP_INI_SCAN_DIR=$user_conf_d" > "/etc/php/${php_ver}/fpm/users/${username}.env" 2>/dev/null || true
+        chmod 644 "/etc/php/${php_ver}/fpm/users/${username}.env" 2>/dev/null || true
+        local src_dir=""
+        for cdir in "/etc/php/${php_ver}/mods-available" "/etc/php/${php_ver}/fpm/conf.d" "/usr/local/lsws/lsphp${php_num}/etc/php.d" "/etc/php.d"; do
+            if [ -d "$cdir" ] && [ -n "$(ls -A "$cdir"/*.ini 2>/dev/null)" ]; then
+                src_dir="$cdir"
+                break
+            fi
+        done
+        if [ -n "$src_dir" ]; then
+            for inifile in "$src_dir"/*.ini; do
+                [ -f "$inifile" ] || continue
+                ln -sf "$inifile" "$user_conf_d/$(basename "$inifile")" 2>/dev/null || true
+            done
+        fi
+    fi
+
     # Cấu hình chuẩn LSAPI cho OpenLiteSpeed
     cat <<EOF_LSPHP >> "$vh_conf"
 
@@ -96,6 +118,7 @@ extprocessor lsphp_${username} {
   address                 uds://tmp/lshttpd/lsphp_${username}.sock
   maxConns                10
   env                     LSAPI_CHILDREN=10
+  env                     PHP_INI_SCAN_DIR=/etc/php/${php_ver}/fpm/users/${username}/conf.d
   initTimeout             60
   retryTimeout            0
   persistConn             1
@@ -1045,10 +1068,101 @@ EOF_NGX_SUSP
             touch "$DOC_ROOT/.user.ini" 2>/dev/null || true
         fi
 
+        # 2.5 Đồng bộ thư mục conf.d riêng của user để PHP_INI_SCAN_DIR ngắt nạp .so thực tế trong RAM
+        for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+            U_CONF_D="/etc/php/${pver}/fpm/users/${USERNAME}/conf.d"
+            U_ENV="/etc/php/${pver}/fpm/users/${USERNAME}.env"
+            if [ -d "/etc/php/${pver}/fpm/users" ] || [ -f "/etc/php/${pver}/fpm/users/${USERNAME}.conf" ]; then
+                mkdir -p "$U_CONF_D" 2>/dev/null || true
+                chmod 755 "$U_CONF_D" 2>/dev/null || true
+                echo "PHP_INI_SCAN_DIR=$U_CONF_D" > "$U_ENV" 2>/dev/null || true
+                chmod 644 "$U_ENV" 2>/dev/null || true
+
+                SRC_DIR=""
+                for cdir in "/etc/php/${pver}/mods-available" "/etc/php/${pver}/fpm/conf.d" "/usr/local/lsws/lsphp$(echo "$pver" | tr -d '.')/etc/php.d" "/etc/php.d"; do
+                    if [ -d "$cdir" ] && [ -n "$(ls -A "$cdir"/*.ini 2>/dev/null)" ]; then
+                        SRC_DIR="$cdir"
+                        break
+                    fi
+                done
+
+                if [ -n "$SRC_DIR" ]; then
+                    # Mặc định symlink tất cả core module nếu chưa có
+                    for inifile in "$SRC_DIR"/*.ini; do
+                        [ -f "$inifile" ] || continue
+                        base_ini=$(basename "$inifile")
+                        case "$base_ini" in
+                            *opcache*|*redis*|*imagick*|*soap*|*memcache*|*intl*|*xdebug*|*bcmath*) ;;
+                            *) [ ! -e "$U_CONF_D/$base_ini" ] && ln -sf "$inifile" "$U_CONF_D/$base_ini" 2>/dev/null || true ;;
+                        esac
+                    done
+
+                    if [ -f "$DOC_ROOT/.user.ini" ]; then
+                        # OPcache
+                        OP_EN=$(grep -E "^opcache.enable" "$DOC_ROOT/.user.ini" 2>/dev/null | awk -F'=' '{print $2}' | tr -d ' ' || true)
+                        if [ "$OP_EN" = "0" ] || [ "$OP_EN" = "Off" ] || [ "$OP_EN" = "off" ]; then
+                            rm -f "$U_CONF_D"/*opcache*.ini 2>/dev/null || true
+                        else
+                            for f in "$SRC_DIR"/*opcache*.ini; do [ -f "$f" ] && ln -sf "$f" "$U_CONF_D/$(basename "$f")" 2>/dev/null || true; done
+                        fi
+
+                        # Xdebug
+                        XD_EN=$(grep -E "^xdebug.mode" "$DOC_ROOT/.user.ini" 2>/dev/null | awk -F'=' '{print $2}' | tr -d ' ' || true)
+                        if [ "$XD_EN" = "off" ] || [ -z "$XD_EN" ]; then
+                            rm -f "$U_CONF_D"/*xdebug*.ini 2>/dev/null || true
+                        else
+                            for f in "$SRC_DIR"/*xdebug*.ini; do [ -f "$f" ] && ln -sf "$f" "$U_CONF_D/$(basename "$f")" 2>/dev/null || true; done
+                        fi
+
+                        DIS_CLS=$(grep -E "^disable_classes" "$DOC_ROOT/.user.ini" 2>/dev/null || true)
+                        # Imagick
+                        if echo "$DIS_CLS" | grep -qi "Imagick"; then
+                            rm -f "$U_CONF_D"/*imagick*.ini 2>/dev/null || true
+                        else
+                            for f in "$SRC_DIR"/*imagick*.ini; do [ -f "$f" ] && ln -sf "$f" "$U_CONF_D/$(basename "$f")" 2>/dev/null || true; done
+                        fi
+
+                        # Redis
+                        if echo "$DIS_CLS" | grep -qi "Redis"; then
+                            rm -f "$U_CONF_D"/*redis*.ini 2>/dev/null || true
+                        else
+                            for f in "$SRC_DIR"/*redis*.ini; do [ -f "$f" ] && ln -sf "$f" "$U_CONF_D/$(basename "$f")" 2>/dev/null || true; done
+                        fi
+
+                        # SOAP
+                        if echo "$DIS_CLS" | grep -qi "Soap"; then
+                            rm -f "$U_CONF_D"/*soap*.ini 2>/dev/null || true
+                        else
+                            for f in "$SRC_DIR"/*soap*.ini; do [ -f "$f" ] && ln -sf "$f" "$U_CONF_D/$(basename "$f")" 2>/dev/null || true; done
+                        fi
+
+                        # Memcached
+                        if echo "$DIS_CLS" | grep -qi "Memcached"; then
+                            rm -f "$U_CONF_D"/*memcache*.ini 2>/dev/null || true
+                        else
+                            for f in "$SRC_DIR"/*memcache*.ini; do [ -f "$f" ] && ln -sf "$f" "$U_CONF_D/$(basename "$f")" 2>/dev/null || true; done
+                        fi
+
+                        # Intl
+                        if echo "$DIS_CLS" | grep -qi "Collator"; then
+                            rm -f "$U_CONF_D"/*intl*.ini 2>/dev/null || true
+                        else
+                            for f in "$SRC_DIR"/*intl*.ini; do [ -f "$f" ] && ln -sf "$f" "$U_CONF_D/$(basename "$f")" 2>/dev/null || true; done
+                        fi
+                    fi
+                fi
+            fi
+        done
+
         # 3. Xử lý OpenLiteSpeed: Cập nhật phpIniOverride trong vhconf.conf
         if [ "$WEBSERVER" = "ols" ] || [ -f "/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf" ]; then
             VH_CONF="/usr/local/lsws/conf/vhosts/$DOMAIN/vhconf.conf"
             if [ -f "$VH_CONF" ] && [ -f "$DOC_ROOT/.user.ini" ]; then
+                # Đảm bảo extprocessor có chỉ thị env PHP_INI_SCAN_DIR
+                if ! grep -q "PHP_INI_SCAN_DIR" "$VH_CONF"; then
+                    sed -i "/extprocessor[[:space:]]\+lsphp_${USERNAME}[[:space:]]*{/,/^[[:space:]]*}/ s/env[[:space:]]\+LSAPI_CHILDREN=\([0-9]\+\)/env                     LSAPI_CHILDREN=\1\n  env                     PHP_INI_SCAN_DIR=\/etc\/php\/${PHP_VER}\/fpm\/users\/${USERNAME}\/conf.d/" "$VH_CONF" 2>/dev/null || true
+                fi
+
                 # Xóa block phpIniOverride cũ nếu có
                 sed -i '/phpIniOverride[[:space:]]*{/,/^[[:space:]]*}/d' "$VH_CONF" 2>/dev/null || true
 

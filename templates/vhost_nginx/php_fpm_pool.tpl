@@ -21,6 +21,6 @@ ping.path = /ping-{{USERNAME}}
 php_admin_value[open_basedir] = /home/{{USERNAME}}/:/tmp/:/var/tmp/
 php_admin_value[upload_tmp_dir] = /home/{{USERNAME}}/.tmp
 php_admin_value[session.save_path] = /home/{{USERNAME}}/.sessions
-php_admin_value[disable_functions] = exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source
+php_admin_value[disable_functions] = mail,passthru,exec,system,putenv,chroot,chgrp,chown,shell_exec,popen,proc_open,pcntl_exec,ini_alter,ini_restore,dl,openlog,syslog,readlink,symlink,popepassthru,pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,imap_open,apache_setenv
 php_admin_flag[log_errors] = on
 php_admin_value[error_log] = /home/{{USERNAME}}/logs/php-fpm.error.log

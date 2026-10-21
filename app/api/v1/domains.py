@@ -1320,12 +1320,129 @@ async def get_domain_php_extensions(
         "extensions": result_list
     }
 
+def sync_user_php_scan_dir(isolated_user: str, php_ver: str, extensions: dict) -> bool:
+    """
+    Tạo và đồng bộ thư mục nạp extension riêng biệt theo từng user/website:
+    /etc/php/{php_ver}/fpm/users/{isolated_user}/conf.d
+    
+    Cơ chế hoạt động (PHP_INI_SCAN_DIR):
+    Khi PHP-FPM hoặc LSPHP khởi động, biến môi trường PHP_INI_SCAN_DIR được trỏ tới thư mục conf.d riêng này.
+    - Extension nào BẬT: Được symlink từ mods-available sang conf.d của user.
+    - Extension nào TẮT: Bị xoá symlink khỏi conf.d của user -> PHP engine KHÔNG dlopen() file .so vào bộ nhớ!
+    => Giảm tải trực tiếp 15MB - 35MB RAM / tiến trình worker (nhất là Imagick, Xdebug, SOAP, Memcached, Intl).
+    """
+    clean_ver = (php_ver or "8.2").replace("php", "")
+    if len(clean_ver) == 2 and "." not in clean_ver:
+        clean_ver = f"{clean_ver[0]}.{clean_ver[1]}"
+    php_num = clean_ver.replace(".", "")
+
+    if platform.system() != "Linux":
+        return True
+
+    user_base = f"/etc/php/{clean_ver}/fpm/users"
+    user_conf_d = f"{user_base}/{isolated_user}/conf.d"
+    user_env_file = f"{user_base}/{isolated_user}.env"
+
+    try:
+        # 1. Tạo thư mục conf.d và file .env cho user
+        subprocess.run(["sudo", "mkdir", "-p", user_conf_d], check=False)
+        subprocess.run(["sudo", "chmod", "755", user_conf_d], check=False)
+
+        tmp_env = f"/tmp/wpc_env_{isolated_user}_{int(time.time())}.env"
+        with open(tmp_env, "w", encoding="utf-8") as f:
+            f.write(f"PHP_INI_SCAN_DIR={user_conf_d}\n")
+        subprocess.run(["sudo", "mv", "-f", tmp_env, user_env_file], check=False)
+        subprocess.run(["sudo", "chmod", "644", user_env_file], check=False)
+
+        # 2. Tìm thư mục chứa file .ini gốc của hệ thống
+        src_candidates = [
+            f"/etc/php/{clean_ver}/mods-available",
+            f"/etc/php/{clean_ver}/fpm/conf.d",
+            f"/usr/local/lsws/lsphp{php_num}/etc/php.d",
+            f"/etc/opt/remi/php{php_num}/php.d",
+            f"/etc/php.d"
+        ]
+        src_dir = None
+        for cand in src_candidates:
+            if os.path.isdir(cand):
+                try:
+                    ini_files = [f for f in os.listdir(cand) if f.endswith(".ini")]
+                    if ini_files:
+                        src_dir = cand
+                        break
+                except Exception:
+                    pass
+
+        if not src_dir:
+            return False
+
+        # 3. Phân loại và đồng bộ symlink
+        TOGGLE_MAP = {
+            "opcache": "opcache",
+            "redis": "redis",
+            "imagick": "imagick",
+            "soap": "soap",
+            "memcached": "memcache",
+            "intl": "intl",
+            "bcmath": "bcmath",
+            "xdebug": "xdebug",
+            "zip": "zip",
+            "exif": "exif"
+        }
+
+        all_src_inis = [f for f in os.listdir(src_dir) if f.endswith(".ini")]
+
+        for ini_file in all_src_inis:
+            src_full = os.path.join(src_dir, ini_file)
+            dst_full = os.path.join(user_conf_d, ini_file)
+            ini_lower = ini_file.lower()
+
+            matched_ext = None
+            for ext_id, keyword in TOGGLE_MAP.items():
+                if keyword in ini_lower:
+                    matched_ext = ext_id
+                    break
+
+            if matched_ext:
+                is_enabled = extensions.get(matched_ext, True if matched_ext not in ["xdebug", "soap", "memcached"] else False)
+                if is_enabled:
+                    # BẬT -> Tạo symlink vào conf.d của user
+                    subprocess.run(["sudo", "ln", "-sf", src_full, dst_full], check=False)
+                else:
+                    # TẮT -> Xoá symlink -> PHP không dlopen() .so vào bộ nhớ RAM!
+                    subprocess.run(["sudo", "rm", "-f", dst_full], check=False)
+            else:
+                # Extension cốt lõi (curl, mbstring, mysqli, pdo, xml, gd, fileinfo...) -> Luôn luôn symlink
+                if not os.path.exists(dst_full):
+                    subprocess.run(["sudo", "ln", "-sf", src_full, dst_full], check=False)
+
+        # 4. Đảm bảo Systemd Template Service có EnvironmentFile
+        tpl_service = f"/etc/systemd/system/wpc-php{clean_ver}-fpm@.service"
+        if os.path.exists(tpl_service):
+            content = read_file_privileged(tpl_service)
+            if content and "EnvironmentFile" not in content:
+                content = content.replace("[Service]\n", f"[Service]\nEnvironmentFile=-/etc/php/{clean_ver}/fpm/users/%i.env\n")
+                tmp_s = f"/tmp/wpc_svc_tpl_{int(time.time())}.service"
+                with open(tmp_s, "w", encoding="utf-8") as tf:
+                    tf.write(content)
+                subprocess.run(["sudo", "mv", "-f", tmp_s, tpl_service], check=False)
+                subprocess.run(["sudo", "chmod", "644", tpl_service], check=False)
+                subprocess.run(["sudo", "systemctl", "daemon-reload"], check=False)
+
+        return True
+    except Exception as e:
+        logger.error(f"Error in sync_user_php_scan_dir: {e}")
+        return False
+
 def sync_fpm_pool_extensions(isolated_user: str, php_ver: str, extensions: dict) -> bool:
     """
     Đồng bộ trực tiếp các chỉ thị bật/tắt PHP Extensions vào pool /etc/php/{php_ver}/fpm/users/{isolated_user}.conf
     và khởi động lại dịch vụ PHP-FPM riêng của user.
-    Khắc phục triệt để lỗi disable_classes không hoạt động trong .user.ini trên Nginx/PHP-FPM.
+    Đồng thời ngắt nạp extension vật lý (.so) bằng cách dọn dẹp conf.d riêng của user.
     """
+    # 1. Đồng bộ thư mục scan_dir conf.d để giải phóng RAM vật lý
+    sync_user_php_scan_dir(isolated_user, php_ver, extensions)
+
     conf_dir = f"/etc/php/{php_ver}/fpm/users"
     conf_path = f"{conf_dir}/{isolated_user}.conf"
 
@@ -1583,7 +1700,27 @@ async def save_domain_php_extensions(
     # 4. ĐỒNG BỘ TRỰC TIẾP VÀO PHP-FPM POOL CONFIGURATION (Nginx & PHP-FPM)
     # Vì PHP-FPM không hỗ trợ disable_classes trong .user.ini (chỉ nhận ở cấp pool PHP_INI_SYSTEM),
     # bắt buộc phải ghi trực tiếp vào /etc/php/{php_ver}/fpm/users/{isolated_user}.conf
+    sync_user_php_scan_dir(isolated_user, php_ver, req.extensions)
     sync_fpm_pool_extensions(isolated_user, php_ver, req.extensions)
+
+    # Đảm bảo vhconf.conf của OpenLiteSpeed có chỉ thị env PHP_INI_SCAN_DIR
+    vh_conf_path = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
+    if os.path.exists(vh_conf_path):
+        try:
+            vh_c = read_file_privileged(vh_conf_path)
+            if vh_c and "PHP_INI_SCAN_DIR" not in vh_c:
+                pattern = rf"(extprocessor\s+lsphp_{isolated_user}\s*\{{[\s\S]*?env\s+LSAPI_CHILDREN=[^\n]+)"
+                replacement = rf"\1\n  env                     PHP_INI_SCAN_DIR=/etc/php/{php_ver}/fpm/users/{isolated_user}/conf.d"
+                if re.search(pattern, vh_c):
+                    vh_c_new = re.sub(pattern, replacement, vh_c)
+                    tmp_vh = f"/tmp/wpc_vh_{isolated_user}_{int(time.time())}.tmp"
+                    with open(tmp_vh, "w", encoding="utf-8") as tf:
+                        tf.write(vh_c_new)
+                    subprocess.run(["sudo", "mv", "-f", tmp_vh, vh_conf_path], check=False)
+                    subprocess.run(["sudo", "chmod", "644", vh_conf_path], check=False)
+                    subprocess.run(["sudo", "chown", "lsadm:lsadm", vh_conf_path], check=False)
+        except Exception:
+            pass
 
     # 5. Kích hoạt Gatekeeper apply-php-ini để đồng bộ vhconf.conf (OLS) và reload worker
     res = await run_gatekeeper("vhost", "apply-php-ini", isolated_user, clean_domain, active_ws)
@@ -2602,7 +2739,8 @@ async def save_domain_lsapi_service(
             env_lines = [
                 f"  env                     LSAPI_CHILDREN={max_ch}",
                 f"  env                     LSAPI_AVOID_FORK={avoid_fork}",
-                f"  env                     PHP_LSAPI_MAX_REQUESTS={max_req}"
+                f"  env                     PHP_LSAPI_MAX_REQUESTS={max_req}",
+                f"  env                     PHP_INI_SCAN_DIR=/etc/php/{php_ver}/fpm/users/{isolated_user}/conf.d"
             ]
             if req.env_custom:
                 for eline in req.env_custom.splitlines():
@@ -2724,6 +2862,7 @@ async def reset_domain_lsapi_service(
   env                     LSAPI_CHILDREN=10
   env                     LSAPI_AVOID_FORK=1
   env                     PHP_LSAPI_MAX_REQUESTS=1000
+  env                     PHP_INI_SCAN_DIR=/etc/php/{php_ver}/fpm/users/{isolated_user}/conf.d
   initTimeout             60
   retryTimeout            0
   persistConn             1

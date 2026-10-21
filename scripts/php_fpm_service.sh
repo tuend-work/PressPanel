@@ -141,6 +141,31 @@ php_admin_flag[log_errors] = on
 php_admin_value[error_log] = /home/${USERNAME}/logs/php-fpm.error.log
 EOF
 
+        # 1.1 Tạo thư mục conf.d riêng cho User để kiểm soát nạp Extension qua PHP_INI_SCAN_DIR (giảm tải RAM)
+        USER_CONF_D="$USER_CONF_DIR/${USERNAME}/conf.d"
+        USER_ENV_FILE="$USER_CONF_DIR/${USERNAME}.env"
+        mkdir -p "$USER_CONF_D" 2>/dev/null || true
+        chmod 755 "$USER_CONF_D" 2>/dev/null || true
+        echo "PHP_INI_SCAN_DIR=$USER_CONF_D" > "$USER_ENV_FILE"
+        chmod 644 "$USER_ENV_FILE" 2>/dev/null || true
+
+        # Khởi tạo symlink mặc định nếu conf.d của user đang rỗng
+        if [ -z "$(ls -A "$USER_CONF_D" 2>/dev/null)" ]; then
+            SRC_DIR=""
+            for cdir in "/etc/php/${PHP_VER}/mods-available" "/etc/php/${PHP_VER}/fpm/conf.d" "/etc/opt/remi/php$(echo "$PHP_VER" | tr -d '.')/php.d" "/etc/php.d"; do
+                if [ -d "$cdir" ] && [ -n "$(ls -A "$cdir"/*.ini 2>/dev/null)" ]; then
+                    SRC_DIR="$cdir"
+                    break
+                fi
+            done
+            if [ -n "$SRC_DIR" ]; then
+                for inifile in "$SRC_DIR"/*.ini; do
+                    [ -f "$inifile" ] || continue
+                    ln -sf "$inifile" "$USER_CONF_D/$(basename "$inifile")" 2>/dev/null || true
+                done
+            fi
+        fi
+
         # 2. Xoá file pool cũ trong pool.d để tránh trùng lặp
         rm -f "$PHP_CONF_DIR/pool.d/${USERNAME}.conf" 2>/dev/null || true
         rm -f "$SOCK_FILE" 2>/dev/null || true
@@ -156,6 +181,7 @@ After=network.target
 [Service]
 Type=notify
 PIDFile=/run/php/php${PHP_VER}-fpm-%i.pid
+EnvironmentFile=-/etc/php/${PHP_VER}/fpm/users/%i.env
 ExecStart=${ACTUAL_BIN} --nodaemonize --fpm-config /etc/php/${PHP_VER}/fpm/users/%i.conf
 ExecReload=/bin/kill -USR2 \$MAINPID
 TimeoutSec=15
@@ -217,7 +243,8 @@ EOF
     delete)
         systemctl stop "$SVC_NAME" 2>/dev/null || true
         systemctl disable "$SVC_NAME" 2>/dev/null || true
-        rm -f "$CONF_FILE" "$PID_FILE" "$SOCK_FILE" 2>/dev/null || true
+        rm -f "$CONF_FILE" "$PID_FILE" "$SOCK_FILE" "$USER_CONF_DIR/${USERNAME}.env" 2>/dev/null || true
+        rm -rf "$USER_CONF_DIR/${USERNAME}" 2>/dev/null || true
         systemctl daemon-reload 2>/dev/null || true
         ;;
 

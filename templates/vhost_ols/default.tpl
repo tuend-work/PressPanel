@@ -67,6 +67,7 @@ extprocessor lsphp_{{USERNAME}} {
   address                 uds://tmp/lshttpd/lsphp_{{USERNAME}}.sock
   maxConns                10
   env                     LSAPI_CHILDREN=10
+  env                     PHP_INI_SCAN_DIR=/etc/php/{{PHP_VERSION}}/fpm/users/{{USERNAME}}/conf.d
   initTimeout             60
   retryTimeout            0
   persistConn             1

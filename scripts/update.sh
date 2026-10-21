@@ -619,15 +619,27 @@ if [ -d "/usr/local/lsws" ]; then
     /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
 fi
 
+# 8.1 Đồng bộ và cập nhật template PHP-FPM Service và conf.d riêng cho toàn bộ user để hỗ trợ giải phóng RAM qua PHP_INI_SCAN_DIR
+for u_conf in /etc/php/*/fpm/users/*.conf; do
+    [ -f "$u_conf" ] || continue
+    u_name=$(basename "$u_conf" .conf)
+    p_ver=$(echo "$u_conf" | awk -F'/' '{print $(NF-3)}')
+    if [ -n "$p_ver" ] && [ -n "$u_name" ]; then
+        bash /opt/wpc/scripts/php_fpm_service.sh create "$u_name" "$p_ver" 2>/dev/null || true
+    fi
+done
+
+# Bổ sung EnvironmentFile vào các file systemd template service nếu còn thiếu
+for tpl in /etc/systemd/system/wpc-php*-fpm@.service; do
+    [ -f "$tpl" ] || continue
+    pver=$(echo "$tpl" | grep -o -E '[0-9]+\.[0-9]+' | head -1)
+    if [ -n "$pver" ] && ! grep -q "EnvironmentFile" "$tpl"; then
+        sed -i "/\[Service\]/a EnvironmentFile=-\/etc\/php\/${pver}\/fpm\/users\/%i.env" "$tpl" 2>/dev/null || true
+    fi
+done
+systemctl daemon-reload 2>/dev/null || true
+
 if systemctl is-active --quiet nginx 2>/dev/null || systemctl is-active --quiet openresty 2>/dev/null; then
-    for u_conf in /etc/php/*/fpm/users/*.conf; do
-        [ -f "$u_conf" ] || continue
-        u_name=$(basename "$u_conf" .conf)
-        p_ver=$(echo "$u_conf" | awk -F'/' '{print $(NF-3)}')
-        if [ -n "$p_ver" ] && [ -n "$u_name" ]; then
-            bash /opt/wpc/scripts/php_fpm_service.sh create "$u_name" "$p_ver" 2>/dev/null || true
-        fi
-    done
     systemctl reload openresty 2>/dev/null || systemctl reload nginx 2>/dev/null || true
 fi
 
