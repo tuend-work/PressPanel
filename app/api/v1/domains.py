@@ -1793,6 +1793,131 @@ def sanitize_fpm_config_content(content: str, isolated_user: str) -> str:
                 content = re.sub(r'^[ \t]*listen\.group[ \t]*=[ \t]*www-data', f'listen.group = {safe_g}', content, flags=re.MULTILINE)
     return content
 
+def get_fpm_pool_template() -> str:
+    """Tải nội dung file template php_fpm_pool.tpl từ hệ thống hoặc thư mục mã nguồn"""
+    tpl_paths = [
+        "/opt/wpc/templates/vhost_nginx/php_fpm_pool.tpl",
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../templates/vhost_nginx/php_fpm_pool.tpl")),
+        os.path.join(os.getcwd(), "templates", "vhost_nginx", "php_fpm_pool.tpl")
+    ]
+    for p in tpl_paths:
+        if os.path.exists(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    c = f.read().strip()
+                    if c:
+                        return c
+            except Exception:
+                pass
+    return ""
+
+def render_fpm_pool_config(params: dict) -> str:
+    """Render cấu hình PHP-FPM standalone pool từ file template php_fpm_pool.tpl"""
+    tpl = get_fpm_pool_template()
+    if not tpl:
+        tpl = """; WPCloud PHP-FPM Standalone Master & Pool Configuration
+[global]
+pid = {{PID_FILE}}
+error_log = {{ERROR_LOG}}
+log_level = {{LOG_LEVEL}}
+daemonize = no
+
+[{{USERNAME}}]
+user = {{USERNAME}}
+group = {{FPM_GRP}}
+
+listen = {{SOCK_FILE}}
+listen.owner = {{WORKER_USER}}
+listen.group = {{WORKER_GRP}}
+listen.mode = {{LISTEN_MODE}}
+listen.backlog = {{LISTEN_BACKLOG}}
+
+{{PM_DIRECTIVES}}
+
+request_terminate_timeout = {{REQUEST_TERMINATE_TIMEOUT}}
+request_slowlog_timeout = {{REQUEST_SLOWLOG_TIMEOUT}}
+slowlog = {{SLOWLOG}}
+catch_workers_output = {{CATCH_WORKERS_OUTPUT}}
+decorate_workers_output = {{DECORATE_WORKERS_OUTPUT}}
+clear_env = {{CLEAR_ENV}}
+
+pm.status_path = {{PM_STATUS_PATH}}
+ping.path = {{PING_PATH}}
+ping.response = {{PING_RESPONSE}}
+
+rlimit_files = {{RLIMIT_FILES}}
+rlimit_core = {{RLIMIT_CORE}}
+
+php_admin_value[open_basedir] = {{PHP_OPEN_BASEDIR}}
+php_admin_value[upload_tmp_dir] = /home/{{USERNAME}}/.tmp
+php_admin_value[session.save_path] = /home/{{USERNAME}}/.sessions
+php_admin_value[disable_functions] = {{PHP_DISABLE_FUNCTIONS}}
+php_admin_value[memory_limit] = {{PHP_MEMORY_LIMIT}}
+php_admin_value[max_execution_time] = {{PHP_MAX_EXECUTION_TIME}}
+php_admin_value[upload_max_filesize] = {{PHP_UPLOAD_MAX_FILESIZE}}
+php_admin_value[post_max_size] = {{PHP_POST_MAX_SIZE}}
+php_admin_flag[log_errors] = on
+php_admin_value[error_log] = /home/{{USERNAME}}/logs/php-fpm.error.log
+{{CUSTOM_DIRECTIVES}}
+{{EXT_CONFIG}}"""
+
+    content = tpl
+    for k, v in params.items():
+        placeholder = f"{{{{{k}}}}}"
+        content = content.replace(placeholder, str(v) if v is not None else "")
+    return content
+
+def get_ols_extprocessor_template() -> str:
+    """Tải nội dung file template extprocessor.tpl từ hệ thống hoặc thư mục mã nguồn"""
+    tpl_paths = [
+        "/opt/wpc/templates/vhost_ols/extprocessor.tpl",
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../templates/vhost_ols/extprocessor.tpl")),
+        os.path.join(os.getcwd(), "templates", "vhost_ols", "extprocessor.tpl")
+    ]
+    for p in tpl_paths:
+        if os.path.exists(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    c = f.read().strip()
+                    if c:
+                        return c
+            except Exception:
+                pass
+    return ""
+
+def render_ols_extprocessor_config(params: dict) -> str:
+    """Render khối extprocessor OpenLiteSpeed từ file template extprocessor.tpl"""
+    tpl = get_ols_extprocessor_template()
+    if not tpl:
+        tpl = """extprocessor lsphp_{{USERNAME}} {
+  type                    lsapi
+  address                 uds://tmp/lshttpd/lsphp_{{USERNAME}}.sock
+  maxConns                {{MAX_CONNS}}
+{{ENV_BLOCK}}
+  initTimeout             {{INIT_TIMEOUT}}
+  retryTimeout            {{RETRY_TIMEOUT}}
+  persistConn             {{PERSIST_CONN}}{{KEEPALIVE_LINE}}
+  respBuffer              {{RESP_BUFFER}}
+  autoStart               {{AUTO_START}}
+  path                    {{LSPHP_BIN}}
+  backlog                 {{BACKLOG}}
+  instances               {{INSTANCES}}
+  runOn                   {{RUN_ON}}
+  extUser                 {{EXT_USER}}
+  extGroup                {{EXT_GROUP}}{{UMASK_LINE}}{{MAX_IDLE_LINE}}
+  priority                {{PRIORITY}}
+  memSoftLimit            {{MEM_SOFT_LIMIT}}
+  memHardLimit            {{MEM_HARD_LIMIT}}
+  procSoftLimit           {{PROC_SOFT_LIMIT}}
+  procHardLimit           {{PROC_HARD_LIMIT}}{{NOTES_LINE}}
+}"""
+
+    content = tpl
+    for k, v in params.items():
+        placeholder = f"{{{{{k}}}}}"
+        content = content.replace(placeholder, str(v) if v is not None else "")
+    return content
+
 class DomainFpmSettingsUpdate(BaseModel):
     mode: str = "form"  # "form" or "raw"
     pm: Optional[str] = "dynamic"
@@ -2027,55 +2152,41 @@ async def get_domain_fpm_service(
         if custom_lines:
             settings["custom_directives"] = "\n".join(custom_lines)
     else:
-        # Template mặc định an toàn
-        raw_config = f"""; WPCloud PHP-FPM Pool Configuration
-[global]
-pid = {pid_path}
-error_log = /var/log/php{php_ver}-fpm-{isolated_user}.log
-log_level = notice
-daemonize = no
-
-[{isolated_user}]
-user = {isolated_user}
-group = {isolated_user}
-listen = {sock_path}
-listen.owner = {sock_owner}
-listen.group = {sock_group}
-listen.mode = 0666
-listen.backlog = 511
-
-pm = dynamic
-pm.max_children = 10
-pm.start_servers = 2
-pm.min_spare_servers = 1
-pm.max_spare_servers = 3
-pm.process_idle_timeout = 10s
-pm.max_requests = 500
-request_terminate_timeout = 0s
-request_slowlog_timeout = 0s
-slowlog = /home/{isolated_user}/logs/php-fpm.slow.log
-catch_workers_output = yes
-decorate_workers_output = no
-clear_env = no
-
-pm.status_path = /status-{isolated_user}
-ping.path = /ping-{isolated_user}
-ping.response = pong
-
-rlimit_files = 65535
-rlimit_core = 0
-
-php_admin_value[memory_limit] = 512M
-php_admin_value[max_execution_time] = 300
-php_admin_value[upload_max_filesize] = 128M
-php_admin_value[post_max_size] = 128M
-php_admin_value[open_basedir] = /home/{isolated_user}/:/tmp/:/var/tmp/
-php_admin_value[upload_tmp_dir] = /home/{isolated_user}/.tmp
-php_admin_value[session.save_path] = /home/{isolated_user}/.sessions
-php_admin_value[disable_functions] = exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source
-php_admin_flag[log_errors] = on
-php_admin_value[error_log] = /home/{isolated_user}/logs/php-fpm.error.log
-"""
+        # Sử dụng template chuẩn từ templates/vhost_nginx/php_fpm_pool.tpl
+        default_params = {
+            "PID_FILE": pid_path,
+            "ERROR_LOG": f"/var/log/php{php_ver}-fpm-{isolated_user}.log",
+            "LOG_LEVEL": "notice",
+            "PHP_VER": php_ver,
+            "USERNAME": isolated_user,
+            "FPM_GRP": isolated_user,
+            "SOCK_FILE": sock_path,
+            "WORKER_USER": sock_owner,
+            "WORKER_GRP": sock_group,
+            "LISTEN_MODE": "0666",
+            "LISTEN_BACKLOG": "511",
+            "PM_DIRECTIVES": "pm = dynamic\npm.max_children = 10\npm.start_servers = 2\npm.min_spare_servers = 1\npm.max_spare_servers = 3\npm.process_idle_timeout = 10s\npm.max_requests = 500",
+            "REQUEST_TERMINATE_TIMEOUT": "0s",
+            "REQUEST_SLOWLOG_TIMEOUT": "0s",
+            "SLOWLOG": f"/home/{isolated_user}/logs/php-fpm.slow.log",
+            "CATCH_WORKERS_OUTPUT": "yes",
+            "DECORATE_WORKERS_OUTPUT": "no",
+            "CLEAR_ENV": "no",
+            "PM_STATUS_PATH": f"/status-{isolated_user}",
+            "PING_PATH": f"/ping-{isolated_user}",
+            "PING_RESPONSE": "pong",
+            "RLIMIT_FILES": "65535",
+            "RLIMIT_CORE": "0",
+            "PHP_OPEN_BASEDIR": f"/home/{isolated_user}/:/tmp/:/var/tmp/",
+            "PHP_DISABLE_FUNCTIONS": "exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source",
+            "PHP_MEMORY_LIMIT": "512M",
+            "PHP_MAX_EXECUTION_TIME": "300",
+            "PHP_UPLOAD_MAX_FILESIZE": "128M",
+            "PHP_POST_MAX_SIZE": "128M",
+            "CUSTOM_DIRECTIVES": "",
+            "EXT_CONFIG": ""
+        }
+        raw_config = render_fpm_pool_config(default_params)
 
     return {
         "status": "success",
@@ -2236,48 +2347,40 @@ pm.min_spare_servers = {min_s}
 pm.max_spare_servers = {max_s}
 pm.max_requests = {max_req}"""
 
-        content = f"""; WPCloud PHP-FPM Pool Configuration
-[global]
-pid = {pid_path}
-error_log = /var/log/php{php_ver}-fpm-{isolated_user}.log
-log_level = notice
-daemonize = no
-
-[{isolated_user}]
-user = {isolated_user}
-group = {isolated_user}
-listen = {sock_path}
-listen.owner = {sock_owner}
-listen.group = {sock_group}
-listen.mode = {listen_mode_v}
-listen.backlog = {listen_backlog_v}
-
-{pm_directives}
-request_terminate_timeout = {timeout}
-request_slowlog_timeout = {slowlog_timeout}
-slowlog = {slow_log_path}
-catch_workers_output = {catch_workers}
-decorate_workers_output = {decorate_workers}
-clear_env = {clear_env}
-
-pm.status_path = {status_path}
-ping.path = {ping_p}
-ping.response = {ping_resp}
-
-rlimit_files = {rlimit_files_v}
-rlimit_core = {rlimit_core_v}
-
-php_admin_value[memory_limit] = {mem_limit_v}
-php_admin_value[max_execution_time] = {max_exec_v}
-php_admin_value[upload_max_filesize] = {upload_max_v}
-php_admin_value[post_max_size] = {post_max_v}
-php_admin_value[open_basedir] = {open_basedir_v}
-php_admin_value[upload_tmp_dir] = /home/{isolated_user}/.tmp
-php_admin_value[session.save_path] = /home/{isolated_user}/.sessions
-php_admin_value[disable_functions] = {disable_funcs_v}
-php_admin_flag[log_errors] = on
-php_admin_value[error_log] = /home/{isolated_user}/logs/php-fpm.error.log
-{custom_block}{ext_fpm_block}"""
+        fpm_params = {
+            "PID_FILE": pid_path,
+            "ERROR_LOG": f"/var/log/php{php_ver}-fpm-{isolated_user}.log",
+            "LOG_LEVEL": "notice",
+            "PHP_VER": php_ver,
+            "USERNAME": isolated_user,
+            "FPM_GRP": isolated_user,
+            "SOCK_FILE": sock_path,
+            "WORKER_USER": sock_owner,
+            "WORKER_GRP": sock_group,
+            "LISTEN_MODE": listen_mode_v,
+            "LISTEN_BACKLOG": str(listen_backlog_v),
+            "PM_DIRECTIVES": pm_directives,
+            "REQUEST_TERMINATE_TIMEOUT": timeout,
+            "REQUEST_SLOWLOG_TIMEOUT": slowlog_timeout,
+            "SLOWLOG": slow_log_path,
+            "CATCH_WORKERS_OUTPUT": catch_workers,
+            "DECORATE_WORKERS_OUTPUT": decorate_workers,
+            "CLEAR_ENV": clear_env,
+            "PM_STATUS_PATH": status_path,
+            "PING_PATH": ping_p,
+            "PING_RESPONSE": ping_resp,
+            "RLIMIT_FILES": str(rlimit_files_v),
+            "RLIMIT_CORE": str(rlimit_core_v),
+            "PHP_OPEN_BASEDIR": open_basedir_v,
+            "PHP_DISABLE_FUNCTIONS": disable_funcs_v,
+            "PHP_MEMORY_LIMIT": mem_limit_v,
+            "PHP_MAX_EXECUTION_TIME": str(max_exec_v),
+            "PHP_UPLOAD_MAX_FILESIZE": upload_max_v,
+            "PHP_POST_MAX_SIZE": post_max_v,
+            "CUSTOM_DIRECTIVES": custom_block,
+            "EXT_CONFIG": ext_fpm_block
+        }
+        content = render_fpm_pool_config(fpm_params)
 
     # Luôn kiểm tra khử lỗi listen.owner/listen.group không tồn tại (như www-data trên AlmaLinux)
     content = sanitize_fpm_config_content(content, isolated_user)
@@ -2756,28 +2859,31 @@ async def save_domain_lsapi_service(
             keepalive_line = f"\n  pcKeepAliveTimeout      {pc_keep_alive}" if pc_keep_alive != -1 else ""
             max_idle_line = f"\n  maxIdleTime             {max_idle}" if max_idle != -1 else ""
 
-            new_block = f"""extprocessor lsphp_{isolated_user} {{
-  type                    lsapi
-  address                 uds://tmp/lshttpd/lsphp_{isolated_user}.sock
-  maxConns                {max_conns}
-{env_block}
-  initTimeout             {init_t}
-  retryTimeout            {retry_t}
-  persistConn             {persist_c}{keepalive_line}
-  respBuffer              {resp_buf}
-  autoStart               {auto_st}
-  path                    {path_v}
-  backlog                 {backlog_v}
-  instances               {inst}
-  runOn                   {run_on_v}
-  extUser                 {ext_u}
-  extGroup                {ext_g}{umask_line}{max_idle_line}
-  priority                {prio}
-  memSoftLimit            {mem_s}
-  memHardLimit            {mem_h}
-  procSoftLimit           {proc_s}
-  procHardLimit           {proc_h}{notes_line}
-}}"""
+            new_block = render_ols_extprocessor_config({
+                "USERNAME": isolated_user,
+                "MAX_CONNS": max_conns,
+                "ENV_BLOCK": env_block,
+                "INIT_TIMEOUT": init_t,
+                "RETRY_TIMEOUT": retry_t,
+                "PERSIST_CONN": persist_c,
+                "KEEPALIVE_LINE": keepalive_line,
+                "RESP_BUFFER": resp_buf,
+                "AUTO_START": auto_st,
+                "LSPHP_BIN": path_v,
+                "BACKLOG": backlog_v,
+                "INSTANCES": inst,
+                "RUN_ON": run_on_v,
+                "EXT_USER": ext_u,
+                "EXT_GROUP": ext_g,
+                "UMASK_LINE": umask_line,
+                "MAX_IDLE_LINE": max_idle_line,
+                "PRIORITY": prio,
+                "MEM_SOFT_LIMIT": mem_s,
+                "MEM_HARD_LIMIT": mem_h,
+                "PROC_SOFT_LIMIT": proc_s,
+                "PROC_HARD_LIMIT": proc_h,
+                "NOTES_LINE": notes_line
+            })
 
             pattern = rf"(extprocessor\s+lsphp_{isolated_user}\s*\{{[\s\S]*?\n\}})"
             if re.search(pattern, content):
@@ -2855,31 +2961,31 @@ async def reset_domain_lsapi_service(
             content = f"docRoot                   /home/{isolated_user}/domains/{clean_domain}/public_html\nenableGzip                1\n"
 
     try:
-        default_block = f"""extprocessor lsphp_{isolated_user} {{
-  type                    lsapi
-  address                 uds://tmp/lshttpd/lsphp_{isolated_user}.sock
-  maxConns                10
-  env                     LSAPI_CHILDREN=10
-  env                     LSAPI_AVOID_FORK=1
-  env                     PHP_LSAPI_MAX_REQUESTS=1000
-  env                     PHP_INI_SCAN_DIR=/etc/php/{php_ver}/fpm/users/{isolated_user}/conf.d
-  initTimeout             60
-  retryTimeout            0
-  persistConn             1
-  respBuffer              0
-  autoStart               1
-  path                    /usr/local/lsws/lsphp{php_num}/bin/lsphp
-  backlog                 100
-  instances               1
-  runOn                   1
-  extUser                 {isolated_user}
-  extGroup                {isolated_user}
-  priority                0
-  memSoftLimit            1024M
-  memHardLimit            2048M
-  procSoftLimit           200
-  procHardLimit           300
-}}"""
+        default_block = render_ols_extprocessor_config({
+            "USERNAME": isolated_user,
+            "MAX_CONNS": 10,
+            "ENV_BLOCK": f"  env                     LSAPI_CHILDREN=10\n  env                     LSAPI_AVOID_FORK=1\n  env                     PHP_LSAPI_MAX_REQUESTS=1000\n  env                     PHP_INI_SCAN_DIR=/etc/php/{php_ver}/fpm/users/{isolated_user}/conf.d",
+            "INIT_TIMEOUT": 60,
+            "RETRY_TIMEOUT": 0,
+            "PERSIST_CONN": 1,
+            "KEEPALIVE_LINE": "",
+            "RESP_BUFFER": 0,
+            "AUTO_START": 1,
+            "LSPHP_BIN": f"/usr/local/lsws/lsphp{php_num}/bin/lsphp",
+            "BACKLOG": 100,
+            "INSTANCES": 1,
+            "RUN_ON": 1,
+            "EXT_USER": isolated_user,
+            "EXT_GROUP": isolated_user,
+            "UMASK_LINE": "",
+            "MAX_IDLE_LINE": "",
+            "PRIORITY": 0,
+            "MEM_SOFT_LIMIT": "1024M",
+            "MEM_HARD_LIMIT": "2048M",
+            "PROC_SOFT_LIMIT": 200,
+            "PROC_HARD_LIMIT": 300,
+            "NOTES_LINE": ""
+        })
 
         pattern = rf"(extprocessor\s+lsphp_{isolated_user}\s*\{{[\s\S]*?\n\}})"
         if re.search(pattern, content):

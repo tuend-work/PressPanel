@@ -110,9 +110,40 @@ setup_ols_vhost_php() {
         fi
     fi
 
-    # Cấu hình chuẩn LSAPI cho OpenLiteSpeed
-    cat <<EOF_LSPHP >> "$vh_conf"
+    # Cấu hình chuẩn LSAPI cho OpenLiteSpeed từ template extprocessor.tpl
+    local ols_tpl="/opt/wpc/templates/vhost_ols/extprocessor.tpl"
+    [ ! -f "$ols_tpl" ] && ols_tpl="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/templates/vhost_ols/extprocessor.tpl"
 
+    echo "" >> "$vh_conf"
+    if [ -f "$ols_tpl" ]; then
+        local env_str="  env                     LSAPI_CHILDREN=10\n  env                     PHP_INI_SCAN_DIR=/etc/php/${php_ver}/fpm/users/${username}/conf.d"
+        sed \
+            -e "s|{{USERNAME}}|$username|g" \
+            -e "s|{{MAX_CONNS}}|10|g" \
+            -e "s|{{ENV_BLOCK}}|$env_str|g" \
+            -e "s|{{INIT_TIMEOUT}}|60|g" \
+            -e "s|{{RETRY_TIMEOUT}}|0|g" \
+            -e "s|{{PERSIST_CONN}}|1|g" \
+            -e "s|{{KEEPALIVE_LINE}}||g" \
+            -e "s|{{RESP_BUFFER}}|0|g" \
+            -e "s|{{AUTO_START}}|1|g" \
+            -e "s|{{LSPHP_BIN}}|$lsphp_bin|g" \
+            -e "s|{{BACKLOG}}|100|g" \
+            -e "s|{{INSTANCES}}|1|g" \
+            -e "s|{{RUN_ON}}|1|g" \
+            -e "s|{{EXT_USER}}|$username|g" \
+            -e "s|{{EXT_GROUP}}|$username|g" \
+            -e "s|{{UMASK_LINE}}||g" \
+            -e "s|{{MAX_IDLE_LINE}}||g" \
+            -e "s|{{PRIORITY}}|0|g" \
+            -e "s|{{MEM_SOFT_LIMIT}}|1024M|g" \
+            -e "s|{{MEM_HARD_LIMIT}}|2048M|g" \
+            -e "s|{{PROC_SOFT_LIMIT}}|200|g" \
+            -e "s|{{PROC_HARD_LIMIT}}|300|g" \
+            -e "s|{{NOTES_LINE}}||g" \
+            "$ols_tpl" >> "$vh_conf"
+    else
+        cat <<EOF_LSPHP >> "$vh_conf"
 extprocessor lsphp_${username} {
   type                    lsapi
   address                 uds://tmp/lshttpd/lsphp_${username}.sock
@@ -136,11 +167,17 @@ extprocessor lsphp_${username} {
   procSoftLimit           200
   procHardLimit           300
 }
+EOF_LSPHP
+    fi
+
+    if ! grep -q "scripthandler" "$vh_conf"; then
+        cat <<EOF_SH >> "$vh_conf"
 
 scripthandler {
   add                     lsapi:lsphp_${username} php
 }
-EOF_LSPHP
+EOF_SH
+    fi
 
     # Dừng tiến trình lsphp cũ để nạp binary mới
     pkill -9 -u "$username" -f "lsphp" 2>/dev/null || true

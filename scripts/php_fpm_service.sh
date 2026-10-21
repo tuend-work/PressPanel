@@ -105,8 +105,46 @@ case "$ACTION" in
         chown -R "${USERNAME}:${FPM_GRP}" "/home/${USERNAME}/logs" "/home/${USERNAME}/.tmp" "/home/${USERNAME}/.sessions" 2>/dev/null || true
         chmod 755 "/home/${USERNAME}/logs" "/home/${USERNAME}/.tmp" "/home/${USERNAME}/.sessions" 2>/dev/null || true
 
-        # 1. Sinh file cấu hình standalone hoàn chỉnh (gồm [global] và [pool])
-        cat << EOF > "$CONF_FILE"
+        # 1. Sinh file cấu hình standalone hoàn chỉnh từ template php_fpm_pool.tpl
+        TPL_FILE="/opt/wpc/templates/vhost_nginx/php_fpm_pool.tpl"
+        [ ! -f "$TPL_FILE" ] && TPL_FILE="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/templates/vhost_nginx/php_fpm_pool.tpl"
+
+        if [ -f "$TPL_FILE" ]; then
+            sed \
+                -e "s|{{PID_FILE}}|$PID_FILE|g" \
+                -e "s|{{ERROR_LOG}}|/var/log/php${PHP_VER}-fpm-${USERNAME}.log|g" \
+                -e "s|{{LOG_LEVEL}}|notice|g" \
+                -e "s|{{PHP_VER}}|$PHP_VER|g" \
+                -e "s|{{USERNAME}}|$USERNAME|g" \
+                -e "s|{{FPM_GRP}}|$FPM_GRP|g" \
+                -e "s|{{SOCK_FILE}}|$SOCK_FILE|g" \
+                -e "s|{{WORKER_USER}}|$WORKER_USER|g" \
+                -e "s|{{WORKER_GRP}}|$WORKER_GRP|g" \
+                -e "s|{{LISTEN_MODE}}|0666|g" \
+                -e "s|{{LISTEN_BACKLOG}}|511|g" \
+                -e "s|{{PM_DIRECTIVES}}|pm = dynamic\npm.max_children = 10\npm.start_servers = 2\npm.min_spare_servers = 1\npm.max_spare_servers = 3\npm.process_idle_timeout = 10s\npm.max_requests = 500|g" \
+                -e "s|{{REQUEST_TERMINATE_TIMEOUT}}|0s|g" \
+                -e "s|{{REQUEST_SLOWLOG_TIMEOUT}}|0s|g" \
+                -e "s|{{SLOWLOG}}|/home/${USERNAME}/logs/php-fpm.slow.log|g" \
+                -e "s|{{CATCH_WORKERS_OUTPUT}}|yes|g" \
+                -e "s|{{DECORATE_WORKERS_OUTPUT}}|no|g" \
+                -e "s|{{CLEAR_ENV}}|no|g" \
+                -e "s|{{PM_STATUS_PATH}}|/status-${USERNAME}|g" \
+                -e "s|{{PING_PATH}}|/ping-${USERNAME}|g" \
+                -e "s|{{PING_RESPONSE}}|pong|g" \
+                -e "s|{{RLIMIT_FILES}}|65535|g" \
+                -e "s|{{RLIMIT_CORE}}|0|g" \
+                -e "s|{{PHP_OPEN_BASEDIR}}|/home/${USERNAME}/:/tmp/:/var/tmp/|g" \
+                -e "s|{{PHP_DISABLE_FUNCTIONS}}|exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source|g" \
+                -e "s|{{PHP_MEMORY_LIMIT}}|512M|g" \
+                -e "s|{{PHP_MAX_EXECUTION_TIME}}|300|g" \
+                -e "s|{{PHP_UPLOAD_MAX_FILESIZE}}|128M|g" \
+                -e "s|{{PHP_POST_MAX_SIZE}}|128M|g" \
+                -e "s|{{CUSTOM_DIRECTIVES}}||g" \
+                -e "s|{{EXT_CONFIG}}||g" \
+                "$TPL_FILE" > "$CONF_FILE"
+        else
+            cat << EOF > "$CONF_FILE"
 [global]
 pid = $PID_FILE
 error_log = /var/log/php${PHP_VER}-fpm-${USERNAME}.log
@@ -116,7 +154,6 @@ daemonize = no
 [${USERNAME}]
 user = ${USERNAME}
 group = ${FPM_GRP}
-
 listen = $SOCK_FILE
 listen.owner = ${WORKER_USER}
 listen.group = ${WORKER_GRP}
@@ -128,11 +165,9 @@ pm.start_servers = 2
 pm.min_spare_servers = 1
 pm.max_spare_servers = 3
 pm.max_requests = 500
-
 pm.status_path = /status-${USERNAME}
 ping.path = /ping-${USERNAME}
 
-; Tách biệt môi trường và bảo vệ thư mục gốc của user
 php_admin_value[open_basedir] = /home/${USERNAME}/:/tmp/:/var/tmp/
 php_admin_value[upload_tmp_dir] = /home/${USERNAME}/.tmp
 php_admin_value[session.save_path] = /home/${USERNAME}/.sessions
@@ -140,6 +175,7 @@ php_admin_value[disable_functions] = exec,passthru,shell_exec,system,proc_open,p
 php_admin_flag[log_errors] = on
 php_admin_value[error_log] = /home/${USERNAME}/logs/php-fpm.error.log
 EOF
+        fi
 
         # 1.1 Tạo thư mục conf.d riêng cho User để kiểm soát nạp Extension qua PHP_INI_SCAN_DIR (giảm tải RAM)
         USER_CONF_D="$USER_CONF_DIR/${USERNAME}/conf.d"

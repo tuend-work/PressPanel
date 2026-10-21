@@ -88,6 +88,7 @@ if [ -d "$INSTALL_DIR/app/app" ]; then
     rm -rf "$INSTALL_DIR/app/app"
 fi
 cp -r "$TMP_DIR/app"/* "$INSTALL_DIR/app/"
+mkdir -p "$INSTALL_DIR/templates"
 cp -r "$TMP_DIR/templates"/* "$INSTALL_DIR/templates/" 2>/dev/null || true
 cp -r "$TMP_DIR/gatekeepers" "$INSTALL_DIR/" 2>/dev/null || true
 cp -r "$TMP_DIR/scripts"/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
