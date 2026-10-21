@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# WPCloud: cage_terminal.sh - Lồng cách ly Mount Namespace cho Terminal SSH
+# WPC: cage_terminal.sh - Lồng cách ly Mount Namespace cho Terminal SSH
 # Giấu hoàn toàn thư mục /home của các User khác, chỉ hiển thị home của User này
 # ==============================================================================
 set -euo pipefail
@@ -33,41 +33,52 @@ fi
 # Nếu hệ thống có unshare và script đang chạy dưới quyền root:
 # Khởi tạo Mount Namespace riêng biệt cách ly hoàn toàn thư mục /home
 if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
-    exec /usr/bin/unshare --mount /bin/bash -c "
+    exec /usr/bin/unshare --mount /bin/bash -c '
+        TARGET_USER="$1"
+        REAL_HOME="$2"
+
         # Cách ly mount event không lan ra namespace cha
         mount --make-rprivate / 2>/dev/null || true
         
         # Lưu lại mount point của home thật trước khi bị che
-        MNT_TMP=\"/run/cage_\$\$\"
-        mkdir -p \"\$MNT_TMP\"
-        mount --bind /home \"\$MNT_TMP\" 2>/dev/null || true
+        MNT_TMP="/run/cage_$$"
+        mkdir -p "$MNT_TMP"
+        mount --bind /home "$MNT_TMP" 2>/dev/null || true
         
         # Ảo hóa /home bằng tmpfs sạch (mode 711)
         mount -t tmpfs -o mode=711,size=64M tmpfs /home 2>/dev/null || true
         
         # Gắn đúng thư mục thật của user vào /home/$TARGET_USER
-        mkdir -p '$REAL_HOME'
-        mount --bind \"\$MNT_TMP/$TARGET_USER\" '$REAL_HOME' 2>/dev/null || true
+        mkdir -p "$REAL_HOME"
+        mount --bind "$MNT_TMP/$TARGET_USER" "$REAL_HOME" 2>/dev/null || true
         
         # Tháo gỡ mount tạm để không để lại dấu vết
-        umount -l \"\$MNT_TMP\" 2>/dev/null || true
-        rmdir \"\$MNT_TMP\" 2>/dev/null || true
+        umount -l "$MNT_TMP" 2>/dev/null || true
+        rmdir "$MNT_TMP" 2>/dev/null || true
         
-        cd '$REAL_HOME' 2>/dev/null || cd /
-        if [ -x '/sbin/runuser' ]; then
-            exec /sbin/runuser -s /bin/bash -u '$TARGET_USER' -- /bin/bash --login
+        cd "$REAL_HOME" 2>/dev/null || cd /
+        if command -v runuser &>/dev/null; then
+            exec runuser -l "$TARGET_USER" -s /bin/bash
+        elif [ -x /sbin/runuser ]; then
+            exec /sbin/runuser -l "$TARGET_USER" -s /bin/bash
+        elif [ -x /usr/sbin/runuser ]; then
+            exec /usr/sbin/runuser -l "$TARGET_USER" -s /bin/bash
         else
-            exec /bin/su -s /bin/bash - '$TARGET_USER'
+            exec su -l "$TARGET_USER" -s /bin/bash
         fi
-    "
+    ' _ "$TARGET_USER" "$REAL_HOME"
 else
     # Fallback tiêu chuẩn nếu môi trường không hỗ trợ unshare
     cd "$REAL_HOME" 2>/dev/null || cd /
     if [ "$EUID" -eq 0 ]; then
-        if [ -x '/sbin/runuser' ]; then
-            exec /sbin/runuser -s /bin/bash -u "$TARGET_USER" -- /bin/bash --login
+        if command -v runuser &>/dev/null; then
+            exec runuser -l "$TARGET_USER" -s /bin/bash
+        elif [ -x /sbin/runuser ]; then
+            exec /sbin/runuser -l "$TARGET_USER" -s /bin/bash
+        elif [ -x /usr/sbin/runuser ]; then
+            exec /usr/sbin/runuser -l "$TARGET_USER" -s /bin/bash
         else
-            exec /bin/su -s /bin/bash - "$TARGET_USER"
+            exec su -l "$TARGET_USER" -s /bin/bash
         fi
     else
         exec sudo -n -u "$TARGET_USER" /bin/bash --login
