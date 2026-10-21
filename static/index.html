@@ -1897,6 +1897,9 @@
                         allow_ssh: !!domain.allow_ssh
                     };
                     showEditDomainModal.value = true;
+                    if (servicePlans.value.length === 0) {
+                        fetchServicePlans();
+                    }
                 };
 
                 const handleSaveDomainEdit = async () => {
@@ -1941,6 +1944,9 @@
                     selectedDomainForPlan.value = domain;
                     targetDomainPlanId.value = domain.package_id || (websitePlans.value[0]?.id || servicePlans.value[0]?.id || null);
                     showDomainChangePlanModal.value = true;
+                    if (servicePlans.value.length === 0) {
+                        fetchServicePlans();
+                    }
                 };
 
                 const confirmChangeDomainPlan = async () => {

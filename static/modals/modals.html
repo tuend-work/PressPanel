@@ -1288,14 +1288,6 @@
                                 <span>Service Status</span>
                             </button>
 
-                            <!-- NGINX URL REWRITE TAB BUTTON IN SIDEBAR -->
-                            <button v-if="selectedSettingApp?.id === 'nginx'"
-                                @click="appSettingTab = 'server_config'; wsServerTab = 'rewrite'"
-                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                :class="appSettingTab === 'server_config' && wsServerTab === 'rewrite' ? 'bg-[#1e2633] text-indigo-400 font-bold border-l-2 border-indigo-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                <span>🔀</span>
-                                <span>URL Rewrite</span>
-                            </button>
 
                             <!-- BUILD SETTINGS (CẤU HÌNH ĐỐI SỐ BIÊN DỊCH TỪ SOURCE) -->
                             <button @click="openAppBuildSettings(selectedSettingApp.id)"
@@ -1338,8 +1330,7 @@
                                             { id: 'general', label: 'General' },
                                             { id: 'log', label: 'Log' },
                                             { id: 'tuning', label: 'Tuning' },
-                                            { id: 'security', label: 'Security' },
-                                            { id: 'rewrite', label: 'URL Rewrite' }
+                                            { id: 'security', label: 'Security' }
                                         ] : [
                                             { id: 'general', label: 'General' },
                                             { id: 'log', label: 'Log' },
@@ -1607,63 +1598,6 @@
                                                     <span class="text-[11px] text-slate-400">Nén dữ liệu tĩnh và động tiết kiệm băng thông</span>
                                                     <span class="mt-2 inline-block px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold">Active</span>
                                                 </div>
-                                            </div>
-                                    <!-- TAB: URL REWRITE (DÀNH RIÊNG CHO NGINX WEBSERVER CONFIGURATION) -->
-                                    <div v-if="wsServerTab === 'rewrite'" class="space-y-4">
-                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
-                                            <div class="flex items-center justify-between border-b border-[#232b36] pb-2.5">
-                                                <div>
-                                                    <h4 class="font-bold text-white text-sm flex items-center gap-2">
-                                                        <span>🔀</span>
-                                                        <span>Nginx Global URL Rewrite & Routing Directives</span>
-                                                    </h4>
-                                                    <p class="text-[11px] text-slate-400 mt-0.5">
-                                                        Cấu hình các quy tắc URL Rewrite, try_files, chuyển hướng và bảo vệ định tuyến dùng chung toàn cục cho Nginx (<code class="text-cyan-400 font-mono">/etc/nginx/conf.d/00_rewrite.conf</code>).
-                                                    </p>
-                                                </div>
-                                                <span class="text-[10px] px-2.5 py-0.5 rounded font-mono bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">
-                                                    try_files &bull; rewrite &bull; location
-                                                </span>
-                                            </div>
-
-                                            <!-- Mẫu Gợi Ý Nhanh -->
-                                            <div class="space-y-1.5">
-                                                <span class="text-[11px] text-slate-400 font-medium">Chèn nhanh các quy tắc mẫu (Click to insert):</span>
-                                                <div class="flex items-center gap-1.5 flex-wrap">
-                                                    <button type="button" @click="appendNginxRewritePreset('wordpress')"
-                                                        class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
-                                                        + WordPress try_files
-                                                    </button>
-                                                    <button type="button" @click="appendNginxRewritePreset('laravel')"
-                                                        class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
-                                                        + Laravel / SPA
-                                                    </button>
-                                                    <button type="button" @click="appendNginxRewritePreset('security')"
-                                                        class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
-                                                        + Chặn file ẩn & nhạy cảm (.env, .git)
-                                                    </button>
-                                                    <button type="button" @click="appendNginxRewritePreset('force_https')"
-                                                        class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
-                                                        + Force HTTPS Redirect
-                                                    </button>
-                                                    <button type="button" @click="appendNginxRewritePreset('static_cache')"
-                                                        class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 transition">
-                                                        + Cache Static Assets (CSS, JS, Img)
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <textarea v-model="wsServerConfig.rewriteRules"
-                                                rows="12"
-                                                placeholder="# Nhập cấu hình URL Rewrite hoặc location blocks tại đây...
-# Ví dụ:
-# location / {
-#     try_files $uri $uri/ /index.php?$args;
-# }"
-                                                class="w-full p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs focus:outline-none focus:border-cyan-500 resize-y h-64 custom-scrollbar leading-relaxed">
-                                            </textarea>
-                                            <div class="text-[10px] text-slate-400 italic">
-                                                💡 Hệ thống tự động kiểm tra cú pháp bằng <code>nginx -t</code> trước khi lưu và reload, đảm bảo không làm gián đoạn máy chủ nếu cấu hình có lỗi cú pháp.
                                             </div>
                                         </div>
                                     </div>
@@ -2005,6 +1939,7 @@
                                     <div>● Status: {{ selectedSettingApp?.running ? 'active (running)' : 'inactive (dead)' }}</div>
                                     <div>● Version: {{ selectedSettingApp?.default_version }}</div>
                                     <div>● Binary checks: {{ selectedSettingApp?.binary_checks?.join(', ') }}</div>
+                                </div>
                             </div>
 
                             <!-- TAB 5: BUILD SETTINGS (CẤU HÌNH ĐỐI SỐ BIÊN DỊCH TỪ MÃ NGUỒN) -->
@@ -2125,6 +2060,7 @@
                                         <span>{{ savingBuildSettings ? 'Đang lưu...' : 'Lưu Đối Số Build' }}</span>
                                     </button>
                                 </div>
+                            </div>
                         </div>
                     </div>
                 </div>
