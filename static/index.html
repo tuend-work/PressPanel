@@ -5979,10 +5979,13 @@ function showAlert(message) {
                 // ==========================================
                 // CRONJOBS MANAGEMENT LOGIC
                 // ==========================================
-                const crons = ref([]);
+                const cronJobs = ref([]);
+                const crons = cronJobs;
                 const loadingCrons = ref(false);
-                const cronSearch = ref('');
-                const cronStatusFilter = ref('');
+                const cronFilterStatus = ref('all');
+                const cronStatusFilter = cronFilterStatus;
+                const cronSearchQuery = ref('');
+                const cronSearch = cronSearchQuery;
                 const cronUserFilter = ref('');
                 const showCronModal = ref(false);
                 const editingCron = ref(null);
@@ -5991,34 +5994,79 @@ function showAlert(message) {
                 const cronOutputTitle = ref('');
                 const cronOutputText = ref('');
                 const runningCronId = ref(null);
+                const cronRunResult = ref({ exit_code: 0, output: '' });
 
                 const cronForm = ref({
+                    id: null,
                     name: '',
+                    schedule: '*/15 * * * *',
+                    command: '',
+                    domain_id: null,
+                    target_user: '',
                     minute: '*',
                     hour: '*',
                     day_of_month: '*',
                     month: '*',
                     day_of_week: '*',
-                    command: '',
-                    target_user: '',
                     is_active: 1
                 });
 
-                const filteredCrons = computed(() => {
-                    return crons.value.filter(c => {
-                        const matchesSearch = !cronSearch.value || 
-                            (c.name && c.name.toLowerCase().includes(cronSearch.value.toLowerCase())) ||
-                            (c.command && c.command.toLowerCase().includes(cronSearch.value.toLowerCase())) ||
-                            (c.target_user && c.target_user.toLowerCase().includes(cronSearch.value.toLowerCase()));
-                        const matchesStatus = !cronStatusFilter.value || 
-                            (cronStatusFilter.value === 'active' && c.is_active) ||
-                            (cronStatusFilter.value === 'inactive' && !c.is_active);
-                        const matchesUser = !cronUserFilter.value || c.target_user === cronUserFilter.value;
-                        return matchesSearch && matchesStatus && matchesUser;
+                const formatCronHuman = (schedule) => {
+                    if (!schedule) return '';
+                    const s = schedule.trim();
+                    if (s === '* * * * *') return 'Mỗi phút một lần';
+                    if (s === '*/5 * * * *') return 'Mỗi 5 phút một lần';
+                    if (s === '*/10 * * * *') return 'Mỗi 10 phút một lần';
+                    if (s === '*/15 * * * *') return 'Mỗi 15 phút một lần (Khuyên dùng WP-Cron)';
+                    if (s === '*/30 * * * *') return 'Mỗi 30 phút một lần';
+                    if (s === '0 * * * *') return 'Mỗi giờ một lần (phút thứ 00)';
+                    if (s === '0 0 * * *') return 'Hàng ngày lúc 00:00';
+                    if (s === '0 3 * * *') return 'Hàng ngày lúc 03:00 sáng';
+                    if (s === '0 0 * * 0' || s === '0 0 * * 7') return 'Hàng tuần vào Chủ Nhật (00:00)';
+                    if (s === '0 0 1 * *') return 'Hàng tháng vào ngày mùng 1 (00:00)';
+                    return 'Lịch tùy chỉnh: ' + s;
+                };
+
+                const applyCronPreset = (val) => {
+                    if (val) {
+                        cronForm.value.schedule = val;
+                    }
+                };
+
+                const applyCommandTemplate = (type) => {
+                    const user = currentUser.value?.web_user_name || currentUser.value?.username || 'user';
+                    const dom = (domains.value && domains.value.length > 0) ? domains.value[0].domain_name : 'yourdomain.com';
+                    if (type === 'wp-cron') {
+                        cronForm.value.command = `/usr/bin/php /home/${user}/domains/${dom}/public_html/wp-cron.php >/dev/null 2>&1`;
+                        if (!cronForm.value.name) cronForm.value.name = `WP-Cron cho ${dom}`;
+                    } else if (type === 'php-script') {
+                        cronForm.value.command = `/usr/bin/php /home/${user}/domains/${dom}/public_html/cron.php`;
+                        if (!cronForm.value.name) cronForm.value.name = `PHP Task cho ${dom}`;
+                    } else if (type === 'curl') {
+                        cronForm.value.command = `curl -s -L "https://${dom}/wp-cron.php?doing_wp_cron" >/dev/null 2>&1`;
+                        if (!cronForm.value.name) cronForm.value.name = `HTTP Ping WP-Cron cho ${dom}`;
+                    }
+                };
+
+                const filteredCronJobs = computed(() => {
+                    const q = (cronSearchQuery.value || '').toLowerCase().trim();
+                    const statusFilter = cronFilterStatus.value;
+                    const userFilter = cronUserFilter.value;
+                    return cronJobs.value.filter(j => {
+                        const matchStatus = !statusFilter || statusFilter === 'all' || j.status === statusFilter || (statusFilter === 'active' && j.is_active) || (statusFilter === 'disabled' && !j.is_active);
+                        const matchUser = !userFilter || j.owner_username === userFilter || j.target_user === userFilter;
+                        const matchSearch = !q ||
+                            (j.name && j.name.toLowerCase().includes(q)) ||
+                            (j.command && j.command.toLowerCase().includes(q)) ||
+                            (j.schedule && j.schedule.toLowerCase().includes(q)) ||
+                            (j.owner_username && j.owner_username.toLowerCase().includes(q)) ||
+                            (j.domain_name && j.domain_name.toLowerCase().includes(q));
+                        return matchStatus && matchUser && matchSearch;
                     });
                 });
+                const filteredCrons = filteredCronJobs;
 
-                const fetchCrons = async () => {
+                const fetchCronJobs = async () => {
                     loadingCrons.value = true;
                     try {
                         const res = await fetch('/api/v1/crons', {
@@ -6026,7 +6074,9 @@ function showAlert(message) {
                         });
                         if (res.ok) {
                             const data = await res.json();
-                            crons.value = data.crons || [];
+                            const list = data.data || data.crons || [];
+                            cronJobs.value = list;
+                            crons.value = list;
                         } else {
                             const err = await res.json();
                             console.error('Lỗi tải crons:', err.detail);
@@ -6038,44 +6088,56 @@ function showAlert(message) {
                         refreshLucideIcons();
                     }
                 };
+                const fetchCrons = fetchCronJobs;
 
-                const openCreateCronModal = () => {
+                const openAddCronModal = () => {
                     editingCron.value = null;
                     cronForm.value = {
+                        id: null,
                         name: '',
+                        schedule: '*/15 * * * *',
+                        command: '',
+                        domain_id: null,
+                        target_user: currentUser.value?.role === 'admin' ? '' : (currentUser.value?.web_user_name || currentUser.value?.username || ''),
                         minute: '*',
                         hour: '*',
                         day_of_month: '*',
                         month: '*',
                         day_of_week: '*',
-                        command: '',
-                        target_user: currentUser.value?.role === 'admin' ? 'root' : (currentUser.value?.web_user_name || currentUser.value?.username || 'tuend'),
                         is_active: 1
                     };
                     showCronModal.value = true;
                     refreshLucideIcons();
                 };
+                const openCreateCronModal = openAddCronModal;
 
                 const openEditCronModal = (cron) => {
                     editingCron.value = cron;
                     cronForm.value = {
+                        id: cron.id,
                         name: cron.name || '',
+                        schedule: cron.schedule || '* * * * *',
+                        command: cron.command || '',
+                        domain_id: cron.domain_id || null,
+                        target_user: cron.owner_username || cron.target_user || '',
                         minute: cron.minute || '*',
                         hour: cron.hour || '*',
                         day_of_month: cron.day_of_month || '*',
                         month: cron.month || '*',
                         day_of_week: cron.day_of_week || '*',
-                        command: cron.command || '',
-                        target_user: cron.target_user || '',
-                        is_active: cron.is_active ? 1 : 0
+                        is_active: (cron.status === 'active' || cron.is_active) ? 1 : 0
                     };
                     showCronModal.value = true;
                     refreshLucideIcons();
                 };
 
-                const saveCron = async () => {
+                const submitSaveCron = async () => {
                     if (!cronForm.value.name.trim()) {
                         Swal.fire({ icon: 'warning', title: 'Thiếu thông tin', text: 'Vui lòng nhập tên tác vụ Cronjob.' });
+                        return;
+                    }
+                    if (!cronForm.value.schedule || !cronForm.value.schedule.trim()) {
+                        Swal.fire({ icon: 'warning', title: 'Thiếu thông tin', text: 'Vui lòng nhập cú pháp lịch biểu Cron (5 trường).' });
                         return;
                     }
                     if (!cronForm.value.command.trim()) {
@@ -6084,21 +6146,31 @@ function showAlert(message) {
                     }
                     savingCron.value = true;
                     try {
-                        const url = editingCron.value ? `/api/v1/crons/${editingCron.value.id}` : '/api/v1/crons';
-                        const method = editingCron.value ? 'PUT' : 'POST';
+                        const isEdit = !!(editingCron.value && editingCron.value.id);
+                        const url = isEdit ? `/api/v1/crons/${editingCron.value.id}` : '/api/v1/crons';
+                        const method = isEdit ? 'PUT' : 'POST';
+                        const payload = {
+                            name: cronForm.value.name.trim(),
+                            schedule: cronForm.value.schedule.trim(),
+                            command: cronForm.value.command.trim(),
+                            domain_id: cronForm.value.domain_id || null
+                        };
+                        if (!isEdit && cronForm.value.target_user) {
+                            payload.target_user = cronForm.value.target_user;
+                        }
                         const res = await fetch(url, {
                             method,
                             headers: {
                                 'Content-Type': 'application/json',
                                 'Authorization': `Bearer ${token.value}`
                             },
-                            body: JSON.stringify(cronForm.value)
+                            body: JSON.stringify(payload)
                         });
                         const data = await res.json();
                         if (res.ok) {
                             Swal.fire({ icon: 'success', title: 'Thành công', text: data.message || 'Lưu Cronjob thành công!' });
                             showCronModal.value = false;
-                            fetchCrons();
+                            fetchCronJobs();
                         } else {
                             Swal.fire({ icon: 'error', title: 'Lỗi', text: data.detail || 'Không thể lưu Cronjob.' });
                         }
@@ -6108,17 +6180,19 @@ function showAlert(message) {
                         savingCron.value = false;
                     }
                 };
+                const saveCron = submitSaveCron;
 
-                const toggleCronStatus = async (cron) => {
+                const handleToggleCron = async (job) => {
                     try {
-                        const res = await fetch(`/api/v1/crons/${cron.id}/toggle`, {
+                        const res = await fetch(`/api/v1/crons/${job.id}/toggle`, {
                             method: 'POST',
                             headers: { 'Authorization': `Bearer ${token.value}` }
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            cron.is_active = data.is_active;
-                            Swal.fire({ icon: 'success', title: 'Cập nhật', text: data.message, timer: 1500, showConfirmButton: false });
+                            job.status = data.new_status || (job.status === 'active' ? 'disabled' : 'active');
+                            job.is_active = (job.status === 'active');
+                            Swal.fire({ icon: 'success', title: 'Cập nhật', text: data.message || 'Đã đổi trạng thái tác vụ!', timer: 1500, showConfirmButton: false });
                         } else {
                             Swal.fire({ icon: 'error', title: 'Lỗi', text: data.detail || 'Không thể đổi trạng thái.' });
                         }
@@ -6126,11 +6200,12 @@ function showAlert(message) {
                         Swal.fire({ icon: 'error', title: 'Lỗi kết nối', text: e.message });
                     }
                 };
+                const toggleCronStatus = handleToggleCron;
 
-                const deleteCron = async (cron) => {
+                const handleDeleteCron = async (job) => {
                     const confirmRes = await Swal.fire({
                         title: 'Xóa Cronjob?',
-                        text: `Bạn có chắc chắn muốn xóa tác vụ [${cron.name}]? Thao tác này không thể hoàn tác.`,
+                        text: `Bạn có chắc chắn muốn xóa tác vụ [${job.name || ('#' + job.id)}]? Thao tác này không thể hoàn tác.`,
                         icon: 'warning',
                         showCancelButton: true,
                         confirmButtonColor: '#ef4444',
@@ -6141,14 +6216,14 @@ function showAlert(message) {
                     if (!confirmRes.isConfirmed) return;
 
                     try {
-                        const res = await fetch(`/api/v1/crons/${cron.id}`, {
+                        const res = await fetch(`/api/v1/crons/${job.id}`, {
                             method: 'DELETE',
                             headers: { 'Authorization': `Bearer ${token.value}` }
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            Swal.fire({ icon: 'success', title: 'Đã xóa', text: data.message, timer: 1500, showConfirmButton: false });
-                            fetchCrons();
+                            Swal.fire({ icon: 'success', title: 'Đã xóa', text: data.message || 'Đã xóa Cronjob thành công!', timer: 1500, showConfirmButton: false });
+                            fetchCronJobs();
                         } else {
                             Swal.fire({ icon: 'error', title: 'Lỗi', text: data.detail || 'Không thể xóa Cronjob.' });
                         }
@@ -6156,17 +6231,22 @@ function showAlert(message) {
                         Swal.fire({ icon: 'error', title: 'Lỗi kết nối', text: e.message });
                     }
                 };
+                const deleteCron = handleDeleteCron;
 
-                const runCronNow = async (cron) => {
-                    runningCronId.value = cron.id;
+                const handleRunCronNow = async (job) => {
+                    runningCronId.value = job.id;
                     try {
-                        const res = await fetch(`/api/v1/crons/${cron.id}/run`, {
+                        const res = await fetch(`/api/v1/crons/${job.id}/run`, {
                             method: 'POST',
                             headers: { 'Authorization': `Bearer ${token.value}` }
                         });
                         const data = await res.json();
-                        cronOutputTitle.value = `Kết quả thực thi: ${cron.name} (Exit code: ${data.exit_code})`;
-                        cronOutputText.value = data.output || '(Không có kết quả trả về hoặc lệnh chạy nền thành công)';
+                        cronRunResult.value = {
+                            exit_code: (data.exit_code !== undefined ? data.exit_code : (res.ok ? 0 : 1)),
+                            output: data.output || '(Không có kết quả trả về hoặc lệnh chạy nền thành công)'
+                        };
+                        cronOutputTitle.value = `Kết quả thực thi: ${job.name || ('#' + job.id)} (Exit code: ${cronRunResult.value.exit_code})`;
+                        cronOutputText.value = cronRunResult.value.output;
                         showCronOutputModal.value = true;
                     } catch (e) {
                         Swal.fire({ icon: 'error', title: 'Lỗi kết nối', text: e.message });
@@ -6175,11 +6255,12 @@ function showAlert(message) {
                         refreshLucideIcons();
                     }
                 };
+                const runCronNow = handleRunCronNow;
 
                 const openWebsiteCronsModal = (username) => {
                     currentTab.value = 'crons';
                     cronUserFilter.value = username || '';
-                    fetchCrons();
+                    fetchCronJobs();
                 };
 
                 // ==========================================
@@ -6664,11 +6745,14 @@ function showAlert(message) {
                     openWpInstallModal, handleWpInstallNew, openWpCloneModal, handleWpCloneSite,
                     openAddPluginModal, handleInstallPluginSubmit, openAddThemeModal, handleInstallThemeSubmit,
                     // Crons Management
-                    crons, loadingCrons, cronSearch, cronStatusFilter, cronUserFilter,
+                    cronJobs, crons, loadingCrons, cronFilterStatus, cronStatusFilter,
+                    cronSearchQuery, cronSearch, cronUserFilter, filteredCronJobs, filteredCrons,
                     showCronModal, editingCron, savingCron, showCronOutputModal,
-                    cronOutputTitle, cronOutputText, runningCronId, cronForm, filteredCrons,
-                    fetchCrons, openCreateCronModal, openEditCronModal, saveCron,
-                    toggleCronStatus, deleteCron, runCronNow, openWebsiteCronsModal,
+                    cronOutputTitle, cronOutputText, runningCronId, cronForm, cronRunResult,
+                    fetchCronJobs, fetchCrons, openAddCronModal, openCreateCronModal, openEditCronModal,
+                    submitSaveCron, saveCron, handleToggleCron, toggleCronStatus,
+                    handleDeleteCron, deleteCron, handleRunCronNow, runCronNow,
+                    formatCronHuman, applyCronPreset, applyCommandTemplate, openWebsiteCronsModal,
                     // System Websites
                     systemWebsites, loadingSystemWebsites, fetchSystemWebsites, restartSystemWebsite,
                     // Website Sub-modals: Rewrite, Logs, Security
