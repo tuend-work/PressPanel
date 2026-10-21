@@ -1427,6 +1427,9 @@ function showAlert(message) {
                     if (action === 'uninstall') {
                         if (!confirm(`Bạn có chắc chắn muốn gỡ cài đặt ứng dụng này khỏi máy chủ?`)) return;
                     }
+                    if (action === 'update') {
+                        if (!confirm(`Bạn có chắc muốn cập nhật ${appId} lên phiên bản mới nhất từ kho lưu trữ (Remi / Ondřej PPA)?`)) return;
+                    }
                     const version = appVersions.value[appId] || 'default';
                     try {
                         const res = await fetch('/api/v1/apps/action', {
@@ -1457,6 +1460,84 @@ function showAlert(message) {
                         if (action === 'install') {
                             installingAppId.value = '';
                         }
+                    }
+                };
+
+                const checkingPhpUpdateId = ref('');
+                const handleCheckPhpUpdate = async (app) => {
+                    checkingPhpUpdateId.value = app.id;
+                    try {
+                        const res = await fetch(`/api/v1/apps/${app.id}/check-update`, {
+                            headers: {
+                                'Authorization': `Bearer ${token.value}`
+                            }
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.status === 'ok') {
+                            if (data.has_update) {
+                                Swal.fire({
+                                    title: `Có bản cập nhật mới!`,
+                                    html: `
+                                        <div class="text-left text-sm space-y-2.5 p-1">
+                                            <p class="font-semibold text-slate-800 dark:text-slate-100">${app.name}</p>
+                                            <div class="bg-slate-50 dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 text-xs">
+                                                <div class="flex justify-between">
+                                                    <span class="text-slate-500">Phiên bản hiện tại:</span>
+                                                    <span class="font-mono font-bold text-slate-700 dark:text-slate-200">${data.current_version || 'N/A'}</span>
+                                                </div>
+                                                <div class="flex justify-between">
+                                                    <span class="text-slate-500">Phiên bản mới nhất:</span>
+                                                    <span class="font-mono font-bold text-emerald-600">${data.latest_version || 'N/A'}</span>
+                                                </div>
+                                                <div class="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-1.5 mt-1.5">
+                                                    <span class="text-slate-500">Kho lưu trữ:</span>
+                                                    <span class="font-medium text-blue-600 dark:text-blue-400">${data.repo || 'Remi / Ondřej PPA'}</span>
+                                                </div>
+                                            </div>
+                                            <p class="text-[11.5px] text-slate-500">Bấm Cập Nhật Ngay để tự động nâng cấp các gói PHP binary, FPM pools và module liên quan.</p>
+                                        </div>
+                                    `,
+                                    icon: 'info',
+                                    showCancelButton: true,
+                                    confirmButtonText: '🔄 Cập Nhật Ngay',
+                                    cancelButtonText: 'Để sau',
+                                    confirmButtonColor: '#2563eb',
+                                    cancelButtonColor: '#64748b'
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        handleAppAction(app.id, 'update');
+                                    }
+                                });
+                            } else {
+                                Swal.fire({
+                                    title: `${app.name} đã ở bản mới nhất!`,
+                                    html: `
+                                        <div class="text-left text-sm space-y-2.5 p-1">
+                                            <div class="bg-slate-50 dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 text-xs">
+                                                <div class="flex justify-between">
+                                                    <span class="text-slate-500">Phiên bản đang chạy:</span>
+                                                    <span class="font-mono font-bold text-emerald-600">${data.current_version || 'Mới nhất'}</span>
+                                                </div>
+                                                <div class="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-1.5 mt-1.5">
+                                                    <span class="text-slate-500">Kho lưu trữ:</span>
+                                                    <span class="font-medium text-blue-600 dark:text-blue-400">${data.repo || 'Remi / Ondřej PPA'}</span>
+                                                </div>
+                                            </div>
+                                            <p class="text-[11.5px] text-slate-500">Hệ thống đã kiểm tra kho repo chính thức và không có gói nâng cấp mới nào.</p>
+                                        </div>
+                                    `,
+                                    icon: 'success',
+                                    confirmButtonText: 'Đóng',
+                                    confirmButtonColor: '#2563eb'
+                                });
+                            }
+                        } else {
+                            showAlert('Lỗi: ' + (data.detail || data.error || 'Không thể kiểm tra bản cập nhật'));
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        checkingPhpUpdateId.value = '';
                     }
                 };
 
@@ -6663,7 +6744,7 @@ function showAlert(message) {
                     sysStats, headerResourceStats, trafficHistory, timeLabels, downstreamCurvePath,
                     upstreamCurvePath, downstreamAreaPath, upstreamAreaPath,
                     appsList, appsCategory, installingAppId, installedAppsCount, filteredApps,
-                    getApp, fetchAppsList, handleAppAction, openPhpMyAdmin, appVersions,
+                    getApp, fetchAppsList, handleAppAction, handleCheckPhpUpdate, checkingPhpUpdateId, openPhpMyAdmin, appVersions,
                     showAppSettingModal, selectedSettingApp, appSettingTab, appConfigPath,
                     appConfigContent, savingConfig, rewritingConfig, handleRewriteWebserverConfig,
                     wsServerTab, wsServerConfig, savingWsServerConfig, fetchWsServerSettings, saveWsServerSettings,

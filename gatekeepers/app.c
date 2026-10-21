@@ -49,6 +49,18 @@ int main(int argc, char *argv[]) {
         }
         snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/apps/%s.sh install %s", app_name, version);
     }
+    else if (strcmp(action, "update") == 0 || strcmp(action, "upgrade") == 0) {
+        if (!is_safe_id(app_name)) {
+            send_json_error("app", "Ten app khong hop le");
+            return 1;
+        }
+        const char *version = (argc > 3) ? argv[3] : "latest";
+        if (!is_safe_token(version)) {
+            send_json_error("app", "Version khong hop le");
+            return 1;
+        }
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/apps/%s.sh update %s", app_name, version);
+    }
     else if (strcmp(action, "remove") == 0) {
         if (!is_safe_id(app_name)) {
             send_json_error("app", "Ten app khong hop le");

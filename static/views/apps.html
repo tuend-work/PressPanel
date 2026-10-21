@@ -53,7 +53,7 @@
                                             <template v-if="app.category === 'php'">
                                                 <span v-if="app.installed" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
                                                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                                    <span>Đã Cài Đặt</span>
+                                                    <span>{{ app.exact_version ? 'v' + app.exact_version : 'Đã Cài Đặt' }}</span>
                                                 </span>
                                                 <span v-else class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
                                                     Chưa Cài Đặt
@@ -110,19 +110,37 @@
                                     </div>
 
                                     <div v-else class="space-y-2">
-                                        <!-- GIAO DIỆN DÀNH RIÊNG CHO PHP BINARY (Theo yêu cầu: Chỉ Cài đặt, Xóa folder, Set CLI hệ thống) -->
-                                        <div v-if="app.category === 'php'" class="flex items-center gap-2 pt-0.5">
-                                            <button @click="handleAppAction(app.id, 'set-cli')"
-                                                :disabled="app.is_default_cli"
-                                                class="flex-1 py-1.5 px-2.5 rounded-xl transition text-[11px] font-semibold flex items-center justify-center space-x-1"
-                                                :class="app.is_default_cli ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 opacity-80 cursor-default' : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200'">
-                                                <span>{{ app.is_default_cli ? '⭐ Đang là CLI Mặc Định' : '⭐ Đặt làm PHP CLI' }}</span>
-                                            </button>
-                                            <button @click="handleAppAction(app.id, 'uninstall')"
-                                                class="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition text-[11px] flex items-center space-x-1 font-medium"
-                                                title="Gỡ bỏ PHP và xóa folder cấu hình">
-                                                <span>🗑️ Xóa / Gỡ</span>
-                                            </button>
+                                        <!-- GIAO DIỆN DÀNH RIÊNG CHO PHP BINARY (Kiểm tra cập nhật Remi/Ondrej, Nâng cấp 1-click, Đặt CLI, Gỡ bỏ) -->
+                                        <div v-if="app.category === 'php'" class="flex flex-col gap-1.5 pt-0.5">
+                                            <div class="flex items-center gap-1.5">
+                                                <button @click="handleCheckPhpUpdate(app)"
+                                                    :disabled="checkingPhpUpdateId === app.id"
+                                                    class="flex-1 py-1.5 px-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 transition text-[11px] font-semibold flex items-center justify-center space-x-1"
+                                                    title="Kiểm tra bản cập nhật mới nhất từ Remi / Ondřej PPA">
+                                                    <span v-if="checkingPhpUpdateId === app.id" class="animate-spin">⏳</span>
+                                                    <span v-else>🔍</span>
+                                                    <span>Check Update</span>
+                                                </button>
+                                                <button @click="handleAppAction(app.id, 'update')"
+                                                    class="flex-1 py-1.5 px-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition text-[11px] font-semibold flex items-center justify-center space-x-1"
+                                                    title="Cập nhật PHP và các module lên bản mới nhất từ kho repo">
+                                                    <span>🔄</span>
+                                                    <span>Cập Nhật</span>
+                                                </button>
+                                            </div>
+                                            <div class="flex items-center gap-1.5">
+                                                <button @click="handleAppAction(app.id, 'set-cli')"
+                                                    :disabled="app.is_default_cli"
+                                                    class="flex-1 py-1.5 px-2 rounded-xl transition text-[11px] font-semibold flex items-center justify-center space-x-1"
+                                                    :class="app.is_default_cli ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 opacity-80 cursor-default' : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200'">
+                                                    <span>{{ app.is_default_cli ? '⭐ Đang là CLI' : '⭐ Đặt làm CLI' }}</span>
+                                                </button>
+                                                <button @click="handleAppAction(app.id, 'uninstall')"
+                                                    class="px-2.5 py-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition text-[11px] flex items-center space-x-1 font-medium"
+                                                    title="Gỡ bỏ PHP và xóa folder cấu hình">
+                                                    <span>🗑️ Xóa</span>
+                                                </button>
+                                            </div>
                                         </div>
 
                                         <!-- GIAO DIỆN DÀNH CHO CÁC ỨNG DỤNG DAEMON KHÁC (Nginx, OLS, MySQL, phpMyAdmin...) -->

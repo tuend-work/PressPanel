@@ -617,15 +617,37 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
     # 4. Đặc thù PHP: PHP Packages chỉ là Runtime Binary (CLI/LSAPI), không chạy FPM daemon toàn cục
     elif app.get("category") == "php":
         is_default_cli = False
-        if installed and os.name != "nt":
-            try:
-                r_cli = subprocess.run(["php", "-v"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1)
-                ver_check = app.get("default_version", "")
-                if f"PHP {ver_check}" in r_cli.stdout:
-                    is_default_cli = True
-            except Exception:
-                pass
-        app = {**app, "service": "", "is_default_cli": is_default_cli}
+        exact_version = ""
+        clean_num = app["id"].replace("php", "")
+        ver = f"{app['id'][3]}.{app['id'][4]}" if len(app["id"]) >= 5 else app.get("default_version", "")
+        if installed:
+            if os.name != "nt":
+                bin_candidates = [
+                    f"/usr/bin/php{ver}",
+                    f"/opt/remi/php{clean_num}/root/usr/bin/php",
+                    f"/usr/local/lsws/lsphp{clean_num}/bin/lsphp",
+                    f"/usr/sbin/php-fpm{ver}",
+                    "/usr/bin/php"
+                ]
+                for bpath in bin_candidates:
+                    if os.path.isfile(bpath) and os.access(bpath, os.X_OK):
+                        try:
+                            r_ver = subprocess.run([bpath, "-r", "echo PHP_VERSION;"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1)
+                            if r_ver.returncode == 0 and r_ver.stdout.strip():
+                                exact_version = r_ver.stdout.strip()
+                                break
+                        except Exception:
+                            pass
+                try:
+                    r_cli = subprocess.run(["php", "-v"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1)
+                    ver_check = app.get("default_version", "")
+                    if f"PHP {ver_check}" in r_cli.stdout:
+                        is_default_cli = True
+                except Exception:
+                    pass
+            else:
+                exact_version = f"{ver}.28"
+        app = {**app, "service": "", "is_default_cli": is_default_cli, "exact_version": exact_version}
         running = installed
     elif installed and not app.get("service"):
         running = True
@@ -689,6 +711,68 @@ class ConfigUpdateRequest(BaseModel):
 class AutorestartRequest(BaseModel):
     app_id: str
     enabled: bool
+
+@router.get("/{app_id}/check-update")
+async def check_app_update(app_id: str, current_user: dict = Depends(get_current_user)):
+    """Kiểm tra phiên bản mới từ kho lưu trữ repo chính thức (Remi / Ondřej PPA)"""
+    app = next((a for a in SUPPORTED_APPS if a["id"] == app_id), None)
+    if not app:
+        raise HTTPException(status_code=404, detail="Ứng dụng không tồn tại trong danh mục")
+
+    if app.get("category") == "php":
+        ver = app.get("default_version", "8.2")
+        script_path = f"{WPC_BASE}/scripts/apps/php.sh"
+        if os.name != "nt" and os.path.exists(script_path):
+            try:
+                proc = subprocess.run(
+                    ["sudo", "bash", script_path, "check-update", ver],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=20
+                )
+                output = proc.stdout
+                for line in output.splitlines():
+                    if line.startswith("CHECK_RESULT_JSON:"):
+                        import json
+                        raw_json = line.replace("CHECK_RESULT_JSON:", "").strip()
+                        data = json.loads(raw_json)
+                        return {
+                            "status": "ok",
+                            "app_id": app_id,
+                            "app_name": app["name"],
+                            **data
+                        }
+            except Exception as e:
+                return {
+                    "status": "ok",
+                    "app_id": app_id,
+                    "app_name": app["name"],
+                    "has_update": False,
+                    "current_version": ver,
+                    "latest_version": ver,
+                    "repo": "Remi / Ondřej PPA",
+                    "error": str(e)
+                }
+
+        # Fallback simulation cho môi trường Dev / NT
+        return {
+            "status": "ok",
+            "app_id": app_id,
+            "app_name": app["name"],
+            "has_update": False,
+            "current_version": f"{ver}.28",
+            "latest_version": f"{ver}.28",
+            "repo": "Remi / Ondřej PPA",
+            "message": "Hệ thống đang sử dụng phiên bản mới nhất từ kho repo."
+        }
+
+    return {
+        "status": "ok",
+        "app_id": app_id,
+        "app_name": app["name"],
+        "has_update": False,
+        "current_version": app.get("default_version", "latest"),
+        "latest_version": app.get("default_version", "latest"),
+        "repo": "Standard System Repo"
+    }
 
 @router.post("/action")
 async def app_action(
@@ -779,6 +863,35 @@ async def app_action(
             "status": "ok",
             "task_id": task_id,
             "message": f"Đã thêm tác vụ gỡ cài đặt {app['name']} vào danh sách tiến trình chạy ngầm (Task list)."
+        }
+
+    # 2.4 HÀNH ĐỘNG CẬP NHẬT ỨNG DỤNG / PHP (UPDATE / UPGRADE)
+    if req.action in ["update", "upgrade"]:
+        if os.path.isfile(gatekeeper_bin):
+            ver = req.version if req.version and req.version != "default" else app.get("default_version", "latest")
+            cmd = f"{gatekeeper_bin} update {req.app_id} {ver}"
+        elif app.get("category") == "php":
+            ver = app.get("default_version", "8.2")
+            script_path = f"{WPC_BASE}/scripts/apps/php.sh"
+            cmd = f"sudo bash {script_path} update {ver}"
+        else:
+            script_path = f"{WPC_BASE}/scripts/apps/{req.app_id}.sh"
+            if os.path.exists(script_path):
+                cmd = f"sudo bash {script_path} update"
+            else:
+                cmd = f"sudo DEBIAN_FRONTEND=noninteractive apt-get --only-upgrade install -y {req.app_id} || sudo dnf upgrade -y {req.app_id}"
+
+        task_id = await add_system_task(
+            user_id=current_user["id"],
+            action_name=f"Update [{app['name']}]",
+            cmd=cmd,
+            background_tasks=background_tasks
+        )
+
+        return {
+            "status": "ok",
+            "task_id": task_id,
+            "message": f"Đã thêm tác vụ cập nhật {app['name']} vào danh sách tiến trình chạy ngầm (Task list)."
         }
 
     # 2.5 HÀNH ĐỘNG THIẾT LẬP PHP CLI MẶC ĐỊNH HỆ THỐNG

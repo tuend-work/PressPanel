@@ -29,6 +29,7 @@ function show_help() {
     echo "  port <số>   - Đổi cổng truy cập panel (tránh trùng cổng khác)"
     echo "  fix-perms   - Chuẩn hóa quyền 0711 toàn bộ /home/* chống xem trộm file và fix lỗi 403"
     echo "  security [check|fix] - Kiểm tra hoặc áp dụng bảo mật tầng sâu chuẩn CloudLinux"
+    echo "  php <check|update|set-cli> [ver] - Kiểm tra và cập nhật PHP từ Remi/Ondřej PPA"
     echo "  help        - Hiển thị menu hướng dẫn này"
     echo "=========================================================="
 }
@@ -270,6 +271,31 @@ asyncio.run(reset_pass())
             echo "[-] Không tìm thấy script security_hardening.sh tại $INSTALL_DIR/scripts/"
             exit 1
         fi
+        ;;
+    php)
+        sub_act="${2:-check}"
+        php_ver="${3:-8.2}"
+        PHP_SCRIPT="$INSTALL_DIR/scripts/apps/php.sh"
+        [ -f "$PHP_SCRIPT" ] || PHP_SCRIPT="./scripts/apps/php.sh"
+        if [ ! -f "$PHP_SCRIPT" ]; then
+            echo "[-] Không tìm thấy script php.sh tại $INSTALL_DIR/scripts/apps/"
+            exit 1
+        fi
+        case "$sub_act" in
+            check|check-update)
+                sudo bash "$PHP_SCRIPT" check-update "$php_ver"
+                ;;
+            update|upgrade)
+                sudo bash "$PHP_SCRIPT" update "$php_ver"
+                ;;
+            set-cli)
+                sudo bash "$PHP_SCRIPT" set-cli "$php_ver"
+                ;;
+            *)
+                echo "[-] Cách dùng: wpc php <check|update|set-cli> [phiên bản, vd: 8.2, 8.3]"
+                exit 1
+                ;;
+        esac
         ;;
     help|--help|-h)
         show_help

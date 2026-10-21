@@ -21,29 +21,60 @@ detect_os() {
     fi
 }
 
+detect_el_maj() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        echo "${VERSION_ID%%.*}"
+    else
+        echo "9"
+    fi
+}
+
 OS=$(detect_os)
+EL_MAJ=$(detect_el_maj)
+
+ensure_repos() {
+    if command -v apt-get &>/dev/null; then
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -y || true
+        apt-get install -y software-properties-common lsb-release ca-certificates apt-transport-https || true
+
+        # Kích hoạt Ondřej PPA (ppa:ondrej/php) cho Ubuntu hoặc sury cho Debian
+        if [ "$OS" = "ubuntu" ]; then
+            if ! grep -rq "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
+                echo "[+] Kích hoạt Ondřej PPA (ppa:ondrej/php) trên Ubuntu..."
+                LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php || true
+                apt-get update -y || true
+            fi
+        elif [ "$OS" = "debian" ]; then
+            if [ ! -f /etc/apt/sources.list.d/php.list ] && ! grep -rq "deb.sury.org" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
+                echo "[+] Kích hoạt Ondřej Sury repository trên Debian..."
+                curl -sSLo /usr/share/keyrings/deb.sury.org-php.gpg https://packages.sury.org/php/apt.gpg 2>/dev/null || true
+                echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list || true
+                apt-get update -y || true
+            fi
+        fi
+    elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
+        PKG_MGR="dnf"
+        command -v dnf &>/dev/null || PKG_MGR="yum"
+
+        # Kích hoạt Remi và EPEL repository trên RHEL/AlmaLinux theo phiên bản EL
+        if ! rpm -q remi-release &>/dev/null; then
+            echo "[+] Cấu hình Remi repository trên RHEL/AlmaLinux ${EL_MAJ}..."
+            $PKG_MGR install -y epel-release || true
+            $PKG_MGR install -y "https://rpms.remirepo.net/enterprise/remi-release-${EL_MAJ}.rpm" 2>/dev/null || \
+            $PKG_MGR install -y "https://rpms.remirepo.net/enterprise/remi-release-9.rpm" 2>/dev/null || \
+            $PKG_MGR install -y "https://rpms.remirepo.net/enterprise/remi-release-8.rpm" 2>/dev/null || true
+        fi
+        $PKG_MGR config-manager --set-enabled remi 2>/dev/null || dnf config-manager --enable remi 2>/dev/null || true
+    fi
+}
 
 case "$ACTION" in
     install)
         echo "[+] Đang chuẩn bị cài đặt PHP-FPM $VERSION_CLEAN..."
+        ensure_repos
         if command -v apt-get &>/dev/null; then
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update -y || true
-            apt-get install -y software-properties-common lsb-release ca-certificates apt-transport-https || true
-            
-            # Nếu Ubuntu hoặc Debian, thêm repository ondrej/php nếu chưa có
-            if [ "$OS" = "ubuntu" ]; then
-                if ! grep -q "^deb .*ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
-                    add-apt-repository -y ppa:ondrej/php || true
-                    apt-get update -y || true
-                fi
-            elif [ "$OS" = "debian" ]; then
-                if [ ! -f /etc/apt/sources.list.d/php.list ]; then
-                    curl -sSLo /usr/share/keyrings/deb.sury.org-php.gpg https://packages.sury.org/php/apt.gpg 2>/dev/null || true
-                    echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list || true
-                    apt-get update -y || true
-                fi
-            fi
 
             # Cài đặt PHP-FPM và các module thiết yếu cho WordPress
             echo "[+] Đang cài đặt php${VERSION_CLEAN}-fpm cùng các module cho WordPress trên Debian/Ubuntu..."
@@ -281,6 +312,109 @@ EOF
         systemctl restart "${PHP_PKG_PREFIX}-php-fpm" 2>/dev/null || \
         systemctl restart "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
         echo "[+] Khởi động lại PHP-FPM $VERSION_CLEAN pool thành công!"
+        ;;
+
+    check-update)
+        # Kiểm tra phiên bản hiện tại và phiên bản candidate mới nhất trên repo (Remi / Ondrej)
+        echo "[+] Đang kiểm tra bản cập nhật cho PHP ${VERSION_CLEAN}..."
+        ensure_repos >/dev/null 2>&1 || true
+
+        CURRENT_VER="none"
+        LATEST_VER="none"
+        HAS_UPDATE=0
+        REPO_NAME="standard"
+
+        if command -v apt-get &>/dev/null; then
+            REPO_NAME="Ondřej PPA (ppa:ondrej/php)"
+            PKG_NAME="php${VERSION_CLEAN}-fpm"
+            if ! dpkg -s "$PKG_NAME" &>/dev/null; then
+                PKG_NAME="php${VERSION_CLEAN}-cli"
+            fi
+            
+            if dpkg -s "$PKG_NAME" &>/dev/null; then
+                POLICY=$(apt-cache policy "$PKG_NAME" 2>/dev/null || true)
+                CURRENT_VER=$(echo "$POLICY" | awk '/Installed:/ {print $2}')
+                LATEST_VER=$(echo "$POLICY" | awk '/Candidate:/ {print $2}')
+                if [ -n "$CURRENT_VER" ] && [ -n "$LATEST_VER" ] && [ "$CURRENT_VER" != "(none)" ] && [ "$LATEST_VER" != "(none)" ] && [ "$CURRENT_VER" != "$LATEST_VER" ]; then
+                    HAS_UPDATE=1
+                fi
+            fi
+        elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
+            REPO_NAME="Remi RPM Repository"
+            PKG_NAME="${PHP_PKG_PREFIX}-php-fpm"
+            if ! rpm -q "$PKG_NAME" &>/dev/null; then
+                PKG_NAME="${PHP_PKG_PREFIX}-php-cli"
+            fi
+
+            if rpm -q "$PKG_NAME" &>/dev/null; then
+                CURRENT_VER=$(rpm -q --qf '%{VERSION}-%{RELEASE}' "$PKG_NAME" 2>/dev/null || echo "installed")
+                PKG_MGR="dnf"
+                command -v dnf &>/dev/null || PKG_MGR="yum"
+                $PKG_MGR config-manager --set-enabled remi 2>/dev/null || true
+                UPD_CHECK=$($PKG_MGR check-update "$PKG_NAME" 2>/dev/null || true)
+                if echo "$UPD_CHECK" | grep -q "$PKG_NAME"; then
+                    HAS_UPDATE=1
+                    LATEST_VER=$(echo "$UPD_CHECK" | grep "$PKG_NAME" | awk '{print $2}' | head -n 1)
+                else
+                    LATEST_VER="$CURRENT_VER"
+                fi
+            fi
+        fi
+
+        # Lấy chính xác PHP semantic version
+        SEMANTIC_VER=""
+        if [ -x "/usr/bin/php${VERSION_CLEAN}" ]; then
+            SEMANTIC_VER=$(/usr/bin/php${VERSION_CLEAN} -r 'echo PHP_VERSION;' 2>/dev/null || true)
+        elif [ -x "/opt/remi/${PHP_PKG_PREFIX}/root/usr/bin/php" ]; then
+            SEMANTIC_VER=$(/opt/remi/${PHP_PKG_PREFIX}/root/usr/bin/php -r 'echo PHP_VERSION;' 2>/dev/null || true)
+        elif [ -x "/usr/local/lsws/lsphp${LSPHP_NUM}/bin/lsphp" ]; then
+            SEMANTIC_VER=$(/usr/local/lsws/lsphp${LSPHP_NUM}/bin/lsphp -r 'echo PHP_VERSION;' 2>/dev/null || true)
+        fi
+
+        CURRENT_SHOW="${SEMANTIC_VER:-$CURRENT_VER}"
+        LATEST_SHOW="${LATEST_VER}"
+        if [ "$HAS_UPDATE" -eq 0 ] && [ "$LATEST_SHOW" = "none" -o "$LATEST_SHOW" = "$CURRENT_VER" ]; then
+            LATEST_SHOW="$CURRENT_SHOW"
+        fi
+
+        echo "PHP_VERSION: $VERSION_CLEAN"
+        echo "CURRENT_VERSION: $CURRENT_SHOW"
+        echo "LATEST_VERSION: $LATEST_SHOW"
+        echo "HAS_UPDATE: $HAS_UPDATE"
+        echo "REPO_NAME: $REPO_NAME"
+        echo "CHECK_RESULT_JSON: {\"has_update\": $([ "$HAS_UPDATE" -eq 1 ] && echo "true" || echo "false"), \"current_version\": \"$CURRENT_SHOW\", \"latest_version\": \"$LATEST_SHOW\", \"repo\": \"$REPO_NAME\"}"
+        ;;
+
+    update|upgrade)
+        echo "[+] Đang cập nhật PHP ${VERSION_CLEAN} từ kho lưu trữ chính thức..."
+        ensure_repos
+        if command -v apt-get &>/dev/null; then
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -y || true
+            echo "[+] Nâng cấp các gói php${VERSION_CLEAN} và lsphp${LSPHP_NUM} qua Ondřej PPA..."
+            apt-get --only-upgrade install -y "php${VERSION_CLEAN}*" "lsphp${LSPHP_NUM}*" 2>/dev/null || \
+            apt-get install -y --only-upgrade "php${VERSION_CLEAN}-fpm" "php${VERSION_CLEAN}-cli" "php${VERSION_CLEAN}-common" || true
+            
+            systemctl restart "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
+            systemctl restart "wpc-php${VERSION_CLEAN}-fpm@*" 2>/dev/null || true
+            pkill -9 -f "lsphp${LSPHP_NUM}" 2>/dev/null || true
+            /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || true
+        elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
+            PKG_MGR="dnf"
+            command -v dnf &>/dev/null || PKG_MGR="yum"
+            $PKG_MGR config-manager --set-enabled remi 2>/dev/null || true
+            echo "[+] Nâng cấp các gói ${PHP_PKG_PREFIX} và lsphp${LSPHP_NUM} từ Remi RPM repository..."
+            $PKG_MGR upgrade -y "${PHP_PKG_PREFIX}*" "lsphp${LSPHP_NUM}*" 2>/dev/null || true
+            
+            systemctl restart "${PHP_PKG_PREFIX}-php-fpm" 2>/dev/null || true
+            systemctl restart "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
+            systemctl restart "wpc-php${VERSION_CLEAN}-fpm@*" 2>/dev/null || true
+            pkill -9 -f "lsphp${LSPHP_NUM}" 2>/dev/null || true
+            /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || true
+        fi
+        
+        /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true
+        echo "[+] Đã cập nhật PHP ${VERSION_CLEAN} lên phiên bản mới nhất hoàn tất!"
         ;;
 
     *)

@@ -36,6 +36,8 @@ static void show_help(void) {
     printf("  password    - Đổi mật khẩu tài khoản quản trị admin\n");
     printf("  port <số>   - Đổi cổng truy cập panel (tránh trùng cổng khác)\n");
     printf("  fix-perms   - Chuẩn hóa quyền 0711 toàn bộ /home/* chống xem trộm file và fix lỗi 403\n");
+    printf("  security [check|fix] - Kiểm tra hoặc áp dụng bảo mật tầng sâu chuẩn CloudLinux\n");
+    printf("  php <check|update|set-cli> [ver] - Kiểm tra và cập nhật PHP từ Remi/Ondřej PPA\n");
     printf("  help        - Hiển thị menu hướng dẫn này\n");
     printf("==========================================================\n");
 }
@@ -254,6 +256,24 @@ static void cmd_fix_perms(void) {
     (void)ret;
 }
 
+static void cmd_security(int argc, char *argv[]) {
+    const char *sub = (argc >= 3) ? argv[2] : "check";
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "sudo bash " INSTALL_DIR "/scripts/security_hardening.sh '%s'", sub);
+    int ret = system(cmd);
+    (void)ret;
+}
+
+static void cmd_php(int argc, char *argv[]) {
+    const char *sub = (argc >= 3) ? argv[2] : "check-update";
+    const char *ver = (argc >= 4) ? argv[3] : "8.2";
+    if (strcmp(sub, "check") == 0) sub = "check-update";
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "sudo bash " INSTALL_DIR "/scripts/apps/php.sh '%s' '%s'", sub, ver);
+    int ret = system(cmd);
+    (void)ret;
+}
+
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         show_help();
@@ -284,6 +304,10 @@ int main(int argc, char *argv[]) {
         cmd_password();
     } else if (strcmp(action, "fix-perms") == 0) {
         cmd_fix_perms();
+    } else if (strcmp(action, "security") == 0) {
+        cmd_security(argc, argv);
+    } else if (strcmp(action, "php") == 0) {
+        cmd_php(argc, argv);
     } else if (strcmp(action, "help") == 0 || strcmp(action, "--help") == 0 || strcmp(action, "-h") == 0) {
         show_help();
     } else {

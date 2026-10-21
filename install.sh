@@ -38,15 +38,36 @@ if [[ "$OS_ID" =~ ^(debian|ubuntu)$ ]]; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -y
     apt-get install -y build-essential gcc make python3 python3-venv python3-pip \
-                       sqlite3 libsqlite3-dev curl wget git quota certbot || \
+                       sqlite3 libsqlite3-dev curl wget git quota certbot \
+                       software-properties-common lsb-release ca-certificates apt-transport-https || \
     apt-get install -y build-essential gcc make python3 python3-venv python3-pip \
-                       sqlite3 libsqlite3-dev curl wget git quota
+                       sqlite3 libsqlite3-dev curl wget git quota software-properties-common
+
+    # Cấu hình Ondřej PPA cho Ubuntu hoặc Sury cho Debian để sẵn sàng cài đặt mọi phiên bản PHP
+    if [ "$OS_ID" = "ubuntu" ]; then
+        if ! grep -rq "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
+            echo "[+] Kích hoạt Ondřej PPA (ppa:ondrej/php) trên Ubuntu..."
+            LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php || true
+            apt-get update -y || true
+        fi
+    elif [ "$OS_ID" = "debian" ]; then
+        if [ ! -f /etc/apt/sources.list.d/php.list ] && ! grep -rq "deb.sury.org" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
+            echo "[+] Kích hoạt Ondřej Sury repository trên Debian..."
+            curl -sSLo /usr/share/keyrings/deb.sury.org-php.gpg https://packages.sury.org/php/apt.gpg 2>/dev/null || true
+            echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list || true
+            apt-get update -y || true
+        fi
+    fi
 elif [[ "$OS_ID" =~ ^(almalinux|rocky|rhel|centos)$ ]]; then
-    # 1. Kích hoạt EPEL và Remi repository (bắt buộc cho certbot, đa phiên bản PHP Remi trên RHEL/AlmaLinux)
-    echo "[+] Kích hoạt repository EPEL và Remi..."
+    # 1. Kích hoạt EPEL và Remi repository theo phiên bản Enterprise Linux (bắt buộc cho certbot, đa phiên bản PHP Remi trên RHEL/AlmaLinux)
+    EL_MAJ="${OS_VERSION_ID%%.*}"
+    [ -z "$EL_MAJ" ] && EL_MAJ="9"
+    echo "[+] Kích hoạt repository EPEL và Remi cho Enterprise Linux ${EL_MAJ} (AlmaLinux/RHEL)..."
     dnf install -y epel-release || true
-    dnf install -y "https://rpms.remirepo.net/enterprise/remi-release-8.rpm" 2>/dev/null || \
-    dnf install -y "https://rpms.remirepo.net/enterprise/remi-release-9.rpm" 2>/dev/null || true
+    dnf install -y "https://rpms.remirepo.net/enterprise/remi-release-${EL_MAJ}.rpm" 2>/dev/null || \
+    dnf install -y "https://rpms.remirepo.net/enterprise/remi-release-9.rpm" 2>/dev/null || \
+    dnf install -y "https://rpms.remirepo.net/enterprise/remi-release-8.rpm" 2>/dev/null || true
+    dnf config-manager --set-enabled remi 2>/dev/null || true
 
     # 2. Kích hoạt CodeReady Builder (CRB) hoặc PowerTools
     echo "[+] Kích hoạt repository CRB / PowerTools..."
