@@ -160,7 +160,7 @@ define('NONCE_SALT',       '$(head -c 32 /dev/urandom | base64)');"
 <?php
 /**
  * The base configuration for WordPress
- * Generated automatically by PressPanel (WPCloud)
+ * Generated automatically by WPC
  */
 
 define( 'DB_NAME', '$DB_NAME' );
@@ -174,7 +174,7 @@ $SALT_KEYS
 
 \$table_prefix = '$DB_PREFIX';
 
-/* PressPanel Security & Performance Defaults */
+/* WPC Security & Performance Defaults */
 define( 'WP_DEBUG', false );
 define( 'WP_DEBUG_LOG', false );
 define( 'WP_DEBUG_DISPLAY', false );
@@ -470,7 +470,7 @@ EOF_SCHEMA
 if (isset(\$_GET['wpc_sso_token']) && \$_GET['wpc_sso_token'] === '$TOKEN') {
     if (time() - $NOW_TS > 60) {
         @unlink(__FILE__);
-        wp_die('Lien ket Magic Login da het han (60 giay). Vui long tao lai tu PressPanel.');
+        wp_die('Lien ket Magic Login da het han (60 giay). Vui long tao lai tu WPC.');
     }
     add_action('init', function() {
         @unlink(__FILE__);

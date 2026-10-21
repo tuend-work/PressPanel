@@ -6,7 +6,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field
 
-from app.core.security import get_current_user
+from app.api.deps import get_current_user
 from app.db.session import get_db_connection
 
 router = APIRouter(prefix="/crons", tags=["Cronjobs Manager"])

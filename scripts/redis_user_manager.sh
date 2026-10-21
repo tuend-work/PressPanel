@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# PressPanel: Redis / Valkey Object Cache Socket Per User Manager
+# WPC: Redis / Valkey Object Cache Socket Per User Manager
 # Quản lý Socket Redis/Valkey cách ly riêng biệt cho từng tài khoản Website User
 # Socket: /home/{user}/.redis/redis.sock
 # ==============================================================================
@@ -83,7 +83,7 @@ generate_conf() {
     chmod 775 "$REDIS_DIR" 2>/dev/null || true
 
     cat <<EOF > "$CONF_FILE"
-# PressPanel Redis/Valkey Socket Per User
+# WPC Redis/Valkey Socket Per User
 port 0
 unixsocket $SOCK_FILE
 unixsocketperm 777

@@ -37,7 +37,7 @@ ACTION="${1:-help}"
 case "$ACTION" in
     update)
         echo "[+] Bắt đầu cập nhật WPCloud Control Panel lên phiên bản mới nhất từ GitHub..."
-        OLD_VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || cat "/opt/presspanel/VERSION" 2>/dev/null || echo "0.0.0")
+        OLD_VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "0.0.0")
         export WPC_PREV_VER="$OLD_VER"
         TMP_RUNNER=$(mktemp /tmp/wpc_update_runner_XXXXXX.sh 2>/dev/null || echo "/tmp/wpc_update_$$.sh")
         # Ưu tiên tải update.sh mới nhất trực tiếp từ GitHub
@@ -75,7 +75,7 @@ case "$ACTION" in
         sudo bash "$INSTALL_DIR/scripts/reinstall.sh"
         ;;
     status)
-        VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || cat "/opt/presspanel/VERSION" 2>/dev/null || echo "Unknown")
+        VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "Unknown")
         if [ -f "/etc/systemd/system/wpc.service" ] && ! grep -q "Server v${VER}" /etc/systemd/system/wpc.service 2>/dev/null; then
             sudo sed -i "s/Description=.*/Description=WPCloud Control Panel Server v${VER} (FastAPI + Asyncio)/" /etc/systemd/system/wpc.service 2>/dev/null || true
             sudo systemctl daemon-reload 2>/dev/null || true

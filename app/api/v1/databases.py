@@ -572,7 +572,7 @@ async def user_redis_apply_wp(
             content = f.read()
 
         redis_snippet = (
-            f"\n// PressPanel Redis Socket Per User\n"
+            f"\n// WPC Redis Socket Per User\n"
             f"if ( ! defined( 'WP_REDIS_SCHEME' ) ) {{\n"
             f"    define( 'WP_REDIS_SCHEME', 'unix' );\n"
             f"}}\n"

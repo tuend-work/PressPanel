@@ -7,7 +7,7 @@ import time
 import asyncio
 import platform
 from typing import List, Optional, Dict
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from app.api.deps import get_current_user
 from app.db.session import get_db_connection
@@ -1647,7 +1647,7 @@ async def save_domain_php_extensions(
     ext_lines = [
         "",
         "; --- PHP EXTENSIONS CONFIGURATION ---",
-        f"; Managed by PressPanel for {clean_domain}"
+        f"; Managed by WPC for {clean_domain}"
     ]
 
     opcache_on = req.extensions.get("opcache", True)
