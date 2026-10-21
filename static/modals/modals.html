@@ -104,6 +104,12 @@
                             class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
                             <span>🚀 FPM Settings</span>
                         </button>
+                        <button v-else
+                            type="button" @click="phpModalTab = 'lsapi'; loadDomainLsapiSettings(targetPhpDomain)"
+                            :class="phpModalTab === 'lsapi' ? 'border-cyan-500 text-cyan-400 font-bold bg-cyan-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
+                            class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
+                            <span>⚡ LSAPI Settings</span>
+                        </button>
                     </div>
 
                     <!-- TAB 1: ĐỔI PHIÊN BẢN PHP -->
@@ -578,7 +584,7 @@
                                     </div>
                                 </div>
 
-                                <!-- CONTROL BUTTONS: Start, Stop, Restart, Reload -->
+                                <!-- CONTROL BUTTONS -->
                                 <div class="pt-2 border-t border-slate-700/60 flex flex-wrap gap-2">
                                     <button type="button" @click="controlDomainFpm('start')" :disabled="controllingFpm"
                                         class="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 font-semibold transition flex items-center space-x-1 shadow-sm">
@@ -606,6 +612,42 @@
                                 </div>
                             </div>
 
+                            <!-- 1-Click Quick Presets for FPM -->
+                            <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-2">
+                                <span class="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                                    <span>🎯</span>
+                                    <span>Cấu hình mẫu tối ưu nhanh (1-Click FPM Presets):</span>
+                                </span>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    <button type="button" @click="applyFpmPreset('ram_saving')"
+                                        :class="domainFpmData.settings.pm === 'ondemand' ? 'border-emerald-500 bg-emerald-500/10' : 'border-slate-700 bg-slate-900/80 hover:bg-slate-800'"
+                                        class="p-2 rounded-lg border text-left transition">
+                                        <div class="font-bold text-emerald-400 text-[11px] flex items-center gap-1">
+                                            <span>🌱</span> Tiết Kiệm RAM
+                                        </div>
+                                        <div class="text-[10px] text-slate-400 mt-0.5">Mode ondemand &bull; 5 workers</div>
+                                    </button>
+
+                                    <button type="button" @click="applyFpmPreset('balanced')"
+                                        :class="domainFpmData.settings.pm === 'dynamic' ? 'border-amber-500 bg-amber-500/10' : 'border-slate-700 bg-slate-900/80 hover:bg-slate-800'"
+                                        class="p-2 rounded-lg border text-left transition">
+                                        <div class="font-bold text-amber-400 text-[11px] flex items-center gap-1">
+                                            <span>⚖️</span> Cân Bằng (Chuẩn)
+                                        </div>
+                                        <div class="text-[10px] text-slate-400 mt-0.5">Mode dynamic &bull; 10 workers</div>
+                                    </button>
+
+                                    <button type="button" @click="applyFpmPreset('high_perf')"
+                                        :class="domainFpmData.settings.pm === 'static' ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700 bg-slate-900/80 hover:bg-slate-800'"
+                                        class="p-2 rounded-lg border text-left transition">
+                                        <div class="font-bold text-blue-400 text-[11px] flex items-center gap-1">
+                                            <span>⚡</span> Hiệu Năng Cao
+                                        </div>
+                                        <div class="text-[10px] text-slate-400 mt-0.5">Mode static &bull; 20 workers</div>
+                                    </button>
+                                </div>
+                            </div>
+
                             <!-- Mode Switcher: Form vs Raw Config Editor -->
                             <div class="flex items-center justify-between border-b border-slate-700/80 pb-2">
                                 <label class="font-bold text-slate-200">Cấu hình tham số PHP-FPM Pool:</label>
@@ -624,67 +666,190 @@
                             </div>
 
                             <!-- FORM MODE -->
-                            <div v-if="fpmConfigMode === 'form'" class="space-y-3">
+                            <div v-if="fpmConfigMode === 'form'" class="space-y-3.5">
+                                <!-- PM MODE SELECTOR (TRỌNG TÂM) -->
+                                <div class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700 space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <label class="font-bold text-white text-xs flex items-center gap-1.5">
+                                            <span class="text-amber-400">⚙️</span>
+                                            <span>Chế Độ Quản Lý Tiến Trình (pm - Process Manager):</span>
+                                        </label>
+                                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-amber-300 border border-slate-700 uppercase font-bold">
+                                            pm = {{ domainFpmData.settings.pm }}
+                                        </span>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                                        <div @click="domainFpmData.settings.pm = 'dynamic'"
+                                            :class="domainFpmData.settings.pm === 'dynamic' ? 'ring-2 ring-amber-500 bg-amber-500/15 border-amber-500' : 'bg-slate-900/60 border-slate-700/80 hover:bg-slate-800/60'"
+                                            class="p-2.5 rounded-xl border cursor-pointer transition flex flex-col justify-between">
+                                            <div>
+                                                <div class="font-bold text-white text-xs flex items-center gap-1">
+                                                    <span>🔄</span> Dynamic
+                                                </div>
+                                                <p class="text-[10px] text-slate-300 mt-1 leading-snug">
+                                                    Tự động co giãn theo tải. Khởi động với <code>start_servers</code>, duy trì <code>spare</code> tối thiểu/tối đa.
+                                                </p>
+                                            </div>
+                                            <span class="text-[9px] text-amber-400 font-semibold mt-2">Mặc định / Đa dụng</span>
+                                        </div>
+
+                                        <div @click="domainFpmData.settings.pm = 'ondemand'"
+                                            :class="domainFpmData.settings.pm === 'ondemand' ? 'ring-2 ring-emerald-500 bg-emerald-500/15 border-emerald-500' : 'bg-slate-900/60 border-slate-700/80 hover:bg-slate-800/60'"
+                                            class="p-2.5 rounded-xl border cursor-pointer transition flex flex-col justify-between">
+                                            <div>
+                                                <div class="font-bold text-white text-xs flex items-center gap-1">
+                                                    <span>🌱</span> On-Demand
+                                                </div>
+                                                <p class="text-[10px] text-slate-300 mt-1 leading-snug">
+                                                    Không tạo worker trước. Chỉ sinh tiến trình khi có request, tự tắt sau thời gian nhàn rỗi (idle).
+                                                </p>
+                                            </div>
+                                            <span class="text-[9px] text-emerald-400 font-semibold mt-2">Tiết kiệm RAM nhất</span>
+                                        </div>
+
+                                        <div @click="domainFpmData.settings.pm = 'static'"
+                                            :class="domainFpmData.settings.pm === 'static' ? 'ring-2 ring-blue-500 bg-blue-500/15 border-blue-500' : 'bg-slate-900/60 border-slate-700/80 hover:bg-slate-800/60'"
+                                            class="p-2.5 rounded-xl border cursor-pointer transition flex flex-col justify-between">
+                                            <div>
+                                                <div class="font-bold text-white text-xs flex items-center gap-1">
+                                                    <span>⚡</span> Static
+                                                </div>
+                                                <p class="text-[10px] text-slate-300 mt-1 leading-snug">
+                                                    Cố định chính xác <code>max_children</code> worker thường trực trong RAM. Tốc độ cao nhất, không delay fork.
+                                                </p>
+                                            </div>
+                                            <span class="text-[9px] text-blue-400 font-semibold mt-2">Hiệu năng cao / Traffic lớn</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Dynamic Input Fields based on PM mode -->
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <!-- pm mode -->
+                                    <!-- pm.max_children (Cả 3 mode đều cần) -->
                                     <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
-                                        <label class="font-bold text-slate-200 block">pm (Process Manager)</label>
-                                        <select v-model="domainFpmData.settings.pm"
+                                        <div class="flex items-center justify-between">
+                                            <label class="font-bold text-slate-200">pm.max_children</label>
+                                            <span class="text-[10px] text-slate-400">Số worker tối đa</span>
+                                        </div>
+                                        <input type="number" min="1" max="200" v-model.number="domainFpmData.settings.pm_max_children"
                                             class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
-                                            <option value="dynamic">dynamic — Tự động co giãn theo tải (Khuyên dùng)</option>
-                                            <option value="ondemand">ondemand — Chỉ bật worker khi có request</option>
-                                            <option value="static">static — Cố định số worker</option>
-                                        </select>
+                                        <p class="text-[10px] text-slate-400">Giới hạn số tiến trình con PHP tối đa chạy song song.</p>
                                     </div>
 
-                                    <!-- pm.max_children -->
-                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
-                                        <label class="font-bold text-slate-200 block">pm.max_children (Tiến trình tối đa)</label>
-                                        <input type="number" min="1" max="100" v-model.number="domainFpmData.settings.pm_max_children"
-                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                    <!-- pm.process_idle_timeout (Chỉ cho mode ondemand) -->
+                                    <div v-if="domainFpmData.settings.pm === 'ondemand'" class="p-3 rounded-xl bg-slate-800/60 border border-emerald-500/30 space-y-1.5">
+                                        <div class="flex items-center justify-between">
+                                            <label class="font-bold text-emerald-300">pm.process_idle_timeout</label>
+                                            <span class="text-[10px] text-emerald-400 font-mono">Dành riêng ondemand</span>
+                                        </div>
+                                        <div class="flex gap-1.5">
+                                            <input type="text" v-model="domainFpmData.settings.pm_process_idle_timeout" placeholder="10s"
+                                                class="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-emerald-500">
+                                            <div class="flex gap-1">
+                                                <button v-for="t in ['10s', '30s', '60s']" :key="'idle_' + t" type="button"
+                                                    @click="domainFpmData.settings.pm_process_idle_timeout = t"
+                                                    class="px-2 py-1 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-200 font-mono">
+                                                    {{ t }}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <p class="text-[10px] text-slate-400">Thời gian tiến trình nhàn rỗi trước khi tự động hủy để giải phóng RAM.</p>
                                     </div>
 
-                                    <!-- pm.start_servers -->
-                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
-                                        <label class="font-bold text-slate-200 block">pm.start_servers</label>
+                                    <!-- pm.start_servers (Chỉ cho dynamic) -->
+                                    <div v-if="domainFpmData.settings.pm === 'dynamic'" class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                        <div class="flex items-center justify-between">
+                                            <label class="font-bold text-slate-200">pm.start_servers</label>
+                                            <span class="text-[10px] text-slate-400">Khởi động sẵn</span>
+                                        </div>
                                         <input type="number" min="1" max="100" v-model.number="domainFpmData.settings.pm_start_servers"
                                             class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                        <p class="text-[10px] text-slate-400">Số tiến trình được tạo ngay khi service khởi động.</p>
                                     </div>
 
-                                    <!-- pm.min_spare_servers -->
-                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
-                                        <label class="font-bold text-slate-200 block">pm.min_spare_servers</label>
+                                    <!-- pm.min_spare_servers (Chỉ cho dynamic) -->
+                                    <div v-if="domainFpmData.settings.pm === 'dynamic'" class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                        <div class="flex items-center justify-between">
+                                            <label class="font-bold text-slate-200">pm.min_spare_servers</label>
+                                            <span class="text-[10px] text-slate-400">Dự phòng tối thiểu</span>
+                                        </div>
                                         <input type="number" min="1" max="100" v-model.number="domainFpmData.settings.pm_min_spare_servers"
                                             class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
                                     </div>
 
-                                    <!-- pm.max_spare_servers -->
-                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
-                                        <label class="font-bold text-slate-200 block">pm.max_spare_servers</label>
+                                    <!-- pm.max_spare_servers (Chỉ cho dynamic) -->
+                                    <div v-if="domainFpmData.settings.pm === 'dynamic'" class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                        <div class="flex items-center justify-between">
+                                            <label class="font-bold text-slate-200">pm.max_spare_servers</label>
+                                            <span class="text-[10px] text-slate-400">Dự phòng tối đa</span>
+                                        </div>
                                         <input type="number" min="1" max="100" v-model.number="domainFpmData.settings.pm_max_spare_servers"
                                             class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
                                     </div>
 
                                     <!-- pm.max_requests -->
                                     <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
-                                        <label class="font-bold text-slate-200 block">pm.max_requests (Tái sinh sau n request)</label>
-                                        <input type="number" min="0" max="10000" v-model.number="domainFpmData.settings.pm_max_requests"
+                                        <div class="flex items-center justify-between">
+                                            <label class="font-bold text-slate-200">pm.max_requests</label>
+                                            <span class="text-[10px] text-slate-400">Tái sinh worker</span>
+                                        </div>
+                                        <input type="number" min="0" max="50000" v-model.number="domainFpmData.settings.pm_max_requests"
                                             class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                        <p class="text-[10px] text-slate-400">Tái khởi động worker sau n requests để giải phóng RAM triệt để (0 = không giới hạn).</p>
+                                    </div>
+                                </div>
+
+                                <!-- ADVANCED TIMEOUT & RUNTIME SETTINGS -->
+                                <div class="p-3.5 rounded-xl bg-slate-800/40 border border-slate-700/60 space-y-3">
+                                    <div class="font-bold text-slate-300 text-xs flex items-center gap-1.5 border-b border-slate-700/60 pb-2">
+                                        <span>⚙️</span>
+                                        <span>Các thông số kiểm soát & Timeouts nâng cao:</span>
                                     </div>
 
-                                    <!-- request_terminate_timeout -->
-                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
-                                        <label class="font-bold text-slate-200 block">request_terminate_timeout</label>
-                                        <input type="text" v-model="domainFpmData.settings.request_terminate_timeout"
-                                            placeholder="0s hoặc 300s"
-                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <!-- request_terminate_timeout -->
+                                        <div>
+                                            <label class="font-bold text-slate-300 block mb-1">request_terminate_timeout:</label>
+                                            <input type="text" v-model="domainFpmData.settings.request_terminate_timeout" placeholder="0s hoặc 300s"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Tự động kill worker nếu 1 request chạy vượt quá thời gian này (0s = tắt).</span>
+                                        </div>
+
+                                        <!-- request_slowlog_timeout -->
+                                        <div>
+                                            <label class="font-bold text-slate-300 block mb-1">request_slowlog_timeout:</label>
+                                            <input type="text" v-model="domainFpmData.settings.request_slowlog_timeout" placeholder="0s hoặc 5s"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                            <span class="text-[10px] text-slate-400 mt-0.5 block">Ghi lại vết stacktrace nếu request xử lý chậm hơn n giây (0s = tắt).</span>
+                                        </div>
+
+                                        <!-- catch_workers_output -->
+                                        <div>
+                                            <label class="font-bold text-slate-300 block mb-1">catch_workers_output:</label>
+                                            <select v-model="domainFpmData.settings.catch_workers_output"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                                <option value="yes">yes — Bắt toàn bộ stdout/stderr của worker vào error log (Khuyên dùng)</option>
+                                                <option value="no">no — Không thu thập output của worker</option>
+                                            </select>
+                                        </div>
+
+                                        <!-- clear_env -->
+                                        <div>
+                                            <label class="font-bold text-slate-300 block mb-1">clear_env:</label>
+                                            <select v-model="domainFpmData.settings.clear_env"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                                <option value="no">no — Cho phép đọc các biến môi trường hệ thống (Khuyên dùng)</option>
+                                                <option value="yes">yes — Xóa trắng biến môi trường trong worker</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- RAW MODE -->
                             <div v-else class="space-y-1.5">
-                                <textarea v-model="domainFpmData.raw_config" rows="12"
+                                <textarea v-model="domainFpmData.raw_config" rows="14"
                                     class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-amber-300 font-mono text-xs focus:outline-none focus:border-amber-500 resize-none custom-scrollbar leading-relaxed"></textarea>
                             </div>
                         </div>
@@ -707,6 +872,286 @@
                                     class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white font-bold shadow-lg shadow-amber-500/25 transition flex items-center space-x-1.5 disabled:opacity-50">
                                     <span v-if="savingDomainFpm" class="animate-spin">⏳</span>
                                     <span>{{ savingDomainFpm ? 'Đang lưu & Reload...' : 'Lưu & Tự Động Reload Service' }}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 5: OPENLITESPEED LSAPI PROCESS SETTINGS (OLS EXCLUSIVE) -->
+                    <div v-if="phpModalTab === 'lsapi'" class="space-y-4 text-xs overflow-y-auto pr-1 flex-1">
+                        <!-- Loading State -->
+                        <div v-if="loadingDomainLsapi" class="py-8 text-center text-slate-400">
+                            <span class="animate-spin text-lg inline-block mr-2">⏳</span> Đang đọc thông số OpenLiteSpeed LSAPI Processor...
+                        </div>
+
+                        <div v-else class="space-y-4">
+                            <!-- Banner chi tiết LSAPI Processor -->
+                            <div class="p-4 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-3 shadow-inner">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <div class="text-slate-400 text-xs">External Application (LSAPI Processor):</div>
+                                        <div class="font-bold text-white text-sm font-mono mt-0.5 flex items-center gap-2">
+                                            <span>{{ domainLsapiData?.processor_name || ('lsphp_' + targetPhpDomain?.domain_name?.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)) }}</span>
+                                            <span class="text-[10px] px-2 py-0.5 rounded font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                                                LiteSpeed SAPI (lsapi)
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="px-2.5 py-1 rounded-full text-xs font-mono font-semibold flex items-center gap-1.5"
+                                            :class="domainLsapiData?.service_status === 'active' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : (domainLsapiData?.service_status === 'idle' ? 'bg-blue-500/15 text-blue-300 border border-blue-500/30' : 'bg-slate-700 text-slate-300')">
+                                            <span class="w-2 h-2 rounded-full" :class="domainLsapiData?.service_status === 'active' ? 'bg-emerald-400 animate-pulse' : (domainLsapiData?.service_status === 'idle' ? 'bg-blue-400' : 'bg-slate-400')"></span>
+                                            <span>{{ domainLsapiData?.service_status === 'active' ? 'Active (Workers Running)' : (domainLsapiData?.service_status === 'idle' ? 'Idle (On-Demand Ready)' : 'Inactive') }}</span>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Metric Badges: PID, Memory, Socket -->
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
+                                    <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-700/60">
+                                        <div class="text-slate-400">Master Worker PID:</div>
+                                        <div class="font-bold text-slate-200 font-mono mt-0.5">{{ domainLsapiData?.pid || 'Tự động tạo khi có khách' }}</div>
+                                    </div>
+                                    <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-700/60">
+                                        <div class="text-slate-400">Bộ nhớ LSPHP RAM:</div>
+                                        <div class="font-bold text-slate-200 font-mono mt-0.5">{{ domainLsapiData?.memory_mb ? domainLsapiData.memory_mb + ' MB' : '0 MB (On-Demand)' }}</div>
+                                    </div>
+                                    <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-700/60">
+                                        <div class="text-slate-400">Unix Domain Socket:</div>
+                                        <div class="font-bold font-mono mt-0.5 truncate" :class="domainLsapiData?.sock_exists ? 'text-emerald-400' : 'text-cyan-400'" :title="domainLsapiData?.sock_path">
+                                            {{ domainLsapiData?.sock_exists ? '✓ Đang lắng nghe' : 'Sẵn sàng theo nhu cầu' }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="text-[11px] text-slate-400 space-y-1 pt-1 border-t border-slate-700/60">
+                                    <div class="flex justify-between items-center">
+                                        <span>Đường dẫn Socket:</span>
+                                        <code class="text-cyan-300 font-mono text-[10px] bg-slate-900 px-2 py-0.5 rounded">{{ domainLsapiData?.sock_path }}</code>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span>File cấu hình VHost:</span>
+                                        <code class="text-slate-300 font-mono text-[10px] bg-slate-900 px-2 py-0.5 rounded">{{ domainLsapiData?.conf_path }}</code>
+                                    </div>
+                                </div>
+
+                                <!-- CONTROL BUTTONS -->
+                                <div class="pt-2 border-t border-slate-700/60 flex flex-wrap gap-2">
+                                    <button type="button" @click="controlDomainLsapi('restart')" :disabled="controllingLsapi"
+                                        class="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 font-semibold transition flex items-center space-x-1 shadow-sm">
+                                        <span>🔄</span>
+                                        <span>Khởi Động Lại LSPHP Pool</span>
+                                    </button>
+                                    <span v-if="controllingLsapi" class="text-cyan-400 text-xs self-center ml-2 animate-pulse">
+                                        ⏳ Đang reload tiến trình OpenLiteSpeed...
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- 1-Click Quick Presets for LSAPI -->
+                            <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-2">
+                                <span class="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                                    <span>🎯</span>
+                                    <span>Cấu hình mẫu tối ưu nhanh (1-Click LSAPI Presets):</span>
+                                </span>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    <button type="button" @click="applyLsapiPreset('ram_saving')"
+                                        :class="domainLsapiData.settings.lsapi_mode === 'ondemand' ? 'border-emerald-500 bg-emerald-500/10' : 'border-slate-700 bg-slate-900/80 hover:bg-slate-800'"
+                                        class="p-2 rounded-lg border text-left transition">
+                                        <div class="font-bold text-emerald-400 text-[11px] flex items-center gap-1">
+                                            <span>🌱</span> Tiết Kiệm RAM (On-Demand)
+                                        </div>
+                                        <div class="text-[10px] text-slate-400 mt-0.5">AVOID_FORK=0 &bull; 5 workers</div>
+                                    </button>
+
+                                    <button type="button" @click="applyLsapiPreset('balanced')"
+                                        :class="domainLsapiData.settings.lsapi_mode === 'avoid_fork' && domainLsapiData.settings.lsapi_children <= 10 ? 'border-cyan-500 bg-cyan-500/10' : 'border-slate-700 bg-slate-900/80 hover:bg-slate-800'"
+                                        class="p-2 rounded-lg border text-left transition">
+                                        <div class="font-bold text-cyan-400 text-[11px] flex items-center gap-1">
+                                            <span>⚖️</span> Cân Bằng (Pre-Fork)
+                                        </div>
+                                        <div class="text-[10px] text-slate-400 mt-0.5">AVOID_FORK=1 &bull; 10 workers</div>
+                                    </button>
+
+                                    <button type="button" @click="applyLsapiPreset('high_perf')"
+                                        :class="domainLsapiData.settings.lsapi_children > 10 ? 'border-amber-500 bg-amber-500/10' : 'border-slate-700 bg-slate-900/80 hover:bg-slate-800'"
+                                        class="p-2 rounded-lg border text-left transition">
+                                        <div class="font-bold text-amber-400 text-[11px] flex items-center gap-1">
+                                            <span>⚡</span> Turbo High Traffic
+                                        </div>
+                                        <div class="text-[10px] text-slate-400 mt-0.5">AVOID_FORK=1 &bull; 25 workers</div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Mode Switcher: Form vs Raw Config Editor -->
+                            <div class="flex items-center justify-between border-b border-slate-700/80 pb-2">
+                                <label class="font-bold text-slate-200">Cấu hình tham số OpenLiteSpeed LSAPI:</label>
+                                <div class="flex rounded-lg bg-slate-900 p-0.5 border border-slate-700">
+                                    <button type="button" @click="lsapiConfigMode = 'form'"
+                                        :class="lsapiConfigMode === 'form' ? 'bg-cyan-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                        class="px-2.5 py-1 text-[11px] rounded transition">
+                                        Biểu mẫu (Form)
+                                    </button>
+                                    <button type="button" @click="lsapiConfigMode = 'raw'"
+                                        :class="lsapiConfigMode === 'raw' ? 'bg-cyan-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                        class="px-2.5 py-1 text-[11px] rounded transition">
+                                        Khối extprocessor
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- FORM MODE -->
+                            <div v-if="lsapiConfigMode === 'form'" class="space-y-3.5">
+                                <!-- LSAPI MODE SELECTOR (TRỌNG TÂM: LSAPI_AVOID_FORK) -->
+                                <div class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700 space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <label class="font-bold text-white text-xs flex items-center gap-1.5">
+                                            <span class="text-cyan-400">⚡</span>
+                                            <span>Chế Độ Thực Thi LSAPI (LSAPI Process Mode):</span>
+                                        </label>
+                                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-cyan-300 border border-slate-700 font-bold">
+                                            AVOID_FORK = {{ domainLsapiData.settings.lsapi_avoid_fork }}
+                                        </span>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                                        <div @click="domainLsapiData.settings.lsapi_mode = 'avoid_fork'; domainLsapiData.settings.lsapi_avoid_fork = '1'"
+                                            :class="domainLsapiData.settings.lsapi_avoid_fork !== '0' ? 'ring-2 ring-cyan-500 bg-cyan-500/15 border-cyan-500' : 'bg-slate-900/60 border-slate-700/80 hover:bg-slate-800/60'"
+                                            class="p-3 rounded-xl border cursor-pointer transition flex flex-col justify-between">
+                                            <div>
+                                                <div class="font-bold text-white text-xs flex items-center gap-1.5">
+                                                    <span>🚀</span> Avoid Fork / Pre-fork Mode (Khuyên dùng)
+                                                </div>
+                                                <p class="text-[10px] text-slate-300 mt-1.5 leading-relaxed">
+                                                    Worker được khởi động sẵn và thường trực trong RAM. Tái sử dụng tiến trình ngay lập tức, triệt tiêu độ trễ fork lại. Phù hợp đa số website WordPress & WooCommerce.
+                                                </p>
+                                            </div>
+                                            <span class="text-[9px] text-cyan-400 font-semibold mt-2">LSAPI_AVOID_FORK=1 &bull; Tốc độ tối ưu</span>
+                                        </div>
+
+                                        <div @click="domainLsapiData.settings.lsapi_mode = 'ondemand'; domainLsapiData.settings.lsapi_avoid_fork = '0'"
+                                            :class="domainLsapiData.settings.lsapi_avoid_fork === '0' ? 'ring-2 ring-emerald-500 bg-emerald-500/15 border-emerald-500' : 'bg-slate-900/60 border-slate-700/80 hover:bg-slate-800/60'"
+                                            class="p-3 rounded-xl border cursor-pointer transition flex flex-col justify-between">
+                                            <div>
+                                                <div class="font-bold text-white text-xs flex items-center gap-1.5">
+                                                    <span>🌱</span> On-Demand Fork Mode (Tiết kiệm RAM)
+                                                </div>
+                                                <p class="text-[10px] text-slate-300 mt-1.5 leading-relaxed">
+                                                    Chỉ fork worker khi có truy cập thực sự. Khi website nhàn rỗi, worker tự tắt trả lại RAM cho hệ điều hành. Rất lý tưởng cho VPS cấu hình thấp hoặc máy chủ chạy hàng chục website phụ.
+                                                </p>
+                                            </div>
+                                            <span class="text-[9px] text-emerald-400 font-semibold mt-2">LSAPI_AVOID_FORK=0 &bull; Tiết kiệm bộ nhớ</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- WORKER & CONNECTION NUMBERS -->
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <!-- LSAPI_CHILDREN -->
+                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                        <div class="flex items-center justify-between">
+                                            <label class="font-bold text-slate-200">LSAPI_CHILDREN</label>
+                                            <span class="text-[10px] text-slate-400">Tiến trình worker con</span>
+                                        </div>
+                                        <input type="number" min="1" max="200" v-model.number="domainLsapiData.settings.lsapi_children"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                        <p class="text-[10px] text-slate-400">Số lượng worker con tối đa được phép sinh ra (Tương đương pm.max_children trong PHP-FPM).</p>
+                                    </div>
+
+                                    <!-- maxConns -->
+                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                        <div class="flex items-center justify-between">
+                                            <label class="font-bold text-slate-200">maxConns</label>
+                                            <span class="text-[10px] text-slate-400">Kết nối đồng thời</span>
+                                        </div>
+                                        <input type="number" min="1" max="200" v-model.number="domainLsapiData.settings.max_conns"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                        <p class="text-[10px] text-slate-400">Số kết nối đồng thời tối đa giữa OpenLiteSpeed và LSPHP pool.</p>
+                                    </div>
+
+                                    <!-- PHP_LSAPI_MAX_REQUESTS -->
+                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                        <div class="flex items-center justify-between">
+                                            <label class="font-bold text-slate-200">PHP_LSAPI_MAX_REQUESTS</label>
+                                            <span class="text-[10px] text-slate-400">Tái sinh tiến trình</span>
+                                        </div>
+                                        <input type="number" min="0" max="50000" v-model.number="domainLsapiData.settings.max_requests"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                        <p class="text-[10px] text-slate-400">Số lượt request tối đa mỗi worker xử lý trước khi tái tạo (chống rò rỉ bộ nhớ).</p>
+                                    </div>
+
+                                    <!-- persistConn -->
+                                    <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-1.5">
+                                        <div class="flex items-center justify-between">
+                                            <label class="font-bold text-slate-200">persistConn (Keep-Alive)</label>
+                                            <span class="text-[10px] text-slate-400">Duy trì kết nối</span>
+                                        </div>
+                                        <select v-model.number="domainLsapiData.settings.persist_conn"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                            <option :value="1">1 — Bật Keep-Alive (Khuyên dùng, giảm chi phí mở kết nối)</option>
+                                            <option :value="0">0 — Tắt Keep-Alive</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- ADVANCED TIMEOUTS & MEMORY LIMITS -->
+                                <div class="p-3.5 rounded-xl bg-slate-800/40 border border-slate-700/60 space-y-3">
+                                    <div class="font-bold text-slate-300 text-xs flex items-center gap-1.5 border-b border-slate-700/60 pb-2">
+                                        <span>⚙️</span>
+                                        <span>Giới hạn bộ nhớ & Timeouts (LSAPI Tuning):</span>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                                        <div>
+                                            <label class="text-slate-400 text-[11px] block mb-1">initTimeout (giây):</label>
+                                            <input type="number" v-model.number="domainLsapiData.settings.init_timeout" placeholder="60"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-400 text-[11px] block mb-1">retryTimeout (giây):</label>
+                                            <input type="number" v-model.number="domainLsapiData.settings.retry_timeout" placeholder="0"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-400 text-[11px] block mb-1">Memory Soft Limit:</label>
+                                            <input type="text" v-model="domainLsapiData.settings.mem_soft_limit" placeholder="1024M"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-400 text-[11px] block mb-1">Memory Hard Limit:</label>
+                                            <input type="text" v-model="domainLsapiData.settings.mem_hard_limit" placeholder="2048M"
+                                                class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- RAW MODE -->
+                            <div v-else class="space-y-1.5">
+                                <textarea v-model="domainLsapiData.raw_config" rows="14"
+                                    class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-cyan-300 font-mono text-xs focus:outline-none focus:border-cyan-500 resize-none custom-scrollbar leading-relaxed"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex justify-between items-center pt-3 border-t border-slate-800">
+                            <button type="button" @click="resetDomainLsapiSettings" :disabled="savingDomainLsapi || loadingDomainLsapi || resettingDomainLsapi"
+                                class="px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-rose-950/40 text-rose-400 hover:text-rose-300 font-semibold border border-slate-700 hover:border-rose-700/60 transition flex items-center space-x-1.5 disabled:opacity-50 text-xs shadow-sm"
+                                title="Khôi phục cấu hình LSAPI Processor về giá trị mặc định">
+                                <span v-if="resettingDomainLsapi" class="animate-spin">⏳</span>
+                                <span v-else>🔄</span>
+                                <span>{{ resettingDomainLsapi ? 'Đang reset...' : 'Khôi Phục Mặc Định (Reset)' }}</span>
+                            </button>
+                            <div class="flex space-x-2">
+                                <button type="button" @click="showChangePhpModal = false" :disabled="savingDomainLsapi || resettingDomainLsapi"
+                                    class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700 transition">
+                                    Đóng
+                                </button>
+                                <button type="button" @click="saveDomainLsapiSettings" :disabled="savingDomainLsapi || loadingDomainLsapi || resettingDomainLsapi"
+                                    class="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 via-teal-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white font-bold shadow-lg shadow-cyan-500/25 transition flex items-center space-x-1.5 disabled:opacity-50">
+                                    <span v-if="savingDomainLsapi" class="animate-spin">⏳</span>
+                                    <span>{{ savingDomainLsapi ? 'Đang lưu & Reload...' : 'Lưu & Tự Động Áp Dụng LSAPI' }}</span>
                                 </button>
                             </div>
                         </div>

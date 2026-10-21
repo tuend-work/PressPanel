@@ -1492,12 +1492,36 @@ class DomainFpmSettingsUpdate(BaseModel):
     pm_start_servers: Optional[int] = 2
     pm_min_spare_servers: Optional[int] = 1
     pm_max_spare_servers: Optional[int] = 3
+    pm_process_idle_timeout: Optional[str] = "10s"
     pm_max_requests: Optional[int] = 500
     request_terminate_timeout: Optional[str] = "0s"
+    request_slowlog_timeout: Optional[str] = "0s"
+    catch_workers_output: Optional[str] = "yes"
+    clear_env: Optional[str] = "no"
     raw_config: Optional[str] = None
 
 class DomainFpmControlRequest(BaseModel):
     action: str  # "start", "stop", "restart", "reload"
+
+class DomainLsapiSettingsUpdate(BaseModel):
+    mode: str = "form"  # "form" or "raw"
+    lsapi_mode: Optional[str] = "avoid_fork"  # "avoid_fork" or "ondemand"
+    lsapi_children: Optional[int] = 10
+    lsapi_avoid_fork: Optional[str] = "1"
+    max_conns: Optional[int] = 10
+    max_requests: Optional[int] = 1000
+    init_timeout: Optional[int] = 60
+    retry_timeout: Optional[int] = 0
+    persist_conn: Optional[int] = 1
+    instances: Optional[int] = 1
+    mem_soft_limit: Optional[str] = "1024M"
+    mem_hard_limit: Optional[str] = "2048M"
+    proc_soft_limit: Optional[int] = 200
+    proc_hard_limit: Optional[int] = 300
+    raw_config: Optional[str] = None
+
+class DomainLsapiControlRequest(BaseModel):
+    action: str  # "restart", "reload"
 
 @router.get("/{domain_id}/fpm-service")
 async def get_domain_fpm_service(
@@ -1571,8 +1595,12 @@ async def get_domain_fpm_service(
         "pm_start_servers": 2,
         "pm_min_spare_servers": 1,
         "pm_max_spare_servers": 3,
+        "pm_process_idle_timeout": "10s",
         "pm_max_requests": 500,
-        "request_terminate_timeout": "0s"
+        "request_terminate_timeout": "0s",
+        "request_slowlog_timeout": "0s",
+        "catch_workers_output": "yes",
+        "clear_env": "no"
     }
     raw_config = ""
     sock_owner, sock_group = get_safe_fpm_socket_owner(isolated_user)
@@ -1600,10 +1628,18 @@ async def get_domain_fpm_service(
                         settings["pm_min_spare_servers"] = int(v)
                     elif k == "pm.max_spare_servers" and v.isdigit():
                         settings["pm_max_spare_servers"] = int(v)
+                    elif k == "pm.process_idle_timeout":
+                        settings["pm_process_idle_timeout"] = v
                     elif k == "pm.max_requests" and v.isdigit():
                         settings["pm_max_requests"] = int(v)
                     elif k == "request_terminate_timeout":
                         settings["request_terminate_timeout"] = v
+                    elif k == "request_slowlog_timeout":
+                        settings["request_slowlog_timeout"] = v
+                    elif k == "catch_workers_output":
+                        settings["catch_workers_output"] = v.lower()
+                    elif k == "clear_env":
+                        settings["clear_env"] = v.lower()
         except Exception:
             pass
     else:
@@ -1628,8 +1664,12 @@ pm.max_children = 10
 pm.start_servers = 2
 pm.min_spare_servers = 1
 pm.max_spare_servers = 3
+pm.process_idle_timeout = 10s
 pm.max_requests = 500
 request_terminate_timeout = 0s
+request_slowlog_timeout = 0s
+catch_workers_output = yes
+clear_env = no
 
 pm.status_path = /status-{isolated_user}
 ping.path = /ping-{isolated_user}
@@ -1705,8 +1745,29 @@ async def save_domain_fpm_service(
         start_s = max(1, min(max_ch, int(req.pm_start_servers or 2)))
         min_s = max(1, min(start_s, int(req.pm_min_spare_servers or 1)))
         max_s = max(min_s, min(max_ch, int(req.pm_max_spare_servers or 3)))
+        idle_timeout = str(req.pm_process_idle_timeout or "10s").strip()
         max_req = max(0, int(req.pm_max_requests or 500))
         timeout = str(req.request_terminate_timeout or "0s").strip()
+        slowlog_timeout = str(req.request_slowlog_timeout or "0s").strip()
+        catch_workers = "yes" if req.catch_workers_output != "no" else "no"
+        clear_env = "yes" if req.clear_env == "yes" else "no"
+
+        if pm_mode == "ondemand":
+            pm_directives = f"""pm = ondemand
+pm.max_children = {max_ch}
+pm.process_idle_timeout = {idle_timeout}
+pm.max_requests = {max_req}"""
+        elif pm_mode == "static":
+            pm_directives = f"""pm = static
+pm.max_children = {max_ch}
+pm.max_requests = {max_req}"""
+        else:
+            pm_directives = f"""pm = dynamic
+pm.max_children = {max_ch}
+pm.start_servers = {start_s}
+pm.min_spare_servers = {min_s}
+pm.max_spare_servers = {max_s}
+pm.max_requests = {max_req}"""
 
         content = f"""; WPCloud PHP-FPM Pool Configuration
 [global]
@@ -1723,13 +1784,11 @@ listen.owner = {sock_owner}
 listen.group = {sock_group}
 listen.mode = 0666
 
-pm = {pm_mode}
-pm.max_children = {max_ch}
-pm.start_servers = {start_s}
-pm.min_spare_servers = {min_s}
-pm.max_spare_servers = {max_s}
-pm.max_requests = {max_req}
+{pm_directives}
 request_terminate_timeout = {timeout}
+request_slowlog_timeout = {slowlog_timeout}
+catch_workers_output = {catch_workers}
+clear_env = {clear_env}
 
 pm.status_path = /status-{isolated_user}
 ping.path = /ping-{isolated_user}
@@ -1921,6 +1980,388 @@ async def control_domain_fpm_service(
         "status": "success",
         "message": f"Đã {action_vn} dịch vụ {service_name} thành công!",
         "service_status": new_status
+    }
+
+# =========================================================================
+# OPENLITESPEED LSAPI PROCESS MANAGER ENDPOINTS (LSAPI_CHILDREN, AVOID_FORK)
+# =========================================================================
+@router.get("/{domain_id}/lsapi-service")
+async def get_domain_lsapi_service(
+    domain_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Lấy thông tin và cấu hình LSAPI Process Manager (OpenLiteSpeed) của website"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    php_ver = str(domain["php_version"] or "8.2")
+    processor_name = f"lsphp_{isolated_user}"
+    conf_dir = f"/usr/local/lsws/conf/vhosts/{clean_domain}"
+    conf_path = f"{conf_dir}/vhconf.conf"
+    sock_path = f"/tmp/lshttpd/lsphp_{isolated_user}.sock"
+
+    status = "inactive"
+    pid = ""
+    memory_mb = 0.0
+
+    if platform.system() == "Linux":
+        try:
+            r = subprocess.run(["pgrep", "-u", isolated_user, "-f", "lsphp"], capture_output=True, text=True)
+            pids = [p.strip() for p in r.stdout.splitlines() if p.strip()]
+            if pids:
+                pid = pids[0]
+                status = "active"
+                r_mem = subprocess.run(["ps", "-u", isolated_user, "-o", "rss,cmd"], capture_output=True, text=True)
+                total_kb = 0
+                for line in r_mem.stdout.splitlines():
+                    if "lsphp" in line:
+                        parts = line.strip().split()
+                        if parts and parts[0].isdigit():
+                            total_kb += int(parts[0])
+                memory_mb = round(total_kb / 1024, 2)
+            else:
+                status = "idle" if os.path.exists(conf_path) else "inactive"
+        except Exception:
+            pass
+
+    settings = {
+        "lsapi_mode": "avoid_fork",
+        "lsapi_children": 10,
+        "lsapi_avoid_fork": "1",
+        "max_conns": 10,
+        "max_requests": 1000,
+        "init_timeout": 60,
+        "retry_timeout": 0,
+        "persist_conn": 1,
+        "instances": 1,
+        "mem_soft_limit": "1024M",
+        "mem_hard_limit": "2048M",
+        "proc_soft_limit": 200,
+        "proc_hard_limit": 300
+    }
+    raw_config = ""
+
+    if os.path.exists(conf_path):
+        try:
+            with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            m_block = re.search(rf"(extprocessor\s+lsphp_{isolated_user}\s*\{{[\s\S]*?\n\}})", content)
+            if m_block:
+                raw_config = m_block.group(1)
+                m_mc = re.search(r"maxConns\s+(\d+)", raw_config)
+                if m_mc:
+                    settings["max_conns"] = int(m_mc.group(1))
+                m_ch = re.search(r"(?:PHP_)?LSAPI_CHILDREN=(\d+)", raw_config)
+                if m_ch:
+                    settings["lsapi_children"] = int(m_ch.group(1))
+                m_af = re.search(r"LSAPI_AVOID_FORK=([^\s\r\n]+)", raw_config)
+                if m_af:
+                    settings["lsapi_avoid_fork"] = m_af.group(1).strip()
+                    settings["lsapi_mode"] = "ondemand" if m_af.group(1).strip() == "0" else "avoid_fork"
+                m_req = re.search(r"(?:PHP_LSAPI_MAX_REQUESTS|LSAPI_MAX_REQS)=(\d+)", raw_config)
+                if m_req:
+                    settings["max_requests"] = int(m_req.group(1))
+                m_it = re.search(r"initTimeout\s+(\d+)", raw_config)
+                if m_it:
+                    settings["init_timeout"] = int(m_it.group(1))
+                m_rt = re.search(r"retryTimeout\s+(\d+)", raw_config)
+                if m_rt:
+                    settings["retry_timeout"] = int(m_rt.group(1))
+                m_pc = re.search(r"persistConn\s+(\d+)", raw_config)
+                if m_pc:
+                    settings["persist_conn"] = int(m_pc.group(1))
+                m_in = re.search(r"instances\s+(\d+)", raw_config)
+                if m_in:
+                    settings["instances"] = int(m_in.group(1))
+                m_ms = re.search(r"memSoftLimit\s+([^\r\n]+)", raw_config)
+                if m_ms:
+                    settings["mem_soft_limit"] = m_ms.group(1).strip()
+                m_mh = re.search(r"memHardLimit\s+([^\r\n]+)", raw_config)
+                if m_mh:
+                    settings["mem_hard_limit"] = m_mh.group(1).strip()
+                m_ps = re.search(r"procSoftLimit\s+(\d+)", raw_config)
+                if m_ps:
+                    settings["proc_soft_limit"] = int(m_ps.group(1))
+                m_ph = re.search(r"procHardLimit\s+(\d+)", raw_config)
+                if m_ph:
+                    settings["proc_hard_limit"] = int(m_ph.group(1))
+        except Exception:
+            pass
+
+    return {
+        "status": "success",
+        "domain_name": clean_domain,
+        "user": isolated_user,
+        "php_version": php_ver,
+        "processor_name": processor_name,
+        "service_status": status,
+        "pid": pid,
+        "memory_mb": memory_mb,
+        "conf_path": conf_path,
+        "sock_path": sock_path,
+        "sock_exists": os.path.exists(sock_path),
+        "settings": settings,
+        "raw_config": raw_config
+    }
+
+@router.post("/{domain_id}/lsapi-service")
+async def save_domain_lsapi_service(
+    domain_id: int,
+    req: DomainLsapiSettingsUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Lưu cấu hình và tự động reload OpenLiteSpeed LSAPI Processor của website"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    php_ver = str(domain["php_version"] or "8.2")
+    php_num = php_ver.replace(".", "")
+    conf_dir = f"/usr/local/lsws/conf/vhosts/{clean_domain}"
+    conf_path = f"{conf_dir}/vhconf.conf"
+    sock_path = f"/tmp/lshttpd/lsphp_{isolated_user}.sock"
+
+    if not os.path.exists(conf_path):
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy file cấu hình VHost OpenLiteSpeed: {conf_path}")
+
+    try:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+
+        if req.mode == "raw" and req.raw_config:
+            pattern = rf"(extprocessor\s+lsphp_{isolated_user}\s*\{{[\s\S]*?\n\}})"
+            if re.search(pattern, content):
+                content = re.sub(pattern, req.raw_config.strip(), content)
+            else:
+                content += "\n\n" + req.raw_config.strip() + "\n"
+        else:
+            avoid_fork = req.lsapi_avoid_fork if req.lsapi_avoid_fork is not None else ("0" if req.lsapi_mode == "ondemand" else "1")
+            max_ch = max(1, min(100, int(req.lsapi_children or 10)))
+            max_conns = max(1, min(200, int(req.max_conns or max_ch)))
+            max_req = max(0, int(req.max_requests or 1000))
+            init_t = max(5, int(req.init_timeout or 60))
+            retry_t = max(0, int(req.retry_timeout or 0))
+            persist_c = 1 if req.persist_conn in [1, "1", True] else 0
+            inst = max(1, int(req.instances or 1))
+            mem_s = str(req.mem_soft_limit or "1024M").strip()
+            mem_h = str(req.mem_hard_limit or "2048M").strip()
+            proc_s = max(10, int(req.proc_soft_limit or 200))
+            proc_h = max(20, int(req.proc_hard_limit or 300))
+
+            m_path = re.search(r"path\s+([^\r\n]+)", content)
+            path = m_path.group(1).strip() if m_path else f"/usr/local/lsws/lsphp{php_num}/bin/lsphp"
+
+            new_block = f"""extprocessor lsphp_{isolated_user} {{
+  type                    lsapi
+  address                 uds://tmp/lshttpd/lsphp_{isolated_user}.sock
+  maxConns                {max_conns}
+  env                     LSAPI_CHILDREN={max_ch}
+  env                     LSAPI_AVOID_FORK={avoid_fork}
+  env                     PHP_LSAPI_MAX_REQUESTS={max_req}
+  initTimeout             {init_t}
+  retryTimeout            {retry_t}
+  persistConn             {persist_c}
+  respBuffer              0
+  autoStart               1
+  path                    {path}
+  backlog                 100
+  instances               {inst}
+  runOn                   1
+  extUser                 {isolated_user}
+  extGroup                {isolated_user}
+  priority                0
+  memSoftLimit            {mem_s}
+  memHardLimit            {mem_h}
+  procSoftLimit           {proc_s}
+  procHardLimit           {proc_h}
+}}"""
+
+            pattern = rf"(extprocessor\s+lsphp_{isolated_user}\s*\{{[\s\S]*?\n\}})"
+            if re.search(pattern, content):
+                content = re.sub(pattern, new_block, content)
+            else:
+                content += "\n\n" + new_block + "\n"
+
+        tmp_conf = f"/tmp/wpc_lsapi_{isolated_user}_{int(time.time())}.conf"
+        with open(tmp_conf, "w", encoding="utf-8") as f:
+            f.write(content)
+        subprocess.run(["sudo", "mv", tmp_conf, conf_path], check=False)
+        subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
+        subprocess.run(["sudo", "chown", "lsadm:lsadm", conf_path], check=False)
+
+        if platform.system() == "Linux":
+            subprocess.run(["sudo", "pkill", "-9", "-u", isolated_user, "-f", "lsphp"], check=False)
+            subprocess.run(["sudo", "rm", "-f", sock_path], check=False)
+            subprocess.run(["sudo", "mkdir", "-p", "/tmp/lshttpd"], check=False)
+            subprocess.run(["sudo", "chmod", "1777", "/tmp/lshttpd"], check=False)
+            subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Không thể cập nhật cấu hình LSAPI: {str(e)}")
+
+    return {
+        "status": "success",
+        "message": f"Đã lưu cấu hình và khởi tạo lại LSAPI Process Pool cho website {clean_domain} thành công!"
+    }
+
+@router.post("/{domain_id}/lsapi-service/reset")
+async def reset_domain_lsapi_service(
+    domain_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Khôi phục cấu hình LSAPI Processor của website về giá trị chuẩn mặc định"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    php_ver = str(domain["php_version"] or "8.2")
+    php_num = php_ver.replace(".", "")
+    conf_dir = f"/usr/local/lsws/conf/vhosts/{clean_domain}"
+    conf_path = f"{conf_dir}/vhconf.conf"
+    sock_path = f"/tmp/lshttpd/lsphp_{isolated_user}.sock"
+
+    if os.path.exists(conf_path):
+        try:
+            with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+
+            default_block = f"""extprocessor lsphp_{isolated_user} {{
+  type                    lsapi
+  address                 uds://tmp/lshttpd/lsphp_{isolated_user}.sock
+  maxConns                10
+  env                     LSAPI_CHILDREN=10
+  env                     LSAPI_AVOID_FORK=1
+  env                     PHP_LSAPI_MAX_REQUESTS=1000
+  initTimeout             60
+  retryTimeout            0
+  persistConn             1
+  respBuffer              0
+  autoStart               1
+  path                    /usr/local/lsws/lsphp{php_num}/bin/lsphp
+  backlog                 100
+  instances               1
+  runOn                   1
+  extUser                 {isolated_user}
+  extGroup                {isolated_user}
+  priority                0
+  memSoftLimit            1024M
+  memHardLimit            2048M
+  procSoftLimit           200
+  procHardLimit           300
+}}"""
+
+            pattern = rf"(extprocessor\s+lsphp_{isolated_user}\s*\{{[\s\S]*?\n\}})"
+            if re.search(pattern, content):
+                content = re.sub(pattern, default_block, content)
+            else:
+                content += "\n\n" + default_block + "\n"
+
+            tmp_conf = f"/tmp/wpc_lsapi_{isolated_user}_{int(time.time())}.conf"
+            with open(tmp_conf, "w", encoding="utf-8") as f:
+                f.write(content)
+            subprocess.run(["sudo", "mv", tmp_conf, conf_path], check=False)
+            subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
+            subprocess.run(["sudo", "chown", "lsadm:lsadm", conf_path], check=False)
+
+            if platform.system() == "Linux":
+                subprocess.run(["sudo", "pkill", "-9", "-u", isolated_user, "-f", "lsphp"], check=False)
+                subprocess.run(["sudo", "rm", "-f", sock_path], check=False)
+                subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Lỗi khi khôi phục cấu hình LSAPI: {str(e)}")
+
+    return {
+        "status": "success",
+        "message": f"Đã khôi phục cấu hình LSAPI Processor của website {clean_domain} về mặc định thành công!"
+    }
+
+@router.post("/{domain_id}/lsapi-service/control")
+async def control_domain_lsapi_service(
+    domain_id: int,
+    req: DomainLsapiControlRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Điều khiển tiến trình LSPHP của website (Restart / Kill old workers)"""
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.username as owner_username, u.parent_id
+        FROM domains d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = ?
+    """, (domain_id,))
+    domain = await cursor.fetchone()
+    await db.close()
+
+    if not domain:
+        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    if current_user["role"] != "admin":
+        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
+
+    clean_domain = domain["domain_name"]
+    isolated_user = domain_to_linux_user(clean_domain)
+    sock_path = f"/tmp/lshttpd/lsphp_{isolated_user}.sock"
+
+    if platform.system() == "Linux":
+        try:
+            subprocess.run(["sudo", "pkill", "-9", "-u", isolated_user, "-f", "lsphp"], check=False)
+            subprocess.run(["sudo", "rm", "-f", sock_path], check=False)
+            subprocess.run(["sudo", "mkdir", "-p", "/tmp/lshttpd"], check=False)
+            subprocess.run(["sudo", "chmod", "1777", "/tmp/lshttpd"], check=False)
+            subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Lỗi khi thực hiện {req.action}: {str(e)}")
+
+    return {
+        "status": "success",
+        "message": f"Đã khởi động lại toàn bộ tiến trình LSPHP và nạp lại OpenLiteSpeed cho {clean_domain} thành công!"
     }
 
 class DomainToggleSshRequest(BaseModel):

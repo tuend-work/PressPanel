@@ -2675,7 +2675,15 @@
                     selectedNewPhpVersion.value = domain.php_version || '8.2';
                     availablePhpData.value = null;
                     loadingAvailablePhp.value = true;
-                    phpModalTab.value = initialTab;
+
+                    // Tự động chuyển tab phù hợp webserver (Nginx -> fpm, OLS -> lsapi)
+                    if (initialTab === 'fpm' && (domain.webserver === 'ols' || currentWebserver.value === 'ols')) {
+                        phpModalTab.value = 'lsapi';
+                    } else if (initialTab === 'lsapi' && (domain.webserver === 'nginx' || currentWebserver.value === 'nginx')) {
+                        phpModalTab.value = 'fpm';
+                    } else {
+                        phpModalTab.value = initialTab;
+                    }
                     showChangePhpModal.value = true;
 
                     fetch(`/api/v1/domains/${domain.id}/available-php`, {
@@ -2696,6 +2704,8 @@
                     loadDomainPhpExtensions(domain);
                     if (domain.webserver === 'nginx' || currentWebserver.value === 'nginx') {
                         loadDomainFpmSettings(domain);
+                    } else {
+                        loadDomainLsapiSettings(domain);
                     }
                 };
 
@@ -2906,8 +2916,12 @@
                         pm_start_servers: 2,
                         pm_min_spare_servers: 1,
                         pm_max_spare_servers: 3,
+                        pm_process_idle_timeout: '10s',
                         pm_max_requests: 500,
-                        request_terminate_timeout: '0s'
+                        request_terminate_timeout: '0s',
+                        request_slowlog_timeout: '0s',
+                        catch_workers_output: 'yes',
+                        clear_env: 'no'
                     },
                     raw_config: ''
                 });
@@ -2916,6 +2930,29 @@
                 const resettingDomainFpm = ref(false);
                 const controllingFpm = ref(false);
                 const fpmConfigMode = ref('form');
+
+                const applyFpmPreset = (presetKey) => {
+                    if (presetKey === 'ram_saving') {
+                        domainFpmData.value.settings.pm = 'ondemand';
+                        domainFpmData.value.settings.pm_max_children = 5;
+                        domainFpmData.value.settings.pm_process_idle_timeout = '10s';
+                        domainFpmData.value.settings.pm_max_requests = 500;
+                        domainFpmData.value.settings.request_terminate_timeout = '60s';
+                    } else if (presetKey === 'balanced') {
+                        domainFpmData.value.settings.pm = 'dynamic';
+                        domainFpmData.value.settings.pm_max_children = 10;
+                        domainFpmData.value.settings.pm_start_servers = 2;
+                        domainFpmData.value.settings.pm_min_spare_servers = 1;
+                        domainFpmData.value.settings.pm_max_spare_servers = 3;
+                        domainFpmData.value.settings.pm_max_requests = 1000;
+                        domainFpmData.value.settings.request_terminate_timeout = '120s';
+                    } else if (presetKey === 'high_perf') {
+                        domainFpmData.value.settings.pm = 'static';
+                        domainFpmData.value.settings.pm_max_children = 20;
+                        domainFpmData.value.settings.pm_max_requests = 2000;
+                        domainFpmData.value.settings.request_terminate_timeout = '300s';
+                    }
+                };
 
                 const loadDomainFpmSettings = async (domain) => {
                     const dom = domain || targetPhpDomain.value;
@@ -2942,8 +2979,12 @@
                                     pm_start_servers: data.settings?.pm_start_servers || 2,
                                     pm_min_spare_servers: data.settings?.pm_min_spare_servers || 1,
                                     pm_max_spare_servers: data.settings?.pm_max_spare_servers || 3,
+                                    pm_process_idle_timeout: data.settings?.pm_process_idle_timeout || '10s',
                                     pm_max_requests: data.settings?.pm_max_requests || 500,
-                                    request_terminate_timeout: data.settings?.request_terminate_timeout || '0s'
+                                    request_terminate_timeout: data.settings?.request_terminate_timeout || '0s',
+                                    request_slowlog_timeout: data.settings?.request_slowlog_timeout || '0s',
+                                    catch_workers_output: data.settings?.catch_workers_output || 'yes',
+                                    clear_env: data.settings?.clear_env || 'no'
                                 },
                                 raw_config: data.raw_config || ''
                             };
@@ -2966,8 +3007,12 @@
                             pm_start_servers: domainFpmData.value.settings.pm_start_servers,
                             pm_min_spare_servers: domainFpmData.value.settings.pm_min_spare_servers,
                             pm_max_spare_servers: domainFpmData.value.settings.pm_max_spare_servers,
+                            pm_process_idle_timeout: domainFpmData.value.settings.pm_process_idle_timeout,
                             pm_max_requests: domainFpmData.value.settings.pm_max_requests,
                             request_terminate_timeout: domainFpmData.value.settings.request_terminate_timeout,
+                            request_slowlog_timeout: domainFpmData.value.settings.request_slowlog_timeout,
+                            catch_workers_output: domainFpmData.value.settings.catch_workers_output,
+                            clear_env: domainFpmData.value.settings.clear_env,
                             raw_config: domainFpmData.value.raw_config
                         };
                         const res = await fetch(`/api/v1/domains/${targetPhpDomain.value.id}/fpm-service`, {
@@ -3046,6 +3091,203 @@
                         alert('Lỗi kết nối: ' + e.message);
                     } finally {
                         controllingFpm.value = false;
+                    }
+                };
+
+                // ====================================================
+                // QUẢN LÝ TIẾN TRÌNH OPENLITESPEED LSAPI (LSAPI_CHILDREN, AVOID_FORK)
+                // ====================================================
+                const domainLsapiData = ref({
+                    processor_name: '',
+                    service_status: 'inactive',
+                    pid: '',
+                    memory_mb: 0,
+                    conf_path: '',
+                    sock_path: '',
+                    sock_exists: false,
+                    settings: {
+                        lsapi_mode: 'avoid_fork',
+                        lsapi_children: 10,
+                        lsapi_avoid_fork: '1',
+                        max_conns: 10,
+                        max_requests: 1000,
+                        init_timeout: 60,
+                        retry_timeout: 0,
+                        persist_conn: 1,
+                        instances: 1,
+                        mem_soft_limit: '1024M',
+                        mem_hard_limit: '2048M',
+                        proc_soft_limit: 200,
+                        proc_hard_limit: 300
+                    },
+                    raw_config: ''
+                });
+                const loadingDomainLsapi = ref(false);
+                const savingDomainLsapi = ref(false);
+                const resettingDomainLsapi = ref(false);
+                const controllingLsapi = ref(false);
+                const lsapiConfigMode = ref('form');
+
+                const loadDomainLsapiSettings = async (domain) => {
+                    const dom = domain || targetPhpDomain.value;
+                    if (!dom) return;
+                    loadingDomainLsapi.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${dom.id}/lsapi-service`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            domainLsapiData.value = {
+                                processor_name: data.processor_name || ('lsphp_' + dom.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)),
+                                service_status: data.service_status || 'inactive',
+                                pid: data.pid || '',
+                                memory_mb: data.memory_mb || 0,
+                                conf_path: data.conf_path || '',
+                                sock_path: data.sock_path || '',
+                                sock_exists: !!data.sock_exists,
+                                settings: {
+                                    lsapi_mode: data.settings?.lsapi_mode || 'avoid_fork',
+                                    lsapi_children: data.settings?.lsapi_children || 10,
+                                    lsapi_avoid_fork: data.settings?.lsapi_avoid_fork !== undefined ? String(data.settings.lsapi_avoid_fork) : '1',
+                                    max_conns: data.settings?.max_conns || 10,
+                                    max_requests: data.settings?.max_requests || 1000,
+                                    init_timeout: data.settings?.init_timeout || 60,
+                                    retry_timeout: data.settings?.retry_timeout || 0,
+                                    persist_conn: data.settings?.persist_conn !== undefined ? data.settings.persist_conn : 1,
+                                    instances: data.settings?.instances || 1,
+                                    mem_soft_limit: data.settings?.mem_soft_limit || '1024M',
+                                    mem_hard_limit: data.settings?.mem_hard_limit || '2048M',
+                                    proc_soft_limit: data.settings?.proc_soft_limit || 200,
+                                    proc_hard_limit: data.settings?.proc_hard_limit || 300
+                                },
+                                raw_config: data.raw_config || ''
+                            };
+                        }
+                    } catch (e) {
+                        console.error('Lỗi nạp thông tin OpenLiteSpeed LSAPI:', e);
+                    } finally {
+                        loadingDomainLsapi.value = false;
+                    }
+                };
+
+                const saveDomainLsapiSettings = async () => {
+                    if (!targetPhpDomain.value) return;
+                    savingDomainLsapi.value = true;
+                    try {
+                        const payload = {
+                            mode: lsapiConfigMode.value,
+                            lsapi_mode: domainLsapiData.value.settings.lsapi_mode,
+                            lsapi_children: domainLsapiData.value.settings.lsapi_children,
+                            lsapi_avoid_fork: domainLsapiData.value.settings.lsapi_avoid_fork,
+                            max_conns: domainLsapiData.value.settings.max_conns,
+                            max_requests: domainLsapiData.value.settings.max_requests,
+                            init_timeout: domainLsapiData.value.settings.init_timeout,
+                            retry_timeout: domainLsapiData.value.settings.retry_timeout,
+                            persist_conn: domainLsapiData.value.settings.persist_conn,
+                            instances: domainLsapiData.value.settings.instances,
+                            mem_soft_limit: domainLsapiData.value.settings.mem_soft_limit,
+                            mem_hard_limit: domainLsapiData.value.settings.mem_hard_limit,
+                            proc_soft_limit: domainLsapiData.value.settings.proc_soft_limit,
+                            proc_hard_limit: domainLsapiData.value.settings.proc_hard_limit,
+                            raw_config: domainLsapiData.value.raw_config
+                        };
+                        const res = await fetch(`/api/v1/domains/${targetPhpDomain.value.id}/lsapi-service`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify(payload)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Đã lưu cấu hình và tự động reload OpenLiteSpeed LSAPI thành công!');
+                            loadDomainLsapiSettings(targetPhpDomain.value);
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình LSAPI'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        savingDomainLsapi.value = false;
+                    }
+                };
+
+                const resetDomainLsapiSettings = async () => {
+                    if (!targetPhpDomain.value) return;
+                    if (!confirm(`Bạn có chắc chắn muốn khôi phục cấu hình LSAPI Process của website ${targetPhpDomain.value.domain_name} về mặc định hệ thống không?`)) {
+                        return;
+                    }
+                    resettingDomainLsapi.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${targetPhpDomain.value.id}/lsapi-service/reset`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Đã khôi phục cấu hình LSAPI về mặc định thành công!');
+                            await loadDomainLsapiSettings(targetPhpDomain.value);
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể khôi phục cấu hình LSAPI'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        resettingDomainLsapi.value = false;
+                    }
+                };
+
+                const controlDomainLsapi = async (action) => {
+                    if (!targetPhpDomain.value) return;
+                    controllingLsapi.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${targetPhpDomain.value.id}/lsapi-service/control`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ action: action })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message || 'Đã khởi động lại LSPHP thành công!');
+                            loadDomainLsapiSettings(targetPhpDomain.value);
+                        } else {
+                            alert('Lỗi: ' + (data.detail || 'Không thể thực thi thao tác'));
+                        }
+                    } catch (e) {
+                        alert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        controllingLsapi.value = false;
+                    }
+                };
+
+                const applyLsapiPreset = (presetKey) => {
+                    if (presetKey === 'ram_saving') {
+                        domainLsapiData.value.settings.lsapi_mode = 'ondemand';
+                        domainLsapiData.value.settings.lsapi_avoid_fork = '0';
+                        domainLsapiData.value.settings.lsapi_children = 5;
+                        domainLsapiData.value.settings.max_conns = 5;
+                        domainLsapiData.value.settings.max_requests = 500;
+                    } else if (presetKey === 'balanced') {
+                        domainLsapiData.value.settings.lsapi_mode = 'avoid_fork';
+                        domainLsapiData.value.settings.lsapi_avoid_fork = '1';
+                        domainLsapiData.value.settings.lsapi_children = 10;
+                        domainLsapiData.value.settings.max_conns = 10;
+                        domainLsapiData.value.settings.max_requests = 1000;
+                    } else if (presetKey === 'high_perf') {
+                        domainLsapiData.value.settings.lsapi_mode = 'avoid_fork';
+                        domainLsapiData.value.settings.lsapi_avoid_fork = '1';
+                        domainLsapiData.value.settings.lsapi_children = 25;
+                        domainLsapiData.value.settings.max_conns = 25;
+                        domainLsapiData.value.settings.max_requests = 5000;
+                        domainLsapiData.value.settings.mem_hard_limit = '4096M';
                     }
                 };
 
@@ -5791,7 +6033,8 @@
                     openChangePhpModal, confirmChangePhp,
                     phpModalTab, domainPhpIni, loadingDomainPhpIni, savingDomainPhpIni, applyPhpPreset, loadDomainPhpIni, saveDomainPhpIni,
                     domainPhpExtensions, loadingDomainPhpExtensions, savingDomainPhpExtensions, loadDomainPhpExtensions, saveDomainPhpExtensions, applyPhpExtPreset,
-                    domainFpmData, loadingDomainFpm, savingDomainFpm, resettingDomainFpm, controllingFpm, fpmConfigMode, loadDomainFpmSettings, saveDomainFpmSettings, resetDomainFpmSettings, controlDomainFpm,
+                    domainFpmData, loadingDomainFpm, savingDomainFpm, resettingDomainFpm, controllingFpm, fpmConfigMode, applyFpmPreset, loadDomainFpmSettings, saveDomainFpmSettings, resetDomainFpmSettings, controlDomainFpm,
+                    domainLsapiData, loadingDomainLsapi, savingDomainLsapi, resettingDomainLsapi, controllingLsapi, lsapiConfigMode, applyLsapiPreset, loadDomainLsapiSettings, saveDomainLsapiSettings, resetDomainLsapiSettings, controlDomainLsapi,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain, handleToggleDomainStatus,
                     showEditDomainModal, selectedEditDomain, editDomainForm, savingDomainEdit, openEditDomainModal, handleSaveDomainEdit,
                     showDomainChangePlanModal, selectedDomainForPlan, targetDomainPlanId, changingDomainPlan, selectedDomainPlanPreview, openChangeDomainPlanModal, confirmChangeDomainPlan,
