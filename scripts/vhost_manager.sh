@@ -1086,10 +1086,40 @@ EOF_NGX_SUSP
             fi
         fi
 
-        # 4. Xử lý Nginx: Reload Nginx và các worker PHP-FPM của user
+        # 4. Xử lý Nginx: Đồng bộ cấu hình pool PHP-FPM của user từ .user.ini và khởi động lại dịch vụ
         if [ "$WEBSERVER" = "nginx" ] || [ -f "/etc/nginx/conf.d/$DOMAIN.conf" ]; then
             for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
-                systemctl reload "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+                U_CONF="/etc/php/${pver}/fpm/users/${USERNAME}.conf"
+                if [ -f "$U_CONF" ] && [ -f "$DOC_ROOT/.user.ini" ]; then
+                    # Xóa block extension cũ nếu có
+                    sed -i '/; --- WPC PHP EXTENSIONS CONFIGURATION ---/,/; --- END WPC PHP EXTENSIONS CONFIGURATION ---/d' "$U_CONF" 2>/dev/null || true
+
+                    EXT_BLOCK="\n; --- WPC PHP EXTENSIONS CONFIGURATION ---"
+                    OP_ENABLE=$(grep -E "^opcache.enable" "$DOC_ROOT/.user.ini" 2>/dev/null | awk -F'=' '{print $2}' | tr -d ' ' || true)
+                    if [ "$OP_ENABLE" = "1" ] || [ "$OP_ENABLE" = "On" ] || [ "$OP_ENABLE" = "on" ]; then
+                        EXT_BLOCK="${EXT_BLOCK}\nphp_admin_flag[opcache.enable] = on"
+                    else
+                        EXT_BLOCK="${EXT_BLOCK}\nphp_admin_flag[opcache.enable] = off"
+                    fi
+
+                    XD_MODE=$(grep -E "^xdebug.mode" "$DOC_ROOT/.user.ini" 2>/dev/null | awk -F'=' '{print $2}' | tr -d ' ' || true)
+                    if [ -n "$XD_MODE" ] && [ "$XD_MODE" != "off" ]; then
+                        EXT_BLOCK="${EXT_BLOCK}\nphp_admin_value[xdebug.mode] = $XD_MODE"
+                    else
+                        EXT_BLOCK="${EXT_BLOCK}\nphp_admin_value[xdebug.mode] = off"
+                    fi
+
+                    DIS_CLS=$(grep -E "^disable_classes" "$DOC_ROOT/.user.ini" 2>/dev/null | sed -E 's/^disable_classes[[:space:]]*=[[:space:]]*"?([^"]*)"?/\1/' || true)
+                    if [ -n "$DIS_CLS" ]; then
+                        EXT_BLOCK="${EXT_BLOCK}\nphp_admin_value[disable_classes] = \"$DIS_CLS\""
+                    else
+                        EXT_BLOCK="${EXT_BLOCK}\nphp_admin_value[disable_classes] = \"\""
+                    fi
+                    EXT_BLOCK="${EXT_BLOCK}\n; --- END WPC PHP EXTENSIONS CONFIGURATION ---"
+
+                    printf '%b\n' "$EXT_BLOCK" >> "$U_CONF"
+                fi
+                systemctl restart "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
             done
             nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
         fi

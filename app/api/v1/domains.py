@@ -1259,18 +1259,44 @@ async def get_domain_php_extensions(
         except Exception:
             saved_exts = {}
 
-    # Nếu chưa có trong DB, đọc từ .user.ini
-    if not saved_exts and os.path.exists(ini_path):
-        try:
-            with open(ini_path, "r", encoding="utf-8", errors="ignore") as f:
-                for line in f:
-                    line_s = line.strip()
-                    if line_s.startswith("opcache.enable"):
-                        saved_exts["opcache"] = ("1" in line_s or "On" in line_s)
-                    elif line_s.startswith("xdebug.mode"):
-                        saved_exts["xdebug"] = ("off" not in line_s.lower())
-        except Exception:
-            pass
+    # Nếu chưa có trong DB, đọc từ file pool PHP-FPM hoặc .user.ini
+    if not saved_exts:
+        fpm_conf_path = f"/etc/php/{domain['php_version']}/fpm/users/{isolated_user}.conf"
+        fpm_content = read_file_privileged(fpm_conf_path)
+        if fpm_content:
+            m_op = re.search(r"php_admin_flag\[opcache\.enable\]\s*=\s*(on|off|1|0)", fpm_content, re.IGNORECASE)
+            if m_op:
+                saved_exts["opcache"] = (m_op.group(1).lower() in ["on", "1"])
+            m_xd = re.search(r"php_admin_value\[xdebug\.mode\]\s*=\s*([^\r\n]+)", fpm_content)
+            if m_xd:
+                saved_exts["xdebug"] = ("off" not in m_xd.group(1).lower())
+            m_dis = re.search(r'php_admin_value\[disable_classes\]\s*=\s*"?([^"\r\n]*)"?', fpm_content)
+            if m_dis:
+                dis_str = m_dis.group(1)
+                if "Redis" in dis_str:
+                    saved_exts["redis"] = False
+                if "Imagick" in dis_str:
+                    saved_exts["imagick"] = False
+                if "SoapClient" in dis_str:
+                    saved_exts["soap"] = False
+                if "Memcached" in dis_str:
+                    saved_exts["memcached"] = False
+                if "Collator" in dis_str:
+                    saved_exts["intl"] = False
+                if "ZipArchive" in dis_str:
+                    saved_exts["zip"] = False
+
+        if not saved_exts and os.path.exists(ini_path):
+            try:
+                with open(ini_path, "r", encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        line_s = line.strip()
+                        if line_s.startswith("opcache.enable"):
+                            saved_exts["opcache"] = ("1" in line_s or "On" in line_s)
+                        elif line_s.startswith("xdebug.mode"):
+                            saved_exts["xdebug"] = ("off" not in line_s.lower())
+            except Exception:
+                pass
 
     installed_mods = get_installed_php_modules(domain["php_version"])
 
@@ -1293,6 +1319,103 @@ async def get_domain_php_extensions(
         "webserver": domain["webserver"],
         "extensions": result_list
     }
+
+def sync_fpm_pool_extensions(isolated_user: str, php_ver: str, extensions: dict) -> bool:
+    """
+    Đồng bộ trực tiếp các chỉ thị bật/tắt PHP Extensions vào pool /etc/php/{php_ver}/fpm/users/{isolated_user}.conf
+    và khởi động lại dịch vụ PHP-FPM riêng của user.
+    Khắc phục triệt để lỗi disable_classes không hoạt động trong .user.ini trên Nginx/PHP-FPM.
+    """
+    conf_dir = f"/etc/php/{php_ver}/fpm/users"
+    conf_path = f"{conf_dir}/{isolated_user}.conf"
+
+    # Nếu file pool chưa tồn tại, kích hoạt tạo mới qua script
+    if not check_file_exists_privileged(conf_path) and platform.system() == "Linux":
+        try:
+            subprocess.run(
+                ["sudo", "/opt/wpc/scripts/php_fpm_service.sh", "create", isolated_user, php_ver],
+                check=False,
+                timeout=15
+            )
+        except Exception:
+            pass
+
+    content = read_file_privileged(conf_path)
+    if not content:
+        return False
+
+    opcache_on = extensions.get("opcache", True)
+    xdebug_on = extensions.get("xdebug", False)
+    redis_on = extensions.get("redis", True)
+    imagick_on = extensions.get("imagick", True)
+    soap_on = extensions.get("soap", False)
+    memcached_on = extensions.get("memcached", False)
+    intl_on = extensions.get("intl", True)
+    zip_on = extensions.get("zip", True)
+
+    disabled_classes = []
+    if not redis_on:
+        disabled_classes.extend(["Redis", "RedisCluster", "RedisSentinel", "RedisException"])
+    if not imagick_on:
+        disabled_classes.extend(["Imagick", "ImagickDraw", "ImagickPixel"])
+    if not soap_on:
+        disabled_classes.extend(["SoapClient", "SoapServer", "SoapFault"])
+    if not memcached_on:
+        disabled_classes.extend(["Memcached", "Memcache"])
+    if not intl_on:
+        disabled_classes.extend(["Collator", "NumberFormatter", "Locale", "Normalizer", "MessageFormatter", "IntlDateFormatter", "ResourceBundle", "Transliterator"])
+    if not zip_on:
+        disabled_classes.append("ZipArchive")
+
+    ext_lines = [
+        "; --- WPC PHP EXTENSIONS CONFIGURATION ---",
+        f"php_admin_flag[opcache.enable] = {'on' if opcache_on else 'off'}",
+        f"php_admin_value[xdebug.mode] = {'develop,debug' if xdebug_on else 'off'}"
+    ]
+    if disabled_classes:
+        ext_lines.append(f'php_admin_value[disable_classes] = "{",".join(disabled_classes)}"')
+    else:
+        ext_lines.append('php_admin_value[disable_classes] = ""')
+
+    if redis_on:
+        ext_lines.append("php_admin_value[redis.session.locking_enabled] = 1")
+
+    ext_lines.append("; --- END WPC PHP EXTENSIONS CONFIGURATION ---")
+    ext_block_str = "\n".join(ext_lines)
+
+    pattern = r";\s*--- WPC PHP EXTENSIONS CONFIGURATION ---[\s\S]*?;\s*--- END WPC PHP EXTENSIONS CONFIGURATION ---"
+    if re.search(pattern, content):
+        new_content = re.sub(pattern, ext_block_str, content)
+    else:
+        new_content = content.rstrip() + "\n\n" + ext_block_str + "\n"
+
+    new_content = sanitize_fpm_config_content(new_content, isolated_user)
+
+    tmp_conf = f"/tmp/wpc_fpm_ext_{isolated_user}_{int(time.time())}.conf"
+    try:
+        with open(tmp_conf, "w", encoding="utf-8") as f:
+            f.write(new_content)
+        subprocess.run(["sudo", "mv", tmp_conf, conf_path], check=False)
+        subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
+    except Exception:
+        pass
+
+    if platform.system() == "Linux":
+        try:
+            subprocess.run(
+                ["sudo", "/opt/wpc/scripts/php_fpm_service.sh", "restart", isolated_user, php_ver],
+                check=False,
+                timeout=15
+            )
+            subprocess.run(
+                ["sudo", "systemctl", "restart", f"wpc-php{php_ver}-fpm@{isolated_user}.service"],
+                check=False,
+                timeout=15
+            )
+        except Exception:
+            pass
+
+    return True
 
 class DomainPhpExtensionsUpdate(BaseModel):
     extensions: Dict[str, bool]
@@ -1366,6 +1489,12 @@ async def save_domain_php_extensions(
             subprocess.run(["/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
         except Exception:
             pass
+        try:
+            subprocess.run(["sudo", "systemctl", "restart", f"php{php_ver}-fpm"], check=False)
+            subprocess.run(["sudo", "/opt/wpc/scripts/php_fpm_service.sh", "restart", isolated_user, php_ver], check=False)
+            subprocess.run(["sudo", "systemctl", "restart", f"wpc-php{php_ver}-fpm@{isolated_user}.service"], check=False)
+        except Exception:
+            pass
 
     doc_root = f"/home/{isolated_user}/domains/{clean_domain}/public_html"
     if not os.path.exists(doc_root) and os.path.exists(f"/home/{isolated_user}/httpdocs/{clean_domain}"):
@@ -1424,6 +1553,10 @@ async def save_domain_php_extensions(
         disabled_classes.extend(["SoapClient", "SoapServer", "SoapFault"])
     if not req.extensions.get("memcached", False):
         disabled_classes.append("Memcached")
+    if not req.extensions.get("intl", True):
+        disabled_classes.extend(["Collator", "NumberFormatter", "Locale", "Normalizer", "MessageFormatter", "IntlDateFormatter", "ResourceBundle", "Transliterator"])
+    if not req.extensions.get("zip", True):
+        disabled_classes.append("ZipArchive")
 
     if disabled_classes:
         ext_lines.append(f'disable_classes = "{",".join(disabled_classes)}"')
@@ -1447,7 +1580,12 @@ async def save_domain_php_extensions(
     except Exception:
         pass
 
-    # 4. Kích hoạt Gatekeeper apply-php-ini để đồng bộ vhconf.conf và reload worker
+    # 4. ĐỒNG BỘ TRỰC TIẾP VÀO PHP-FPM POOL CONFIGURATION (Nginx & PHP-FPM)
+    # Vì PHP-FPM không hỗ trợ disable_classes trong .user.ini (chỉ nhận ở cấp pool PHP_INI_SYSTEM),
+    # bắt buộc phải ghi trực tiếp vào /etc/php/{php_ver}/fpm/users/{isolated_user}.conf
+    sync_fpm_pool_extensions(isolated_user, php_ver, req.extensions)
+
+    # 5. Kích hoạt Gatekeeper apply-php-ini để đồng bộ vhconf.conf (OLS) và reload worker
     res = await run_gatekeeper("vhost", "apply-php-ini", isolated_user, clean_domain, active_ws)
     if res.get("status") == "error":
         try:
@@ -1460,7 +1598,7 @@ async def save_domain_php_extensions(
 
     return {
         "status": "success",
-        "message": f"Cấu hình PHP Extensions cho website {clean_domain} đã được lưu và áp dụng thành công!" + (" (Đã cài đặt các extension còn thiếu)" if installed_any else ""),
+        "message": f"Cấu hình PHP Extensions cho website {clean_domain} đã được lưu và áp dụng thành công trên cả Nginx (PHP-FPM) và OpenLiteSpeed!" + (" (Đã cài đặt các extension còn thiếu)" if installed_any else ""),
         "extensions": req.extensions
     }
 
@@ -1829,7 +1967,7 @@ async def save_domain_fpm_service(
     """Lưu cấu hình và tự động reload PHP-FPM Service của website"""
     db = await get_db_connection()
     cursor = await db.execute("""
-        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.username as owner_username, u.parent_id
+        SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, d.php_extensions, u.username as owner_username, u.parent_id
         FROM domains d
         JOIN users u ON d.user_id = u.id
         WHERE d.id = ?
@@ -1899,6 +2037,51 @@ async def save_domain_fpm_service(
         if req.custom_directives and req.custom_directives.strip():
             custom_block = f"\n; Custom User Directives\n{req.custom_directives.strip()}\n"
 
+        ext_fpm_block = ""
+        if domain["php_extensions"]:
+            try:
+                ext_dict = json.loads(domain["php_extensions"])
+                op_on = ext_dict.get("opcache", True)
+                xd_on = ext_dict.get("xdebug", False)
+                rd_on = ext_dict.get("redis", True)
+                im_on = ext_dict.get("imagick", True)
+                sp_on = ext_dict.get("soap", False)
+                mc_on = ext_dict.get("memcached", False)
+                it_on = ext_dict.get("intl", True)
+                zp_on = ext_dict.get("zip", True)
+
+                dis_classes = []
+                if not rd_on:
+                    dis_classes.extend(["Redis", "RedisCluster", "RedisSentinel", "RedisException"])
+                if not im_on:
+                    dis_classes.extend(["Imagick", "ImagickDraw", "ImagickPixel"])
+                if not sp_on:
+                    dis_classes.extend(["SoapClient", "SoapServer", "SoapFault"])
+                if not mc_on:
+                    dis_classes.extend(["Memcached", "Memcache"])
+                if not it_on:
+                    dis_classes.extend(["Collator", "NumberFormatter", "Locale", "Normalizer", "MessageFormatter", "IntlDateFormatter", "ResourceBundle", "Transliterator"])
+                if not zp_on:
+                    dis_classes.append("ZipArchive")
+
+                ext_fpm_lines = [
+                    "\n; --- WPC PHP EXTENSIONS CONFIGURATION ---",
+                    f"php_admin_flag[opcache.enable] = {'on' if op_on else 'off'}",
+                    f"php_admin_value[xdebug.mode] = {'develop,debug' if xd_on else 'off'}"
+                ]
+                if dis_classes:
+                    ext_fpm_lines.append(f'php_admin_value[disable_classes] = "{",".join(dis_classes)}"')
+                else:
+                    ext_fpm_lines.append('php_admin_value[disable_classes] = ""')
+
+                if rd_on:
+                    ext_fpm_lines.append("php_admin_value[redis.session.locking_enabled] = 1")
+
+                ext_fpm_lines.append("; --- END WPC PHP EXTENSIONS CONFIGURATION ---")
+                ext_fpm_block = "\n".join(ext_fpm_lines)
+            except Exception:
+                pass
+
         if pm_mode == "ondemand":
             pm_directives = f"""pm = ondemand
 pm.max_children = {max_ch}
@@ -1957,7 +2140,7 @@ php_admin_value[session.save_path] = /home/{isolated_user}/.sessions
 php_admin_value[disable_functions] = {disable_funcs_v}
 php_admin_flag[log_errors] = on
 php_admin_value[error_log] = /home/{isolated_user}/logs/php-fpm.error.log
-{custom_block}"""
+{custom_block}{ext_fpm_block}"""
 
     # Luôn kiểm tra khử lỗi listen.owner/listen.group không tồn tại (như www-data trên AlmaLinux)
     content = sanitize_fpm_config_content(content, isolated_user)
