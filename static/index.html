@@ -6542,8 +6542,90 @@ function showAlert(message) {
                 // ==========================================
                 // SYSTEM WEBSITES (phpMyAdmin, pgAdmin, Roundcube...)
                 // ==========================================
-                const systemWebsites = ref([]);
+                const defaultSystemWebsites = [
+                    {
+                        id: 9001,
+                        domain_name: "phpmyadmin.sys",
+                        app_id: "phpmyadmin",
+                        site_title: "phpMyAdmin (MySQL / MariaDB GUI)",
+                        icon: "🐬",
+                        url_port: 888,
+                        doc_root: "/home/pma/public_html",
+                        owner_username: "pma",
+                        owner_group: "pma",
+                        webserver: "OLS / NGINX",
+                        engine: "LSPHP / PHP-FPM 8.2",
+                        php_version: "8.2",
+                        cpu_usage_pct: 0,
+                        cpu_pct: 50,
+                        mem_usage_mb: 42,
+                        mem_mb: 512,
+                        disk_usage_mb: 35.4,
+                        disk_mb: 1024,
+                        ssl_enabled: 0,
+                        status: "active",
+                        installed: true,
+                        category: "system",
+                        app_type: "system_app",
+                        remarks: "Website User 'pma' con của Admin, cách ly Vhost, Pool & Cgroups v2 Port 888"
+                    },
+                    {
+                        id: 9002,
+                        domain_name: "pgadmin.sys",
+                        app_id: "pgadmin",
+                        site_title: "pgAdmin 4 (PostgreSQL Web GUI)",
+                        icon: "🐘",
+                        url_port: 5050,
+                        doc_root: "/var/lib/pgadmin",
+                        owner_username: "pgadmin",
+                        owner_group: "pgadmin",
+                        webserver: "Gunicorn / Python",
+                        engine: "Python WSGI Sandbox",
+                        php_version: "Python 3.x",
+                        cpu_usage_pct: 0,
+                        cpu_pct: 50,
+                        mem_usage_mb: 65,
+                        mem_mb: 512,
+                        disk_usage_mb: 85.0,
+                        disk_mb: 1024,
+                        ssl_enabled: 0,
+                        status: "stopped",
+                        installed: false,
+                        category: "system",
+                        app_type: "system_app",
+                        remarks: "Quản trị Cơ sở dữ liệu PostgreSQL trực quan trên port 5050"
+                    },
+                    {
+                        id: 9003,
+                        domain_name: "webmail.sys",
+                        app_id: "roundcube",
+                        site_title: "Roundcube Webmail",
+                        icon: "✉️",
+                        url_port: 8800,
+                        doc_root: "/opt/wpc/apps/roundcube",
+                        owner_username: "roundcube",
+                        owner_group: "roundcube",
+                        webserver: "OLS / NGINX",
+                        engine: "LSPHP / PHP-FPM 8.2",
+                        php_version: "8.2",
+                        cpu_usage_pct: 0,
+                        cpu_pct: 50,
+                        mem_usage_mb: 38,
+                        mem_mb: 512,
+                        disk_usage_mb: 42.1,
+                        disk_mb: 1024,
+                        ssl_enabled: 0,
+                        status: "stopped",
+                        installed: false,
+                        category: "system",
+                        app_type: "system_app",
+                        remarks: "Hộp thư Webmail Roundcube tích hợp IMAP/SMTP"
+                    }
+                ];
+
+                const systemWebsites = ref([...defaultSystemWebsites]);
                 const loadingSystemWebsites = ref(false);
+                const currentHostName = ref(window.location.hostname || 'localhost');
 
                 const fetchSystemWebsites = async () => {
                     loadingSystemWebsites.value = true;
@@ -6553,7 +6635,10 @@ function showAlert(message) {
                         });
                         if (res.ok) {
                             const data = await res.json();
-                            systemWebsites.value = data.apps || [];
+                            const list = data.websites || data.apps || [];
+                            if (list && list.length > 0) {
+                                systemWebsites.value = list;
+                            }
                         }
                     } catch (e) {
                         console.error('Lỗi tải danh sách app hệ thống:', e);
@@ -6575,7 +6660,7 @@ function showAlert(message) {
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            Swal.fire({ icon: 'success', title: 'Thành công', text: data.message || `Đã khởi động lại ${app.name}!`, timer: 2000, showConfirmButton: false });
+                            Swal.fire({ icon: 'success', title: 'Thành công', text: data.message || `Đã khởi động lại ${app.name || app.site_title}!`, timer: 2000, showConfirmButton: false });
                             setTimeout(fetchSystemWebsites, 2000);
                         } else {
                             Swal.fire({ icon: 'error', title: 'Lỗi', text: data.detail || 'Không thể khởi động lại app.' });
@@ -6584,6 +6669,8 @@ function showAlert(message) {
                         Swal.fire({ icon: 'error', title: 'Lỗi kết nối', text: e.message });
                     }
                 };
+
+                const handleRestartSystemWebsite = restartSystemWebsite;
 
                 // ==========================================
                 // WEBSITE SUB-MODALS: REWRITE RULES, LOGS, SECURITY
@@ -7035,7 +7122,7 @@ function showAlert(message) {
                     handleDeleteCron, deleteCron, handleRunCronNow, runCronNow,
                     formatCronHuman, applyCronPreset, applyCommandTemplate, openWebsiteCronsModal,
                     // System Websites
-                    systemWebsites, loadingSystemWebsites, fetchSystemWebsites, restartSystemWebsite,
+                    defaultSystemWebsites, systemWebsites, loadingSystemWebsites, fetchSystemWebsites, restartSystemWebsite, handleRestartSystemWebsite, currentHostName,
                     // Website Sub-modals: Rewrite, Logs, Security
                     showWebsiteRewriteModal, selectedRewriteDomain, rewriteRulesContent,
                     loadingRewriteRules, savingRewriteRules, openWebsiteRewriteModal,

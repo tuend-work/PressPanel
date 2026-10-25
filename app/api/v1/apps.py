@@ -2408,7 +2408,7 @@ async def get_system_websites(current_user: dict = Depends(get_current_user)):
         }
     ]
 
-    return {"status": "ok", "websites": system_apps}
+    return {"status": "ok", "websites": system_apps, "apps": system_apps}
 
 
 
