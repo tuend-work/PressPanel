@@ -6,6 +6,7 @@ set -uo pipefail
 
 ACTION="${1:-install}"
 VERSION="${2:-latest}"
+TARGET_WS="${3:-}"
 PMA_USER="pma"
 PMA_HOME="/home/$PMA_USER"
 TARGET_DIR="$PMA_HOME/public_html"
@@ -172,17 +173,17 @@ if (!is_dir(__DIR__ . '/logs')) {
 \$cfg['Servers'][\$i]['host'] = '127.0.0.1';
 \$cfg['Servers'][\$i]['port'] = '3306';
 \$cfg['Servers'][\$i]['connect_type'] = 'tcp';
-$cfg['Servers'][$i]['extension'] = 'mysqli';
-$cfg['Servers'][$i]['compress'] = false;
-$cfg['Servers'][$i]['AllowNoPassword'] = false;
-$cfg['Servers'][$i]['AllowRoot'] = true;
+\$cfg['Servers'][\$i]['extension'] = 'mysqli';
+\$cfg['Servers'][\$i]['compress'] = false;
+\$cfg['Servers'][\$i]['AllowNoPassword'] = false;
+\$cfg['Servers'][\$i]['AllowRoot'] = true;
 
-$cfg['UploadDir'] = '';
-$cfg['SaveDir'] = '';
-$cfg['TempDir'] = $tmpDir;
-$cfg['SendErrorReports'] = 'never';
-$cfg['ShowPhpInfo'] = true;
-$cfg['MaxRows'] = 50;
+\$cfg['UploadDir'] = '';
+\$cfg['SaveDir'] = '';
+\$cfg['TempDir'] = \$tmpDir;
+\$cfg['SendErrorReports'] = 'never';
+\$cfg['ShowPhpInfo'] = true;
+\$cfg['MaxRows'] = 50;
 EOF
 
         # Nếu index.php vẫn chưa có, tạo trang chẩn đoán tạm thời để tránh 403 Directory Index Forbidden
@@ -199,36 +200,54 @@ EOF
 
         # 5. Phân quyền toàn diện chuẩn Website User
         rm -f "$TARGET_DIR/.htaccess" 2>/dev/null || true
-        mkdir -p "$TARGET_DIR/tmp" "$PMA_HOME/logs"
-        chmod 1777 "$TARGET_DIR/tmp" 2>/dev/null || chmod 777 "$TARGET_DIR/tmp" 2>/dev/null || true
+        mkdir -p "$TARGET_DIR/tmp" "$PMA_HOME/.sessions" "$PMA_HOME/.tmp" "$PMA_HOME/logs"
+        chmod 1777 "$TARGET_DIR/tmp" "$PMA_HOME/.sessions" "$PMA_HOME/.tmp" 2>/dev/null || true
         chmod 755 "$PMA_HOME/logs" 2>/dev/null || true
         chmod 644 "$TARGET_DIR/config.inc.php" "$TARGET_DIR/index.php" 2>/dev/null || true
 
+        chmod 711 /home 2>/dev/null || true
+        chmod 755 "$PMA_HOME" "$TARGET_DIR" 2>/dev/null || true
         chown -R pma:pma "$PMA_HOME" 2>/dev/null || true
         find "$TARGET_DIR" -type d -exec chmod 755 {} + 2>/dev/null || true
         find "$TARGET_DIR" -type f -exec chmod 644 {} + 2>/dev/null || true
-        chmod 1777 "$TARGET_DIR/tmp" 2>/dev/null || chmod 777 "$TARGET_DIR/tmp" 2>/dev/null || true
+        chmod 1777 "$TARGET_DIR/tmp" "$PMA_HOME/.sessions" "$PMA_HOME/.tmp" 2>/dev/null || true
+
+        # Thêm nobody (OLS) và www-data (Nginx) vào group pma để truy cập static files
+        id "nobody" &>/dev/null && usermod -a -G pma nobody 2>/dev/null || true
+        id "www-data" &>/dev/null && usermod -a -G pma www-data 2>/dev/null || true
+        usermod -a -G www-data "$PMA_USER" 2>/dev/null || true
+        usermod -a -G nobody "$PMA_USER" 2>/dev/null || true
 
         # Tạo symlink phpmyadmin để hỗ trợ cả URI / và /phpmyadmin/
         ln -snf "$TARGET_DIR" "$TARGET_DIR/phpmyadmin" 2>/dev/null || true
         ln -snf "$TARGET_DIR" "$TARGET_DIR/phpMyAdmin" 2>/dev/null || true
 
-        # Cài đặt bổ sung module PHP cần thiết (mysqli, mbstring) CHỈ CHO phiên bản PHP đang dùng
+        # Cài đặt bổ sung module PHP cần thiết (mysqli, mbstring) cho cả PHP-FPM và OpenLiteSpeed LSPHP
         ACTIVE_PHP=$(detect_php_version)
-        echo "[+] Đảm bảo các module PHP thiết yếu (mysqli, mbstring) cho PHP $ACTIVE_PHP..."
+        OLS_LSPHP=$(detect_ols_lsphp)
+        echo "[+] Đảm bảo các module PHP thiết yếu (mysqli, mbstring) cho PHP $ACTIVE_PHP và OLS $OLS_LSPHP..."
         if command -v apt-get &>/dev/null; then
             export DEBIAN_FRONTEND=noninteractive
-            # Chỉ cài gói MySQL và mbstring cho đúng phiên bản PHP đang hoạt động
-            apt-get install -y "php${ACTIVE_PHP}-mysql" "php${ACTIVE_PHP}-mbstring" "php${ACTIVE_PHP}-xml" "php${ACTIVE_PHP}-curl" 2>/dev/null || true
-            command -v phpenmod &>/dev/null && phpenmod -v "$ACTIVE_PHP" mysqlnd mysqli pdo_mysql mbstring xml curl 2>/dev/null || true
+            apt-get install -y "php${ACTIVE_PHP}-mysql" "php${ACTIVE_PHP}-mbstring" "php${ACTIVE_PHP}-xml" "php${ACTIVE_PHP}-curl" "php${ACTIVE_PHP}-zip" 2>/dev/null || true
+            command -v phpenmod &>/dev/null && phpenmod -v "$ACTIVE_PHP" mysqlnd mysqli pdo_mysql mbstring xml curl zip 2>/dev/null || true
             if [ -d "/usr/local/lsws" ]; then
-                PMA_LSPHP_NUM=$(echo "$ACTIVE_PHP" | tr -d '.')
-                apt-get install -y "lsphp${PMA_LSPHP_NUM}-mysql" "lsphp${PMA_LSPHP_NUM}-curl" "lsphp${PMA_LSPHP_NUM}-mbstring" 2>/dev/null || true
+                for lsp_name in "$OLS_LSPHP" lsphp83 lsphp82 lsphp81 lsphp84; do
+                    if [ -d "/usr/local/lsws/$lsp_name" ] || [ "$lsp_name" = "$OLS_LSPHP" ]; then
+                        apt-get install -y "${lsp_name}-mysql" "${lsp_name}-mbstring" "${lsp_name}-curl" "${lsp_name}-zip" "${lsp_name}-xml" "${lsp_name}-json" 2>/dev/null || true
+                    fi
+                done
             fi
         elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
             PKG_MGR="dnf"
             command -v dnf &>/dev/null || PKG_MGR="yum"
-            $PKG_MGR install -y php-mysqlnd php-mysqli php-mbstring php-xml php-curl 2>/dev/null || true
+            $PKG_MGR install -y php-mysqlnd php-mysqli php-mbstring php-xml php-curl php-zip 2>/dev/null || true
+            if [ -d "/usr/local/lsws" ]; then
+                for lsp_name in "$OLS_LSPHP" lsphp83 lsphp82 lsphp81 lsphp84; do
+                    if [ -d "/usr/local/lsws/$lsp_name" ] || [ "$lsp_name" = "$OLS_LSPHP" ]; then
+                        $PKG_MGR install -y "${lsp_name}-mysqlnd" "${lsp_name}-mbstring" "${lsp_name}-curl" "${lsp_name}-zip" "${lsp_name}-xml" 2>/dev/null || true
+                    fi
+                done
+            fi
         fi
 
         # 6. Mở cổng tường lửa nếu đang bật (UFW hoặc Firewalld)
@@ -251,14 +270,20 @@ EOF
 
         # 8. Phát hiện Web Server đang hoạt động thực tế (Nginx hoặc OpenLiteSpeed)
         ACTIVE_WS="nginx"
-        if command -v systemctl &>/dev/null; then
-            if systemctl is-active --quiet nginx 2>/dev/null || systemctl is-active --quiet openresty 2>/dev/null; then
+        if [ "$TARGET_WS" = "ols" ] || [ "$TARGET_WS" = "openlitespeed" ] || [ "$TARGET_WS" = "lsws" ]; then
+            ACTIVE_WS="ols"
+        elif [ "$TARGET_WS" = "nginx" ]; then
+            ACTIVE_WS="nginx"
+        elif command -v systemctl &>/dev/null; then
+            if systemctl is-active --quiet lshttpd 2>/dev/null || systemctl is-active --quiet lsws 2>/dev/null; then
+                ACTIVE_WS="ols"
+            elif systemctl is-active --quiet nginx 2>/dev/null || systemctl is-active --quiet openresty 2>/dev/null; then
                 ACTIVE_WS="nginx"
-            elif systemctl is-active --quiet lshttpd 2>/dev/null || systemctl is-active --quiet lsws 2>/dev/null; then
+            elif pgrep -f "litespeed|openlitespeed|lshttpd" &>/dev/null; then
                 ACTIVE_WS="ols"
             elif pgrep -x nginx &>/dev/null; then
                 ACTIVE_WS="nginx"
-            elif pgrep -f "litespeed|openlitespeed|lshttpd" &>/dev/null; then
+            elif [ -d "/usr/local/lsws" ] && [ -f "/usr/local/lsws/conf/httpd_config.conf" ] && ! systemctl is-active --quiet nginx 2>/dev/null; then
                 ACTIVE_WS="ols"
             elif [ -d "/etc/nginx/conf.d" ]; then
                 ACTIVE_WS="nginx"
@@ -266,14 +291,14 @@ EOF
                 ACTIVE_WS="ols"
             fi
         else
-            if pgrep -x nginx &>/dev/null; then
-                ACTIVE_WS="nginx"
-            elif pgrep -f "litespeed|openlitespeed|lshttpd" &>/dev/null; then
+            if pgrep -f "litespeed|openlitespeed|lshttpd" &>/dev/null; then
                 ACTIVE_WS="ols"
-            elif [ -d "/etc/nginx/conf.d" ]; then
+            elif pgrep -x nginx &>/dev/null; then
                 ACTIVE_WS="nginx"
             elif [ -d "/usr/local/lsws" ]; then
                 ACTIVE_WS="ols"
+            elif [ -d "/etc/nginx/conf.d" ]; then
+                ACTIVE_WS="nginx"
             fi
         fi
 
@@ -288,6 +313,7 @@ EOF
                 rm -rf "/usr/local/lsws/conf/vhosts/phpmyadmin" 2>/dev/null || true
                 /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lshttpd 2>/dev/null || systemctl restart lsws 2>/dev/null || true
             fi
+            fuser -k "${PMA_PORT}/tcp" 2>/dev/null || true
 
             mkdir -p /etc/nginx/conf.d /etc/nginx/sites-available /etc/nginx/sites-enabled
             ACTIVE_PHP=$(detect_php_version)
@@ -376,12 +402,14 @@ EOF
 
         elif [ -d "/usr/local/lsws" ] && [ -f "$OLS_MAIN_CONF" ]; then
             # Tránh Nginx chiếm cổng 888 gây xung đột cổng
-            if [ -f "/etc/nginx/conf.d/00_phpmyadmin.conf" ]; then
+            if [ -f "/etc/nginx/conf.d/00_phpmyadmin.conf" ] || [ -f "/etc/nginx/sites-enabled/00_phpmyadmin.conf" ]; then
                 rm -f "/etc/nginx/conf.d/00_phpmyadmin.conf" "/etc/nginx/sites-enabled/00_phpmyadmin.conf" 2>/dev/null || true
-                if command -v nginx &>/dev/null; then
-                    systemctl restart nginx 2>/dev/null || nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+                if command -v nginx &>/dev/null && (systemctl is-active --quiet nginx 2>/dev/null || pgrep -x nginx &>/dev/null); then
+                    nginx -t 2>/dev/null && nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
                 fi
             fi
+            # Giải phóng cổng 888 nếu bị process khác chiếm giữ
+            fuser -k "${PMA_PORT}/tcp" 2>/dev/null || true
 
             OLS_LSPHP=$(detect_ols_lsphp)
             OLS_LSPHP_BIN="/usr/local/lsws/$OLS_LSPHP/bin/lsphp"
@@ -398,11 +426,12 @@ EOF
             chmod 666 "/usr/local/lsws/logs/pma_error.log" "/usr/local/lsws/logs/pma_access.log" 2>/dev/null || true
 
             cat <<EOF > "/usr/local/lsws/conf/vhosts/phpmyadmin/vhconf.conf"
-docRoot                   \$VH_ROOT/
+docRoot                   \$VH_ROOT/public_html
 vhDomain                  localhost
 vhAliases                 127.0.0.1, *
 adminEmails               admin@localhost
 enableGzip                1
+enableBr                  1
 indexFiles                index.php, index.html
 
 accessControl {
@@ -421,11 +450,23 @@ accesslog \$SERVER_ROOT/logs/pma_access.log {
   keepDays                30
 }
 
+context / {
+  type                    null
+  location                \$DOC_ROOT/
+  allow                   *
+  addDefaultCharset       off
+}
+
+rewrite  {
+  enable                  1
+  autoLoadHtaccess        1
+}
+
 extprocessor pma_lsphp {
   type                    lsapi
   address                 uds://tmp/lshttpd/pma_lsphp.sock
   maxConns                20
-  env                     PHP_LSAPI_CHILDREN=20
+  env                     LSAPI_CHILDREN=20
   initTimeout             60
   retryTimeout            0
   persistConn             1
@@ -434,6 +475,7 @@ extprocessor pma_lsphp {
   path                    $OLS_LSPHP_BIN
   backlog                 100
   instances               1
+  runOn                   1
   priority                0
   memSoftLimit            1024M
   memHardLimit            2048M
@@ -468,11 +510,12 @@ EOF
             cat <<EOF >> "$OLS_MAIN_CONF"
 
 virtualhost phpmyadmin {
-  vhRoot                  $TARGET_DIR
+  vhRoot                  $PMA_HOME
   configFile              conf/vhosts/phpmyadmin/vhconf.conf
-  allowSymbolLink         1
+  allowSymbolLink         2
   enableScript            1
   restrained              0
+  setUIDMode              2
 }
 
 listener PMA_888 {
@@ -483,9 +526,11 @@ listener PMA_888 {
 EOF
             chmod 644 "$OLS_MAIN_CONF" 2>/dev/null || true
 
-            # Xoá socket cũ và restart OpenLiteSpeed
+            # Xoá socket cũ, dừng process cũ và restart OpenLiteSpeed
             rm -f "/tmp/lshttpd/pma_lsphp.sock" 2>/dev/null || true
+            pkill -9 -f "pma_lsphp" 2>/dev/null || true
             /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lshttpd 2>/dev/null || systemctl restart lsws 2>/dev/null || true
+            echo "[+] OpenLiteSpeed đã nạp cấu hình phpMyAdmin (Port $PMA_PORT, LSPHP: $OLS_LSPHP) thành công!"
         fi
 
         # 9. Gắn tiến trình pma vào Cgroups v2
