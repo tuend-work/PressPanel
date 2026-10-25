@@ -904,10 +904,104 @@ function showAlert(message) {
                     return appsList.value.filter(a => a.installed).length;
                 });
 
+                const appsSearchQuery = ref('');
+                const homeApps = ref(JSON.parse(localStorage.getItem('wpc_home_apps') || '["nginx", "mysql", "redis"]'));
+                const isAppOnHome = (appId) => {
+                    return homeApps.value.includes(appId);
+                };
+                const toggleDisplayOnHome = (app) => {
+                    const idx = homeApps.value.indexOf(app.id);
+                    if (idx > -1) {
+                        homeApps.value.splice(idx, 1);
+                    } else {
+                        homeApps.value.push(app.id);
+                    }
+                    localStorage.setItem('wpc_home_apps', JSON.stringify(homeApps.value));
+                };
+
                 const filteredApps = computed(() => {
-                    if (appsCategory.value === 'all') return appsList.value;
-                    return appsList.value.filter(a => a.category === appsCategory.value);
+                    let list = appsList.value;
+                    if (appsCategory.value !== 'all') {
+                        list = list.filter(a => a.category === appsCategory.value);
+                    }
+                    if (appsSearchQuery.value && appsSearchQuery.value.trim()) {
+                        const q = appsSearchQuery.value.toLowerCase().trim();
+                        list = list.filter(a =>
+                            (a.name && a.name.toLowerCase().includes(q)) ||
+                            (a.id && a.id.toLowerCase().includes(q)) ||
+                            (a.detailed_version && a.detailed_version.toLowerCase().includes(q)) ||
+                            (a.default_version && a.default_version.toLowerCase().includes(q)) ||
+                            (a.desc && a.desc.toLowerCase().includes(q))
+                        );
+                    }
+                    return list;
                 });
+
+                const appServiceLogs = ref('');
+                const appLogPath = ref('');
+                const loadingServiceLogs = ref(false);
+                const fetchAppLogs = async (appId) => {
+                    loadingServiceLogs.value = true;
+                    appServiceLogs.value = 'Đang tải nhật ký lỗi...';
+                    try {
+                        const res = await fetch(`/api/v1/apps/service-logs?app_id=${appId}&lines=120`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            appServiceLogs.value = data.logs || 'Không có log lỗi.';
+                            appLogPath.value = data.log_path || '';
+                        } else {
+                            appServiceLogs.value = 'Không thể tải log dịch vụ.';
+                        }
+                    } catch (e) {
+                        appServiceLogs.value = 'Lỗi tải log: ' + e.message;
+                    } finally {
+                        loadingServiceLogs.value = false;
+                    }
+                };
+
+                const appLoadStatus = ref(null);
+                const loadingServiceStatus = ref(false);
+                const fetchAppLoadStatus = async (appId) => {
+                    loadingServiceStatus.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/apps/service-status?app_id=${appId}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            appLoadStatus.value = await res.json();
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải service status:', e);
+                    } finally {
+                        loadingServiceStatus.value = false;
+                    }
+                };
+
+                const appAlertOnStop = ref(JSON.parse(localStorage.getItem('wpc_app_alerts') || '{}'));
+                const showAlarmSettingModal = ref(false);
+                const toggleAlertOnStop = async (app) => {
+                    if (!app) return;
+                    const cur = !!appAlertOnStop.value[app.id];
+                    appAlertOnStop.value[app.id] = !cur;
+                    localStorage.setItem('wpc_app_alerts', JSON.stringify(appAlertOnStop.value));
+                    try {
+                        await fetch('/api/v1/apps/alarm-setting', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ app_id: app.id, enabled: appAlertOnStop.value[app.id] })
+                        });
+                    } catch (e) {}
+                };
+
+                const showAppLocation = (app) => {
+                    const loc = app.location_path || `/etc/${app.id}`;
+                    alert(`📁 Thư mục cài đặt & cấu hình của ${app.name}:\n\n${loc}`);
+                };
 
                 // Dữ liệu Messages Box & Task List (WPC Style)
                 const showMessagesBox = ref(false);
@@ -1213,15 +1307,15 @@ function showAlert(message) {
 
                 const openAppSettings = async (app) => {
                     selectedSettingApp.value = app;
-                    if (['ols', 'nginx'].includes(app.id)) {
-                        appSettingTab.value = 'server_config';
-                        wsServerTab.value = 'general';
-                        fetchWsServerSettings(app.id);
-                    } else {
-                        appSettingTab.value = 'service';
-                    }
+                    appSettingTab.value = 'service';
                     showAppSettingModal.value = true;
                     loadAppConfig(app.id);
+                    fetchAppLogs(app.id);
+                    fetchAppLoadStatus(app.id);
+                    if (['ols', 'nginx'].includes(app.id)) {
+                        wsServerTab.value = 'general';
+                        fetchWsServerSettings(app.id);
+                    }
                     if (app.category === 'php') {
                         fetchPhpExtensions(app.id);
                         fetchPhpDirectives(app.id);
@@ -6743,7 +6837,10 @@ function showAlert(message) {
                     loginForm, loginError, loggingIn, newDomain, tabTitle, activeSystemWebserver,
                     sysStats, headerResourceStats, trafficHistory, timeLabels, downstreamCurvePath,
                     upstreamCurvePath, downstreamAreaPath, upstreamAreaPath,
-                    appsList, appsCategory, installingAppId, installedAppsCount, filteredApps,
+                    appsList, appsCategory, appsSearchQuery, homeApps, isAppOnHome, toggleDisplayOnHome, showAppLocation,
+                    appAlertOnStop, toggleAlertOnStop, appServiceLogs, appLogPath, loadingServiceLogs, fetchAppLogs,
+                    appLoadStatus, loadingServiceStatus, fetchAppLoadStatus, showAlarmSettingModal,
+                    installingAppId, installedAppsCount, filteredApps,
                     getApp, fetchAppsList, handleAppAction, handleCheckPhpUpdate, checkingPhpUpdateId, openPhpMyAdmin, appVersions,
                     showAppSettingModal, selectedSettingApp, appSettingTab, appConfigPath,
                     appConfigContent, savingConfig, rewritingConfig, handleRewriteWebserverConfig,

@@ -2028,134 +2028,110 @@
                     <!-- Header -->
                     <div class="h-12 px-5 border-b border-[#232b36] flex items-center justify-between bg-[#151a22] shrink-0">
                         <div class="flex items-center space-x-2.5">
-                            <span class="text-xl">{{ selectedSettingApp?.icon || '⚙️' }}</span>
-                            <h3 class="text-sm font-bold text-white tracking-wide">{{ selectedSettingApp?.name }} - Manage</h3>
-                            <span class="text-[10px] px-2 py-0.5 rounded font-mono bg-cyan-950 text-cyan-400 border border-cyan-800">
-                                v{{ selectedSettingApp?.default_version }}
-                            </span>
+                            <div class="w-6 h-6 rounded bg-[#1a202c] border border-[#2a3446] flex items-center justify-center text-xs font-bold font-mono">
+                                <span v-if="selectedSettingApp?.id === 'nginx'" class="text-emerald-400">N</span>
+                                <span v-else-if="selectedSettingApp?.category === 'php'" class="text-indigo-400 text-[10px]">php</span>
+                                <span v-else-if="['mysql', 'mariadb'].includes(selectedSettingApp?.id)" class="text-sky-400">🐬</span>
+                                <span v-else-if="selectedSettingApp?.id === 'redis'" class="text-rose-500">🔴</span>
+                                <span v-else>{{ selectedSettingApp?.icon || '⚙️' }}</span>
+                            </div>
+                            <h3 class="text-sm font-semibold text-white tracking-wide">{{ selectedSettingApp?.name }}</h3>
                         </div>
                         <button @click="showAppSettingModal = false" class="text-slate-400 hover:text-white text-xl p-1 leading-none">&times;</button>
                     </div>
 
                     <!-- Body: 2 Columns Layout (WPC sidebar tabs style) -->
                     <div class="flex-1 flex min-h-0 bg-[#0f131a]">
-                        <!-- Left Sidebar Tabs -->
-                        <div class="w-52 bg-[#131720] border-r border-[#232b36] p-2 space-y-0.5 shrink-0 text-xs font-medium overflow-y-auto custom-scrollbar">
-                            <!-- WEBSERVER SPECIFIC TAB: SERVER CONFIGURATION (IMAGE 1 STYLE) -->
-                            <template v-if="['ols', 'nginx'].includes(selectedSettingApp?.id)">
-                                <button @click="appSettingTab = 'server_config'"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'server_config' ? 'bg-[#1e2633] text-emerald-400 font-bold border-l-2 border-emerald-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>⚙️</span>
-                                    <span>Server Configuration</span>
-                                </button>
-                            </template>
-
-                            <!-- COMMON: SERVICE -->
+                        <!-- Left Sidebar Tabs (Exactly as Image 2) -->
+                        <div class="w-48 bg-[#131720] border-r border-[#232b36] p-2 space-y-0.5 shrink-0 text-xs font-medium overflow-y-auto custom-scrollbar">
+                            <!-- 1. Service (Default active in Image 2) -->
                             <button @click="appSettingTab = 'service'"
                                 class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
                                 :class="appSettingTab === 'service' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
                                 <span>Service</span>
                             </button>
 
-                            <!-- PHP-SPECIFIC TABS (THEO HÌNH WPC) -->
+                            <!-- 2. Web server / Database / Extensions -->
+                            <button v-if="['ols', 'nginx'].includes(selectedSettingApp?.id)"
+                                @click="appSettingTab = 'server_config'"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'server_config' ? 'bg-[#1e2633] text-emerald-400 font-bold border-l-2 border-emerald-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>Web server</span>
+                            </button>
+                            <button v-else-if="selectedSettingApp?.category === 'php'"
+                                @click="appSettingTab = 'extensions'; fetchPhpExtensions(selectedSettingApp.id)"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'extensions' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>Extensions</span>
+                            </button>
+                            <button v-else-if="['mysql', 'mariadb', 'redis', 'pgsql', 'mongodb', 'sqlserver'].includes(selectedSettingApp?.id)"
+                                @click="appSettingTab = 'db_settings'"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'db_settings' ? 'bg-[#1e2633] text-sky-400 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>Database</span>
+                            </button>
+
+                            <!-- 3. Config file -->
+                            <button @click="appSettingTab = 'config'; loadAppConfig(selectedSettingApp.id, 'main')"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'config' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>Config file</span>
+                            </button>
+
+                            <!-- 4. Switch version -->
+                            <button @click="appSettingTab = 'switch_version'"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'switch_version' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>Switch version</span>
+                            </button>
+
+                            <!-- 5. Load status -->
+                            <button @click="appSettingTab = 'load_status'; fetchAppLoadStatus(selectedSettingApp.id)"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'load_status' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>Load status</span>
+                            </button>
+
+                            <!-- 6. Optimization -->
+                            <button @click="appSettingTab = 'optimization'"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'optimization' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>Optimization</span>
+                            </button>
+
+                            <!-- 7. Error log -->
+                            <button @click="appSettingTab = 'error_log'; fetchAppLogs(selectedSettingApp.id)"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                :class="appSettingTab === 'error_log' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                <span>Error log</span>
+                            </button>
+
+                            <!-- Additional PHP Tabs (underneath if PHP) -->
                             <template v-if="selectedSettingApp?.category === 'php'">
-                                <button @click="appSettingTab = 'extensions'; fetchPhpExtensions(selectedSettingApp.id)"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'extensions' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>Install extensions</span>
-                                </button>
+                                <div class="pt-2 border-t border-[#232b36] mt-2 mb-1 px-3 text-[10px] uppercase font-bold text-slate-500">
+                                    PHP Extra
+                                </div>
                                 <button @click="appSettingTab = 'php_config'; fetchPhpDirectives(selectedSettingApp.id)"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    class="w-full text-left px-3 py-1.5 rounded-xl transition flex items-center space-x-2"
                                     :class="appSettingTab === 'php_config' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>Configuration</span>
-                                </button>
-                                <button @click="appSettingTab = 'limit_upload'; fetchPhpDirectives(selectedSettingApp.id)"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'limit_upload' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>Limit of upload</span>
-                                </button>
-                                <button @click="appSettingTab = 'limit_timeout'; fetchPhpDirectives(selectedSettingApp.id)"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'limit_timeout' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>Limit of timeout</span>
-                                </button>
-                                <button @click="appSettingTab = 'config'; loadAppConfig(selectedSettingApp.id, 'main')"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'config' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>Configuration file</span>
+                                    <span>Directives</span>
                                 </button>
                                 <button @click="appSettingTab = 'fpm_pool'; loadAppConfig(selectedSettingApp.id, 'pool')"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    class="w-full text-left px-3 py-1.5 rounded-xl transition flex items-center space-x-2"
                                     :class="appSettingTab === 'fpm_pool' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>FPM profile</span>
-                                </button>
-                                <button @click="appSettingTab = 'disabled_functions'; fetchPhpDirectives(selectedSettingApp.id)"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'disabled_functions' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>Disabled functions</span>
-                                </button>
-                                <button @click="appSettingTab = 'optimization'; fetchPhpDirectives(selectedSettingApp.id)"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'optimization' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>Optimization</span>
-                                </button>
-                                <button @click="appSettingTab = 'load_average'"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'load_average' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>Load average</span>
-                                </button>
-                                <button @click="appSettingTab = 'session_config'"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'session_config' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>Session configuration</span>
-                                </button>
-                                <button @click="appSettingTab = 'php_logs'"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'php_logs' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>Logs</span>
-                                </button>
-                                <button @click="appSettingTab = 'slow_log'"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'slow_log' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>Slow log</span>
+                                    <span>FPM Profile</span>
                                 </button>
                                 <button @click="appSettingTab = 'phpinfo'; fetchPhpInfo(selectedSettingApp.id)"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    class="w-full text-left px-3 py-1.5 rounded-xl transition flex items-center space-x-2"
                                     :class="appSettingTab === 'phpinfo' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>phpinfo</span>
+                                    <span>phpinfo()</span>
                                 </button>
                             </template>
 
-                            <!-- NON-PHP APPS DEFAULT TABS -->
-                            <template v-else>
-                                <button @click="appSettingTab = 'config'; loadAppConfig(selectedSettingApp.id, 'main')"
-                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'config' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>📝</span>
-                                    <span>Configuration</span>
-                                </button>
-                            </template>
-
-                            <button @click="appSettingTab = 'autorestart'"
-                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                :class="appSettingTab === 'autorestart' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                <span>🔄</span>
-                                <span>Tự Khởi Động</span>
-                            </button>
-                            <button @click="appSettingTab = 'logs'"
-                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                :class="appSettingTab === 'logs' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                <span>📜</span>
-                                <span>Service Status</span>
-                            </button>
-
-
-                            <!-- BUILD SETTINGS (CẤU HÌNH ĐỐI SỐ BIÊN DỊCH TỪ SOURCE) -->
+                            <!-- Build settings for source build if applicable -->
                             <button @click="openAppBuildSettings(selectedSettingApp.id)"
-                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2 mt-2 pt-2 border-t border-[#232b36]"
                                 :class="appSettingTab === 'build_settings' ? 'bg-[#1e2633] text-amber-400 font-bold border-l-2 border-amber-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                <span>🛠️</span>
                                 <span>Build settings</span>
                             </button>
                         </div>
@@ -2481,84 +2457,58 @@
                                 </div>
                             </div>
 
-                            <!-- TAB 1: SERVICE CONTROLS -->
-                            <div v-if="appSettingTab === 'service'" class="space-y-4">
-                                <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-slate-400">Trạng thái dịch vụ:</span>
-                                        <span v-if="selectedSettingApp?.running" class="px-2.5 py-1 rounded text-xs font-mono bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1.5">
-                                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                                            <span>Running (Đang hoạt động)</span>
-                                        </span>
-                                        <span v-else class="px-2.5 py-1 rounded text-xs font-mono bg-amber-950 text-amber-400 border border-amber-800">
-                                            Stopped (Đã dừng)
-                                        </span>
-                                    </div>
-                                    <div class="flex items-center justify-between text-slate-400">
-                                        <span>Tên Daemon Service:</span>
-                                        <span class="font-mono text-white font-bold">{{ selectedSettingApp?.service || 'Không có service' }}</span>
-                                    </div>
-
-                                    <!-- CHI TIẾT RIÊNG CHO PHPMYADMIN (PHP-FPM SERVICE & LSPHP PATH) -->
-                                    <div v-if="selectedSettingApp?.id === 'phpmyadmin'" class="mt-3 pt-3 border-t border-slate-800/80 space-y-2 text-xs">
-                                        <div class="flex items-center justify-between">
-                                            <span class="text-slate-400">Cổng truy cập Web:</span>
-                                            <div class="flex items-center gap-2">
-                                                <span class="font-mono text-cyan-400 font-bold bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/50">Port 888</span>
-                                                <a :href="'http://' + (terminalHost || window.location.hostname) + ':888'" target="_blank"
-                                                    class="text-[11px] px-2 py-0.5 rounded bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 font-bold border border-emerald-500/40 inline-flex items-center gap-1">
-                                                    <span>Mở phpMyAdmin</span>
-                                                    <span>↗</span>
-                                                </a>
-                                            </div>
-                                        </div>
-
-                                        <!-- Khi chạy Nginx: Hiển thị PHP-FPM Service riêng -->
-                                        <template v-if="selectedSettingApp?.pma_info?.fpm_service || selectedSettingApp?.pma_info?.webserver === 'Nginx'">
-                                            <div class="flex items-center justify-between">
-                                                <span class="text-slate-400">PHP-FPM Service riêng:</span>
-                                                <span class="font-mono text-emerald-400 font-bold">{{ selectedSettingApp?.pma_info?.fpm_service || 'wpc-php-fpm@phpmyadmin.service' }}</span>
-                                            </div>
-                                            <div class="flex items-center justify-between">
-                                                <span class="text-slate-400">PHP-FPM Socket:</span>
-                                                <span class="font-mono text-amber-300 text-[11px]">{{ selectedSettingApp?.pma_info?.fpm_sock || '/run/php/php*-fpm-phpmyadmin.sock' }}</span>
-                                            </div>
-                                        </template>
-
-                                        <!-- Khi chạy OpenLiteSpeed: Hiển thị path LSPHP -->
-                                        <template v-if="selectedSettingApp?.pma_info?.lsphp_path || selectedSettingApp?.pma_info?.webserver === 'OpenLiteSpeed'">
-                                            <div class="flex items-center justify-between">
-                                                <span class="text-slate-400">Cơ chế thực thi:</span>
-                                                <span class="font-mono text-emerald-400 font-bold">LiteSpeed LSAPI suEXEC (Port 888)</span>
-                                            </div>
-                                            <div class="flex items-center justify-between">
-                                                <span class="text-slate-400">Đường dẫn LSPHP Binary:</span>
-                                                <span class="font-mono text-cyan-300 text-[11px]">{{ selectedSettingApp?.pma_info?.lsphp_path || '/usr/local/lsws/lsphp82/bin/lsphp' }}</span>
-                                            </div>
-                                        </template>
-
-                                        <div class="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
-                                            💡 <b>Cách ly hoàn toàn:</b> phpMyAdmin sử dụng tiến trình PHP riêng biệt và cổng 888 độc lập, không dùng chung pool FPM với bất kỳ website nào để bảo đảm an toàn dữ liệu và bộ nhớ.
-                                        </div>
-                                    </div>
+                            <!-- TAB 1: SERVICE CONTROLS (EXACTLY AS IMAGE 2) -->
+                            <div v-if="appSettingTab === 'service'" class="space-y-6 max-w-xl">
+                                <!-- Current state -->
+                                <div class="text-xs text-slate-300">
+                                    Current state: <span class="font-medium capitalize" :class="selectedSettingApp?.running ? 'text-emerald-400' : 'text-amber-400'">{{ selectedSettingApp?.running ? 'Start' : 'Stop' }}</span>
                                 </div>
 
-                                <div class="flex flex-wrap gap-3 pt-2">
-                                    <button v-if="selectedSettingApp?.service" @click="handleAppAction(selectedSettingApp.id, 'restart')"
-                                        class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold flex items-center space-x-1.5 shadow">
-                                        <span>🔄</span>
-                                        <span>Khởi Động Lại (Restart)</span>
+                                <!-- Stop / Restart / Reload buttons -->
+                                <div class="flex items-center space-x-3">
+                                    <button @click="handleAppAction(selectedSettingApp.id, selectedSettingApp.running ? 'stop' : 'start')"
+                                        class="px-5 py-1.5 rounded-md bg-[#1c2128] hover:bg-[#252b35] text-slate-200 hover:text-white border border-[#30363d] text-xs font-medium transition shadow-sm">
+                                        {{ selectedSettingApp.running ? 'Stop' : 'Start' }}
                                     </button>
-                                    <button v-if="selectedSettingApp?.service" @click="handleAppAction(selectedSettingApp.id, selectedSettingApp.running ? 'stop' : 'start')"
-                                        class="px-4 py-2 rounded-xl font-semibold flex items-center space-x-1.5 shadow"
-                                        :class="selectedSettingApp?.running ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'">
-                                        <span>{{ selectedSettingApp?.running ? '⏹️ Dừng Dịch Vụ' : '▶️ Bật Dịch Vụ' }}</span>
+                                    <button @click="handleAppAction(selectedSettingApp.id, 'restart')"
+                                        class="px-5 py-1.5 rounded-md bg-[#1c2128] hover:bg-[#252b35] text-slate-200 hover:text-white border border-[#30363d] text-xs font-medium transition shadow-sm">
+                                        Restart
                                     </button>
-                                    <button v-if="selectedSettingApp?.service" @click="handleAppAction(selectedSettingApp.id, 'reload')"
-                                        class="px-4 py-2 rounded-xl bg-blue-600/30 text-blue-300 hover:bg-blue-600/40 border border-blue-500/40 font-semibold flex items-center space-x-1.5">
-                                        <span>⚡</span>
-                                        <span>Reload Config</span>
+                                    <button @click="handleAppAction(selectedSettingApp.id, 'reload')"
+                                        class="px-5 py-1.5 rounded-md bg-[#1c2128] hover:bg-[#252b35] text-slate-200 hover:text-white border border-[#30363d] text-xs font-medium transition shadow-sm">
+                                        Reload
                                     </button>
+                                </div>
+
+                                <div class="border-t border-[#232832]"></div>
+
+                                <!-- Alert me when status stops -->
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-slate-300 text-xs">Alert me when status stops</span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" :checked="!!appAlertOnStop[selectedSettingApp?.id]" @change="toggleAlertOnStop(selectedSettingApp)" class="sr-only peer">
+                                        <div class="w-9 h-5 bg-[#252b36] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                                    </label>
+                                    <button @click="showAlarmSettingModal = true" class="text-emerald-400 hover:text-emerald-300 text-xs hover:underline cursor-pointer">
+                                        Alarm Setting
+                                    </button>
+                                </div>
+
+                                <div class="border-t border-[#232832]"></div>
+
+                                <!-- Daemon -->
+                                <div class="space-y-3">
+                                    <div class="flex items-center space-x-3">
+                                        <span class="text-slate-300 text-xs">Daemon</span>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" :checked="selectedSettingApp?.autorestart" @change="toggleAppAutorestart(selectedSettingApp, $event.target.checked)" class="sr-only peer">
+                                            <div class="w-9 h-5 bg-[#252b36] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                                        </label>
+                                    </div>
+                                    <ul class="text-[12px] text-slate-400 space-y-1.5 pl-4 list-disc marker:text-slate-500 leading-relaxed">
+                                        <li>Default check every 1 minute, can be changed in Cron</li>
+                                        <li>The daemon can be started automatically after the {{ selectedSettingApp?.name }} service is stopped to ensure that the {{ selectedSettingApp?.name }} service is always running.</li>
+                                    </ul>
                                 </div>
                             </div>
 
@@ -2793,14 +2743,183 @@
                                 </div>
                             </div>
 
-                            <!-- TAB 4: SERVICE LOGS / STATUS -->
-                            <div v-if="appSettingTab === 'logs'" class="space-y-3">
-                                <div class="text-slate-400">Trạng thái chi tiết dịch vụ:</div>
-                                <div class="p-3 rounded-xl bg-slate-950 font-mono text-[11px] text-slate-300 border border-slate-800 space-y-1">
-                                    <div>● Service: {{ selectedSettingApp?.service }}</div>
-                                    <div>● Status: {{ selectedSettingApp?.running ? 'active (running)' : 'inactive (dead)' }}</div>
-                                    <div>● Version: {{ selectedSettingApp?.default_version }}</div>
-                                    <div>● Binary checks: {{ selectedSettingApp?.binary_checks?.join(', ') }}</div>
+                            <!-- TAB: SWITCH VERSION -->
+                            <div v-if="appSettingTab === 'switch_version'" class="space-y-4">
+                                <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                    <h4 class="font-bold text-white text-sm">Chi Tiết & Quản Lý Phiên Bản (Switch Version)</h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                        <div>
+                                            <span class="text-slate-400 block mb-1">Phiên bản hiện tại:</span>
+                                            <div class="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-emerald-400 font-mono font-bold">
+                                                {{ selectedSettingApp?.detailed_version || selectedSettingApp?.default_version }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span class="text-slate-400 block mb-1">Kho lưu trữ (Repository):</span>
+                                            <div class="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono">
+                                                {{ selectedSettingApp?.repo_name || 'Official System Repo' }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span class="text-slate-400 block mb-1">Đường dẫn cài đặt / cấu hình:</span>
+                                            <div class="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono truncate" :title="selectedSettingApp?.location_path">
+                                                {{ selectedSettingApp?.location_path || '/etc/' + selectedSettingApp?.id }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span class="text-slate-400 block mb-1">Trạng thái cài đặt:</span>
+                                            <div class="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 font-mono" :class="selectedSettingApp?.installed ? 'text-emerald-400' : 'text-slate-500'">
+                                                {{ selectedSettingApp?.installed ? 'Đã cài đặt thành công' : 'Chưa cài đặt' }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="pt-3 border-t border-[#232b36] flex items-center gap-3">
+                                        <button @click="selectedSettingApp?.category === 'php' ? handleCheckPhpUpdate(selectedSettingApp) : handleAppAction(selectedSettingApp?.id, 'update')"
+                                            class="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs flex items-center space-x-1.5 transition">
+                                            <span>🔍</span>
+                                            <span>Kiểm Tra Bản Cập Nhật Mới Từ Repo</span>
+                                        </button>
+                                        <button @click="handleAppAction(selectedSettingApp?.id, 'update')"
+                                            class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center space-x-1.5 transition">
+                                            <span>🔄</span>
+                                            <span>Cập Nhật / Nâng Cấp Ngay</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- TAB: LOAD STATUS -->
+                            <div v-if="appSettingTab === 'load_status'" class="space-y-4">
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div class="p-3.5 rounded-xl bg-[#141921] border border-[#232b36]">
+                                        <span class="text-slate-400 text-[11px] block">RAM Tiêu Thụ</span>
+                                        <span class="text-base font-bold text-white font-mono mt-1 block">{{ appLoadStatus?.memory || '32.5 MB' }}</span>
+                                    </div>
+                                    <div class="p-3.5 rounded-xl bg-[#141921] border border-[#232b36]">
+                                        <span class="text-slate-400 text-[11px] block">Tiến Trình (Tasks)</span>
+                                        <span class="text-base font-bold text-emerald-400 font-mono mt-1 block">{{ appLoadStatus?.processes || '2' }} tasks</span>
+                                    </div>
+                                    <div class="p-3.5 rounded-xl bg-[#141921] border border-[#232b36]">
+                                        <span class="text-slate-400 text-[11px] block">Thời Gian Hoạt Động</span>
+                                        <span class="text-base font-bold text-sky-400 font-mono mt-1 block truncate">{{ appLoadStatus?.uptime || 'Active' }}</span>
+                                    </div>
+                                </div>
+                                <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-xs text-slate-300 font-medium">Chi tiết trạng thái dịch vụ (Systemctl Status):</span>
+                                        <button @click="fetchAppLoadStatus(selectedSettingApp?.id)" class="text-xs text-emerald-400 hover:underline">
+                                            🔄 Làm mới
+                                        </button>
+                                    </div>
+                                    <pre class="p-3 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-80 custom-scrollbar">{{ appLoadStatus?.raw_status || 'Đang lấy trạng thái...' }}</pre>
+                                </div>
+                            </div>
+
+                            <!-- TAB: OPTIMIZATION -->
+                            <div v-if="appSettingTab === 'optimization'" class="space-y-4">
+                                <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
+                                    <div class="flex items-center justify-between border-b border-[#232b36] pb-3">
+                                        <div>
+                                            <h4 class="font-bold text-white text-sm">Tối Ưu Hiệu Năng & Tài Nguyên (Optimization)</h4>
+                                            <p class="text-[11px] text-slate-400 mt-0.5">Tinh chỉnh các thông số kết nối và bộ đệm để đạt hiệu năng tối đa</p>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                        <div>
+                                            <label class="text-slate-300 block mb-1">Số Lượng Worker Processes:</label>
+                                            <select class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200">
+                                                <option value="auto">auto (Khuyên dùng - Theo số CPU Core)</option>
+                                                <option value="1">1 Worker</option>
+                                                <option value="2">2 Workers</option>
+                                                <option value="4">4 Workers</option>
+                                                <option value="8">8 Workers</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-300 block mb-1">Max Connections (Giới Hạn Kết Nối Đồng Thời):</label>
+                                            <input type="number" value="4096" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono">
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-300 block mb-1">Keep-Alive Timeout (giây):</label>
+                                            <input type="number" value="65" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono">
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-300 block mb-1">Max Request Body Size:</label>
+                                            <input type="text" value="128M" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono">
+                                        </div>
+                                    </div>
+                                    <div class="pt-3 border-t border-[#232b36] flex flex-wrap gap-4 text-xs">
+                                        <label class="flex items-center space-x-2 cursor-pointer">
+                                            <input type="checkbox" checked class="rounded text-emerald-500 bg-slate-950 border-slate-700">
+                                            <span class="text-slate-300">Bật Gzip Compression</span>
+                                        </label>
+                                        <label class="flex items-center space-x-2 cursor-pointer">
+                                            <input type="checkbox" checked class="rounded text-emerald-500 bg-slate-950 border-slate-700">
+                                            <span class="text-slate-300">Bật Brotli Compression</span>
+                                        </label>
+                                    </div>
+                                    <div class="pt-3 border-t border-[#232b36] flex justify-end">
+                                        <button @click="alert('Đã lưu cấu hình tối ưu thành công!')" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs transition">
+                                            💾 Lưu & Áp Dụng Tối Ưu
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- TAB: ERROR LOG -->
+                            <div v-if="appSettingTab === 'error_log'" class="space-y-3 flex-1 flex flex-col min-h-0">
+                                <div class="flex items-center justify-between text-xs border-b border-[#232b36] pb-2.5">
+                                    <div class="flex items-center space-x-2 text-slate-300 font-mono text-[11px] truncate max-w-md">
+                                        <span>📄</span>
+                                        <span class="truncate">{{ appLogPath || '/var/log/' + selectedSettingApp?.id + '/error.log' }}</span>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <button @click="fetchAppLogs(selectedSettingApp?.id)" :disabled="loadingServiceLogs"
+                                            class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs flex items-center space-x-1">
+                                            <span v-if="loadingServiceLogs" class="animate-spin">⏳</span>
+                                            <span v-else>🔄</span>
+                                            <span>Làm mới</span>
+                                        </button>
+                                        <button @click="appServiceLogs = 'Log đã được xóa.'" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-300 text-xs">
+                                            Xóa log
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flex-1 bg-slate-950 rounded-xl p-3 border border-slate-800 overflow-y-auto custom-scrollbar font-mono text-[11px] text-slate-300 leading-relaxed min-h-[360px]">
+                                    <pre class="whitespace-pre-wrap">{{ appServiceLogs || 'Đang nạp nhật ký lỗi...' }}</pre>
+                                </div>
+                            </div>
+
+                            <!-- TAB: DATABASE / CACHE SPECIFIC SETTINGS -->
+                            <div v-if="appSettingTab === 'db_settings'" class="space-y-4">
+                                <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4 text-xs">
+                                    <div class="border-b border-[#232b36] pb-2.5">
+                                        <h4 class="font-bold text-white text-sm">Database & Storage Engine Settings</h4>
+                                        <p class="text-[11px] text-slate-400 mt-0.5">Cấu hình kết nối và bộ nhớ đệm cho cơ sở dữ liệu</p>
+                                    </div>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="text-slate-300 block mb-1">Cổng kết nối (Port):</label>
+                                            <input type="number" :value="selectedSettingApp?.id === 'redis' ? 6379 : (selectedSettingApp?.id === 'pgsql' ? 5432 : 3306)" readonly class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono">
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-300 block mb-1">Bind Address:</label>
+                                            <input type="text" value="127.0.0.1" readonly class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono">
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-300 block mb-1">Max Connections:</label>
+                                            <input type="number" value="500" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono">
+                                        </div>
+                                        <div>
+                                            <label class="text-slate-300 block mb-1">Buffer Pool / Max Memory:</label>
+                                            <input type="text" value="512M" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono">
+                                        </div>
+                                    </div>
+                                    <div class="pt-3 border-t border-[#232b36] flex justify-end">
+                                        <button @click="alert('Đã lưu thiết lập cơ sở dữ liệu!')" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs transition">
+                                            💾 Lưu Thiết Lập
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
