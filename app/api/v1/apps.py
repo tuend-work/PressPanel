@@ -754,27 +754,47 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
         sem_ver = app.get("exact_version") or sem_map.get(ver, f"{ver}.0")
         detailed_version = f"PHP {sem_ver} ({repo_name})" if installed else f"PHP-{ver}"
     elif app["id"] == "nginx":
-        detailed_version = "Nginx openresty-1.29.2.5" if installed else "Nginx openresty-1.29.2.5"
+        if installed:
+            exact_v = ""
+            if os.name != "nt":
+                for b in ["/usr/sbin/nginx", "/usr/local/openresty/nginx/sbin/nginx", "/usr/bin/nginx"]:
+                    if os.path.exists(b) and os.access(b, os.X_OK):
+                        try:
+                            r_v = subprocess.run([b, "-v"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+                            out_v = r_v.stderr or r_v.stdout
+                            if "openresty/" in out_v:
+                                v_part = out_v.split("openresty/")[1].split()[0]
+                                exact_v = f"Nginx openresty-{v_part}"
+                                break
+                            elif "nginx/" in out_v:
+                                v_part = out_v.split("nginx/")[1].split()[0]
+                                exact_v = f"Nginx {v_part}"
+                                break
+                        except Exception:
+                            pass
+            detailed_version = exact_v or "Nginx"
+        else:
+            detailed_version = "Nginx"
     elif app["id"] == "mysql":
-        detailed_version = "MySQL 8.0.36" if installed else "MySQL 8.0.36"
+        detailed_version = "MySQL 8.0.36" if installed else "MySQL / MariaDB"
     elif app["id"] == "redis":
-        detailed_version = "Redis 7.2.4" if installed else "Redis 7.2.4"
+        detailed_version = "Redis 7.2.4" if installed else "Redis / Valkey"
     elif app["id"] == "pure-ftpd":
-        detailed_version = "Pure-Ftpd 1.0.49" if installed else "Pure-Ftpd 1.0.49"
+        detailed_version = "Pure-Ftpd 1.0.49" if installed else "Pure-Ftpd"
     elif app["id"] == "log-analyzer":
-        detailed_version = "Website Log Analyzer 1.0.0" if installed else "Website Log Analyzer 1.0.0"
+        detailed_version = "Website Log Analyzer 1.0.0" if installed else "Website Log Analyzer"
     elif app["id"] == "nvm":
-        detailed_version = "Node.js version manager 2.2" if installed else "Node.js version manager 2.2"
+        detailed_version = "Node.js version manager 2.2" if installed else "Node.js version manager"
     elif app["id"] == "ols":
-        detailed_version = "OpenLiteSpeed 1.8.2" if installed else "OpenLiteSpeed 1.8.x"
+        detailed_version = "OpenLiteSpeed 1.8.2" if installed else "OpenLiteSpeed"
     elif app["id"] == "phpmyadmin":
-        detailed_version = "phpMyAdmin 5.2.1" if installed else "phpMyAdmin 5.2.x"
+        detailed_version = "phpMyAdmin 5.2.1" if installed else "phpMyAdmin"
     elif app["id"] == "certbot":
-        detailed_version = "Certbot 2.9.0" if installed else "Certbot Let's Encrypt"
+        detailed_version = "Certbot 2.9.0" if installed else "Certbot"
     elif app["id"] == "fail2ban":
-        detailed_version = "Fail2ban 1.0.2" if installed else "Fail2ban Security"
+        detailed_version = "Fail2ban 1.0.2" if installed else "Fail2ban"
     else:
-        detailed_version = f"{app['name']} {app.get('default_version', '')}"
+        detailed_version = f"{app['name']} {app.get('default_version', '')}" if installed else app['name']
 
     return {
         **app,
@@ -1029,10 +1049,11 @@ async def app_action(
 
     gatekeeper_bin = f"{WPC_BASE}/bin/app"
 
-    # 1. HÀNH ĐỘNG CÀI ĐẶT (INSTALL)
-    if req.action == "install":
+    # 1. HÀNH ĐỘNG CÀI ĐẶT HOẶC CHUYỂN ĐỔI PHIÊN BẢN (INSTALL / SWITCH)
+    if req.action in ["install", "switch"]:
         script_path = f"{WPC_BASE}/scripts/apps/{req.app_id}.sh"
         version_param = req.version if req.version and req.version != "default" else app.get("default_version", "latest")
+        action_title = "Switch Version" if req.action == "switch" else "Install"
         
         if os.path.isfile(gatekeeper_bin):
             install_subcmd = f"{gatekeeper_bin} install {req.app_id} {version_param}"
@@ -1060,11 +1081,11 @@ async def app_action(
             else:
                 install_subcmd = f"(sudo apt-get install -y {pkg} || sudo dnf install -y {pkg})"
 
-        cmd = f"{OS_PACKAGE_UPDATE_CMD} && echo '==> [2/2] Bắt đầu cài đặt {app['name']}...' && {install_subcmd}"
+        cmd = f"{OS_PACKAGE_UPDATE_CMD} && echo '==> [2/2] Bắt đầu {action_title.lower()} {app['name']} ({version_param})...' && {install_subcmd}"
 
         task_id = await add_system_task(
             user_id=current_user["id"],
-            action_name=f"Install [{app['name']} - {version_param}]",
+            action_name=f"{action_title} [{app['name']} - {version_param}]",
             cmd=cmd,
             background_tasks=background_tasks
         )
@@ -1072,7 +1093,7 @@ async def app_action(
         return {
             "status": "ok",
             "task_id": task_id,
-            "message": f"Đã thêm tác vụ cài đặt {app['name']} vào danh sách tiến trình chạy ngầm (Task list)."
+            "message": f"Đã thêm tác vụ {action_title.lower()} {app['name']} vào danh sách tiến trình chạy ngầm (Task list)."
         }
 
     # 2. HÀNH ĐỘNG GỠ CÀI ĐẶT (UNINSTALL / REMOVE)

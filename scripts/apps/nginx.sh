@@ -67,8 +67,8 @@ function configure_openresty_env() {
 }
 
 case "$ACTION" in
-    install)
-        echo "[+] Đang cài đặt Nginx / OpenResty ($VERSION)..."
+    install|switch)
+        echo "[+] Đang cài đặt / chuyển đổi phiên bản Nginx / OpenResty ($VERSION)..."
         echo "[+] Đang cập nhật gói hệ điều hành AlmaLinux/Debian/Ubuntu trước khi cài đặt..."
         if command -v apt-get &>/dev/null; then
             export DEBIAN_FRONTEND=noninteractive
@@ -81,9 +81,10 @@ case "$ACTION" in
         fi
 
         if [ "$VERSION" = "openresty" ]; then
-            # Dừng Nginx thường nếu đang chiếm cổng 80
+            # 1. Chuyển đổi sang OpenResty: Dừng Nginx chuẩn nếu đang chạy
             systemctl stop nginx 2>/dev/null || true
             systemctl disable nginx 2>/dev/null || true
+            pkill -9 -f "nginx: master" 2>/dev/null || true
 
             if command -v apt-get &>/dev/null; then
                 export DEBIAN_FRONTEND=noninteractive
@@ -106,17 +107,30 @@ case "$ACTION" in
             systemctl enable nginx 2>/dev/null || true
             systemctl restart openresty 2>/dev/null || systemctl restart nginx 2>/dev/null || true
         else
+            # 2. Chuyển đổi sang Nginx chuẩn (1.26.x, 1.24.x, latest): Dọn dẹp OpenResty symlinks & daemon
+            systemctl stop openresty 2>/dev/null || true
+            systemctl disable openresty 2>/dev/null || true
+            pkill -9 -f "openresty" 2>/dev/null || true
+            
+            # Xóa symlink đè lên Nginx service
+            rm -f /etc/systemd/system/nginx.service 2>/dev/null || true
+            [ -L "/usr/sbin/nginx" ] && rm -f /usr/sbin/nginx 2>/dev/null || true
+            systemctl daemon-reload 2>/dev/null || true
+
             if command -v apt-get &>/dev/null; then
                 export DEBIAN_FRONTEND=noninteractive
                 apt-get update -y || true
-                apt-get install -y nginx
+                apt-get install -y --reinstall nginx nginx-core || apt-get install -y nginx
             elif command -v dnf &>/dev/null; then
                 dnf install -y nginx
             fi
+            
+            mkdir -p /etc/nginx/conf.d
+            systemctl unmask nginx 2>/dev/null || true
             systemctl enable nginx 2>/dev/null || true
             systemctl restart nginx 2>/dev/null || true
         fi
-        echo "[+] Cài đặt Nginx ($VERSION) hoàn tất thành công!"
+        echo "[+] Cài đặt / Chuyển đổi Nginx ($VERSION) hoàn tất thành công!"
         ;;
 
     configure)
@@ -200,19 +214,33 @@ case "$ACTION" in
         ;;
 
     remove)
-        echo "[+] Đang gỡ bỏ Nginx / OpenResty..."
+        echo "[+] Đang gỡ bỏ Nginx / OpenResty hoàn toàn..."
         systemctl stop openresty 2>/dev/null || true
         systemctl stop nginx 2>/dev/null || true
         systemctl disable openresty 2>/dev/null || true
         systemctl disable nginx 2>/dev/null || true
-        rm -f /etc/systemd/system/nginx.service 2>/dev/null || true
-        systemctl daemon-reload 2>/dev/null || true
+        pkill -9 -f openresty 2>/dev/null || true
+        pkill -9 -f nginx 2>/dev/null || true
+
+        echo "[+] Gỡ bỏ các gói phần mềm khỏi hệ điều hành..."
         if command -v apt-get &>/dev/null; then
-            apt-get remove -y nginx openresty 2>/dev/null || true
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get purge -y openresty openresty-resty openresty-opm nginx nginx-common nginx-core nginx-full 2>/dev/null || apt-get remove -y nginx openresty 2>/dev/null || true
+            apt-get autoremove -y 2>/dev/null || true
         elif command -v dnf &>/dev/null; then
-            dnf remove -y nginx openresty 2>/dev/null || true
+            dnf remove -y openresty openresty-resty openresty-opm nginx 2>/dev/null || true
+        elif command -v yum &>/dev/null; then
+            yum remove -y openresty openresty-resty openresty-opm nginx 2>/dev/null || true
         fi
-        echo "[+] Đã gỡ bỏ Nginx thành công!"
+
+        echo "[+] Dọn dẹp thư mục nhị phân và symlink thực thi..."
+        rm -rf /usr/local/openresty
+        rm -f /usr/sbin/nginx /usr/bin/nginx
+        rm -f /etc/systemd/system/nginx.service /etc/systemd/system/openresty.service
+        rm -f /etc/apt/sources.list.d/openresty.list /etc/yum.repos.d/openresty.repo
+        systemctl daemon-reload 2>/dev/null || true
+
+        echo "[+] Đã gỡ bỏ Nginx / OpenResty thành công!"
         ;;
 
     *)

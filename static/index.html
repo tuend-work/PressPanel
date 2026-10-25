@@ -1397,9 +1397,18 @@ function showAlert(message) {
                     }
                 };
 
+                const selectedSwitchVersion = ref('');
+                const handleSwitchAppVersion = (app, version) => {
+                    if (!app || !version) return;
+                    if (!confirm(`Bạn có chắc chắn muốn chuyển đổi [${app.name}] sang phiên bản [${version}]?`)) return;
+                    showAppSettingModal.value = false;
+                    handleAppAction(app.id, 'switch', version);
+                };
+
                 const openAppSettings = async (app) => {
                     selectedSettingApp.value = app;
                     appSettingTab.value = 'service';
+                    selectedSwitchVersion.value = app.default_version || (app.versions && app.versions[0] ? app.versions[0].value : 'default');
                     showAppSettingModal.value = true;
                     loadAppConfig(app.id);
                     fetchAppLogs(app.id);
@@ -6936,7 +6945,7 @@ function showAlert(message) {
                     isUserIsolatedApp, getUserAppPools, navigateToWebsiteFpm, restartAllUserAppPools,
                     installingAppId, installedAppsCount, filteredApps,
                     getApp, fetchAppsList, handleAppAction, handleCheckPhpUpdate, checkingPhpUpdateId, openPhpMyAdmin, appVersions,
-                    showAppSettingModal, selectedSettingApp, appSettingTab, appConfigPath,
+                    showAppSettingModal, selectedSettingApp, appSettingTab, appConfigPath, selectedSwitchVersion, handleSwitchAppVersion,
                     appConfigContent, savingConfig, rewritingConfig, handleRewriteWebserverConfig,
                     wsServerTab, wsServerConfig, savingWsServerConfig, fetchWsServerSettings, saveWsServerSettings,
                     appBuildArgs, appBuildInfo, savingBuildSettings, buildingApp, openAppBuildSettings, saveAppBuildSettings, triggerAppBuild, appendBuildArg, resetAppBuildArgsToDefault, appendNginxRewritePreset,

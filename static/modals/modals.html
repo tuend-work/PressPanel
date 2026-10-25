@@ -2800,11 +2800,15 @@
 
                             <!-- TAB: SWITCH VERSION -->
                             <div v-if="appSettingTab === 'switch_version'" class="space-y-4">
-                                <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
-                                    <h4 class="font-bold text-white text-sm">Chi Tiết & Quản Lý Phiên Bản (Switch Version)</h4>
+                                <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
+                                    <div class="border-b border-[#232b36] pb-3">
+                                        <h4 class="font-bold text-white text-sm">Chi Tiết & Quản Lý Phiên Bản (Switch Version)</h4>
+                                        <p class="text-[11px] text-slate-400 mt-0.5">Xem phiên bản hiện tại, kiểm tra cập nhật hoặc chuyển đổi sang phiên bản khác</p>
+                                    </div>
+
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                                         <div>
-                                            <span class="text-slate-400 block mb-1">Phiên bản hiện tại:</span>
+                                            <span class="text-slate-400 block mb-1">Phiên bản đang hoạt động:</span>
                                             <div class="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-emerald-400 font-mono font-bold">
                                                 {{ selectedSettingApp?.detailed_version || selectedSettingApp?.default_version }}
                                             </div>
@@ -2828,16 +2832,51 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="pt-3 border-t border-[#232b36] flex items-center gap-3">
-                                        <button @click="selectedSettingApp?.category === 'php' ? handleCheckPhpUpdate(selectedSettingApp) : handleAppAction(selectedSettingApp?.id, 'update')"
-                                            class="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs flex items-center space-x-1.5 transition">
-                                            <span>🔍</span>
-                                            <span>Kiểm Tra Bản Cập Nhật Mới Từ Repo</span>
-                                        </button>
-                                        <button @click="handleAppAction(selectedSettingApp?.id, 'update')"
-                                            class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center space-x-1.5 transition">
-                                            <span>🔄</span>
-                                            <span>Cập Nhật / Nâng Cấp Ngay</span>
+
+                                    <!-- Switch Version Options nếu app hỗ trợ nhiều phiên bản -->
+                                    <div v-if="selectedSettingApp?.versions && selectedSettingApp.versions.length > 0"
+                                        class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs font-semibold text-slate-200">Chuyển đổi sang phiên bản khác:</span>
+                                            <span class="text-[11px] text-slate-500 font-mono">Tự động cấu hình daemon & vhosts</span>
+                                        </div>
+                                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                                            <div class="relative flex-1">
+                                                <select v-model="selectedSwitchVersion"
+                                                    class="w-full pl-3 pr-8 py-2 rounded-lg bg-[#141921] border border-emerald-500/50 text-slate-200 text-xs font-mono focus:outline-none focus:border-emerald-400">
+                                                    <option v-for="ver in selectedSettingApp.versions" :key="ver.value" :value="ver.value">
+                                                        {{ ver.label }} ({{ ver.value }})
+                                                    </option>
+                                                </select>
+                                                <span class="pointer-events-none absolute right-3 top-2.5 text-slate-400 text-xs">▼</span>
+                                            </div>
+                                            <button @click="handleSwitchAppVersion(selectedSettingApp, selectedSwitchVersion)"
+                                                class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-md shadow-emerald-500/20 transition whitespace-nowrap">
+                                                <span>🔄</span>
+                                                <span>Chuyển Đổi Ngay</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Action Buttons Footer -->
+                                    <div class="pt-3 border-t border-[#232b36] flex flex-wrap items-center justify-between gap-2">
+                                        <div class="flex items-center gap-2">
+                                            <button @click="selectedSettingApp?.category === 'php' ? handleCheckPhpUpdate(selectedSettingApp) : handleAppAction(selectedSettingApp?.id, 'update')"
+                                                class="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs flex items-center space-x-1.5 transition">
+                                                <span>🔍</span>
+                                                <span>Kiểm Tra Bản Mới</span>
+                                            </button>
+                                            <button @click="handleAppAction(selectedSettingApp?.id, 'update')"
+                                                class="px-3.5 py-1.5 rounded-lg bg-[#1e2634] hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium text-xs flex items-center space-x-1.5 transition">
+                                                <span>⚡</span>
+                                                <span>Nâng Cấp Gói</span>
+                                            </button>
+                                        </div>
+
+                                        <button v-if="selectedSettingApp?.installed"
+                                            @click="showAppSettingModal = false; handleAppAction(selectedSettingApp?.id, 'uninstall')"
+                                            class="px-3.5 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/30 text-xs font-semibold transition">
+                                            🗑️ Gỡ Cài Đặt (Uninstall)
                                         </button>
                                     </div>
                                 </div>
