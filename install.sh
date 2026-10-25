@@ -33,10 +33,13 @@ fi
 echo "[+] Phát hiện hệ điều hành: $OS_ID $OS_VERSION_ID"
 
 # 2. Cài đặt các gói phụ thuộc cơ bản
-echo "[+] Đang cài đặt các gói công cụ nền tảng..."
+echo "[+] Đang kiểm tra và cập nhật các gói hệ điều hành..."
 if [[ "$OS_ID" =~ ^(debian|ubuntu)$ ]]; then
     export DEBIAN_FRONTEND=noninteractive
+    echo "[+] Đang cập nhật toàn diện các gói hệ điều hành Debian/Ubuntu (apt update && apt upgrade)..."
     apt-get update -y
+    apt-get upgrade -y || true
+    echo "[+] Đang cài đặt các gói công cụ nền tảng..."
     apt-get install -y build-essential gcc make python3 python3-venv python3-pip \
                        sqlite3 libsqlite3-dev curl wget git quota certbot \
                        software-properties-common lsb-release ca-certificates apt-transport-https || \
@@ -59,6 +62,9 @@ if [[ "$OS_ID" =~ ^(debian|ubuntu)$ ]]; then
         fi
     fi
 elif [[ "$OS_ID" =~ ^(almalinux|rocky|rhel|centos)$ ]]; then
+    echo "[+] Đang cập nhật toàn diện các gói hệ điều hành AlmaLinux/RHEL/Rocky (dnf upgrade)..."
+    dnf upgrade -y || true
+
     # 1. Kích hoạt EPEL và Remi repository theo phiên bản Enterprise Linux (bắt buộc cho certbot, đa phiên bản PHP Remi trên RHEL/AlmaLinux)
     EL_MAJ="${OS_VERSION_ID%%.*}"
     [ -z "$EL_MAJ" ] && EL_MAJ="9"

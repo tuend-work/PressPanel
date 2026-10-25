@@ -11,6 +11,16 @@ VERSION="${2:-valkey-8.0}"
 case "$ACTION" in
     install)
         echo "[+] Đang chuẩn bị cài đặt Object Cache (Phiên bản: $VERSION)..."
+        echo "[+] Đang cập nhật gói hệ điều hành AlmaLinux/Debian/Ubuntu trước khi cài đặt..."
+        if command -v apt-get &>/dev/null; then
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -y || true
+            apt-get upgrade -y || true
+        elif command -v dnf &>/dev/null; then
+            dnf upgrade -y || true
+        elif command -v yum &>/dev/null; then
+            yum update -y || true
+        fi
         
         # 1. Cài đặt Valkey
         if [[ "$VERSION" == *"valkey"* ]]; then
@@ -19,7 +29,6 @@ case "$ACTION" in
 
             if command -v apt-get &>/dev/null; then
                 export DEBIAN_FRONTEND=noninteractive
-                apt-get update -qq || true
                 # Thử gói valkey chính thức nếu OS hỗ trợ (Ubuntu 24.04+, Debian trixie+)
                 if apt-get install -y valkey valkey-tools 2>/dev/null; then
                     apt-get install -y valkey-redis-compat 2>/dev/null || true

@@ -7,6 +7,17 @@ ACTION="${1:-install}"
 case "$ACTION" in
     install)
         echo "[+] Đang cài đặt OpenLiteSpeed Web Server..."
+        echo "[+] Đang cập nhật gói hệ điều hành AlmaLinux/Debian/Ubuntu trước khi cài đặt..."
+        if command -v apt-get &>/dev/null; then
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -y || true
+            apt-get upgrade -y || true
+        elif command -v dnf &>/dev/null; then
+            dnf upgrade -y || true
+        elif command -v yum &>/dev/null; then
+            yum update -y || true
+        fi
+
         if command -v apt-get &>/dev/null; then
             # Tải repo script của LiteSpeed
             wget -qO - https://repo.litespeed.sh | bash || true

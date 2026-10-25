@@ -69,6 +69,17 @@ function configure_openresty_env() {
 case "$ACTION" in
     install)
         echo "[+] Đang cài đặt Nginx / OpenResty ($VERSION)..."
+        echo "[+] Đang cập nhật gói hệ điều hành AlmaLinux/Debian/Ubuntu trước khi cài đặt..."
+        if command -v apt-get &>/dev/null; then
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -y || true
+            apt-get upgrade -y || true
+        elif command -v dnf &>/dev/null; then
+            dnf upgrade -y || true
+        elif command -v yum &>/dev/null; then
+            yum update -y || true
+        fi
+
         if [ "$VERSION" = "openresty" ]; then
             # Dừng Nginx thường nếu đang chiếm cổng 80
             systemctl stop nginx 2>/dev/null || true
@@ -76,7 +87,6 @@ case "$ACTION" in
 
             if command -v apt-get &>/dev/null; then
                 export DEBIAN_FRONTEND=noninteractive
-                apt-get update -y || true
                 apt-get install -y --no-install-recommends wget gnupg ca-certificates lsb-release || true
                 wget -O - https://openresty.org/package/pubkey.gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/openresty.gpg 2>/dev/null || true
                 CODENAME=$(lsb_release -sc 2>/dev/null || echo "jammy")

@@ -11,6 +11,18 @@ router = APIRouter(prefix="/apps", tags=["App Store & Software Manager"])
 
 WPC_BASE = "/opt/wpc"
 
+OS_PACKAGE_UPDATE_CMD = (
+    "if command -v apt-get >/dev/null 2>&1; then "
+    "echo '==> [1/2] Đang cập nhật gói hệ điều hành Ubuntu/Debian (sudo apt update && sudo apt upgrade -y)...' && "
+    "sudo DEBIAN_FRONTEND=noninteractive apt-get update -y && sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y; "
+    "elif command -v dnf >/dev/null 2>&1; then "
+    "echo '==> [1/2] Đang cập nhật gói hệ điều hành AlmaLinux/RHEL/Rocky (sudo dnf upgrade -y)...' && "
+    "sudo dnf upgrade -y; "
+    "elif command -v yum >/dev/null 2>&1; then "
+    "echo '==> [1/2] Đang cập nhật gói hệ điều hành CentOS/RHEL (sudo yum update -y)...' && "
+    "sudo yum update -y; fi"
+)
+
 class AppActionRequest(BaseModel):
     app_id: str
     action: str  # install | restart | stop | start | uninstall
@@ -778,14 +790,15 @@ async def run_install_task(app_id: str):
     """Tiến trình cài đặt app chạy ngầm"""
     script_path = f"{WPC_BASE}/scripts/apps/{app_id}.sh"
     if os.path.exists(script_path):
-        proc = await asyncio.create_subprocess_exec(
-            "bash", script_path, "install",
+        full_cmd = f"{OS_PACKAGE_UPDATE_CMD} && sudo bash {script_path} install"
+        proc = await asyncio.create_subprocess_shell(
+            full_cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
         await proc.communicate()
     else:
-        # Fallback cài đặt qua apt trực tiếp
+        # Fallback cài đặt qua apt/dnf trực tiếp
         pkg_map = {
             "nginx": "nginx",
             "mariadb": "mariadb-server mariadb-client",
@@ -796,7 +809,7 @@ async def run_install_task(app_id: str):
         }
         if app_id in pkg_map:
             pkg = pkg_map[app_id]
-            cmd = f"DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y {pkg}"
+            cmd = f"{OS_PACKAGE_UPDATE_CMD} && (sudo apt-get install -y {pkg} || sudo dnf install -y {pkg})"
             proc = await asyncio.create_subprocess_shell(
                 cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -1007,9 +1020,9 @@ async def app_action(
         version_param = req.version if req.version and req.version != "default" else app.get("default_version", "latest")
         
         if os.path.isfile(gatekeeper_bin):
-            cmd = f"{gatekeeper_bin} install {req.app_id} {version_param}"
+            install_subcmd = f"{gatekeeper_bin} install {req.app_id} {version_param}"
         elif os.path.exists(script_path):
-            cmd = f"sudo bash {script_path} install {version_param}"
+            install_subcmd = f"sudo bash {script_path} install {version_param}"
         else:
             pkg_map = {
                 "nginx": "nginx",
@@ -1022,10 +1035,17 @@ async def app_action(
                 "certbot": "certbot python3-certbot-nginx",
                 "fail2ban": "fail2ban",
                 "pure-ftpd": "pure-ftpd",
-                "pgadmin": "pgadmin4-web"
+                "pgadmin": "pgadmin4-web",
+                "log-analyzer": "goaccess",
+                "nvm": "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash"
             }
             pkg = pkg_map.get(req.app_id, req.app_id)
-            cmd = f"sudo DEBIAN_FRONTEND=noninteractive apt-get update && sudo apt-get install -y {pkg}"
+            if req.app_id == "nvm":
+                install_subcmd = pkg
+            else:
+                install_subcmd = f"(sudo apt-get install -y {pkg} || sudo dnf install -y {pkg})"
+
+        cmd = f"{OS_PACKAGE_UPDATE_CMD} && echo '==> [2/2] Bắt đầu cài đặt {app['name']}...' && {install_subcmd}"
 
         task_id = await add_system_task(
             user_id=current_user["id"],
@@ -1080,17 +1100,19 @@ async def app_action(
     if req.action in ["update", "upgrade"]:
         if os.path.isfile(gatekeeper_bin):
             ver = req.version if req.version and req.version != "default" else app.get("default_version", "latest")
-            cmd = f"{gatekeeper_bin} update {req.app_id} {ver}"
+            update_subcmd = f"{gatekeeper_bin} update {req.app_id} {ver}"
         elif app.get("category") == "php":
             ver = app.get("default_version", "8.2")
             script_path = f"{WPC_BASE}/scripts/apps/php.sh"
-            cmd = f"sudo bash {script_path} update {ver}"
+            update_subcmd = f"sudo bash {script_path} update {ver}"
         else:
             script_path = f"{WPC_BASE}/scripts/apps/{req.app_id}.sh"
             if os.path.exists(script_path):
-                cmd = f"sudo bash {script_path} update"
+                update_subcmd = f"sudo bash {script_path} update"
             else:
-                cmd = f"sudo DEBIAN_FRONTEND=noninteractive apt-get --only-upgrade install -y {req.app_id} || sudo dnf upgrade -y {req.app_id}"
+                update_subcmd = f"sudo DEBIAN_FRONTEND=noninteractive apt-get --only-upgrade install -y {req.app_id} || sudo dnf upgrade -y {req.app_id}"
+
+        cmd = f"{OS_PACKAGE_UPDATE_CMD} && echo '==> [2/2] Bắt đầu nâng cấp {app['name']}...' && {update_subcmd}"
 
         task_id = await add_system_task(
             user_id=current_user["id"],

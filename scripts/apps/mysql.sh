@@ -12,7 +12,9 @@ case "$ACTION" in
         # 1. Nhánh Debian / Ubuntu
         if command -v apt-get &>/dev/null; then
             export DEBIAN_FRONTEND=noninteractive
+            echo "[+] Đang cập nhật gói hệ điều hành Debian/Ubuntu (apt update & apt upgrade)..."
             apt-get update -y || true
+            apt-get upgrade -y || true
 
             case "$VERSION" in
                 mariadb-11.4)
@@ -40,6 +42,9 @@ case "$ACTION" in
 
         # 2. Nhánh RHEL / AlmaLinux / Rocky / CentOS
         elif command -v dnf &>/dev/null; then
+            echo "[+] Đang cập nhật gói hệ điều hành AlmaLinux/RHEL (dnf upgrade)..."
+            dnf upgrade -y || true
+
             case "$VERSION" in
                 mariadb-11.4)
                     echo "[+] Cài đặt MariaDB 11.4 trên RHEL/AlmaLinux..."

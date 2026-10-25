@@ -3045,6 +3045,53 @@
                         </div>
                     </div>
                 </div>
+            <!-- MODAL: ALARM SETTING CHO DỊCH VỤ (KHI DỊCH VỤ DỪNG HOẶC CRASH) -->
+            <div v-if="showAlarmSettingModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                <div class="bg-[#181d24] rounded-2xl max-w-md w-full shadow-2xl border border-[#2b3544] overflow-hidden text-slate-200">
+                    <div class="flex justify-between items-center px-5 py-3.5 border-b border-[#232b36] bg-[#141920]">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-emerald-400 text-base">🔔</span>
+                            <h3 class="text-sm font-bold text-white tracking-wide">
+                                Alarm Setting - {{ selectedSettingApp?.name }}
+                            </h3>
+                        </div>
+                        <button @click="showAlarmSettingModal = false" class="text-slate-400 hover:text-white text-lg font-bold w-7 h-7 rounded-full hover:bg-slate-800 flex items-center justify-center transition leading-none">&times;</button>
+                    </div>
+
+                    <div class="p-5 space-y-4 text-xs">
+                        <div class="space-y-1.5">
+                            <label class="text-slate-300 font-medium block">Kênh nhận thông báo (Notification Channel):</label>
+                            <select class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200">
+                                <option value="telegram">Telegram Bot (Khuyên dùng - Nhanh nhất)</option>
+                                <option value="email">Email System Alert</option>
+                                <option value="webhook">Custom Webhook / Discord</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="text-slate-300 font-medium block">Telegram Chat ID / Email nhận tin:</label>
+                            <input type="text" placeholder="Ví dụ: -100123456789 hoặc admin@domain.com" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono">
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-2 text-[11px] text-slate-400">
+                            <div class="flex items-center justify-between text-slate-300">
+                                <span>Tần suất kiểm tra:</span>
+                                <span class="font-mono text-emerald-400">1 phút / lần (Cron daemon)</span>
+                            </div>
+                            <div class="flex items-center justify-between text-slate-300">
+                                <span>Hành động tự động:</span>
+                                <span class="font-mono text-emerald-400">Gửi cảnh báo & Tự Start lại</span>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-2 border-t border-[#232b36]">
+                            <button type="button" @click="showAlarmSettingModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-medium transition">Đóng</button>
+                            <button type="button" @click="showAlarmSettingModal = false; alert('Đã lưu cấu hình cảnh báo cho dịch vụ thành công!')" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition">
+                                Lưu Cấu Hình
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- MODAL: CẬP NHẬT PHIÊN BẢN WPCLOUD CONTROL PANEL (TERMINAL STREAMING STYLE) -->

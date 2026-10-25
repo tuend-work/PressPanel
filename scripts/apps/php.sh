@@ -36,7 +36,9 @@ EL_MAJ=$(detect_el_maj)
 ensure_repos() {
     if command -v apt-get &>/dev/null; then
         export DEBIAN_FRONTEND=noninteractive
+        echo "[+] Đang cập nhật gói hệ điều hành Debian/Ubuntu (apt update & apt upgrade)..."
         apt-get update -y || true
+        apt-get upgrade -y || true
         apt-get install -y software-properties-common lsb-release ca-certificates apt-transport-https || true
 
         # Kích hoạt Ondřej PPA (ppa:ondrej/php) cho Ubuntu hoặc sury cho Debian
@@ -57,6 +59,8 @@ ensure_repos() {
     elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
         PKG_MGR="dnf"
         command -v dnf &>/dev/null || PKG_MGR="yum"
+        echo "[+] Đang cập nhật gói hệ điều hành AlmaLinux/RHEL ($PKG_MGR upgrade)..."
+        $PKG_MGR upgrade -y || true
 
         # Kích hoạt Remi và EPEL repository trên RHEL/AlmaLinux theo phiên bản EL
         if ! rpm -q remi-release &>/dev/null; then
