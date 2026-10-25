@@ -410,11 +410,16 @@ EOF
         fi
 
         # 10. Đăng ký thông tin Website App hệ thống vào cơ sở dữ liệu panel.db (nếu có python)
-        if command -v python3 &>/dev/null && [ -f "/opt/wpc/data/panel.db" ]; then
+        if command -v python3 &>/dev/null; then
             python3 - << 'PY_REGISTER' 2>/dev/null || true
 import sqlite3, os
-db_path = "/opt/wpc/data/panel.db"
-if os.path.exists(db_path):
+candidates = ["/opt/wpc/data/panel.db", "/opt/wpc/panel.db", os.path.expanduser("~/PressPanel/panel.db")]
+db_path = None
+for c in candidates:
+    if os.path.isfile(c):
+        db_path = c
+        break
+if db_path:
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     # Tìm admin user_id
@@ -422,7 +427,7 @@ if os.path.exists(db_path):
     admin_row = cur.fetchone()
     admin_id = admin_row[0] if admin_row else 1
     
-    cur.execute("SELECT id FROM domains WHERE domain_name = 'phpmyadmin.sys'")
+    cur.execute("SELECT id FROM domains WHERE domain_name IN ('phpmyadmin.sys', 'phpmyadmin')")
     existing = cur.fetchone()
     if existing:
         cur.execute("""
@@ -518,16 +523,20 @@ PY_REGISTER
         fi
 
         # 5. Cập nhật cơ sở dữ liệu panel.db
-        if command -v python3 &>/dev/null && [ -f "/opt/wpc/data/panel.db" ]; then
+        if command -v python3 &>/dev/null; then
             python3 - << 'PY_UNREGISTER' 2>/dev/null || true
 import sqlite3, os
-db_path = "/opt/wpc/data/panel.db"
-if os.path.exists(db_path):
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-    cur.execute("DELETE FROM domains WHERE domain_name = 'phpmyadmin.sys'")
-    conn.commit()
-    conn.close()
+candidates = ["/opt/wpc/data/panel.db", "/opt/wpc/panel.db", os.path.expanduser("~/PressPanel/panel.db")]
+for c in candidates:
+    if os.path.isfile(c):
+        try:
+            conn = sqlite3.connect(c)
+            cur = conn.cursor()
+            cur.execute("DELETE FROM domains WHERE domain_name IN ('phpmyadmin.sys', 'phpmyadmin')")
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
 PY_UNREGISTER
         fi
 

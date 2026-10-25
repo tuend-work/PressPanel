@@ -2282,10 +2282,15 @@ function showAlert(message) {
                 const domainCategoryFilter = ref('all');
                 const filteredDomains = computed(() => {
                     let list = domains.value || [];
-                    if (domainCategoryFilter.value === 'active') {
-                        list = list.filter(d => d.status === 'active');
-                    } else if (domainCategoryFilter.value === 'suspended') {
-                        list = list.filter(d => d.status === 'suspended');
+                    if (domainCategoryFilter.value === 'system') {
+                        list = list.filter(d => d.is_system === 1 || d.is_system === true);
+                    } else {
+                        list = list.filter(d => !d.is_system || d.is_system === 0);
+                        if (domainCategoryFilter.value === 'active') {
+                            list = list.filter(d => d.status === 'active');
+                        } else if (domainCategoryFilter.value === 'suspended') {
+                            list = list.filter(d => d.status === 'suspended');
+                        }
                     }
                     if (domainSearchQuery.value && domainSearchQuery.value.trim()) {
                         const q = domainSearchQuery.value.trim().toLowerCase();

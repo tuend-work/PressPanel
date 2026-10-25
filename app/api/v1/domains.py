@@ -136,6 +136,24 @@ class DomainUpdateRequest(BaseModel):
 @router.get("/")
 async def list_domains(current_user: dict = Depends(get_current_user)):
     db = await get_db_connection()
+    # Tự động đảm bảo nếu phpMyAdmin đã cài đặt trên máy chủ nhưng chưa có trong DB domains thì auto đồng bộ
+    if current_user["role"] == "admin":
+        pma_doc = "/home/pma/public_html"
+        legacy_doc = "/opt/wpc/apps/phpmyadmin"
+        if os.path.exists(f"{pma_doc}/index.php") or os.path.exists(f"{legacy_doc}/index.php") or os.path.exists("/usr/local/lsws/conf/vhosts/phpmyadmin"):
+            check_pma = await db.execute("SELECT id FROM domains WHERE domain_name IN ('phpmyadmin.sys', 'phpmyadmin') LIMIT 1")
+            has_pma = await check_pma.fetchone()
+            if not has_pma:
+                target_doc = pma_doc if os.path.exists(pma_doc) else legacy_doc
+                admin_cur = await db.execute("SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1")
+                admin_row = await admin_cur.fetchone()
+                admin_uid = admin_row["id"] if admin_row else 1
+                await db.execute("""
+                    INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version, is_system, status)
+                    VALUES (?, 'phpmyadmin.sys', ?, 'ols', '8.2', 1, 'active')
+                """, (admin_uid, target_doc))
+                await db.commit()
+
     base_select = """
         SELECT d.*, 
                u.username as owner_username, 
@@ -145,12 +163,13 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
                COALESCE(p_dom.mem_mb, p.mem_mb, 1024) as mem_mb,
                COALESCE(p_dom.disk_mb, p.disk_mb, 5120) as disk_mb,
                COALESCE(d.status, 'active') as status,
+               COALESCE(d.is_system, 0) as is_system,
                (SELECT COUNT(*) FROM databases db_sub WHERE db_sub.domain_id = d.id OR db_sub.db_name LIKE '%' || REPLACE(REPLACE(d.domain_name, '.', '_'), '-', '_') || '%') as db_count
         FROM domains d
         JOIN users u ON d.user_id = u.id
         LEFT JOIN packages p ON u.package_id = p.id
         LEFT JOIN packages p_dom ON d.package_id = p_dom.id
-        WHERE (d.is_system = 0 OR d.is_system IS NULL) AND d.domain_name NOT LIKE '%.sys'
+        WHERE 1=1
     """
     if current_user["role"] == "admin":
         cursor = await db.execute(base_select + " ORDER BY d.created_at DESC")
@@ -3515,12 +3534,18 @@ async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(g
     clean_domain = domain["domain_name"]
     ws = domain["webserver"] or "ols"
     isolated_user = domain_to_linux_user(clean_domain)
-    doc_root = f"/home/{isolated_user}/domains/{clean_domain}/public_html"
+    doc_root = domain["document_root"] if domain.get("document_root") else f"/home/{isolated_user}/domains/{clean_domain}/public_html"
+    if not os.path.exists(doc_root) and os.path.exists(f"/home/{isolated_user}/public_html"):
+        doc_root = f"/home/{isolated_user}/public_html"
 
     if ws == "ols":
         conf_path = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
+        if not os.path.exists(conf_path) and clean_domain in ("phpmyadmin.sys", "phpmyadmin"):
+            conf_path = "/usr/local/lsws/conf/vhosts/phpmyadmin/vhconf.conf"
     else:
         conf_path = f"/etc/nginx/conf.d/{clean_domain}.conf"
+        if not os.path.exists(conf_path) and clean_domain in ("phpmyadmin.sys", "phpmyadmin"):
+            conf_path = "/etc/nginx/conf.d/00_phpmyadmin.conf"
 
     content = read_file_privileged(conf_path)
     if not content:
