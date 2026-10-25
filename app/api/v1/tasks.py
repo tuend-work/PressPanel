@@ -31,6 +31,7 @@ async def execute_task_background(task_id: str, cmd: str, log_file: str):
 
         proc = await asyncio.create_subprocess_shell(
             cmd,
+            cwd="/tmp",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT
         )

@@ -1,5 +1,15 @@
 import os
 from contextlib import asynccontextmanager
+
+# Đảm bảo tiến trình không bị kẹt ở thư mục /root gây lỗi PermissionError khi gọi subprocess
+try:
+    if os.path.isdir("/opt/wpc") and os.access("/opt/wpc", os.R_OK):
+        os.chdir("/opt/wpc")
+    elif os.path.isdir("/tmp"):
+        os.chdir("/tmp")
+except Exception:
+    pass
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

@@ -13,14 +13,13 @@ WPC_BASE = "/opt/wpc"
 
 OS_PACKAGE_UPDATE_CMD = (
     "if command -v apt-get >/dev/null 2>&1; then "
-    "echo '==> [1/2] Đang cập nhật gói hệ điều hành Ubuntu/Debian (sudo apt update && sudo apt upgrade -y)...' && "
-    "sudo DEBIAN_FRONTEND=noninteractive apt-get update -y && sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y; "
+    "echo '==> [1/2] Đang làm mới danh mục gói hệ điều hành...' && "
+    "sudo DEBIAN_FRONTEND=noninteractive apt-get update -y 2>/dev/null || true; "
     "elif command -v dnf >/dev/null 2>&1; then "
-    "echo '==> [1/2] Đang cập nhật gói hệ điều hành AlmaLinux/RHEL/Rocky (sudo dnf upgrade -y)...' && "
-    "sudo dnf upgrade -y; "
+    "echo '==> [1/2] Đang kiểm tra danh mục gói hệ điều hành...' && "
+    "sudo dnf check-update -y 2>/dev/null || true; "
     "elif command -v yum >/dev/null 2>&1; then "
-    "echo '==> [1/2] Đang cập nhật gói hệ điều hành CentOS/RHEL (sudo yum update -y)...' && "
-    "sudo yum update -y; fi"
+    "sudo yum check-update -y 2>/dev/null || true; fi"
 )
 
 class AppActionRequest(BaseModel):
@@ -831,6 +830,7 @@ async def run_install_task(app_id: str):
         full_cmd = f"{OS_PACKAGE_UPDATE_CMD} && sudo bash {script_path} install"
         proc = await asyncio.create_subprocess_shell(
             full_cmd,
+            cwd="/tmp",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
@@ -850,6 +850,7 @@ async def run_install_task(app_id: str):
             cmd = f"{OS_PACKAGE_UPDATE_CMD} && (sudo apt-get install -y {pkg} || sudo dnf install -y {pkg})"
             proc = await asyncio.create_subprocess_shell(
                 cmd,
+                cwd="/tmp",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -1058,10 +1059,10 @@ async def app_action(
         version_param = req.version if req.version and req.version != "default" else app.get("default_version", "latest")
         action_title = "Switch Version" if req.action == "switch" else "Install"
         
-        if os.path.isfile(gatekeeper_bin):
-            install_subcmd = f"{gatekeeper_bin} install {req.app_id} {version_param}"
-        elif os.path.exists(script_path):
+        if os.path.exists(script_path):
             install_subcmd = f"sudo bash {script_path} install {version_param}"
+        elif os.path.isfile(gatekeeper_bin) and os.access(gatekeeper_bin, os.X_OK):
+            install_subcmd = f"{gatekeeper_bin} install {req.app_id} {version_param}"
         else:
             pkg_map = {
                 "nginx": "nginx",
@@ -1102,10 +1103,10 @@ async def app_action(
     # 2. HÀNH ĐỘNG GỠ CÀI ĐẶT (UNINSTALL / REMOVE)
     if req.action in ["uninstall", "remove"]:
         script_path = f"{WPC_BASE}/scripts/apps/{req.app_id}.sh"
-        if os.path.isfile(gatekeeper_bin):
-            cmd = f"{gatekeeper_bin} remove {req.app_id}"
-        elif os.path.exists(script_path):
+        if os.path.exists(script_path):
             cmd = f"sudo bash {script_path} remove"
+        elif os.path.isfile(gatekeeper_bin) and os.access(gatekeeper_bin, os.X_OK):
+            cmd = f"{gatekeeper_bin} remove {req.app_id}"
         else:
             pkg_map = {
                 "nginx": "nginx",
@@ -1137,19 +1138,17 @@ async def app_action(
 
     # 2.4 HÀNH ĐỘNG CẬP NHẬT ỨNG DỤNG / PHP (UPDATE / UPGRADE)
     if req.action in ["update", "upgrade"]:
-        if os.path.isfile(gatekeeper_bin):
-            ver = req.version if req.version and req.version != "default" else app.get("default_version", "latest")
+        script_path = f"{WPC_BASE}/scripts/apps/{req.app_id}.sh"
+        ver = req.version if req.version and req.version != "default" else app.get("default_version", "latest")
+        if os.path.exists(script_path):
+            update_subcmd = f"sudo bash {script_path} update {ver}"
+        elif os.path.isfile(gatekeeper_bin) and os.access(gatekeeper_bin, os.X_OK):
             update_subcmd = f"{gatekeeper_bin} update {req.app_id} {ver}"
         elif app.get("category") == "php":
-            ver = app.get("default_version", "8.2")
             script_path = f"{WPC_BASE}/scripts/apps/php.sh"
             update_subcmd = f"sudo bash {script_path} update {ver}"
         else:
-            script_path = f"{WPC_BASE}/scripts/apps/{req.app_id}.sh"
-            if os.path.exists(script_path):
-                update_subcmd = f"sudo bash {script_path} update"
-            else:
-                update_subcmd = f"sudo DEBIAN_FRONTEND=noninteractive apt-get --only-upgrade install -y {req.app_id} || sudo dnf upgrade -y {req.app_id}"
+            update_subcmd = f"sudo DEBIAN_FRONTEND=noninteractive apt-get --only-upgrade install -y {req.app_id} || sudo dnf upgrade -y {req.app_id}"
 
         cmd = f"{OS_PACKAGE_UPDATE_CMD} && echo '==> [2/2] Bắt đầu nâng cấp {app['name']}...' && {update_subcmd}"
 
