@@ -288,15 +288,16 @@ EOF
         echo "[+] Phát hiện Web Server hoạt động thực tế: $ACTIVE_WS"
         OLS_MAIN_CONF="/usr/local/lsws/conf/httpd_config.conf"
 
-        if [ "$ACTIVE_WS" = "nginx" ] && [ -d "/etc/nginx/conf.d" ]; then
+        if [ "$ACTIVE_WS" = "nginx" ]; then
             # Nếu chuyển sang Nginx: dọn dẹp listener OLS PMA_888 để tránh xung đột cổng
             if [ -f "$OLS_MAIN_CONF" ]; then
                 sed -i '/virtualhost[[:space:]]\+phpmyadmin[[:space:]]*{/,/^[[:space:]]*}/d' "$OLS_MAIN_CONF" 2>/dev/null || true
                 sed -i '/listener[[:space:]]\+PMA_888[[:space:]]*{/,/^[[:space:]]*}/d' "$OLS_MAIN_CONF" 2>/dev/null || true
                 rm -rf "/usr/local/lsws/conf/vhosts/phpmyadmin" 2>/dev/null || true
+                /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lshttpd 2>/dev/null || systemctl restart lsws 2>/dev/null || true
             fi
 
-            # Cấu hình trên Nginx độc lập với PHP-FPM Service riêng cho phpMyAdmin (user: pma)
+            mkdir -p /etc/nginx/conf.d /etc/nginx/sites-available /etc/nginx/sites-enabled
             ACTIVE_PHP=$(detect_php_version)
             WPC_BASE="/opt/wpc"
             [ ! -d "$WPC_BASE" ] && WPC_BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -333,9 +334,16 @@ EOF
             fi
             echo "[+] Khởi tạo PHP-FPM riêng cho pma trên Nginx (Service: wpc-php${ACTIVE_PHP}-fpm@pma, Sock: $PMA_FPM_SOCK)"
 
+            # Đảm bảo quyền truy cập cho webserver vào thư mục /home/pma
+            chmod 711 /home 2>/dev/null || true
+            chmod 755 "$PMA_HOME" "$TARGET_DIR" 2>/dev/null || true
+            mkdir -p "$TARGET_DIR/tmp" "$PMA_HOME/.sessions" "$PMA_HOME/.tmp" "$PMA_HOME/logs" 2>/dev/null || true
+            chown -R pma:pma "$PMA_HOME" 2>/dev/null || true
+            chmod 1777 "$TARGET_DIR/tmp" "$PMA_HOME/.sessions" "$PMA_HOME/.tmp" 2>/dev/null || true
+
             cat <<EOF > "/etc/nginx/conf.d/00_phpmyadmin.conf"
 server {
-    listen $PMA_PORT default_server;
+    listen $PMA_PORT;
     server_name localhost 127.0.0.1 _;
     root $TARGET_DIR;
     index index.php index.html index.htm;
@@ -346,13 +354,12 @@ server {
         try_files \$uri \$uri/ /index.php?\$args;
     }
 
-    location ~ \.php$ {
+    location ~ \.php\$ {
         try_files \$uri =404;
-        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_split_path_info ^(.+\.php)(/.+)\$;
         fastcgi_pass unix:$PMA_FPM_SOCK;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-        fastcgi_param PHP_VALUE "session.save_path=$TARGET_DIR/tmp\nupload_tmp_dir=$TARGET_DIR/tmp";
         include fastcgi_params;
         fastcgi_read_timeout 600;
         fastcgi_buffer_size 128k;
@@ -364,14 +371,23 @@ server {
     }
 }
 EOF
-            nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true)
+            ln -sf "/etc/nginx/conf.d/00_phpmyadmin.conf" "/etc/nginx/sites-enabled/00_phpmyadmin.conf" 2>/dev/null || true
+
+            # Khởi động lại Nginx để bind cổng mới 888
+            if nginx -t 2>/dev/null; then
+                systemctl restart nginx 2>/dev/null || systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null || true
+                echo "[+] Nginx đã nạp cấu hình phpMyAdmin (Port $PMA_PORT) thành công!"
+            else
+                echo "[-] Cảnh báo: Nginx kiểm tra cấu hình thất bại:"
+                nginx -t || true
+            fi
 
         elif [ -d "/usr/local/lsws" ] && [ -f "$OLS_MAIN_CONF" ]; then
             # Tránh Nginx chiếm cổng 888 gây xung đột cổng
             if [ -f "/etc/nginx/conf.d/00_phpmyadmin.conf" ]; then
-                rm -f "/etc/nginx/conf.d/00_phpmyadmin.conf" 2>/dev/null || true
+                rm -f "/etc/nginx/conf.d/00_phpmyadmin.conf" "/etc/nginx/sites-enabled/00_phpmyadmin.conf" 2>/dev/null || true
                 if command -v nginx &>/dev/null; then
-                    nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+                    systemctl restart nginx 2>/dev/null || nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
                 fi
             fi
 
@@ -548,9 +564,9 @@ PY_REGISTER
             pkill -9 -f "pma_lsphp" 2>/dev/null || true
             /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lshttpd 2>/dev/null || systemctl restart lsws 2>/dev/null || true
         fi
-        # 3. Reload Nginx
+        # 3. Nạp lại / Khởi động lại Nginx
         if [ -f "/etc/nginx/conf.d/00_phpmyadmin.conf" ]; then
-            nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+            systemctl restart nginx 2>/dev/null || nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
         fi
         echo "[+] Thao tác $ACTION dịch vụ phpMyAdmin hoàn tất!"
         ;;
