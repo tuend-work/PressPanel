@@ -1951,22 +1951,26 @@ function showAlert(message) {
                     }
                 };
 
-                const generateSvgLinePath = (dataPoints) => {
+                const generateSvgLinePath = (dataPoints, customMax = null) => {
                     if (!dataPoints || dataPoints.length === 0) return 'M 0 100';
-                    const maxVal = 100;
+                    let maxVal = customMax;
+                    if (!maxVal) {
+                        const peak = Math.max(...dataPoints, 0);
+                        maxVal = peak > 100 ? peak * 1.15 : 100;
+                    }
                     const w = 500;
                     const h = 100;
                     const step = w / Math.max(1, (dataPoints.length - 1));
                     return dataPoints.map((val, idx) => {
                         const x = (idx * step).toFixed(1);
-                        const y = (h - (Math.min(maxVal, Math.max(0, val)) / maxVal) * (h - 14) - 7).toFixed(1);
+                        const y = (h - (Math.min(maxVal, Math.max(0, val)) / Math.max(1, maxVal)) * (h - 14) - 7).toFixed(1);
                         return (idx === 0 ? 'M' : 'L') + ` ${x} ${y}`;
                     }).join(' ');
                 };
 
-                const generateSvgAreaPath = (dataPoints) => {
+                const generateSvgAreaPath = (dataPoints, customMax = null) => {
                     if (!dataPoints || dataPoints.length === 0) return 'M 0 100 L 500 100 Z';
-                    const line = generateSvgLinePath(dataPoints);
+                    const line = generateSvgLinePath(dataPoints, customMax);
                     return `${line} L 500 100 L 0 100 Z`;
                 };
 

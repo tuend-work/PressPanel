@@ -185,14 +185,15 @@
     <div class="bg-[#111722] rounded-2xl border border-slate-800 shadow-md overflow-hidden">
         <!-- Subtab Navigation Bar -->
         <div class="flex flex-wrap items-center justify-between border-b border-slate-800 px-4 sm:px-6 pt-3 bg-[#0d131d]">
-            <div class="flex space-x-1 sm:space-x-2">
+            <div class="flex flex-wrap gap-1 sm:gap-2">
                 <button v-for="st in [
                     { key: 'charts', label: 'Biểu Đồ CPU & RAM', icon: 'line-chart' },
+                    { key: 'network_charts', label: 'Băng Thông & Gói Tin Mạng', icon: 'wifi' },
+                    { key: 'disk', label: 'Dung Lượng Ổ Đĩa (Disk)', icon: 'hard-drive' },
                     { key: 'ip_requests', label: 'Top IP Requests', icon: 'shield-alert' },
-                    { key: 'disk', label: 'Dung Lượng Ổ Đĩa & Tệp', icon: 'hard-drive' },
                     { key: 'processes', label: 'Tiến Trình Đang Chạy', icon: 'cpu' }
                 ]" :key="st.key" @click="activeMonitorSubTab = st.key"
-                    class="px-3.5 py-2.5 font-semibold text-xs transition border-b-2 flex items-center gap-2"
+                    class="px-3 py-2.5 font-semibold text-xs transition border-b-2 flex items-center gap-2"
                     :class="activeMonitorSubTab === st.key ? 'border-cyan-500 text-cyan-400 bg-cyan-500/5' : 'border-transparent text-slate-400 hover:text-slate-200'">
                     <i :data-lucide="st.icon" class="w-4 h-4"></i>
                     <span>{{ st.label }}</span>
@@ -203,20 +204,25 @@
             </div>
         </div>
 
-        <!-- 4. SUBTAB 1: BIỂU ĐỒ CPU & RAM TIME-SERIES -->
+        <!-- 4. SUBTAB 1: BIỂU ĐỒ CPU & RAM TIME-SERIES (ĐA WEBSITE) -->
         <div v-if="activeMonitorSubTab === 'charts'" class="p-5 sm:p-6 space-y-6">
             <!-- CPU Chart Section -->
             <div class="space-y-3">
-                <div class="flex justify-between items-center">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-                        <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">Biến thiên CPU theo thời gian (%)</h3>
+                        <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                            Biến thiên CPU theo thời gian (%)
+                            <span v-if="monitorData?.website_series?.length > 1" class="text-[11px] text-amber-400 font-normal lowercase ml-1">
+                                (Mỗi website 1 đường line)
+                            </span>
+                        </h3>
                     </div>
-                    <span class="text-xs font-mono text-amber-400 font-semibold">Hiện tại: {{ (monitorData?.metrics?.cpu?.percent || 0).toFixed(1) }}%</span>
+                    <span class="text-xs font-mono text-amber-400 font-semibold">Tổng hiện tại: {{ (monitorData?.metrics?.cpu?.percent || 0).toFixed(1) }}%</span>
                 </div>
                 
-                <!-- SVG Area Chart CPU -->
-                <div class="w-full h-44 bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 relative flex flex-col justify-between">
+                <!-- SVG Area / Multi-line Chart CPU -->
+                <div class="w-full h-48 bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 relative flex flex-col justify-between">
                     <div class="flex justify-between text-[10px] text-slate-500 font-mono border-b border-slate-800/60 pb-1">
                         <span>100%</span>
                         <span>75%</span>
@@ -230,14 +236,28 @@
                         <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
                             <defs>
                                 <linearGradient id="cpuGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.45" />
+                                    <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.35" />
                                     <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.0" />
                                 </linearGradient>
                             </defs>
-                            <!-- Path Area -->
-                            <path :d="generateSvgAreaPath(monitorData?.time_series?.cpu || [])" fill="url(#cpuGrad)" />
-                            <!-- Stroke Line -->
-                            <path :d="generateSvgLinePath(monitorData?.time_series?.cpu || [])" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+
+                            <!-- Single Website Scope -->
+                            <template v-if="!monitorData?.website_series?.length || monitorData?.website_series?.length <= 1">
+                                <path :d="generateSvgAreaPath(monitorData?.time_series?.cpu || [])" fill="url(#cpuGrad)" />
+                                <path :d="generateSvgLinePath(monitorData?.time_series?.cpu || [])" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                            </template>
+
+                            <!-- Multi-Website Lines (Admin & Hosting User) -->
+                            <template v-else>
+                                <path v-for="ws in monitorData.website_series" :key="'cpu_line_' + ws.id"
+                                    :d="generateSvgLinePath(ws.cpu)"
+                                    fill="none"
+                                    :stroke="ws.color"
+                                    stroke-width="2.2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    class="transition-all hover:stroke-white hover:stroke-[3.5]" />
+                            </template>
                         </svg>
                     </div>
 
@@ -248,20 +268,37 @@
                         </span>
                     </div>
                 </div>
+
+                <!-- Legend chú thích từng Website và mức tiêu thụ CPU -->
+                <div v-if="monitorData?.website_series?.length > 1" class="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-mono">
+                    <span class="text-slate-400 font-sans text-xs font-semibold mr-1">Các website:</span>
+                    <div v-for="(ws, idx) in monitorData.website_series" :key="'leg_cpu_' + ws.id"
+                        class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-1.5 hover:border-slate-700 transition">
+                        <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: ws.color }"></span>
+                        <span class="text-slate-300 font-semibold">{{ ws.domain_name }}</span>
+                        <span class="font-bold ml-1" :style="{ color: ws.color }">{{ ws.current_cpu }}%</span>
+                        <span v-if="idx === 0" class="text-[9px] px-1 py-0.2 rounded bg-rose-500/20 text-rose-300 font-sans uppercase">Cao nhất</span>
+                    </div>
+                </div>
             </div>
 
             <!-- RAM Chart Section -->
             <div class="space-y-3 pt-4 border-t border-slate-800/80">
-                <div class="flex justify-between items-center">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse"></span>
-                        <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">Mức tiêu thụ RAM (%)</h3>
+                        <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                            Mức tiêu thụ RAM (%)
+                            <span v-if="monitorData?.website_series?.length > 1" class="text-[11px] text-sky-400 font-normal lowercase ml-1">
+                                (Mỗi website 1 đường line)
+                            </span>
+                        </h3>
                     </div>
-                    <span class="text-xs font-mono text-sky-400 font-semibold">Hiện tại: {{ (monitorData?.metrics?.ram?.percent || 0).toFixed(1) }}%</span>
+                    <span class="text-xs font-mono text-sky-400 font-semibold">Tổng hiện tại: {{ (monitorData?.metrics?.ram?.percent || 0).toFixed(1) }}% ({{ monitorData?.metrics?.ram?.used_mb || 0 }} MB)</span>
                 </div>
 
-                <!-- SVG Area Chart RAM -->
-                <div class="w-full h-44 bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 relative flex flex-col justify-between">
+                <!-- SVG Area / Multi-line Chart RAM -->
+                <div class="w-full h-48 bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 relative flex flex-col justify-between">
                     <div class="flex justify-between text-[10px] text-slate-500 font-mono border-b border-slate-800/60 pb-1">
                         <span>100%</span>
                         <span>75%</span>
@@ -274,12 +311,26 @@
                         <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
                             <defs>
                                 <linearGradient id="ramGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stop-color="#0ea5e9" stop-opacity="0.45" />
+                                    <stop offset="0%" stop-color="#0ea5e9" stop-opacity="0.35" />
                                     <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0.0" />
                                 </linearGradient>
                             </defs>
-                            <path :d="generateSvgAreaPath(monitorData?.time_series?.ram || [])" fill="url(#ramGrad)" />
-                            <path :d="generateSvgLinePath(monitorData?.time_series?.ram || [])" fill="none" stroke="#0ea5e9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+
+                            <template v-if="!monitorData?.website_series?.length || monitorData?.website_series?.length <= 1">
+                                <path :d="generateSvgAreaPath(monitorData?.time_series?.ram || [])" fill="url(#ramGrad)" />
+                                <path :d="generateSvgLinePath(monitorData?.time_series?.ram || [])" fill="none" stroke="#0ea5e9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                            </template>
+
+                            <template v-else>
+                                <path v-for="ws in monitorData.website_series" :key="'ram_line_' + ws.id"
+                                    :d="generateSvgLinePath(ws.ram)"
+                                    fill="none"
+                                    :stroke="ws.color"
+                                    stroke-width="2.2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    class="transition-all hover:stroke-white hover:stroke-[3.5]" />
+                            </template>
                         </svg>
                     </div>
 
@@ -289,10 +340,125 @@
                         </span>
                     </div>
                 </div>
+
+                <!-- Legend RAM -->
+                <div v-if="monitorData?.website_series?.length > 1" class="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-mono">
+                    <span class="text-slate-400 font-sans text-xs font-semibold mr-1">Các website:</span>
+                    <div v-for="(ws, idx) in monitorData.website_series" :key="'leg_ram_' + ws.id"
+                        class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-1.5 hover:border-slate-700 transition">
+                        <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: ws.color }"></span>
+                        <span class="text-slate-300 font-semibold">{{ ws.domain_name }}</span>
+                        <span class="font-bold ml-1" :style="{ color: ws.color }">{{ ws.current_ram_mb }} MB</span>
+                        <span v-if="idx === 0" class="text-[9px] px-1 py-0.2 rounded bg-sky-500/20 text-sky-300 font-sans uppercase">RAM lớn nhất</span>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- 5. SUBTAB 2: TOP IP REQUESTS & AN NINH -->
+        <!-- 5. SUBTAB MỚI: BĂNG THÔNG & GÓI TIN MẠNG (ADMIN SCOPE) -->
+        <div v-if="activeMonitorSubTab === 'network_charts'" class="p-5 sm:p-6 space-y-6">
+            <!-- Chart 1: Lưu lượng Băng Thông Mạng (Bandwidth KB/s) -->
+            <div class="space-y-3">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                        <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                            Lưu Lượng Băng Thông Mạng (Network Bandwidth - KB/s)
+                        </h3>
+                    </div>
+                    <div class="flex items-center gap-4 text-xs font-mono">
+                        <span class="flex items-center gap-1 text-cyan-400 font-bold">
+                            <span class="w-2 h-2 rounded-full bg-cyan-400"></span> ↓ Download: {{ monitorData?.metrics?.network?.down_speed_kb || 0 }} KB/s
+                        </span>
+                        <span class="flex items-center gap-1 text-purple-400 font-bold">
+                            <span class="w-2 h-2 rounded-full bg-purple-400"></span> ↑ Upload: {{ monitorData?.metrics?.network?.up_speed_kb || 0 }} KB/s
+                        </span>
+                    </div>
+                </div>
+
+                <div class="w-full h-48 bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 relative flex flex-col justify-between">
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono border-b border-slate-800/60 pb-1">
+                        <span>Đỉnh (Peak)</span>
+                        <span>75%</span>
+                        <span>50%</span>
+                        <span>25%</span>
+                        <span>0 KB/s</span>
+                    </div>
+
+                    <div class="relative flex-1 w-full flex items-end">
+                        <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="bwDownGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.35" />
+                                    <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.0" />
+                                </linearGradient>
+                            </defs>
+                            <path :d="generateSvgAreaPath(monitorData?.time_series?.bandwidth_in || [])" fill="url(#bwDownGrad)" />
+                            <path :d="generateSvgLinePath(monitorData?.time_series?.bandwidth_in || [])" fill="none" stroke="#06b6d4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                            <path :d="generateSvgLinePath(monitorData?.time_series?.bandwidth_out || [])" fill="none" stroke="#c084fc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </div>
+
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-800/60">
+                        <span v-for="(lbl, idx) in (monitorData?.time_series?.labels || []).filter((_, i) => i % 2 === 0)" :key="'bwl_' + idx">
+                            {{ lbl }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart 2: Tốc Độ Gói Tin Mạng (PPS - Packets Per Second) -->
+            <div class="space-y-3 pt-4 border-t border-slate-800/80">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                            Tốc Độ Gói Tin Mạng (Packets Per Second - PPS)
+                        </h3>
+                    </div>
+                    <div class="flex items-center gap-4 text-xs font-mono">
+                        <span class="flex items-center gap-1 text-emerald-400 font-bold">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Gói nhận (In): {{ monitorData?.metrics?.network?.in_pps || 0 }} PPS
+                        </span>
+                        <span class="flex items-center gap-1 text-amber-400 font-bold">
+                            <span class="w-2 h-2 rounded-full bg-amber-400"></span> Gói gửi (Out): {{ monitorData?.metrics?.network?.out_pps || 0 }} PPS
+                        </span>
+                    </div>
+                </div>
+
+                <div class="w-full h-48 bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 relative flex flex-col justify-between">
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono border-b border-slate-800/60 pb-1">
+                        <span>Đỉnh (Peak PPS)</span>
+                        <span>75%</span>
+                        <span>50%</span>
+                        <span>25%</span>
+                        <span>0 PPS</span>
+                    </div>
+
+                    <div class="relative flex-1 w-full flex items-end">
+                        <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="ppsInGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#10b981" stop-opacity="0.35" />
+                                    <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
+                                </linearGradient>
+                            </defs>
+                            <path :d="generateSvgAreaPath(monitorData?.time_series?.pps_in || [])" fill="url(#ppsInGrad)" />
+                            <path :d="generateSvgLinePath(monitorData?.time_series?.pps_in || [])" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                            <path :d="generateSvgLinePath(monitorData?.time_series?.pps_out || [])" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </div>
+
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-800/60">
+                        <span v-for="(lbl, idx) in (monitorData?.time_series?.labels || []).filter((_, i) => i % 2 === 0)" :key="'ppsl_' + idx">
+                            {{ lbl }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. SUBTAB 3: TOP IP REQUESTS & AN NINH -->
         <div v-if="activeMonitorSubTab === 'ip_requests'" class="p-5 sm:p-6 space-y-4">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                 <div>
@@ -358,14 +524,80 @@
             </div>
         </div>
 
-        <!-- 6. SUBTAB 3: DUNG LƯỢNG DISK & PHÂN BỔ TỆP -->
+        <!-- 7. SUBTAB 4: DUNG LƯỢNG DISK & BIỂU ĐỒ (ĐA WEBSITE) -->
         <div v-if="activeMonitorSubTab === 'disk'" class="p-5 sm:p-6 space-y-6">
-            <div class="space-y-2">
-                <h3 class="text-xs font-bold text-white uppercase tracking-wider">Phân Bổ Dung Lượng Lưu Trữ</h3>
-                <p class="text-[11px] text-slate-400">Xem chi tiết không gian ổ cứng đã sử dụng bởi mã nguồn web, database và nhật ký logs.</p>
+            <div class="space-y-3">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                            Mức Tiêu Thụ Ổ Đĩa Theo Thời Gian (%)
+                            <span v-if="monitorData?.website_series?.length > 1" class="text-[11px] text-emerald-400 font-normal lowercase ml-1">
+                                (Mỗi website 1 đường line)
+                            </span>
+                        </h3>
+                    </div>
+                    <span class="text-xs font-mono text-emerald-400 font-semibold">Tổng hiện tại: {{ (monitorData?.metrics?.disk?.percent || 0).toFixed(1) }}% ({{ monitorData?.metrics?.disk?.used_gb || 0 }} GB)</span>
+                </div>
+
+                <!-- SVG Area / Multi-line Chart Disk -->
+                <div class="w-full h-48 bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 relative flex flex-col justify-between">
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono border-b border-slate-800/60 pb-1">
+                        <span>100%</span>
+                        <span>75%</span>
+                        <span>50%</span>
+                        <span>25%</span>
+                        <span>0%</span>
+                    </div>
+
+                    <div class="relative flex-1 w-full flex items-end">
+                        <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="diskGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#10b981" stop-opacity="0.35" />
+                                    <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
+                                </linearGradient>
+                            </defs>
+
+                            <template v-if="!monitorData?.website_series?.length || monitorData?.website_series?.length <= 1">
+                                <path :d="generateSvgAreaPath(monitorData?.time_series?.disk || [])" fill="url(#diskGrad)" />
+                                <path :d="generateSvgLinePath(monitorData?.time_series?.disk || [])" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                            </template>
+
+                            <template v-else>
+                                <path v-for="ws in monitorData.website_series" :key="'disk_line_' + ws.id"
+                                    :d="generateSvgLinePath(ws.disk)"
+                                    fill="none"
+                                    :stroke="ws.color"
+                                    stroke-width="2.2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    class="transition-all hover:stroke-white hover:stroke-[3.5]" />
+                            </template>
+                        </svg>
+                    </div>
+
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-800/60">
+                        <span v-for="(lbl, idx) in (monitorData?.time_series?.labels || []).filter((_, i) => i % 2 === 0)" :key="'dl_' + idx">
+                            {{ lbl }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Legend Disk -->
+                <div v-if="monitorData?.website_series?.length > 1" class="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-mono">
+                    <span class="text-slate-400 font-sans text-xs font-semibold mr-1">Các website:</span>
+                    <div v-for="ws in monitorData.website_series" :key="'leg_disk_' + ws.id"
+                        class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-1.5 hover:border-slate-700 transition">
+                        <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: ws.color }"></span>
+                        <span class="text-slate-300 font-semibold">{{ ws.domain_name }}</span>
+                        <span class="font-bold ml-1" :style="{ color: ws.color }">{{ ws.current_disk_mb }} MB</span>
+                    </div>
+                </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Cards Phân bổ dung lượng -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-800/80">
                 <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
                     <div class="text-[11px] text-slate-400 font-bold uppercase">Mã Nguồn Web (public_html)</div>
                     <div class="text-lg font-bold font-mono text-emerald-400">
@@ -392,11 +624,13 @@
             </div>
         </div>
 
-        <!-- 7. SUBTAB 4: TIẾN TRÌNH LINUX ĐANG CHẠY (PROCESSES) -->
+        <!-- 8. SUBTAB 5: TIẾN TRÌNH LINUX ĐANG CHẠY (PROCESSES - ĐÃ LỌC RBAC CHÍNH XÁC) -->
         <div v-if="activeMonitorSubTab === 'processes'" class="p-5 sm:p-6 space-y-4">
             <div class="flex justify-between items-center">
                 <h3 class="text-xs font-bold text-white uppercase tracking-wider">Top Tiến Trình Tiêu Thụ CPU/RAM</h3>
-                <span class="text-xs font-mono text-slate-400">Sorted by CPU Usage</span>
+                <span class="text-xs font-mono text-slate-400">
+                    Phạm vi: <span class="text-cyan-400 font-semibold">{{ monitorData?.target?.label || 'Chính mình' }}</span>
+                </span>
             </div>
 
             <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60">
@@ -417,6 +651,14 @@
                             <td class="px-4 py-2.5 font-bold" :class="Number(p.cpu_pct) > 10 ? 'text-amber-400' : 'text-slate-300'">{{ p.cpu_pct }}%</td>
                             <td class="px-4 py-2.5 text-slate-300">{{ p.mem_pct }}%</td>
                             <td class="px-4 py-2.5 text-slate-400 truncate max-w-xs">{{ p.command }}</td>
+                        </tr>
+                        <tr v-if="!monitorData?.processes?.length">
+                            <td colspan="5" class="px-4 py-8 text-center text-slate-500">
+                                <div class="flex flex-col items-center justify-center space-y-1">
+                                    <i data-lucide="check-circle" class="w-5 h-5 text-emerald-400 mb-1"></i>
+                                    <span class="text-xs text-slate-400">Không có tiến trình nào đang hoạt động cho tài khoản này (CPU/RAM nhàn rỗi).</span>
+                                </div>
+                            </td>
                         </tr>
                     </tbody>
                 </table>

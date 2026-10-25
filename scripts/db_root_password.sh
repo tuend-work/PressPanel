@@ -144,10 +144,8 @@ EOF
         rm -f "$PMA_DIR/tmp/sess_"* 2>/dev/null || true
         chmod 777 "$PMA_DIR/tmp" 2>/dev/null || true
 
-        # Đảm bảo symlink socket giữa /var/run/mysqld/mysqld.sock và /tmp/mysql.sock
-        if [ -S "/var/run/mysqld/mysqld.sock" ] && [ ! -e "/tmp/mysql.sock" ]; then
-            ln -snf /var/run/mysqld/mysqld.sock /tmp/mysql.sock 2>/dev/null || true
-        fi
+        # Dọn dẹp symlink tạm cũ trong /tmp nếu có để bảo vệ an toàn
+        rm -f /tmp/mysql.sock 2>/dev/null || true
     fi
 
     echo "[+] Đã cập nhật mật khẩu root MariaDB/MySQL cho cả Terminal SSH và phpMyAdmin thành công!"

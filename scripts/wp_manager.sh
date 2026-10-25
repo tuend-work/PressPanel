@@ -72,6 +72,17 @@ case "$ACTION" in
             exit 2
         fi
 
+        # Đảm bảo gói unzip được cài đặt trên hệ thống
+        if ! command -v unzip &>/dev/null; then
+            echo "[+] Đang cài đặt gói unzip giải nén tệp tin..."
+            if command -v apt-get &>/dev/null; then
+                export DEBIAN_FRONTEND=noninteractive
+                apt-get install -y unzip 2>/dev/null || true
+            elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
+                yum install -y unzip 2>/dev/null || dnf install -y unzip 2>/dev/null || true
+            fi
+        fi
+
         # RÀNG BUỘC 2: KIỂM TRA THƯ MỤC VÀ SUBDIRECTORY
         if [ -n "$SUBDIRECTORY" ]; then
             TARGET_DIR="$TARGET_DIR/$SUBDIRECTORY"
@@ -98,20 +109,44 @@ case "$ACTION" in
         TEMP_EXTRACT="/tmp/wp_extract_${USERNAME}_$$"
 
         echo "[+] Dang tai ban WordPress core tu: $WP_ZIP_URL..."
-        if ! curl -fsSL --connect-timeout 20 --max-time 300 "$WP_ZIP_URL" -o "$TEMP_ZIP"; then
+        if ! curl -fsSL -A "Mozilla/5.0 (X11; Linux x86_64) PressPanel/1.0" --connect-timeout 20 --max-time 300 "$WP_ZIP_URL" -o "$TEMP_ZIP" || [ ! -s "$TEMP_ZIP" ]; then
+            echo "[-] Cảnh báo: Tải từ $WP_ZIP_URL thất bại, thử nguồn dự phòng https://wordpress.org/latest.zip..."
+            rm -f "$TEMP_ZIP"
+            curl -fsSL -A "Mozilla/5.0 (X11; Linux x86_64) PressPanel/1.0" --connect-timeout 20 --max-time 300 "https://wordpress.org/latest.zip" -o "$TEMP_ZIP" || true
+        fi
+
+        if [ ! -s "$TEMP_ZIP" ]; then
             echo "[-] LOI: Khong the tai goi WordPress ZIP tu $WP_ZIP_URL. Vui long kiem tra ket noi mang ra ngoai!"
             rm -f "$TEMP_ZIP"
             exit 5
         fi
 
         mkdir -p "$TEMP_EXTRACT"
-        if ! unzip -q -o "$TEMP_ZIP" -d "$TEMP_EXTRACT"; then
+        EXTRACTED=0
+        if command -v unzip &>/dev/null; then
+            if unzip -q -o "$TEMP_ZIP" -d "$TEMP_EXTRACT" 2>/dev/null; then
+                EXTRACTED=1
+            fi
+        fi
+
+        # Fallback giải nén qua python3 nếu unzip chưa có hoặc lỗi
+        if [ "$EXTRACTED" -eq 0 ] && command -v python3 &>/dev/null; then
+            if python3 -c "import zipfile, sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$TEMP_ZIP" "$TEMP_EXTRACT" 2>/dev/null; then
+                EXTRACTED=1
+            fi
+        fi
+
+        if [ "$EXTRACTED" -eq 0 ]; then
             echo "[-] LOI: Khong the giai nen goi WordPress ZIP (tap tin bi loi hoac day o dia)!"
             rm -rf "$TEMP_ZIP" "$TEMP_EXTRACT"
             exit 6
         fi
 
-        cp -rf "$TEMP_EXTRACT"/wordpress/* "$TARGET_DIR/"
+        if [ -d "$TEMP_EXTRACT/wordpress" ]; then
+            cp -rf "$TEMP_EXTRACT"/wordpress/* "$TARGET_DIR/"
+        else
+            cp -rf "$TEMP_EXTRACT"/* "$TARGET_DIR/" 2>/dev/null || true
+        fi
         rm -rf "$TEMP_ZIP" "$TEMP_EXTRACT"
 
         # 2. KHỞI TẠO DATABASE & USER MARIADB VỚI KIỂM SOÁT LỖI TỪNG BƯỚC
