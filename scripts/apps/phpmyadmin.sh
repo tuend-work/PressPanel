@@ -213,30 +213,22 @@ EOF
         ln -snf "$TARGET_DIR" "$TARGET_DIR/phpmyadmin" 2>/dev/null || true
         ln -snf "$TARGET_DIR" "$TARGET_DIR/phpMyAdmin" 2>/dev/null || true
 
-        # Cài đặt bổ sung đầy đủ module PHP (đặc biệt là mysqli & mbstring) cho tất cả các bản PHP-FPM và LSPHP
-        echo "[+] Đảm bảo các module PHP (mysqli, mbstring, xml, curl...) được cài đặt và kích hoạt..."
+        # Cài đặt bổ sung module PHP cần thiết (mysqli, mbstring) CHỈ CHO phiên bản PHP đang dùng
+        ACTIVE_PHP=$(detect_php_version)
+        echo "[+] Đảm bảo các module PHP thiết yếu (mysqli, mbstring) cho PHP $ACTIVE_PHP..."
         if command -v apt-get &>/dev/null; then
             export DEBIAN_FRONTEND=noninteractive
-            # Cài đặt cho PHP-FPM (tất cả các phiên bản PHP hỗ trợ)
-            for v in 8.5 8.4 8.3 8.2 8.1 8.0 7.4; do
-                apt-get install -y "php$v-mysql" "php$v-mbstring" "php$v-xml" "php$v-curl" "php$v-zip" "php$v-intl" "php$v-gd" "php$v-common" 2>/dev/null || true
-                command -v phpenmod &>/dev/null && phpenmod -v "$v" mysqlnd mysqli pdo_mysql mbstring xml curl zip intl gd 2>/dev/null || true
-            done
-            apt-get install -y php-mysql php-curl php-mbstring php-xml php-zip php-intl php-gd 2>/dev/null || true
-            command -v phpenmod &>/dev/null && phpenmod mysqlnd mysqli pdo_mysql mbstring xml curl zip intl gd 2>/dev/null || true
-
-            # Cài đặt cho OpenLiteSpeed (LSPHP)
-            for v in 85 84 83 82 81 80 74; do
-                apt-get install -y "lsphp$v-mysql" "lsphp$v-curl" "lsphp$v-opcache" "lsphp$v-mbstring" "lsphp$v-xml" "lsphp$v-zip" "lsphp$v-intl" "lsphp$v-gd" 2>/dev/null || true
-            done
+            # Chỉ cài gói MySQL và mbstring cho đúng phiên bản PHP đang hoạt động
+            apt-get install -y "php${ACTIVE_PHP}-mysql" "php${ACTIVE_PHP}-mbstring" "php${ACTIVE_PHP}-xml" "php${ACTIVE_PHP}-curl" 2>/dev/null || true
+            command -v phpenmod &>/dev/null && phpenmod -v "$ACTIVE_PHP" mysqlnd mysqli pdo_mysql mbstring xml curl 2>/dev/null || true
+            if [ -d "/usr/local/lsws" ]; then
+                PMA_LSPHP_NUM=$(echo "$ACTIVE_PHP" | tr -d '.')
+                apt-get install -y "lsphp${PMA_LSPHP_NUM}-mysql" "lsphp${PMA_LSPHP_NUM}-curl" "lsphp${PMA_LSPHP_NUM}-mbstring" 2>/dev/null || true
+            fi
         elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
             PKG_MGR="dnf"
             command -v dnf &>/dev/null || PKG_MGR="yum"
-            $PKG_MGR install -y php-mysqlnd php-mysqli php-mbstring php-xml php-curl php-zip php-gd php-intl 2>/dev/null || true
-            for v in 85 84 83 82 81 80 74; do
-                $PKG_MGR install -y "php${v}-php-mysqlnd" "php${v}-php-mbstring" "php${v}-php-xml" "php${v}-php-gd" "php${v}-php-intl" 2>/dev/null || true
-                $PKG_MGR install -y "lsphp${v}-mysqlnd" "lsphp${v}-mbstring" "lsphp${v}-xml" "lsphp${v}-gd" "lsphp${v}-intl" 2>/dev/null || true
-            done
+            $PKG_MGR install -y php-mysqlnd php-mysqli php-mbstring php-xml php-curl 2>/dev/null || true
         fi
 
         # 6. Mở cổng tường lửa nếu đang bật (UFW hoặc Firewalld)
