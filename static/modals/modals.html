@@ -3155,60 +3155,66 @@
             <div v-if="showInstallModal && selectedAppToInstall"
                 class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in"
                 @click.self="showInstallModal = false">
-                <div class="w-full max-w-lg bg-[#191d26] rounded-2xl border border-[#2b3342] shadow-2xl overflow-hidden relative p-6 text-slate-200" @click.stop>
-                    <!-- Close button tròn góc phải trên như ảnh 1 -->
-                    <button @click="showInstallModal = false"
-                        class="absolute top-4 right-4 w-7 h-7 rounded-full bg-[#2a3242] hover:bg-[#384357] text-slate-300 hover:text-white flex items-center justify-center text-xs transition">
-                        ✕
-                    </button>
+                <div class="w-full max-w-2xl bg-[#191d26] rounded-2xl border border-[#2b3342] shadow-2xl p-6 text-slate-200" @click.stop>
+                    <!-- Top Row: Icon + Name + Version Dropdown + Compiled Button + Quick Install Button + Close Button -->
+                    <div class="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+                        <!-- Left: Icon & Name -->
+                        <div class="flex items-center space-x-3 min-w-0">
+                            <!-- Icon -->
+                            <div class="w-8 h-8 rounded-lg bg-[#141820] border border-[#2a3242] flex items-center justify-center text-base shrink-0 shadow-inner">
+                                <span v-if="selectedAppToInstall.id === 'nginx'" class="text-emerald-400 font-bold font-mono">N</span>
+                                <span v-else-if="selectedAppToInstall.category === 'php'" class="text-indigo-400 font-bold font-mono text-xs">php</span>
+                                <span v-else-if="['mysql', 'mariadb'].includes(selectedAppToInstall.id)" class="text-sky-400">🐬</span>
+                                <span v-else-if="selectedAppToInstall.id === 'redis'" class="text-rose-500">🔴</span>
+                                <span v-else-if="selectedAppToInstall.id === 'ols'" class="text-amber-400">⚡</span>
+                                <span v-else-if="selectedAppToInstall.id === 'apache'" class="text-rose-400">🪶</span>
+                                <span v-else>{{ selectedAppToInstall.icon || '📦' }}</span>
+                            </div>
 
-                    <!-- Top Row: Icon + Name + Version Dropdown + Compiled Button + Quick Install Button -->
-                    <div class="flex items-center space-x-3 pr-8 pt-1">
-                        <!-- Icon -->
-                        <div class="w-8 h-8 rounded-lg bg-[#141820] border border-[#2a3242] flex items-center justify-center text-base shrink-0 shadow-inner">
-                            <span v-if="selectedAppToInstall.id === 'nginx'" class="text-emerald-400 font-bold font-mono">N</span>
-                            <span v-else-if="selectedAppToInstall.category === 'php'" class="text-indigo-400 font-bold font-mono text-xs">php</span>
-                            <span v-else-if="['mysql', 'mariadb'].includes(selectedAppToInstall.id)" class="text-sky-400">🐬</span>
-                            <span v-else-if="selectedAppToInstall.id === 'redis'" class="text-rose-500">🔴</span>
-                            <span v-else-if="selectedAppToInstall.id === 'ols'" class="text-amber-400">⚡</span>
-                            <span v-else-if="selectedAppToInstall.id === 'apache'" class="text-rose-400">🪶</span>
-                            <span v-else>{{ selectedAppToInstall.icon || '📦' }}</span>
+                            <!-- Name -->
+                            <h3 class="text-base font-bold text-white truncate" :title="selectedAppToInstall.name">
+                                {{ selectedAppToInstall.name.replace(' Web Server', '').replace(' Database', '').replace(' Object Cache', '').replace(' NoSQL Database', '') }}
+                            </h3>
                         </div>
 
-                        <!-- Name -->
-                        <h3 class="text-sm sm:text-base font-bold text-white whitespace-nowrap">
-                            {{ selectedAppToInstall.name }} {{ selectedInstallVersion !== 'default' && !selectedAppToInstall.name.includes(selectedInstallVersion) ? selectedInstallVersion : '' }}
-                        </h3>
+                        <!-- Right: Version Dropdown + Buttons + Close -->
+                        <div class="flex items-center space-x-2.5 shrink-0">
+                            <!-- Version Dropdown -->
+                            <div class="relative">
+                                <select v-model="selectedInstallVersion"
+                                    class="appearance-none pl-3 pr-7 py-1.5 rounded-lg bg-[#141820] border border-emerald-500/70 text-slate-200 text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer shadow-sm max-w-[150px] truncate">
+                                    <template v-if="selectedAppToInstall.versions && selectedAppToInstall.versions.length > 0">
+                                        <option v-for="ver in selectedAppToInstall.versions" :key="ver.value" :value="ver.value">
+                                            {{ ver.value }}
+                                        </option>
+                                    </template>
+                                    <template v-else>
+                                        <option :value="selectedAppToInstall.default_version || 'latest'">
+                                            {{ selectedAppToInstall.default_version || 'latest' }}
+                                        </option>
+                                    </template>
+                                </select>
+                                <span class="pointer-events-none absolute right-2.5 top-2 text-slate-400 text-[10px]">▼</span>
+                            </div>
 
-                        <!-- Version Dropdown -->
-                        <div class="relative">
-                            <select v-model="selectedInstallVersion"
-                                class="appearance-none pl-3 pr-7 py-1.5 rounded-lg bg-[#141820] border border-emerald-500/60 text-slate-200 text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer shadow-sm">
-                                <template v-if="selectedAppToInstall.versions && selectedAppToInstall.versions.length > 0">
-                                    <option v-for="ver in selectedAppToInstall.versions" :key="ver.value" :value="ver.value">
-                                        {{ ver.label }}
-                                    </option>
-                                </template>
-                                <template v-else>
-                                    <option :value="selectedAppToInstall.default_version || 'latest'">
-                                        {{ selectedAppToInstall.default_version || 'latest' }}
-                                    </option>
-                                </template>
-                            </select>
-                            <span class="pointer-events-none absolute right-2.5 top-2 text-slate-400 text-[10px]">▼</span>
+                            <!-- Compiled Button -->
+                            <button @click="confirmInstallApp('compiled')"
+                                class="px-3.5 py-1.5 rounded-lg bg-[#1c2128] hover:bg-[#252b35] text-slate-200 hover:text-white border border-[#30363d] text-xs font-medium transition shadow-sm whitespace-nowrap">
+                                Compiled
+                            </button>
+
+                            <!-- Quick Install Button (Green) -->
+                            <button @click="confirmInstallApp('fast')"
+                                class="px-4 py-1.5 rounded-lg bg-[#10b981] hover:bg-[#059669] text-white text-xs font-bold shadow-md shadow-emerald-500/20 transition whitespace-nowrap">
+                                Quick install
+                            </button>
+
+                            <!-- Close button tròn góc phải như ảnh 1 -->
+                            <button @click="showInstallModal = false"
+                                class="w-7 h-7 rounded-full bg-[#2a3242] hover:bg-[#384357] text-slate-300 hover:text-white flex items-center justify-center text-xs transition ml-1 shrink-0" title="Đóng">
+                                ✕
+                            </button>
                         </div>
-
-                        <!-- Compiled Button -->
-                        <button @click="confirmInstallApp('compiled')"
-                            class="px-3.5 py-1.5 rounded-lg bg-[#1c2128] hover:bg-[#252b35] text-slate-200 hover:text-white border border-[#30363d] text-xs font-medium transition shadow-sm">
-                            Compiled
-                        </button>
-
-                        <!-- Quick Install Button (Green) -->
-                        <button @click="confirmInstallApp('fast')"
-                            class="px-4 py-1.5 rounded-lg bg-[#10b981] hover:bg-[#059669] text-white text-xs font-bold shadow-md shadow-emerald-500/20 transition">
-                            Quick install
-                        </button>
                     </div>
 
                     <!-- Divider Line -->
