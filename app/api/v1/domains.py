@@ -24,6 +24,12 @@ def domain_to_linux_user(domain: str) -> str:
     # Bỏ www. và chuyển sang viết liền không dấu chấm
     clean = re.sub(r"^(https?://)?(www\.)?", "", domain.strip().lower())
     clean = re.sub(r"[^a-z0-9]", "", clean)
+    if clean in ("phpmyadminsys", "phpmyadmin", "pma", "pmasys"):
+        return "pma"
+    if clean in ("pgadminsys", "pgadmin"):
+        return "pgadmin"
+    if clean in ("webmailsys", "roundcube"):
+        return "roundcube"
     if not clean:
         clean = "webuser"
     # Giới hạn 30 ký tự để phù hợp giới hạn username của Linux (thường max 32)
@@ -144,16 +150,17 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
         JOIN users u ON d.user_id = u.id
         LEFT JOIN packages p ON u.package_id = p.id
         LEFT JOIN packages p_dom ON d.package_id = p_dom.id
+        WHERE (d.is_system = 0 OR d.is_system IS NULL) AND d.domain_name NOT LIKE '%.sys'
     """
     if current_user["role"] == "admin":
         cursor = await db.execute(base_select + " ORDER BY d.created_at DESC")
     elif current_user["role"] == "reseller":
-        cursor = await db.execute(base_select + " WHERE u.id = ? OR u.parent_id = ? ORDER BY d.created_at DESC", (current_user["id"], current_user["id"]))
+        cursor = await db.execute(base_select + " AND (u.id = ? OR u.parent_id = ?) ORDER BY d.created_at DESC", (current_user["id"], current_user["id"]))
     elif current_user.get("web_domain_id"):
         # Web User: CHỈ ĐƯỢC XEM DUY NHẤT WEBSITE ĐƯỢC PHÂN QUYỀN
-        cursor = await db.execute(base_select + " WHERE d.id = ? ORDER BY d.created_at DESC", (current_user["web_domain_id"],))
+        cursor = await db.execute(base_select + " AND d.id = ? ORDER BY d.created_at DESC", (current_user["web_domain_id"],))
     else:
-        cursor = await db.execute(base_select + " WHERE d.user_id = ? ORDER BY d.created_at DESC", (current_user["id"],))
+        cursor = await db.execute(base_select + " AND d.user_id = ? ORDER BY d.created_at DESC", (current_user["id"],))
     
     rows = await cursor.fetchall()
     await db.close()

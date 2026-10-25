@@ -6,7 +6,10 @@ set -uo pipefail
 
 ACTION="${1:-install}"
 VERSION="${2:-latest}"
-TARGET_DIR="/opt/wpc/apps/phpmyadmin"
+PMA_USER="pma"
+PMA_HOME="/home/$PMA_USER"
+TARGET_DIR="$PMA_HOME/public_html"
+LEGACY_DIR="/opt/wpc/apps/phpmyadmin"
 PMA_PORT="888"
 
 detect_php_version() {
@@ -71,12 +74,39 @@ download_pma() {
 
 case "$ACTION" in
     install)
-        echo "[+] Đang chuẩn bị thư mục phpMyAdmin tại $TARGET_DIR..."
-        mkdir -p "$TARGET_DIR"
-        mkdir -p "$TARGET_DIR/tmp"
-        mkdir -p "$TARGET_DIR/logs"
+        echo "[+] Chuẩn hóa Website User và thư mục cho phpMyAdmin tại $TARGET_DIR..."
 
-        # 1. Tải và giải nén phpMyAdmin nếu chưa có file index.php
+        # 1. Tạo Website User Linux 'pma' là con của account 'admin'
+        groupadd -r pma 2>/dev/null || true
+        if ! id "$PMA_USER" &>/dev/null; then
+            useradd -m -d "$PMA_HOME" -s /usr/sbin/nologin -g pma "$PMA_USER" 2>/dev/null || true
+        else
+            usermod -d "$PMA_HOME" "$PMA_USER" 2>/dev/null || true
+        fi
+
+        # Gắn user pma vào group của admin (cha) và webserver
+        id "admin" &>/dev/null && usermod -a -G admin "$PMA_USER" 2>/dev/null || true
+        id "nobody" &>/dev/null && usermod -a -G pma nobody 2>/dev/null || true
+        id "www-data" &>/dev/null && usermod -a -G pma www-data 2>/dev/null || true
+        usermod -a -G www-data "$PMA_USER" 2>/dev/null || true
+        usermod -a -G nobody "$PMA_USER" 2>/dev/null || true
+
+        # 2. Khởi tạo cấu trúc thư mục website chuẩn (/home/pma/public_html)
+        mkdir -p "$PMA_HOME" "$TARGET_DIR" "$TARGET_DIR/tmp" "$PMA_HOME/logs"
+        chmod 750 "$PMA_HOME" 2>/dev/null || true
+
+        # Di chuyển source cũ từ legacy path nếu có
+        if [ -d "$LEGACY_DIR" ] && [ ! -L "$LEGACY_DIR" ] && [ -f "$LEGACY_DIR/index.php" ] && [ ! -f "$TARGET_DIR/index.php" ]; then
+            echo "[+] Chuyển mã nguồn phpMyAdmin từ $LEGACY_DIR sang $TARGET_DIR..."
+            cp -rn "$LEGACY_DIR"/* "$TARGET_DIR/" 2>/dev/null || true
+            rm -rf "$LEGACY_DIR" 2>/dev/null || true
+        fi
+
+        # Tạo symlink tương thích ngược: /opt/wpc/apps/phpmyadmin -> /home/pma/public_html
+        mkdir -p /opt/wpc/apps 2>/dev/null || true
+        ln -sfn "$TARGET_DIR" "$LEGACY_DIR" 2>/dev/null || true
+
+        # 3. Tải và giải nén phpMyAdmin nếu chưa có file index.php
         if [ ! -f "$TARGET_DIR/index.php" ]; then
             if download_pma; then
                 echo "[+] Đang giải nén phpMyAdmin..."
@@ -111,7 +141,7 @@ case "$ACTION" in
             echo "[+] Xác nhận $TARGET_DIR/index.php tồn tại hợp lệ."
         fi
 
-        # 2. Sinh blowfish secret ngẫu nhiên và tạo config.inc.php
+        # 4. Sinh blowfish secret ngẫu nhiên và tạo config.inc.php
         BLOWFISH=$(head -c 32 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32)
         [ -z "$BLOWFISH" ] && BLOWFISH="WPCloudPMASecretKey20261016Secure"
 
@@ -166,24 +196,14 @@ echo "</div>";
 EOF
         fi
 
-        # 3. Phân quyền toàn diện và gỡ bỏ các file .htaccess chặn truy cập
+        # 5. Phân quyền toàn diện chuẩn Website User
         rm -f "$TARGET_DIR/.htaccess" 2>/dev/null || true
-        mkdir -p "$TARGET_DIR/tmp" "$TARGET_DIR/logs"
+        mkdir -p "$TARGET_DIR/tmp" "$PMA_HOME/logs"
         chmod 1777 "$TARGET_DIR/tmp" 2>/dev/null || chmod 777 "$TARGET_DIR/tmp" 2>/dev/null || true
-        chmod 755 "$TARGET_DIR/logs" 2>/dev/null || true
+        chmod 755 "$PMA_HOME/logs" 2>/dev/null || true
         chmod 644 "$TARGET_DIR/config.inc.php" "$TARGET_DIR/index.php" 2>/dev/null || true
 
-        # Đảm bảo cây thư mục cha /opt/wpc có quyền thực thi (755) cho webserver
-        chmod 755 /opt /opt/wpc /opt/wpc/apps "$TARGET_DIR" 2>/dev/null || true
-
-        # Tạo user & group riêng cho phpMyAdmin: pma:pma
-        groupadd -r pma 2>/dev/null || true
-        id "pma" &>/dev/null || useradd -r -g pma -s /usr/sbin/nologin -d "$TARGET_DIR" pma 2>/dev/null || true
-        id "nobody" &>/dev/null && usermod -a -G pma nobody 2>/dev/null || true
-        id "www-data" &>/dev/null && usermod -a -G pma www-data 2>/dev/null || true
-        id "pma" &>/dev/null && usermod -a -G www-data pma 2>/dev/null || true
-
-        chown -R pma:pma "$TARGET_DIR" 2>/dev/null || true
+        chown -R pma:pma "$PMA_HOME" 2>/dev/null || true
         find "$TARGET_DIR" -type d -exec chmod 755 {} + 2>/dev/null || true
         find "$TARGET_DIR" -type f -exec chmod 644 {} + 2>/dev/null || true
         chmod 1777 "$TARGET_DIR/tmp" 2>/dev/null || chmod 777 "$TARGET_DIR/tmp" 2>/dev/null || true
@@ -200,7 +220,7 @@ EOF
             apt-get install -y php-mysql php-curl php-mbstring php-xml php-zip php-intl php-gd 2>/dev/null || true
         fi
 
-        # 4. Mở cổng tường lửa nếu đang bật (UFW hoặc Firewalld)
+        # 6. Mở cổng tường lửa nếu đang bật (UFW hoặc Firewalld)
         if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
             ufw allow "$PMA_PORT"/tcp 2>/dev/null || true
         fi
@@ -209,10 +229,19 @@ EOF
             firewall-cmd --reload 2>/dev/null || true
         fi
 
-        # 5. Cấu hình Web Server cho Port 888 (ưu tiên OpenLiteSpeed nếu có)
+        # 7. Cấu hình Cgroups v2 phân cấp cho user 'pma' (con của admin)
+        echo "[+] Khởi tạo cgroup v2 cho user pma..."
+        mkdir -p /sys/fs/cgroup/wpc/user_admin/site_pma 2>/dev/null || true
+        mkdir -p /sys/fs/cgroup/wpc/user_pma 2>/dev/null || true
+        echo "50000 100000" > /sys/fs/cgroup/wpc/user_admin/site_pma/cpu.max 2>/dev/null || true
+        echo "536870912" > /sys/fs/cgroup/wpc/user_admin/site_pma/memory.max 2>/dev/null || true
+        echo "50000 100000" > /sys/fs/cgroup/wpc/user_pma/cpu.max 2>/dev/null || true
+        echo "536870912" > /sys/fs/cgroup/wpc/user_pma/memory.max 2>/dev/null || true
+
+        # 8. Cấu hình Web Server cho Port 888 (OpenLiteSpeed hoặc Nginx)
         OLS_MAIN_CONF="/usr/local/lsws/conf/httpd_config.conf"
         if [ -d "/usr/local/lsws" ] && [ -f "$OLS_MAIN_CONF" ]; then
-            # Tránh Nginx chiếm cổng 888 gây xung đột cổng hoặc lỗi 500/502
+            # Tránh Nginx chiếm cổng 888 gây xung đột cổng
             if [ -f "/etc/nginx/conf.d/00_phpmyadmin.conf" ]; then
                 rm -f "/etc/nginx/conf.d/00_phpmyadmin.conf" 2>/dev/null || true
                 if command -v nginx &>/dev/null; then
@@ -273,9 +302,9 @@ extprocessor pma_lsphp {
   instances               1
   priority                0
   memSoftLimit            1024M
-  memHardLimit            1024M
+  memHardLimit            2048M
   procSoftLimit           200
-  procHardLimit           200
+  procHardLimit           300
   extUser                 pma
   extGroup                pma
 }
@@ -325,21 +354,21 @@ EOF
             /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lshttpd 2>/dev/null || systemctl restart lsws 2>/dev/null || true
 
         elif [ -d "/etc/nginx/conf.d" ]; then
-            # Cấu hình trên Nginx độc lập với PHP-FPM Service riêng cho phpMyAdmin
+            # Cấu hình trên Nginx độc lập với PHP-FPM Service riêng cho phpMyAdmin (user: pma)
             ACTIVE_PHP=$(detect_php_version)
             WPC_BASE="/opt/wpc"
             [ ! -d "$WPC_BASE" ] && WPC_BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-            # Tạo Systemd Service PHP-FPM riêng cho phpMyAdmin
+            # Tạo Systemd Service PHP-FPM riêng cho user pma
             if [ -f "$WPC_BASE/scripts/php_fpm_service.sh" ]; then
-                bash "$WPC_BASE/scripts/php_fpm_service.sh" create phpmyadmin "$ACTIVE_PHP" 2>/dev/null || true
+                bash "$WPC_BASE/scripts/php_fpm_service.sh" create pma "$ACTIVE_PHP" 2>/dev/null || true
             fi
 
-            PMA_FPM_SOCK="/run/php/php${ACTIVE_PHP}-fpm-phpmyadmin.sock"
+            PMA_FPM_SOCK="/run/php/php${ACTIVE_PHP}-fpm-pma.sock"
             if [ ! -e "$PMA_FPM_SOCK" ]; then
-                PMA_FPM_SOCK=$(ls /run/php/php*-fpm-phpmyadmin.sock 2>/dev/null | head -n 1 || echo "/run/php/php${ACTIVE_PHP}-fpm.sock")
+                PMA_FPM_SOCK=$(ls /run/php/php*-fpm-pma.sock 2>/dev/null | head -n 1 || echo "/run/php/php${ACTIVE_PHP}-fpm.sock")
             fi
-            echo "[+] Khởi tạo PHP-FPM riêng cho phpMyAdmin (Service: wpc-php${ACTIVE_PHP}-fpm@phpmyadmin, Sock: $PMA_FPM_SOCK)"
+            echo "[+] Khởi tạo PHP-FPM riêng cho pma (Service: wpc-php${ACTIVE_PHP}-fpm@pma, Sock: $PMA_FPM_SOCK)"
 
             cat <<EOF > "/etc/nginx/conf.d/00_phpmyadmin.conf"
 server {
@@ -375,7 +404,43 @@ EOF
             nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true)
         fi
 
-        # 7. Kiểm tra trạng thái HTTP cổng 888
+        # 9. Gắn tiến trình pma vào Cgroups v2
+        if [ -f "/opt/wpc/scripts/cgroup_attach.sh" ]; then
+            /bin/bash /opt/wpc/scripts/cgroup_attach.sh once 2>/dev/null || true
+        fi
+
+        # 10. Đăng ký thông tin Website App hệ thống vào cơ sở dữ liệu panel.db (nếu có python)
+        if command -v python3 &>/dev/null && [ -f "/opt/wpc/data/panel.db" ]; then
+            python3 - << 'PY_REGISTER' 2>/dev/null || true
+import sqlite3, os
+db_path = "/opt/wpc/data/panel.db"
+if os.path.exists(db_path):
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    # Tìm admin user_id
+    cur.execute("SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1")
+    admin_row = cur.fetchone()
+    admin_id = admin_row[0] if admin_row else 1
+    
+    cur.execute("SELECT id FROM domains WHERE domain_name = 'phpmyadmin.sys'")
+    existing = cur.fetchone()
+    if existing:
+        cur.execute("""
+            UPDATE domains 
+            SET document_root = '/home/pma/public_html', is_system = 1, status = 'active'
+            WHERE id = ?
+        """, (existing[0],))
+    else:
+        cur.execute("""
+            INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version, is_system, status)
+            VALUES (?, 'phpmyadmin.sys', '/home/pma/public_html', 'ols', '8.2', 1, 'active')
+        """, (admin_id,))
+    conn.commit()
+    conn.close()
+PY_REGISTER
+        fi
+
+        # 11. Kiểm tra trạng thái HTTP cổng 888
         sleep 1
         HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 http://127.0.0.1:888/ 2>/dev/null || echo "000")
         echo "[+] Kiểm tra phản hồi HTTP cổng 888: Mã $HTTP_CODE"
@@ -385,7 +450,7 @@ EOF
             [ -f "/var/log/nginx/error.log" ] && tail -n 15 /var/log/nginx/error.log 2>/dev/null || true
         fi
 
-        echo "[+] Cài đặt và cấu hình phpMyAdmin thành công tại $TARGET_DIR (Port $PMA_PORT)!"
+        echo "[+] Cài đặt và cấu hình phpMyAdmin thành công cho Website User 'pma' tại $TARGET_DIR (Port $PMA_PORT)!"
         ;;
 
     start|stop|restart|reload)
@@ -393,6 +458,7 @@ EOF
         # 1. Điều khiển PHP-FPM Service riêng nếu chạy Nginx
         ACTIVE_PHP=$(detect_php_version)
         for pver in 8.5 8.4 8.3 8.2 8.1 8.0 7.4; do
+            systemctl "$ACTION" "wpc-php${pver}-fpm@pma" 2>/dev/null || true
             systemctl "$ACTION" "wpc-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
         done
         # 2. Điều khiển OpenLiteSpeed LSPHP nếu chạy OpenLiteSpeed
@@ -409,8 +475,8 @@ EOF
 
     status)
         ACTIVE_PHP=$(detect_php_version)
-        PMA_SVC="wpc-php${ACTIVE_PHP}-fpm@phpmyadmin"
-        if systemctl is-active --quiet "$PMA_SVC" 2>/dev/null; then
+        PMA_SVC="wpc-php${ACTIVE_PHP}-fpm@pma"
+        if systemctl is-active --quiet "$PMA_SVC" 2>/dev/null || systemctl is-active --quiet "wpc-php${ACTIVE_PHP}-fpm@phpmyadmin" 2>/dev/null; then
             echo "active (Nginx PHP-FPM: $PMA_SVC)"
         elif [ -d "/usr/local/lsws" ] && (systemctl is-active --quiet lsws 2>/dev/null || systemctl is-active --quiet lshttpd 2>/dev/null); then
             echo "active (OpenLiteSpeed LSPHP: $(detect_ols_lsphp))"
@@ -423,13 +489,17 @@ EOF
         echo "[+] Đang gỡ bỏ phpMyAdmin..."
         # 1. Dừng và xoá PHP-FPM Service riêng
         for pver in 8.5 8.4 8.3 8.2 8.1 8.0 7.4; do
+            systemctl stop "wpc-php${pver}-fpm@pma" 2>/dev/null || true
+            systemctl disable "wpc-php${pver}-fpm@pma" 2>/dev/null || true
             systemctl stop "wpc-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
             systemctl disable "wpc-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
+            rm -f "/etc/php/${pver}/fpm/users/pma.conf" "/run/php/php${pver}-fpm-pma.sock" "/run/php/php${pver}-fpm-pma.pid" 2>/dev/null || true
             rm -f "/etc/php/${pver}/fpm/users/phpmyadmin.conf" "/run/php/php${pver}-fpm-phpmyadmin.sock" "/run/php/php${pver}-fpm-phpmyadmin.pid" 2>/dev/null || true
         done
 
-        # 2. Xóa thư mục cài đặt
+        # 2. Xóa thư mục cài đặt & symlink
         rm -rf "$TARGET_DIR" 2>/dev/null || true
+        [ -L "$LEGACY_DIR" ] && rm -f "$LEGACY_DIR" 2>/dev/null || true
         rm -f "/usr/share/phpmyadmin/index.php" 2>/dev/null || true
 
         # 3. Xóa cấu hình Nginx
@@ -445,6 +515,20 @@ EOF
             sed -i '/listener[[:space:]]\+PMA_888[[:space:]]*{/,/^[[:space:]]*}/d' "$OLS_MAIN_CONF" 2>/dev/null || true
             rm -rf "/usr/local/lsws/conf/vhosts/phpmyadmin" 2>/dev/null || true
             /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
+        fi
+
+        # 5. Cập nhật cơ sở dữ liệu panel.db
+        if command -v python3 &>/dev/null && [ -f "/opt/wpc/data/panel.db" ]; then
+            python3 - << 'PY_UNREGISTER' 2>/dev/null || true
+import sqlite3, os
+db_path = "/opt/wpc/data/panel.db"
+if os.path.exists(db_path):
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM domains WHERE domain_name = 'phpmyadmin.sys'")
+    conn.commit()
+    conn.close()
+PY_UNREGISTER
         fi
 
         echo "[+] Đã gỡ bỏ phpMyAdmin hoàn tất!"

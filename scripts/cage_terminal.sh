@@ -32,12 +32,16 @@ if [ ! -d "$REAL_HOME" ]; then
 fi
 
 # Nếu hệ thống có unshare và script đang chạy dưới quyền root:
-# Khởi tạo Mount & PID Namespace riêng biệt cách ly hoàn toàn cây thư mục & tiến trình
+# Khởi tạo Mount Namespace riêng biệt cách ly hoàn toàn cây thư mục & bảo mật /proc
 if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
+    # LƯU Ý BẢO MẬT & TRẢI NGHIỆM TIẾN TRÌNH:
+    # KHÔNG dùng cờ --pid --fork vì --pid tạo PID Namespace con mới toanh.
+    # Trong PID Namespace con, lệnh htop/ps chỉ nhìn thấy bash của terminal và KHÔNG THỂ
+    # nhìn thấy các tiến trình website nền (lsphp, php-fpm, cron, worker) chạy ở Host namespace!
+    # Thay vào đó, dùng mount namespace kết hợp /proc hidepid=2 (chuẩn bảo mật CloudLinux CageFS).
+    # Kernel sẽ tự động ẩn toàn bộ process của root và các user khác, chỉ cho phép user nhìn thấy
+    # đúng tiến trình thuộc UID của chính họ (bao gồm cả lsphp, php-fpm, bash, htop,...).
     UNSHARE_BIN="/usr/bin/unshare --mount"
-    if /usr/bin/unshare --mount --pid --fork true 2>/dev/null; then
-        UNSHARE_BIN="/usr/bin/unshare --mount --pid --fork"
-    fi
 
     exec $UNSHARE_BIN /bin/bash -c '
         TARGET_USER="$1"
@@ -46,8 +50,9 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
         # 1. Cách ly mount event không lan ngược ra namespace cha
         mount --make-rprivate / 2>/dev/null || true
 
-        # 2. Tái tạo /proc riêng biệt nếu có PID namespace (Ẩn toàn bộ process của root & user khác)
-        mount -t proc proc /proc 2>/dev/null || true
+        # 2. Bảo vệ /proc: hidepid=2 giúp user thấy được mọi tiến trình của chính mình (lsphp, php-fpm, cron, bash)
+        # nhưng tuyệt đối KHÔNG THỂ xem trộm tiến trình của root hoặc các website user khác
+        mount -o remount,hidepid=2 /proc 2>/dev/null || mount -t proc -o hidepid=2 proc /proc 2>/dev/null || mount -t proc proc /proc 2>/dev/null || true
 
         # 3. Cách ly /home: Ảo hóa tmpfs sạch, chỉ hiển thị đúng thư mục của user này
         MNT_TMP_HOME="/run/cage_home_$$"

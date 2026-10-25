@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS domains (
     ssl_enabled INTEGER DEFAULT 0,
     ssl_expires_at DATETIME,
     allow_ssh INTEGER NOT NULL DEFAULT 1,
+    is_system INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'suspended')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -251,6 +252,10 @@ async def init_database():
             pass
         try:
             await db.execute("ALTER TABLE databases ADD COLUMN backup_enabled INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE domains ADD COLUMN is_system INTEGER DEFAULT 0")
         except Exception:
             pass
 

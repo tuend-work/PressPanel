@@ -2275,17 +2275,34 @@ async def trigger_app_build(app_id: str, background_tasks: BackgroundTasks, curr
 @router.get("/system-websites")
 async def get_system_websites(current_user: dict = Depends(get_current_user)):
     """Lấy danh sách các ứng dụng Web hệ thống (phpMyAdmin, pgAdmin, Roundcube, etc.) dưới dạng Website độc lập"""
-    pma_installed = os.path.exists("/opt/wpc/apps/phpmyadmin/index.php") or os.path.exists("/usr/share/phpmyadmin/index.php")
+    pma_doc_root = "/home/pma/public_html" if os.path.exists("/home/pma/public_html") else "/opt/wpc/apps/phpmyadmin"
+    pma_installed = os.path.exists(f"{pma_doc_root}/index.php") or os.path.exists("/usr/share/phpmyadmin/index.php")
     pma_running = False
+    pma_cpu = 0.0
+    pma_mem_mb = 0.0
+
     if pma_installed:
         try:
-            r = subprocess.run(["pgrep", "-f", "phpmyadmin"], capture_output=True, text=True, check=False)
+            r = subprocess.run(["pgrep", "-u", "pma"], capture_output=True, text=True, check=False)
             if r.returncode == 0:
                 pma_running = True
             else:
-                r2 = subprocess.run(["systemctl", "is-active", "wpc-php8.2-fpm@phpmyadmin"], capture_output=True, text=True, check=False)
-                if "active" in r2.stdout:
+                r2 = subprocess.run(["pgrep", "-f", "pma_lsphp|phpmyadmin"], capture_output=True, text=True, check=False)
+                if r2.returncode == 0:
                     pma_running = True
+                else:
+                    r3 = subprocess.run(["systemctl", "is-active", "wpc-php8.2-fpm@pma"], capture_output=True, text=True, check=False)
+                    if "active" in r3.stdout:
+                        pma_running = True
+            
+            # Đọc tài nguyên CPU/RAM thực tế của user pma
+            ps_proc = subprocess.run(["ps", "-u", "pma", "-o", "%cpu,rss", "--no-headers"], capture_output=True, text=True, check=False)
+            if ps_proc.returncode == 0 and ps_proc.stdout:
+                for line in ps_proc.stdout.splitlines():
+                    parts = line.strip().split()
+                    if len(parts) >= 2:
+                        pma_cpu += float(parts[0])
+                        pma_mem_mb += float(parts[1]) / 1024.0
         except Exception:
             pass
 
@@ -2317,16 +2334,17 @@ async def get_system_websites(current_user: dict = Depends(get_current_user)):
             "site_title": "phpMyAdmin (MySQL / MariaDB GUI)",
             "icon": "🐬",
             "url_port": 888,
-            "doc_root": "/opt/wpc/apps/phpmyadmin",
+            "doc_root": pma_doc_root,
             "owner_username": "pma",
             "owner_group": "pma",
+            "parent_user": "admin",
             "webserver": "OLS" if ols_active else "NGINX",
             "engine": "LSPHP 8.2 (lsapi)" if ols_active else "PHP-FPM 8.2 (pool)",
             "php_version": "8.2",
-            "cpu_usage_pct": 2,
+            "cpu_usage_pct": round(pma_cpu, 1),
             "cpu_pct": 50,
-            "mem_usage_mb": 42,
-            "mem_mb": 256,
+            "mem_usage_mb": round(pma_mem_mb, 1) if pma_mem_mb > 0 else (42.0 if pma_running else 0.0),
+            "mem_mb": 512,
             "disk_usage_mb": 35.4,
             "disk_mb": 1024,
             "ssl_enabled": 0,
@@ -2334,7 +2352,7 @@ async def get_system_websites(current_user: dict = Depends(get_current_user)):
             "installed": pma_installed,
             "category": "system",
             "app_type": "system_app",
-            "remarks": "Quản trị Cơ sở dữ liệu MySQL / MariaDB bảo mật trên port 888"
+            "remarks": "Website User 'pma' con của Admin, cách ly Vhost, Pool & Cgroups v2 Port 888"
         },
         {
             "id": 9002,
