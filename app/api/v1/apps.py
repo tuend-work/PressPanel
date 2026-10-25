@@ -630,21 +630,24 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
                 active_service = f"OLS LSPHP ({pma_info['lsphp_path'] or 'lsphp'})"
                 running = True
             else:
-                # Nginx: Kiểm tra PHP-FPM Service riêng của phpmyadmin
+                # Nginx: Kiểm tra PHP-FPM Service riêng của pma/phpmyadmin
                 for pver in ["8.5", "8.4", "8.3", "8.2", "8.1", "8.0", "7.4"]:
-                    svc_cand = f"wpc-php{pver}-fpm@phpmyadmin"
-                    sock_cand = f"/run/php/php{pver}-fpm-phpmyadmin.sock"
-                    try:
-                        r = subprocess.run(["systemctl", "is-active", "--quiet", svc_cand], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        if r.returncode == 0:
-                            pma_info["fpm_service"] = f"{svc_cand}.service"
-                            pma_info["fpm_sock"] = sock_cand
-                            pma_info["webserver"] = "Nginx"
-                            active_service = f"{svc_cand}.service"
-                            running = True
-                            break
-                    except Exception:
-                        pass
+                    for u in ["pma", "phpmyadmin"]:
+                        svc_cand = f"wpc-php{pver}-fpm@{u}"
+                        sock_cand = f"/run/php/php{pver}-fpm-{u}.sock"
+                        try:
+                            r = subprocess.run(["systemctl", "is-active", "--quiet", svc_cand], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            if r.returncode == 0:
+                                pma_info["fpm_service"] = f"{svc_cand}.service"
+                                pma_info["fpm_sock"] = sock_cand
+                                pma_info["webserver"] = "Nginx"
+                                active_service = f"{svc_cand}.service"
+                                running = True
+                                break
+                        except Exception:
+                            pass
+                    if running:
+                        break
                 if not running:
                     # Check fallback nginx port 888
                     for ws in ["nginx", "openresty"]:
@@ -2324,7 +2327,9 @@ async def get_system_websites(current_user: dict = Depends(get_current_user)):
         except Exception:
             pass
 
-    ols_active = os.path.exists("/usr/local/lsws")
+    from app.api.v1.domains import detect_running_webserver
+    active_ws = detect_running_webserver()
+    ols_active = (active_ws == "ols")
 
     system_apps = [
         {

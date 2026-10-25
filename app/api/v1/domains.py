@@ -50,7 +50,44 @@ def check_file_exists_privileged(path: str) -> bool:
             return res.returncode == 0
         except Exception:
             pass
-    return False
+def detect_running_webserver() -> str:
+    """Phát hiện chính xác webserver đang chạy thực tế trên Linux (Nginx hoặc OpenLiteSpeed)"""
+    if platform.system() == "Linux":
+        # 1. Kiểm tra service Nginx / OpenResty đang active
+        for svc in ["nginx", "openresty"]:
+            try:
+                r = subprocess.run(["systemctl", "is-active", "--quiet", svc], check=False)
+                if r.returncode == 0:
+                    return "nginx"
+            except Exception:
+                pass
+        try:
+            r = subprocess.run(["pgrep", "-x", "nginx"], capture_output=True, check=False)
+            if r.returncode == 0:
+                return "nginx"
+        except Exception:
+            pass
+
+        # 2. Kiểm tra OpenLiteSpeed
+        for svc in ["lshttpd", "lsws"]:
+            try:
+                r = subprocess.run(["systemctl", "is-active", "--quiet", svc], check=False)
+                if r.returncode == 0:
+                    return "ols"
+            except Exception:
+                pass
+        try:
+            r = subprocess.run(["pgrep", "-f", "openlitespeed|litespeed|lshttpd"], capture_output=True, check=False)
+            if r.returncode == 0:
+                return "ols"
+        except Exception:
+            pass
+
+    if os.path.exists("/etc/nginx/nginx.conf") or os.path.isdir("/etc/nginx/conf.d"):
+        return "nginx"
+    if os.path.exists("/usr/local/lsws"):
+        return "ols"
+    return "nginx"
 
 def read_file_privileged(path: str) -> str:
     """Đọc nội dung file an toàn, fallback qua sudo cat nếu user wpc bị PermissionError hoặc thư mục cha bị khóa quyền"""
@@ -137,11 +174,13 @@ class DomainUpdateRequest(BaseModel):
 async def list_domains(current_user: dict = Depends(get_current_user)):
     db = await get_db_connection()
     # Tự động đảm bảo nếu phpMyAdmin đã cài đặt trên máy chủ nhưng chưa có trong DB domains thì auto đồng bộ
+    # Tự động đảm bảo nếu phpMyAdmin đã cài đặt trên máy chủ nhưng chưa có trong DB domains thì auto đồng bộ
     if current_user["role"] == "admin":
+        active_ws = detect_running_webserver()
         pma_doc = "/home/pma/public_html"
         legacy_doc = "/opt/wpc/apps/phpmyadmin"
-        if os.path.exists(f"{pma_doc}/index.php") or os.path.exists(f"{legacy_doc}/index.php") or os.path.exists("/usr/local/lsws/conf/vhosts/phpmyadmin"):
-            check_pma = await db.execute("SELECT id FROM domains WHERE domain_name IN ('phpmyadmin.sys', 'phpmyadmin') LIMIT 1")
+        if os.path.exists(f"{pma_doc}/index.php") or os.path.exists(f"{legacy_doc}/index.php") or os.path.exists("/usr/local/lsws/conf/vhosts/phpmyadmin") or os.path.exists("/etc/nginx/conf.d/00_phpmyadmin.conf"):
+            check_pma = await db.execute("SELECT id, webserver FROM domains WHERE domain_name IN ('phpmyadmin.sys', 'phpmyadmin') LIMIT 1")
             has_pma = await check_pma.fetchone()
             if not has_pma:
                 target_doc = pma_doc if os.path.exists(pma_doc) else legacy_doc
@@ -150,9 +189,17 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
                 admin_uid = admin_row["id"] if admin_row else 1
                 await db.execute("""
                     INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version, is_system, status)
-                    VALUES (?, 'phpmyadmin.sys', ?, 'ols', '8.2', 1, 'active')
-                """, (admin_uid, target_doc))
+                    VALUES (?, 'phpmyadmin.sys', ?, ?, '8.2', 1, 'active')
+                """, (admin_uid, target_doc, active_ws))
                 await db.commit()
+
+        # Đồng bộ webserver của website hệ thống theo webserver đang chạy thực tế (tránh bị lệch OLS khi đang chạy Nginx)
+        await db.execute("""
+            UPDATE domains 
+            SET webserver = ? 
+            WHERE is_system = 1 AND (webserver != ? OR webserver IS NULL)
+        """, (active_ws, active_ws))
+        await db.commit()
 
     base_select = """
         SELECT d.*, 

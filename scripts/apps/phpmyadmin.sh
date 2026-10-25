@@ -238,9 +238,95 @@ EOF
         echo "50000 100000" > /sys/fs/cgroup/wpc/user_pma/cpu.max 2>/dev/null || true
         echo "536870912" > /sys/fs/cgroup/wpc/user_pma/memory.max 2>/dev/null || true
 
-        # 8. Cấu hình Web Server cho Port 888 (OpenLiteSpeed hoặc Nginx)
+        # 8. Phát hiện Web Server đang hoạt động thực tế (Nginx hoặc OpenLiteSpeed)
+        ACTIVE_WS="nginx"
+        if command -v systemctl &>/dev/null; then
+            if systemctl is-active --quiet nginx 2>/dev/null || systemctl is-active --quiet openresty 2>/dev/null; then
+                ACTIVE_WS="nginx"
+            elif systemctl is-active --quiet lshttpd 2>/dev/null || systemctl is-active --quiet lsws 2>/dev/null; then
+                ACTIVE_WS="ols"
+            elif pgrep -x nginx &>/dev/null; then
+                ACTIVE_WS="nginx"
+            elif pgrep -f "litespeed|openlitespeed|lshttpd" &>/dev/null; then
+                ACTIVE_WS="ols"
+            elif [ -d "/etc/nginx/conf.d" ]; then
+                ACTIVE_WS="nginx"
+            elif [ -d "/usr/local/lsws" ]; then
+                ACTIVE_WS="ols"
+            fi
+        else
+            if pgrep -x nginx &>/dev/null; then
+                ACTIVE_WS="nginx"
+            elif pgrep -f "litespeed|openlitespeed|lshttpd" &>/dev/null; then
+                ACTIVE_WS="ols"
+            elif [ -d "/etc/nginx/conf.d" ]; then
+                ACTIVE_WS="nginx"
+            elif [ -d "/usr/local/lsws" ]; then
+                ACTIVE_WS="ols"
+            fi
+        fi
+
+        echo "[+] Phát hiện Web Server hoạt động thực tế: $ACTIVE_WS"
         OLS_MAIN_CONF="/usr/local/lsws/conf/httpd_config.conf"
-        if [ -d "/usr/local/lsws" ] && [ -f "$OLS_MAIN_CONF" ]; then
+
+        if [ "$ACTIVE_WS" = "nginx" ] && [ -d "/etc/nginx/conf.d" ]; then
+            # Nếu chuyển sang Nginx: dọn dẹp listener OLS PMA_888 để tránh xung đột cổng
+            if [ -f "$OLS_MAIN_CONF" ]; then
+                sed -i '/virtualhost[[:space:]]\+phpmyadmin[[:space:]]*{/,/^[[:space:]]*}/d' "$OLS_MAIN_CONF" 2>/dev/null || true
+                sed -i '/listener[[:space:]]\+PMA_888[[:space:]]*{/,/^[[:space:]]*}/d' "$OLS_MAIN_CONF" 2>/dev/null || true
+                rm -rf "/usr/local/lsws/conf/vhosts/phpmyadmin" 2>/dev/null || true
+            fi
+
+            # Cấu hình trên Nginx độc lập với PHP-FPM Service riêng cho phpMyAdmin (user: pma)
+            ACTIVE_PHP=$(detect_php_version)
+            WPC_BASE="/opt/wpc"
+            [ ! -d "$WPC_BASE" ] && WPC_BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+            # Tạo Systemd Service PHP-FPM riêng cho user pma
+            if [ -f "$WPC_BASE/scripts/php_fpm_service.sh" ]; then
+                bash "$WPC_BASE/scripts/php_fpm_service.sh" create pma "$ACTIVE_PHP" 2>/dev/null || true
+            fi
+
+            PMA_FPM_SOCK="/run/php/php${ACTIVE_PHP}-fpm-pma.sock"
+            if [ ! -e "$PMA_FPM_SOCK" ]; then
+                PMA_FPM_SOCK=$(ls /run/php/php*-fpm-pma.sock 2>/dev/null | head -n 1 || echo "/run/php/php${ACTIVE_PHP}-fpm.sock")
+            fi
+            echo "[+] Khởi tạo PHP-FPM riêng cho pma trên Nginx (Service: wpc-php${ACTIVE_PHP}-fpm@pma, Sock: $PMA_FPM_SOCK)"
+
+            cat <<EOF > "/etc/nginx/conf.d/00_phpmyadmin.conf"
+server {
+    listen $PMA_PORT default_server;
+    server_name localhost 127.0.0.1 _;
+    root $TARGET_DIR;
+    index index.php index.html index.htm;
+
+    client_max_body_size 256M;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$args;
+    }
+
+    location ~ \.php$ {
+        try_files \$uri =404;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_pass unix:$PMA_FPM_SOCK;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        fastcgi_param PHP_VALUE "session.save_path=$TARGET_DIR/tmp\nupload_tmp_dir=$TARGET_DIR/tmp";
+        include fastcgi_params;
+        fastcgi_read_timeout 600;
+        fastcgi_buffer_size 128k;
+        fastcgi_buffers 256 16k;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}
+EOF
+            nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true)
+
+        elif [ -d "/usr/local/lsws" ] && [ -f "$OLS_MAIN_CONF" ]; then
             # Tránh Nginx chiếm cổng 888 gây xung đột cổng
             if [ -f "/etc/nginx/conf.d/00_phpmyadmin.conf" ]; then
                 rm -f "/etc/nginx/conf.d/00_phpmyadmin.conf" 2>/dev/null || true
@@ -352,56 +438,6 @@ EOF
             # Xoá socket cũ và restart OpenLiteSpeed
             rm -f "/tmp/lshttpd/pma_lsphp.sock" 2>/dev/null || true
             /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lshttpd 2>/dev/null || systemctl restart lsws 2>/dev/null || true
-
-        elif [ -d "/etc/nginx/conf.d" ]; then
-            # Cấu hình trên Nginx độc lập với PHP-FPM Service riêng cho phpMyAdmin (user: pma)
-            ACTIVE_PHP=$(detect_php_version)
-            WPC_BASE="/opt/wpc"
-            [ ! -d "$WPC_BASE" ] && WPC_BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-
-            # Tạo Systemd Service PHP-FPM riêng cho user pma
-            if [ -f "$WPC_BASE/scripts/php_fpm_service.sh" ]; then
-                bash "$WPC_BASE/scripts/php_fpm_service.sh" create pma "$ACTIVE_PHP" 2>/dev/null || true
-            fi
-
-            PMA_FPM_SOCK="/run/php/php${ACTIVE_PHP}-fpm-pma.sock"
-            if [ ! -e "$PMA_FPM_SOCK" ]; then
-                PMA_FPM_SOCK=$(ls /run/php/php*-fpm-pma.sock 2>/dev/null | head -n 1 || echo "/run/php/php${ACTIVE_PHP}-fpm.sock")
-            fi
-            echo "[+] Khởi tạo PHP-FPM riêng cho pma (Service: wpc-php${ACTIVE_PHP}-fpm@pma, Sock: $PMA_FPM_SOCK)"
-
-            cat <<EOF > "/etc/nginx/conf.d/00_phpmyadmin.conf"
-server {
-    listen $PMA_PORT default_server;
-    server_name localhost 127.0.0.1 _;
-    root $TARGET_DIR;
-    index index.php index.html index.htm;
-
-    client_max_body_size 256M;
-
-    location / {
-        try_files \$uri \$uri/ /index.php?\$args;
-    }
-
-    location ~ \.php$ {
-        try_files \$uri =404;
-        fastcgi_split_path_info ^(.+\.php)(/.+)$;
-        fastcgi_pass unix:$PMA_FPM_SOCK;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-        fastcgi_param PHP_VALUE "session.save_path=$TARGET_DIR/tmp\nupload_tmp_dir=$TARGET_DIR/tmp";
-        include fastcgi_params;
-        fastcgi_read_timeout 600;
-        fastcgi_buffer_size 128k;
-        fastcgi_buffers 256 16k;
-    }
-
-    location ~ /\.ht {
-        deny all;
-    }
-}
-EOF
-            nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true)
         fi
 
         # 9. Gắn tiến trình pma vào Cgroups v2
@@ -411,8 +447,9 @@ EOF
 
         # 10. Đăng ký thông tin Website App hệ thống vào cơ sở dữ liệu panel.db (nếu có python)
         if command -v python3 &>/dev/null; then
-            python3 - << 'PY_REGISTER' 2>/dev/null || true
-import sqlite3, os
+            python3 - "$ACTIVE_WS" << 'PY_REGISTER' 2>/dev/null || true
+import sqlite3, os, sys
+active_ws = sys.argv[1] if len(sys.argv) > 1 else "nginx"
 candidates = ["/opt/wpc/data/panel.db", "/opt/wpc/panel.db", os.path.expanduser("~/PressPanel/panel.db")]
 db_path = None
 for c in candidates:
@@ -432,14 +469,14 @@ if db_path:
     if existing:
         cur.execute("""
             UPDATE domains 
-            SET document_root = '/home/pma/public_html', is_system = 1, status = 'active'
+            SET document_root = '/home/pma/public_html', webserver = ?, is_system = 1, status = 'active'
             WHERE id = ?
-        """, (existing[0],))
+        """, (active_ws, existing[0]))
     else:
         cur.execute("""
             INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version, is_system, status)
-            VALUES (?, 'phpmyadmin.sys', '/home/pma/public_html', 'ols', '8.2', 1, 'active')
-        """, (admin_id,))
+            VALUES (?, 'phpmyadmin.sys', '/home/pma/public_html', ?, '8.2', 1, 'active')
+        """, (admin_id, active_ws))
     conn.commit()
     conn.close()
 PY_REGISTER
