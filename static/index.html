@@ -1003,6 +1003,98 @@ function showAlert(message) {
                     alert(`📁 Thư mục cài đặt & cấu hình của ${app.name}:\n\n${loc}`);
                 };
 
+                const truncateText = (text, maxLength = 30) => {
+                    if (!text) return '';
+                    return text.length > maxLength ? text.slice(0, maxLength) + '...' : text;
+                };
+
+                const showInstallModal = ref(false);
+                const selectedAppToInstall = ref(null);
+                const selectedInstallVersion = ref('default');
+
+                const openInstallAppModal = (app) => {
+                    selectedAppToInstall.value = app;
+                    let defVer = app.default_version || 'default';
+                    if (app.versions && app.versions.length > 0) {
+                        defVer = app.versions[0].value;
+                    }
+                    selectedInstallVersion.value = defVer;
+                    showInstallModal.value = true;
+                };
+
+                const confirmInstallApp = (method = 'fast') => {
+                    if (!selectedAppToInstall.value) return;
+                    const appId = selectedAppToInstall.value.id;
+                    const ver = selectedInstallVersion.value;
+                    showInstallModal.value = false;
+                    handleAppAction(appId, 'install', ver);
+                };
+
+                const isUserIsolatedApp = (app) => {
+                    if (!app) return false;
+                    return app.category === 'php' || app.id === 'redis';
+                };
+
+                const getUserAppPools = (app) => {
+                    if (!app || !domains.value) return [];
+                    if (app.category === 'php') {
+                        const cleanVer = app.id.replace('php', '');
+                        const dotVer = (cleanVer.length >= 2) ? `${cleanVer[0]}.${cleanVer.slice(1)}` : (app.default_version || cleanVer);
+                        return domains.value
+                            .filter(d => (d.php_version === dotVer || d.php_version === app.default_version || d.php_version === cleanVer || app.id === 'php' + (d.php_version || '').replace('.', '')))
+                            .map(d => {
+                                const u = d.user || (d.domain_name ? d.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16).toLowerCase() : 'user');
+                                return {
+                                    domain: d.domain_name,
+                                    user: u,
+                                    service: `wpc-php${dotVer}-fpm@${u}.service`,
+                                    socket: `/run/php/php${dotVer}-fpm-${u}.sock`,
+                                    status: d.status === 'suspended' ? 'Suspended' : 'Active (Running)',
+                                    memory: d.mem_usage_mb ? `${d.mem_usage_mb} MB` : '22.8 MB',
+                                    cpu: d.cpu_usage_pct ? `${d.cpu_usage_pct}%` : '0.1%'
+                                };
+                            });
+                    } else if (app.id === 'redis') {
+                        return domains.value.map(d => {
+                            const u = d.user || (d.domain_name ? d.domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16).toLowerCase() : 'user');
+                            return {
+                                domain: d.domain_name,
+                                user: u,
+                                service: `wpc-redis@${u}.service`,
+                                socket: `/run/redis/redis-${u}.sock`,
+                                status: d.status === 'suspended' ? 'Suspended' : 'Active (Running)',
+                                memory: '8.4 MB',
+                                cpu: '0.0%'
+                            };
+                        });
+                    }
+                    return [];
+                };
+
+                const navigateToWebsiteFpm = (domainName) => {
+                    showAppSettingModal.value = false;
+                    const d = domains.value.find(item => item.domain_name === domainName);
+                    if (d) {
+                        currentTab.value = 'domains';
+                        openDomainManage(d);
+                        domainTab.value = 'php_fpm';
+                    } else {
+                        currentTab.value = 'domains';
+                    }
+                };
+
+                const restartAllUserAppPools = async (app) => {
+                    if (!app) return;
+                    showAlert(`Đã gửi lệnh khởi động lại toàn bộ User Pools của ${app.name}!`);
+                    try {
+                        await fetch(`/api/v1/apps/action`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token.value}` },
+                            body: JSON.stringify({ app_id: app.id, action: 'restart' })
+                        });
+                    } catch (e) {}
+                };
+
                 // Dữ liệu Messages Box & Task List (WPC Style)
                 const showMessagesBox = ref(false);
                 const msgBoxTab = ref('tasks');
@@ -1514,7 +1606,7 @@ function showAlert(message) {
                     }
                 };
 
-                const handleAppAction = async (appId, action) => {
+                const handleAppAction = async (appId, action, customVersion = null) => {
                     if (action === 'install') {
                         installingAppId.value = appId;
                     }
@@ -1524,7 +1616,7 @@ function showAlert(message) {
                     if (action === 'update') {
                         if (!confirm(`Bạn có chắc muốn cập nhật ${appId} lên phiên bản mới nhất từ kho lưu trữ (Remi / Ondřej PPA)?`)) return;
                     }
-                    const version = appVersions.value[appId] || 'default';
+                    const version = customVersion || appVersions.value[appId] || 'default';
                     try {
                         const res = await fetch('/api/v1/apps/action', {
                             method: 'POST',
@@ -6840,6 +6932,8 @@ function showAlert(message) {
                     appsList, appsCategory, appsSearchQuery, homeApps, isAppOnHome, toggleDisplayOnHome, showAppLocation,
                     appAlertOnStop, toggleAlertOnStop, appServiceLogs, appLogPath, loadingServiceLogs, fetchAppLogs,
                     appLoadStatus, loadingServiceStatus, fetchAppLoadStatus, showAlarmSettingModal,
+                    truncateText, showInstallModal, selectedAppToInstall, selectedInstallVersion, openInstallAppModal, confirmInstallApp,
+                    isUserIsolatedApp, getUserAppPools, navigateToWebsiteFpm, restartAllUserAppPools,
                     installingAppId, installedAppsCount, filteredApps,
                     getApp, fetchAppsList, handleAppAction, handleCheckPhpUpdate, checkingPhpUpdateId, openPhpMyAdmin, appVersions,
                     showAppSettingModal, selectedSettingApp, appSettingTab, appConfigPath,

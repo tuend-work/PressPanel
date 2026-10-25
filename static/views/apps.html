@@ -48,129 +48,110 @@
                             </div>
                         </div>
 
-                        <!-- App Store Table (LIST VIEW - EXACTLY AS IMAGE 1) -->
-                        <div class="bg-[#12151c] rounded-xl border border-[#22262e] overflow-hidden shadow-xl">
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left text-xs">
-                                    <thead>
-                                        <tr class="border-b border-[#22262e] text-slate-400 font-medium text-[12px] bg-[#161a22]">
-                                            <th class="py-3 px-4 w-72">Software name</th>
-                                            <th class="py-3 px-3 w-28">Developer</th>
-                                            <th class="py-3 px-3">Instructions</th>
-                                            <th class="py-3 px-3 w-20">Price</th>
-                                            <th class="py-3 px-3 w-24">Expire date</th>
-                                            <th class="py-3 px-3 w-16 text-center">Location</th>
-                                            <th class="py-3 px-3 w-16 text-center">Status</th>
-                                            <th class="py-3 px-3 w-32 text-center">Display on Home</th>
-                                            <th class="py-3 px-4 w-44 text-right">Operate</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-[#1e232d] text-[12px]">
-                                        <tr v-for="app in filteredApps" :key="app.id" class="hover:bg-[#161a24] transition duration-150">
-                                            <!-- 1. Software Name (Icon + Detailed Version) -->
-                                            <td class="py-3 px-4">
-                                                <div class="flex items-center space-x-3">
-                                                    <div class="w-7 h-7 rounded-lg bg-[#1a1f29] border border-[#2a3242] flex items-center justify-center text-sm shrink-0 shadow-inner">
-                                                        <span v-if="app.id === 'nginx'" class="text-emerald-400 font-bold font-mono">N</span>
-                                                        <span v-else-if="app.category === 'php'" class="text-indigo-400 font-bold font-mono text-[10px]">php</span>
-                                                        <span v-else-if="['mysql', 'mariadb'].includes(app.id)" class="text-sky-400">🐬</span>
-                                                        <span v-else-if="app.id === 'redis'" class="text-rose-500">🔴</span>
-                                                        <span v-else-if="app.id === 'ols'" class="text-amber-400">⚡</span>
-                                                        <span v-else>{{ app.icon || '📦' }}</span>
-                                                    </div>
-                                                    <div class="min-w-0">
-                                                        <div class="font-medium text-slate-100 truncate">
-                                                            {{ app.detailed_version || (app.name + ' ' + (app.exact_version ? 'v' + app.exact_version : app.default_version)) }}
-                                                        </div>
+                        <!-- App Store Table (COMPACT VIEW - NO HORIZONTAL SCROLLBAR) -->
+                        <div class="bg-[#12151c] rounded-xl border border-[#22262e] overflow-hidden shadow-xl w-full">
+                            <table class="w-full text-left text-xs table-fixed">
+                                <thead>
+                                    <tr class="border-b border-[#22262e] text-slate-400 font-medium text-[12px] bg-[#161a22]">
+                                        <th class="py-3 px-4 w-56">Software name</th>
+                                        <th class="py-3 px-3">Instructions</th>
+                                        <th class="py-3 px-2 w-14 text-center">Location</th>
+                                        <th class="py-3 px-2 w-14 text-center">Status</th>
+                                        <th class="py-3 px-2 w-28 text-center">Display on Home</th>
+                                        <th class="py-3 px-4 w-40 text-right">Operate</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-[#1e232d] text-[12px]">
+                                    <tr v-for="app in filteredApps" :key="app.id" class="hover:bg-[#161a24] transition duration-150">
+                                        <!-- 1. Software Name (Icon + Detailed Version truncated <= 30 chars) -->
+                                        <td class="py-3 px-4">
+                                            <div class="flex items-center space-x-2.5">
+                                                <div class="w-7 h-7 rounded-lg bg-[#1a1f29] border border-[#2a3242] flex items-center justify-center text-sm shrink-0 shadow-inner">
+                                                    <span v-if="app.id === 'nginx'" class="text-emerald-400 font-bold font-mono">N</span>
+                                                    <span v-else-if="app.category === 'php'" class="text-indigo-400 font-bold font-mono text-[10px]">php</span>
+                                                    <span v-else-if="['mysql', 'mariadb'].includes(app.id)" class="text-sky-400">🐬</span>
+                                                    <span v-else-if="app.id === 'redis'" class="text-rose-500">🔴</span>
+                                                    <span v-else-if="app.id === 'ols'" class="text-amber-400">⚡</span>
+                                                    <span v-else-if="app.id === 'apache'" class="text-rose-400">🪶</span>
+                                                    <span v-else>{{ app.icon || '📦' }}</span>
+                                                </div>
+                                                <div class="min-w-0 flex-1">
+                                                    <div class="font-medium text-slate-100 truncate text-[12px]" :title="app.detailed_version || app.name">
+                                                        {{ truncateText(app.detailed_version || (app.name + ' ' + (app.exact_version ? 'v' + app.exact_version : app.default_version)), 30) }}
                                                     </div>
                                                 </div>
-                                            </td>
+                                            </div>
+                                        </td>
 
-                                            <!-- 2. Developer -->
-                                            <td class="py-3 px-3 text-slate-400">
-                                                {{ app.developer || 'official' }}
-                                            </td>
+                                        <!-- 2. Instructions -->
+                                        <td class="py-3 px-3 text-slate-400 truncate text-[11.5px]" :title="app.desc">
+                                            {{ app.desc }}
+                                        </td>
 
-                                            <!-- 3. Instructions -->
-                                            <td class="py-3 px-3 text-slate-400 truncate max-w-xs" :title="app.desc">
-                                                {{ app.desc }}
-                                            </td>
+                                        <!-- 3. Location -->
+                                        <td class="py-3 px-2 text-center">
+                                            <button @click="showAppLocation(app)"
+                                                class="text-amber-400 hover:text-amber-300 transition text-sm"
+                                                :title="app.location_path ? 'Thư mục: ' + app.location_path : 'Xem đường dẫn cài đặt'">
+                                                📁
+                                            </button>
+                                        </td>
 
-                                            <!-- 4. Price -->
-                                            <td class="py-3 px-3 text-slate-300">
-                                                {{ app.price || 'Free' }}
-                                            </td>
+                                        <!-- 4. Status (Play / Pause / --) -->
+                                        <td class="py-3 px-2 text-center">
+                                            <span v-if="app.running" class="inline-flex items-center justify-center text-emerald-400 text-xs font-bold" title="Running (Đang chạy)">
+                                                ▶
+                                            </span>
+                                            <span v-else-if="app.installed" class="inline-flex items-center justify-center text-rose-400 text-xs font-bold" title="Stopped (Đã dừng)">
+                                                ⏸
+                                            </span>
+                                            <span v-else class="text-slate-600 font-mono text-xs">
+                                                --
+                                            </span>
+                                        </td>
 
-                                            <!-- 5. Expire date -->
-                                            <td class="py-3 px-3 text-slate-500 font-mono">
-                                                {{ app.expire_date || '--' }}
-                                            </td>
+                                        <!-- 5. Display on Home -->
+                                        <td class="py-3 px-2 text-center">
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" :checked="isAppOnHome(app.id)" @change="toggleDisplayOnHome(app)" class="sr-only peer">
+                                                <div class="w-8 h-4 bg-[#252b36] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                                            </label>
+                                        </td>
 
-                                            <!-- 6. Location -->
-                                            <td class="py-3 px-3 text-center">
-                                                <button @click="showAppLocation(app)"
-                                                    class="text-amber-400 hover:text-amber-300 transition text-base"
-                                                    :title="app.location_path ? 'Thư mục: ' + app.location_path : 'Xem đường dẫn cài đặt'">
-                                                    📁
-                                                </button>
-                                            </td>
-
-                                            <!-- 7. Status (Play / Pause / --) -->
-                                            <td class="py-3 px-3 text-center">
-                                                <span v-if="app.running" class="inline-flex items-center justify-center text-emerald-400 text-sm font-bold" title="Running (Đang chạy)">
-                                                    ▶
-                                                </span>
-                                                <span v-else-if="app.installed" class="inline-flex items-center justify-center text-rose-400 text-sm font-bold" title="Stopped (Đã dừng)">
-                                                    ⏸
-                                                </span>
-                                                <span v-else class="text-slate-600 font-mono">
-                                                    --
-                                                </span>
-                                            </td>
-
-                                            <!-- 8. Display on Home -->
-                                            <td class="py-3 px-3 text-center">
-                                                <label class="relative inline-flex items-center cursor-pointer">
-                                                    <input type="checkbox" :checked="isAppOnHome(app.id)" @change="toggleDisplayOnHome(app)" class="sr-only peer">
-                                                    <div class="w-9 h-5 bg-[#252b36] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
-                                                </label>
-                                            </td>
-
-                                            <!-- 9. Operate -->
-                                            <td class="py-3 px-4 text-right whitespace-nowrap">
-                                                <template v-if="app.installed">
-                                                    <span class="inline-flex items-center space-x-1.5 font-medium text-[11.5px]">
-                                                        <!-- Update -->
-                                                        <button @click="app.category === 'php' ? handleCheckPhpUpdate(app) : handleAppAction(app.id, 'update')"
-                                                            class="text-emerald-400 hover:text-emerald-300 transition hover:underline">
-                                                            Update
-                                                        </button>
-                                                        <span class="text-slate-600">|</span>
-                                                        <!-- Setting -->
-                                                        <button @click="openAppSettings(app)"
-                                                            class="text-emerald-400 hover:text-emerald-300 transition hover:underline font-semibold">
-                                                            Setting
-                                                        </button>
-                                                        <span class="text-slate-600">|</span>
-                                                        <!-- Uninstall -->
-                                                        <button @click="handleAppAction(app.id, 'uninstall')"
-                                                            class="text-emerald-400 hover:text-rose-400 transition hover:underline">
-                                                            Uninstall
-                                                        </button>
-                                                    </span>
-                                                </template>
-                                                <template v-else>
-                                                    <button @click="handleAppAction(app.id, 'install')"
-                                                        :disabled="installingAppId === app.id"
-                                                        class="text-emerald-400 hover:text-emerald-300 transition hover:underline font-semibold text-[11.5px]">
-                                                        <span v-if="installingAppId === app.id">Installing...</span>
-                                                        <span v-else>Install</span>
+                                        <!-- 6. Operate -->
+                                        <td class="py-3 px-4 text-right whitespace-nowrap">
+                                            <template v-if="app.installed">
+                                                <span class="inline-flex items-center space-x-1.5 font-medium text-[11.5px]">
+                                                    <!-- Update -->
+                                                    <button @click="app.category === 'php' ? handleCheckPhpUpdate(app) : handleAppAction(app.id, 'update')"
+                                                        class="text-emerald-400 hover:text-emerald-300 transition hover:underline">
+                                                        Update
                                                     </button>
-                                                </template>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                                                    <span class="text-slate-600">|</span>
+                                                    <!-- Setting -->
+                                                    <button @click="openAppSettings(app)"
+                                                        class="text-emerald-400 hover:text-emerald-300 transition hover:underline font-semibold">
+                                                        Setting
+                                                    </button>
+                                                    <span class="text-slate-600">|</span>
+                                                    <!-- Uninstall -->
+                                                    <button @click="handleAppAction(app.id, 'uninstall')"
+                                                        class="text-emerald-400 hover:text-rose-400 transition hover:underline">
+                                                        Uninstall
+                                                    </button>
+                                                </span>
+                                            </template>
+                                            <template v-else>
+                                                <button @click="openInstallAppModal(app)"
+                                                    :disabled="installingAppId === app.id"
+                                                    class="text-emerald-400 hover:text-emerald-300 transition hover:underline font-semibold text-[11.5px]">
+                                                    <span v-if="installingAppId === app.id">Installing...</span>
+                                                    <span v-else>Install</span>
+                                                </button>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>

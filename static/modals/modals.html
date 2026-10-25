@@ -2044,92 +2044,67 @@
                     <div class="flex-1 flex min-h-0 bg-[#0f131a]">
                         <!-- Left Sidebar Tabs (Exactly as Image 2) -->
                         <div class="w-48 bg-[#131720] border-r border-[#232b36] p-2 space-y-0.5 shrink-0 text-xs font-medium overflow-y-auto custom-scrollbar">
-                            <!-- 1. Service (Default active in Image 2) -->
+                            <!-- 1. Service & Status (Combined for user apps like PHP/Redis, or standard Service for system apps) -->
                             <button @click="appSettingTab = 'service'"
                                 class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
                                 :class="appSettingTab === 'service' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                <span>Service</span>
+                                <span v-if="isUserIsolatedApp(selectedSettingApp)">Service & Status</span>
+                                <span v-else>Service</span>
                             </button>
 
-                            <!-- 2. Web server / Database / Extensions -->
-                            <button v-if="['ols', 'nginx'].includes(selectedSettingApp?.id)"
-                                @click="appSettingTab = 'server_config'"
-                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                :class="appSettingTab === 'server_config' ? 'bg-[#1e2633] text-emerald-400 font-bold border-l-2 border-emerald-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                <span>Web server</span>
-                            </button>
-                            <button v-else-if="selectedSettingApp?.category === 'php'"
-                                @click="appSettingTab = 'extensions'; fetchPhpExtensions(selectedSettingApp.id)"
-                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                :class="appSettingTab === 'extensions' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                <span>Extensions</span>
-                            </button>
-                            <button v-else-if="['mysql', 'mariadb', 'redis', 'pgsql', 'mongodb', 'sqlserver'].includes(selectedSettingApp?.id)"
-                                @click="appSettingTab = 'db_settings'"
-                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                :class="appSettingTab === 'db_settings' ? 'bg-[#1e2633] text-sky-400 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                <span>Database</span>
-                            </button>
+                            <!-- 2. Web server / Database (Only for non-user apps) -->
+                            <template v-if="!isUserIsolatedApp(selectedSettingApp)">
+                                <button v-if="['ols', 'nginx', 'apache'].includes(selectedSettingApp?.id)"
+                                    @click="appSettingTab = 'server_config'"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'server_config' ? 'bg-[#1e2633] text-emerald-400 font-bold border-l-2 border-emerald-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Web server</span>
+                                </button>
+                                <button v-else-if="['mysql', 'mariadb', 'pgsql', 'mongodb', 'sqlserver'].includes(selectedSettingApp?.id)"
+                                    @click="appSettingTab = 'db_settings'"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'db_settings' ? 'bg-[#1e2633] text-sky-400 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Database</span>
+                                </button>
 
-                            <!-- 3. Config file -->
-                            <button @click="appSettingTab = 'config'; loadAppConfig(selectedSettingApp.id, 'main')"
-                                class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
-                                :class="appSettingTab === 'config' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                <span>Config file</span>
-                            </button>
+                                <!-- 3. Config file -->
+                                <button @click="appSettingTab = 'config'; loadAppConfig(selectedSettingApp.id, 'main')"
+                                    class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
+                                    :class="appSettingTab === 'config' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
+                                    <span>Config file</span>
+                                </button>
+                            </template>
 
-                            <!-- 4. Switch version -->
+                            <!-- 4. Switch version (All apps) -->
                             <button @click="appSettingTab = 'switch_version'"
                                 class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
                                 :class="appSettingTab === 'switch_version' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
                                 <span>Switch version</span>
                             </button>
 
-                            <!-- 5. Load status -->
-                            <button @click="appSettingTab = 'load_status'; fetchAppLoadStatus(selectedSettingApp.id)"
+                            <!-- 5. Load status (Only for non-user apps, combined for user apps) -->
+                            <button v-if="!isUserIsolatedApp(selectedSettingApp)" @click="appSettingTab = 'load_status'; fetchAppLoadStatus(selectedSettingApp.id)"
                                 class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
                                 :class="appSettingTab === 'load_status' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
                                 <span>Load status</span>
                             </button>
 
-                            <!-- 6. Optimization -->
-                            <button @click="appSettingTab = 'optimization'"
+                            <!-- 6. Optimization (Only for system services) -->
+                            <button v-if="!isUserIsolatedApp(selectedSettingApp)" @click="appSettingTab = 'optimization'"
                                 class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
                                 :class="appSettingTab === 'optimization' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
                                 <span>Optimization</span>
                             </button>
 
-                            <!-- 7. Error log -->
+                            <!-- 7. Error log (All apps) -->
                             <button @click="appSettingTab = 'error_log'; fetchAppLogs(selectedSettingApp.id)"
                                 class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2"
                                 :class="appSettingTab === 'error_log' ? 'bg-[#1e2633] text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
                                 <span>Error log</span>
                             </button>
 
-                            <!-- Additional PHP Tabs (underneath if PHP) -->
-                            <template v-if="selectedSettingApp?.category === 'php'">
-                                <div class="pt-2 border-t border-[#232b36] mt-2 mb-1 px-3 text-[10px] uppercase font-bold text-slate-500">
-                                    PHP Extra
-                                </div>
-                                <button @click="appSettingTab = 'php_config'; fetchPhpDirectives(selectedSettingApp.id)"
-                                    class="w-full text-left px-3 py-1.5 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'php_config' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>Directives</span>
-                                </button>
-                                <button @click="appSettingTab = 'fpm_pool'; loadAppConfig(selectedSettingApp.id, 'pool')"
-                                    class="w-full text-left px-3 py-1.5 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'fpm_pool' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>FPM Profile</span>
-                                </button>
-                                <button @click="appSettingTab = 'phpinfo'; fetchPhpInfo(selectedSettingApp.id)"
-                                    class="w-full text-left px-3 py-1.5 rounded-xl transition flex items-center space-x-2"
-                                    :class="appSettingTab === 'phpinfo' ? 'bg-[#1e2633] text-cyan-300 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
-                                    <span>phpinfo()</span>
-                                </button>
-                            </template>
-
                             <!-- Build settings for source build if applicable -->
-                            <button @click="openAppBuildSettings(selectedSettingApp.id)"
+                            <button v-if="!isUserIsolatedApp(selectedSettingApp)" @click="openAppBuildSettings(selectedSettingApp.id)"
                                 class="w-full text-left px-3 py-2 rounded-xl transition flex items-center space-x-2 mt-2 pt-2 border-t border-[#232b36]"
                                 :class="appSettingTab === 'build_settings' ? 'bg-[#1e2633] text-amber-400 font-bold border-l-2 border-amber-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'">
                                 <span>Build settings</span>
@@ -2457,58 +2432,138 @@
                                 </div>
                             </div>
 
-                            <!-- TAB 1: SERVICE CONTROLS (EXACTLY AS IMAGE 2) -->
-                            <div v-if="appSettingTab === 'service'" class="space-y-6 max-w-xl">
-                                <!-- Current state -->
-                                <div class="text-xs text-slate-300">
-                                    Current state: <span class="font-medium capitalize" :class="selectedSettingApp?.running ? 'text-emerald-400' : 'text-amber-400'">{{ selectedSettingApp?.running ? 'Start' : 'Stop' }}</span>
+                            <!-- TAB 1: SERVICE CONTROLS (EXACTLY AS IMAGE 2 OR USER POOLS COMBINED) -->
+                            <div v-if="appSettingTab === 'service'" class="space-y-5 flex-1 flex flex-col min-h-0">
+                                <!-- A. NẾU LÀ APP CHẠY RIÊNG DƯỚI QUYỀN USER (PHP, REDIS, VALKEY,...) -->
+                                <div v-if="isUserIsolatedApp(selectedSettingApp)" class="space-y-4 flex-1 flex flex-col min-h-0">
+                                    <div class="p-3.5 rounded-xl bg-blue-950/20 border border-blue-800/30 text-slate-300 text-xs flex items-start space-x-3">
+                                        <span class="text-blue-400 text-base leading-none mt-0.5">ℹ️</span>
+                                        <div class="space-y-1">
+                                            <p class="font-semibold text-blue-200">Dịch vụ này được quản trị và cô lập theo từng Website User</p>
+                                            <p class="text-[11.5px] text-slate-400 leading-relaxed">
+                                                {{ selectedSettingApp?.name }} chạy dưới các tiến trình User Pool riêng biệt để đảm bảo an toàn và phân bổ tài nguyên độc lập.
+                                                Cấu hình FPM (RAM, max_children, upload limit, directives...) được thiết lập trực tiếp trong phần cấu hình của từng Website.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Top Actions & Summary -->
+                                    <div class="flex items-center justify-between bg-[#141922] p-3 rounded-xl border border-[#222834]">
+                                        <div class="text-xs text-slate-300">
+                                            <span>Số lượng Website Pools: </span>
+                                            <span class="font-bold text-emerald-400">{{ getUserAppPools(selectedSettingApp).length }}</span>
+                                        </div>
+                                        <button @click="restartAllUserAppPools(selectedSettingApp)"
+                                            class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition flex items-center space-x-1.5 shadow-sm">
+                                            <span>🔄</span>
+                                            <span>Khởi Động Lại Tất Cả Pools</span>
+                                        </button>
+                                    </div>
+
+                                    <!-- Danh sách Service Pools & Load Status gộp chung -->
+                                    <div class="bg-[#12161f] rounded-xl border border-[#222834] overflow-hidden flex-1 flex flex-col min-h-[220px]">
+                                        <div class="overflow-y-auto custom-scrollbar flex-1">
+                                            <table class="w-full text-left text-xs table-fixed">
+                                                <thead>
+                                                    <tr class="border-b border-[#222834] text-slate-400 font-medium text-[11.5px] bg-[#161b26] sticky top-0">
+                                                        <th class="py-2.5 px-3 w-40">Website</th>
+                                                        <th class="py-2.5 px-2 w-28">Linux User</th>
+                                                        <th class="py-2.5 px-3">Service / Socket Path</th>
+                                                        <th class="py-2.5 px-2 w-20 text-center">RAM</th>
+                                                        <th class="py-2.5 px-2 w-24 text-center">Trạng Thái</th>
+                                                        <th class="py-2.5 px-3 w-32 text-right">Thao Tác</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-[#1e2430] text-[11.5px]">
+                                                    <tr v-for="pool in getUserAppPools(selectedSettingApp)" :key="pool.domain" class="hover:bg-[#161c28] transition">
+                                                        <td class="py-2.5 px-3 font-medium text-slate-200 truncate" :title="pool.domain">
+                                                            🌐 {{ pool.domain }}
+                                                        </td>
+                                                        <td class="py-2.5 px-2 text-slate-400 font-mono text-[11px] truncate">
+                                                            👤 {{ pool.user }}
+                                                        </td>
+                                                        <td class="py-2.5 px-3 text-slate-400 font-mono text-[10.5px] truncate" :title="pool.socket">
+                                                            {{ pool.socket }}
+                                                        </td>
+                                                        <td class="py-2.5 px-2 text-center text-slate-300 font-mono text-[11px]">
+                                                            {{ pool.memory }}
+                                                        </td>
+                                                        <td class="py-2.5 px-2 text-center">
+                                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                                ● {{ pool.status }}
+                                                            </span>
+                                                        </td>
+                                                        <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                                                            <button @click="navigateToWebsiteFpm(pool.domain)"
+                                                                class="px-2.5 py-1 rounded bg-[#1e2634] hover:bg-emerald-600 hover:text-white text-emerald-400 border border-emerald-500/30 text-[11px] font-medium transition">
+                                                                ⚙️ FPM Setting
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                    <tr v-if="getUserAppPools(selectedSettingApp).length === 0">
+                                                        <td colspan="6" class="py-8 text-center text-slate-500 text-xs">
+                                                            Chưa có website nào được gán hoặc cấu hình chạy với runtime/dịch vụ này.
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <!-- Stop / Restart / Reload buttons -->
-                                <div class="flex items-center space-x-3">
-                                    <button @click="handleAppAction(selectedSettingApp.id, selectedSettingApp.running ? 'stop' : 'start')"
-                                        class="px-5 py-1.5 rounded-md bg-[#1c2128] hover:bg-[#252b35] text-slate-200 hover:text-white border border-[#30363d] text-xs font-medium transition shadow-sm">
-                                        {{ selectedSettingApp.running ? 'Stop' : 'Start' }}
-                                    </button>
-                                    <button @click="handleAppAction(selectedSettingApp.id, 'restart')"
-                                        class="px-5 py-1.5 rounded-md bg-[#1c2128] hover:bg-[#252b35] text-slate-200 hover:text-white border border-[#30363d] text-xs font-medium transition shadow-sm">
-                                        Restart
-                                    </button>
-                                    <button @click="handleAppAction(selectedSettingApp.id, 'reload')"
-                                        class="px-5 py-1.5 rounded-md bg-[#1c2128] hover:bg-[#252b35] text-slate-200 hover:text-white border border-[#30363d] text-xs font-medium transition shadow-sm">
-                                        Reload
-                                    </button>
-                                </div>
+                                <!-- B. NẾU LÀ APP HỆ THỐNG TOÀN CỤC (NGINX, OLS, APACHE, MYSQL,...) GIỮ NGUYÊN FORM ĐIỀU KHIỂN IMAGE 2 -->
+                                <div v-else class="space-y-6 max-w-xl">
+                                    <!-- Current state -->
+                                    <div class="text-xs text-slate-300">
+                                        Current state: <span class="font-medium capitalize" :class="selectedSettingApp?.running ? 'text-emerald-400' : 'text-amber-400'">{{ selectedSettingApp?.running ? 'Start' : 'Stop' }}</span>
+                                    </div>
 
-                                <div class="border-t border-[#232832]"></div>
-
-                                <!-- Alert me when status stops -->
-                                <div class="flex items-center space-x-3">
-                                    <span class="text-slate-300 text-xs">Alert me when status stops</span>
-                                    <label class="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" :checked="!!appAlertOnStop[selectedSettingApp?.id]" @change="toggleAlertOnStop(selectedSettingApp)" class="sr-only peer">
-                                        <div class="w-9 h-5 bg-[#252b36] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
-                                    </label>
-                                    <button @click="showAlarmSettingModal = true" class="text-emerald-400 hover:text-emerald-300 text-xs hover:underline cursor-pointer">
-                                        Alarm Setting
-                                    </button>
-                                </div>
-
-                                <div class="border-t border-[#232832]"></div>
-
-                                <!-- Daemon -->
-                                <div class="space-y-3">
+                                    <!-- Stop / Restart / Reload buttons -->
                                     <div class="flex items-center space-x-3">
-                                        <span class="text-slate-300 text-xs">Daemon</span>
+                                        <button @click="handleAppAction(selectedSettingApp.id, selectedSettingApp.running ? 'stop' : 'start')"
+                                            class="px-5 py-1.5 rounded-md bg-[#1c2128] hover:bg-[#252b35] text-slate-200 hover:text-white border border-[#30363d] text-xs font-medium transition shadow-sm">
+                                            {{ selectedSettingApp.running ? 'Stop' : 'Start' }}
+                                        </button>
+                                        <button @click="handleAppAction(selectedSettingApp.id, 'restart')"
+                                            class="px-5 py-1.5 rounded-md bg-[#1c2128] hover:bg-[#252b35] text-slate-200 hover:text-white border border-[#30363d] text-xs font-medium transition shadow-sm">
+                                            Restart
+                                        </button>
+                                        <button @click="handleAppAction(selectedSettingApp.id, 'reload')"
+                                            class="px-5 py-1.5 rounded-md bg-[#1c2128] hover:bg-[#252b35] text-slate-200 hover:text-white border border-[#30363d] text-xs font-medium transition shadow-sm">
+                                            Reload
+                                        </button>
+                                    </div>
+
+                                    <div class="border-t border-[#232832]"></div>
+
+                                    <!-- Alert me when status stops -->
+                                    <div class="flex items-center space-x-3">
+                                        <span class="text-slate-300 text-xs">Alert me when status stops</span>
                                         <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" :checked="selectedSettingApp?.autorestart" @change="toggleAppAutorestart(selectedSettingApp, $event.target.checked)" class="sr-only peer">
+                                            <input type="checkbox" :checked="!!appAlertOnStop[selectedSettingApp?.id]" @change="toggleAlertOnStop(selectedSettingApp)" class="sr-only peer">
                                             <div class="w-9 h-5 bg-[#252b36] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
                                         </label>
+                                        <button @click="showAlarmSettingModal = true" class="text-emerald-400 hover:text-emerald-300 text-xs hover:underline cursor-pointer">
+                                            Alarm Setting
+                                        </button>
                                     </div>
-                                    <ul class="text-[12px] text-slate-400 space-y-1.5 pl-4 list-disc marker:text-slate-500 leading-relaxed">
-                                        <li>Default check every 1 minute, can be changed in Cron</li>
-                                        <li>The daemon can be started automatically after the {{ selectedSettingApp?.name }} service is stopped to ensure that the {{ selectedSettingApp?.name }} service is always running.</li>
-                                    </ul>
+
+                                    <div class="border-t border-[#232832]"></div>
+
+                                    <!-- Daemon -->
+                                    <div class="space-y-3">
+                                        <div class="flex items-center space-x-3">
+                                            <span class="text-slate-300 text-xs">Daemon</span>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" :checked="selectedSettingApp?.autorestart" @change="toggleAppAutorestart(selectedSettingApp, $event.target.checked)" class="sr-only peer">
+                                                <div class="w-9 h-5 bg-[#252b36] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                                            </label>
+                                        </div>
+                                        <ul class="text-[12px] text-slate-400 space-y-1.5 pl-4 list-disc marker:text-slate-500 leading-relaxed">
+                                            <li>Default check every 1 minute, can be changed in Cron</li>
+                                            <li>The daemon can be started automatically after the {{ selectedSettingApp?.name }} service is stopped to ensure that the {{ selectedSettingApp?.name }} service is always running.</li>
+                                        </ul>
+                                    </div>
                                 </div>
                             </div>
 
@@ -3090,6 +3145,84 @@
                                 Lưu Cấu Hình
                             </button>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== MODAL CÀI ĐẶT APP (POPUP CHỌN PHIÊN BẢN - CHUẨN THEO ẢNH 1) ==================== -->
+            <div v-if="showInstallModal && selectedAppToInstall"
+                class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in"
+                @click.self="showInstallModal = false">
+                <div class="w-full max-w-lg bg-[#191d26] rounded-2xl border border-[#2b3342] shadow-2xl overflow-hidden relative p-6 text-slate-200" @click.stop>
+                    <!-- Close button tròn góc phải trên như ảnh 1 -->
+                    <button @click="showInstallModal = false"
+                        class="absolute top-4 right-4 w-7 h-7 rounded-full bg-[#2a3242] hover:bg-[#384357] text-slate-300 hover:text-white flex items-center justify-center text-xs transition">
+                        ✕
+                    </button>
+
+                    <!-- Top Row: Icon + Name + Version Dropdown + Compiled Button + Quick Install Button -->
+                    <div class="flex items-center space-x-3 pr-8 pt-1">
+                        <!-- Icon -->
+                        <div class="w-8 h-8 rounded-lg bg-[#141820] border border-[#2a3242] flex items-center justify-center text-base shrink-0 shadow-inner">
+                            <span v-if="selectedAppToInstall.id === 'nginx'" class="text-emerald-400 font-bold font-mono">N</span>
+                            <span v-else-if="selectedAppToInstall.category === 'php'" class="text-indigo-400 font-bold font-mono text-xs">php</span>
+                            <span v-else-if="['mysql', 'mariadb'].includes(selectedAppToInstall.id)" class="text-sky-400">🐬</span>
+                            <span v-else-if="selectedAppToInstall.id === 'redis'" class="text-rose-500">🔴</span>
+                            <span v-else-if="selectedAppToInstall.id === 'ols'" class="text-amber-400">⚡</span>
+                            <span v-else-if="selectedAppToInstall.id === 'apache'" class="text-rose-400">🪶</span>
+                            <span v-else>{{ selectedAppToInstall.icon || '📦' }}</span>
+                        </div>
+
+                        <!-- Name -->
+                        <h3 class="text-sm sm:text-base font-bold text-white whitespace-nowrap">
+                            {{ selectedAppToInstall.name }} {{ selectedInstallVersion !== 'default' && !selectedAppToInstall.name.includes(selectedInstallVersion) ? selectedInstallVersion : '' }}
+                        </h3>
+
+                        <!-- Version Dropdown -->
+                        <div class="relative">
+                            <select v-model="selectedInstallVersion"
+                                class="appearance-none pl-3 pr-7 py-1.5 rounded-lg bg-[#141820] border border-emerald-500/60 text-slate-200 text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer shadow-sm">
+                                <template v-if="selectedAppToInstall.versions && selectedAppToInstall.versions.length > 0">
+                                    <option v-for="ver in selectedAppToInstall.versions" :key="ver.value" :value="ver.value">
+                                        {{ ver.label }}
+                                    </option>
+                                </template>
+                                <template v-else>
+                                    <option :value="selectedAppToInstall.default_version || 'latest'">
+                                        {{ selectedAppToInstall.default_version || 'latest' }}
+                                    </option>
+                                </template>
+                            </select>
+                            <span class="pointer-events-none absolute right-2.5 top-2 text-slate-400 text-[10px]">▼</span>
+                        </div>
+
+                        <!-- Compiled Button -->
+                        <button @click="confirmInstallApp('compiled')"
+                            class="px-3.5 py-1.5 rounded-lg bg-[#1c2128] hover:bg-[#252b35] text-slate-200 hover:text-white border border-[#30363d] text-xs font-medium transition shadow-sm">
+                            Compiled
+                        </button>
+
+                        <!-- Quick Install Button (Green) -->
+                        <button @click="confirmInstallApp('fast')"
+                            class="px-4 py-1.5 rounded-lg bg-[#10b981] hover:bg-[#059669] text-white text-xs font-bold shadow-md shadow-emerald-500/20 transition">
+                            Quick install
+                        </button>
+                    </div>
+
+                    <!-- Divider Line -->
+                    <div class="border-t border-[#262e3d] my-4"></div>
+
+                    <!-- Plugin Description -->
+                    <div class="space-y-2.5">
+                        <h4 class="text-xs font-bold text-slate-200">
+                            Plugin Description:
+                        </h4>
+
+                        <ul class="text-[12px] text-slate-400 space-y-2 list-disc pl-4 leading-relaxed marker:text-slate-500">
+                            <li>If this plugin already exists, the file will be replaced!</li>
+                            <li>Please install the plugin extensions and dependencies manually, if they are not installed, the plugin will not work properly</li>
+                            <li>The installation process may take a few minutes, so please be patient!</li>
+                        </ul>
                     </div>
                 </div>
             </div>

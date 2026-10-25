@@ -26,11 +26,23 @@ case "$ACTION" in
             chmod -R a+r /etc/apt/trusted.gpg.d/ 2>/dev/null || true
             
             DEBIAN_FRONTEND=noninteractive apt-get update -y || true
-            DEBIAN_FRONTEND=noninteractive apt-get install -y openlitespeed lsphp82 lsphp82-common lsphp82-mysql lsphp82-opcache lsphp82-curl lsphp82-redis lsphp82-imagick lsphp82-intl lsphp82-soap lsphp82-bcmath || true
+            echo "[+] Đang cài đặt OpenLiteSpeed và LSPHP 8.2..."
+            DEBIAN_FRONTEND=noninteractive apt-get install -y openlitespeed lsphp82 lsphp82-common lsphp82-mysql lsphp82-opcache lsphp82-curl || \
+            DEBIAN_FRONTEND=noninteractive apt-get install -y openlitespeed
+
+            # Cài đặt thêm các extensions bổ sung an toàn (bỏ qua nếu không tồn tại trong repo)
+            for ext in lsphp82-redis lsphp82-imagick lsphp82-intl; do
+                DEBIAN_FRONTEND=noninteractive apt-get install -y "$ext" 2>/dev/null || true
+            done
         elif command -v dnf &>/dev/null; then
             rpm -Uvh http://rpms.litespeedtech.com/centos/litespeed-repo-1.3-1.el8.noarch.rpm 2>/dev/null || \
             rpm -Uvh http://rpms.litespeedtech.com/centos/litespeed-repo-1.3-1.el9.noarch.rpm 2>/dev/null || true
-            dnf install -y openlitespeed lsphp82 lsphp82-common lsphp82-mysqlnd lsphp82-opcache lsphp82-curl lsphp82-redis lsphp82-pecl-redis lsphp82-imagick lsphp82-intl lsphp82-soap lsphp82-bcmath || true
+            dnf install -y openlitespeed lsphp82 lsphp82-common lsphp82-mysqlnd lsphp82-opcache lsphp82-curl || \
+            dnf install -y openlitespeed
+
+            for ext in lsphp82-redis lsphp82-pecl-redis lsphp82-imagick lsphp82-intl; do
+                dnf install -y "$ext" 2>/dev/null || true
+            done
         fi
 
         # Cấu hình OpenLiteSpeed: Đổi port mặc định 8088 thành 80 cho HTTP listener

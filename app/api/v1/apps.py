@@ -61,6 +61,20 @@ SUPPORTED_APPS = [
         ]
     },
     {
+        "id": "apache",
+        "name": "Apache Web Server",
+        "category": "webserver",
+        "icon": "🪶",
+        "desc": "World No. 1, fast, reliable and scalable web server HTTP daemon.",
+        "service": "apache2",
+        "binary_checks": ["/usr/sbin/apache2", "/usr/sbin/httpd"],
+        "default_version": "2.4",
+        "versions": [
+            {"value": "2.4", "label": "Apache 2.4 (Khuyên dùng)"},
+            {"value": "2.2", "label": "Apache 2.2 (Legacy)"}
+        ]
+    },
+    {
         "id": "mysql",
         "name": "MySQL / MariaDB Database",
         "category": "database",
@@ -363,6 +377,7 @@ SUPPORTED_APPS = [
 
 APP_SERVICE_CANDIDATES: Dict[str, List[str]] = {
     "nginx": ["openresty", "nginx"],
+    "apache": ["apache2", "httpd"],
     "ols": ["lshttpd", "lsws"],
     "mysql": ["mariadb", "mysqld", "mysql"],
     "redis": ["valkey", "valkey-server", "redis-server", "redis"],
