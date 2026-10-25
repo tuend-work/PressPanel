@@ -1429,8 +1429,9 @@ def sync_user_php_scan_dir(isolated_user: str, php_ver: str, extensions: dict) -
 
         # 2. Tìm thư mục chứa file .ini gốc của hệ thống
         src_candidates = [
-            f"/etc/php/{clean_ver}/mods-available",
             f"/etc/php/{clean_ver}/fpm/conf.d",
+            f"/etc/php/{clean_ver}/cli/conf.d",
+            f"/etc/php/{clean_ver}/mods-available",
             f"/usr/local/lsws/lsphp{php_num}/etc/php.d",
             f"/etc/opt/remi/php{php_num}/php.d",
             f"/etc/php.d"
@@ -1488,6 +1489,25 @@ def sync_user_php_scan_dir(isolated_user: str, php_ver: str, extensions: dict) -
                 # Extension cốt lõi (curl, mbstring, mysqli, pdo, xml, gd, fileinfo...) -> Luôn luôn symlink
                 if not os.path.exists(dst_full):
                     subprocess.run(["sudo", "ln", "-sf", src_full, dst_full], check=False)
+
+        # Đảm bảo mysqlnd load trước mysqli (tránh lỗi thiếu extension mysqli do sai thứ tự nạp module)
+        for raw_ini in ["mysqli.ini", "mysqlnd.ini", "pdo_mysql.ini"]:
+            subprocess.run(["sudo", "rm", "-f", os.path.join(user_conf_d, raw_ini)], check=False)
+
+        for mdir in [f"/etc/php/{clean_ver}/fpm/conf.d", f"/etc/php/{clean_ver}/mods-available", f"/etc/php/{clean_ver}/cli/conf.d"]:
+            if os.path.isdir(mdir):
+                if os.path.exists(os.path.join(mdir, "mysqlnd.ini")):
+                    subprocess.run(["sudo", "ln", "-sf", os.path.join(mdir, "mysqlnd.ini"), os.path.join(user_conf_d, "10-mysqlnd.ini")], check=False)
+                elif os.path.exists(os.path.join(mdir, "10-mysqlnd.ini")):
+                    subprocess.run(["sudo", "ln", "-sf", os.path.join(mdir, "10-mysqlnd.ini"), os.path.join(user_conf_d, "10-mysqlnd.ini")], check=False)
+                if os.path.exists(os.path.join(mdir, "mysqli.ini")):
+                    subprocess.run(["sudo", "ln", "-sf", os.path.join(mdir, "mysqli.ini"), os.path.join(user_conf_d, "20-mysqli.ini")], check=False)
+                elif os.path.exists(os.path.join(mdir, "20-mysqli.ini")):
+                    subprocess.run(["sudo", "ln", "-sf", os.path.join(mdir, "20-mysqli.ini"), os.path.join(user_conf_d, "20-mysqli.ini")], check=False)
+                if os.path.exists(os.path.join(mdir, "pdo_mysql.ini")):
+                    subprocess.run(["sudo", "ln", "-sf", os.path.join(mdir, "pdo_mysql.ini"), os.path.join(user_conf_d, "20-pdo_mysql.ini")], check=False)
+                elif os.path.exists(os.path.join(mdir, "20-pdo_mysql.ini")):
+                    subprocess.run(["sudo", "ln", "-sf", os.path.join(mdir, "20-pdo_mysql.ini"), os.path.join(user_conf_d, "20-pdo_mysql.ini")], check=False)
 
         # 4. Đảm bảo Systemd Template Service có EnvironmentFile
         tpl_service = f"/etc/systemd/system/wpc-php{clean_ver}-fpm@.service"

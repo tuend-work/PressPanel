@@ -144,6 +144,11 @@ case "$ACTION" in
                 -e "s|{{EXT_CONFIG}}||g" \
                 "$TPL_FILE" > "$CONF_FILE"
         else
+            DISABLE_FUNCS="exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source"
+            if [ "$USERNAME" = "pma" ] || [ "$USERNAME" = "admin" ]; then
+                DISABLE_FUNCS="exec,passthru,shell_exec,system,proc_open,popen"
+            fi
+
             cat << EOF > "$CONF_FILE"
 [global]
 pid = $PID_FILE
@@ -171,7 +176,7 @@ ping.path = /ping-${USERNAME}
 php_admin_value[open_basedir] = /home/${USERNAME}/:/tmp/:/var/tmp/
 php_admin_value[upload_tmp_dir] = /home/${USERNAME}/.tmp
 php_admin_value[session.save_path] = /home/${USERNAME}/.sessions
-php_admin_value[disable_functions] = exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source
+php_admin_value[disable_functions] = ${DISABLE_FUNCS}
 php_admin_flag[log_errors] = on
 php_admin_value[error_log] = /home/${USERNAME}/logs/php-fpm.error.log
 EOF
@@ -185,22 +190,32 @@ EOF
         echo "PHP_INI_SCAN_DIR=$USER_CONF_D" > "$USER_ENV_FILE"
         chmod 644 "$USER_ENV_FILE" 2>/dev/null || true
 
-        # Khởi tạo symlink mặc định nếu conf.d của user đang rỗng
-        if [ -z "$(ls -A "$USER_CONF_D" 2>/dev/null)" ]; then
-            SRC_DIR=""
-            for cdir in "/etc/php/${PHP_VER}/mods-available" "/etc/php/${PHP_VER}/fpm/conf.d" "/etc/opt/remi/php$(echo "$PHP_VER" | tr -d '.')/php.d" "/etc/php.d"; do
-                if [ -d "$cdir" ] && [ -n "$(ls -A "$cdir"/*.ini 2>/dev/null)" ]; then
-                    SRC_DIR="$cdir"
-                    break
-                fi
-            done
-            if [ -n "$SRC_DIR" ]; then
-                for inifile in "$SRC_DIR"/*.ini; do
-                    [ -f "$inifile" ] || continue
-                    ln -sf "$inifile" "$USER_CONF_D/$(basename "$inifile")" 2>/dev/null || true
-                done
+        # Khởi tạo symlink mặc định (ưu tiên conf.d gốc đã có tiền tố số để đảm bảo thứ tự nạp module)
+        SRC_DIR=""
+        for cdir in "/etc/php/${PHP_VER}/fpm/conf.d" "/etc/php/${PHP_VER}/cli/conf.d" "/etc/php/${PHP_VER}/mods-available" "/etc/opt/remi/php$(echo "$PHP_VER" | tr -d '.')/php.d" "/etc/php.d"; do
+            if [ -d "$cdir" ] && [ -n "$(ls -A "$cdir"/*.ini 2>/dev/null)" ]; then
+                SRC_DIR="$cdir"
+                break
             fi
+        done
+        if [ -n "$SRC_DIR" ]; then
+            for inifile in "$SRC_DIR"/*.ini; do
+                [ -f "$inifile" ] || continue
+                [ ! -e "$USER_CONF_D/$(basename "$inifile")" ] && ln -sf "$inifile" "$USER_CONF_D/$(basename "$inifile")" 2>/dev/null || true
+            done
         fi
+
+        # Đảm bảo mysqlnd load trước mysqli (tránh lỗi undefined symbol và lỗi thiếu phần mở rộng mysqli)
+        rm -f "$USER_CONF_D/mysqli.ini" "$USER_CONF_D/mysqlnd.ini" "$USER_CONF_D/pdo_mysql.ini" 2>/dev/null || true
+        for mdir in "/etc/php/${PHP_VER}/fpm/conf.d" "/etc/php/${PHP_VER}/mods-available" "/etc/php/${PHP_VER}/cli/conf.d"; do
+            [ -f "$mdir/mysqlnd.ini" ] && ln -sf "$mdir/mysqlnd.ini" "$USER_CONF_D/10-mysqlnd.ini" 2>/dev/null || true
+            [ -f "$mdir/10-mysqlnd.ini" ] && ln -sf "$mdir/10-mysqlnd.ini" "$USER_CONF_D/10-mysqlnd.ini" 2>/dev/null || true
+            [ -f "$mdir/mysqli.ini" ] && ln -sf "$mdir/mysqli.ini" "$USER_CONF_D/20-mysqli.ini" 2>/dev/null || true
+            [ -f "$mdir/20-mysqli.ini" ] && ln -sf "$mdir/20-mysqli.ini" "$USER_CONF_D/20-mysqli.ini" 2>/dev/null || true
+            [ -f "$mdir/pdo_mysql.ini" ] && ln -sf "$mdir/pdo_mysql.ini" "$USER_CONF_D/20-pdo_mysql.ini" 2>/dev/null || true
+            [ -f "$mdir/20-pdo_mysql.ini" ] && ln -sf "$mdir/20-pdo_mysql.ini" "$USER_CONF_D/20-pdo_mysql.ini" 2>/dev/null || true
+            [ -f "$mdir/mbstring.ini" ] && ln -sf "$mdir/mbstring.ini" "$USER_CONF_D/20-mbstring.ini" 2>/dev/null || true
+        done
 
         # 2. Xoá file pool cũ trong pool.d để tránh trùng lặp
         rm -f "$PHP_CONF_DIR/pool.d/${USERNAME}.conf" 2>/dev/null || true

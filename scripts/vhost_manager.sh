@@ -1116,7 +1116,7 @@ EOF_NGX_SUSP
                 chmod 644 "$U_ENV" 2>/dev/null || true
 
                 SRC_DIR=""
-                for cdir in "/etc/php/${pver}/mods-available" "/etc/php/${pver}/fpm/conf.d" "/usr/local/lsws/lsphp$(echo "$pver" | tr -d '.')/etc/php.d" "/etc/php.d"; do
+                for cdir in "/etc/php/${pver}/fpm/conf.d" "/etc/php/${pver}/cli/conf.d" "/etc/php/${pver}/mods-available" "/usr/local/lsws/lsphp$(echo "$pver" | tr -d '.')/etc/php.d" "/etc/php.d"; do
                     if [ -d "$cdir" ] && [ -n "$(ls -A "$cdir"/*.ini 2>/dev/null)" ]; then
                         SRC_DIR="$cdir"
                         break
@@ -1132,6 +1132,17 @@ EOF_NGX_SUSP
                             *opcache*|*redis*|*imagick*|*soap*|*memcache*|*intl*|*xdebug*|*bcmath*) ;;
                             *) [ ! -e "$U_CONF_D/$base_ini" ] && ln -sf "$inifile" "$U_CONF_D/$base_ini" 2>/dev/null || true ;;
                         esac
+                    done
+
+                    # Đảm bảo mysqlnd load trước mysqli (tránh lỗi undefined symbol)
+                    rm -f "$U_CONF_D/mysqli.ini" "$U_CONF_D/mysqlnd.ini" "$U_CONF_D/pdo_mysql.ini" 2>/dev/null || true
+                    for mdir in "/etc/php/${pver}/fpm/conf.d" "/etc/php/${pver}/mods-available" "/etc/php/${pver}/cli/conf.d"; do
+                        [ -f "$mdir/mysqlnd.ini" ] && ln -sf "$mdir/mysqlnd.ini" "$U_CONF_D/10-mysqlnd.ini" 2>/dev/null || true
+                        [ -f "$mdir/10-mysqlnd.ini" ] && ln -sf "$mdir/10-mysqlnd.ini" "$U_CONF_D/10-mysqlnd.ini" 2>/dev/null || true
+                        [ -f "$mdir/mysqli.ini" ] && ln -sf "$mdir/mysqli.ini" "$U_CONF_D/20-mysqli.ini" 2>/dev/null || true
+                        [ -f "$mdir/20-mysqli.ini" ] && ln -sf "$mdir/20-mysqli.ini" "$U_CONF_D/20-mysqli.ini" 2>/dev/null || true
+                        [ -f "$mdir/pdo_mysql.ini" ] && ln -sf "$mdir/pdo_mysql.ini" "$U_CONF_D/20-pdo_mysql.ini" 2>/dev/null || true
+                        [ -f "$mdir/20-pdo_mysql.ini" ] && ln -sf "$mdir/20-pdo_mysql.ini" "$U_CONF_D/20-pdo_mysql.ini" 2>/dev/null || true
                     done
 
                     if [ -f "$DOC_ROOT/.user.ini" ]; then

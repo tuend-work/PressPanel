@@ -172,16 +172,17 @@ if (!is_dir(__DIR__ . '/logs')) {
 \$cfg['Servers'][\$i]['host'] = '127.0.0.1';
 \$cfg['Servers'][\$i]['port'] = '3306';
 \$cfg['Servers'][\$i]['connect_type'] = 'tcp';
-\$cfg['Servers'][\$i]['compress'] = false;
-\$cfg['Servers'][\$i]['AllowNoPassword'] = false;
-\$cfg['Servers'][\$i]['AllowRoot'] = true;
+$cfg['Servers'][$i]['extension'] = 'mysqli';
+$cfg['Servers'][$i]['compress'] = false;
+$cfg['Servers'][$i]['AllowNoPassword'] = false;
+$cfg['Servers'][$i]['AllowRoot'] = true;
 
-\$cfg['UploadDir'] = '';
-\$cfg['SaveDir'] = '';
-\$cfg['TempDir'] = \$tmpDir;
-\$cfg['SendErrorReports'] = 'never';
-\$cfg['ShowPhpInfo'] = true;
-\$cfg['MaxRows'] = 50;
+$cfg['UploadDir'] = '';
+$cfg['SaveDir'] = '';
+$cfg['TempDir'] = $tmpDir;
+$cfg['SendErrorReports'] = 'never';
+$cfg['ShowPhpInfo'] = true;
+$cfg['MaxRows'] = 50;
 EOF
 
         # Nếu index.php vẫn chưa có, tạo trang chẩn đoán tạm thời để tránh 403 Directory Index Forbidden
@@ -212,12 +213,30 @@ EOF
         ln -snf "$TARGET_DIR" "$TARGET_DIR/phpmyadmin" 2>/dev/null || true
         ln -snf "$TARGET_DIR" "$TARGET_DIR/phpMyAdmin" 2>/dev/null || true
 
-        # Cài đặt bổ sung các PHP module cần thiết cho phpMyAdmin trên mọi phiên bản LSPHP & chuẩn PHP
+        # Cài đặt bổ sung đầy đủ module PHP (đặc biệt là mysqli & mbstring) cho tất cả các bản PHP-FPM và LSPHP
+        echo "[+] Đảm bảo các module PHP (mysqli, mbstring, xml, curl...) được cài đặt và kích hoạt..."
         if command -v apt-get &>/dev/null; then
-            for v in 84 83 82 81 80 74; do
-                apt-get install -y "lsphp$v-mysql" "lsphp$v-curl" "lsphp$v-opcache" "lsphp$v-mbstring" "lsphp$v-xml" "lsphp$v-zip" "lsphp$v-intl" "lsphp$v-gd" 2>/dev/null || true
+            export DEBIAN_FRONTEND=noninteractive
+            # Cài đặt cho PHP-FPM (tất cả các phiên bản PHP hỗ trợ)
+            for v in 8.5 8.4 8.3 8.2 8.1 8.0 7.4; do
+                apt-get install -y "php$v-mysql" "php$v-mbstring" "php$v-xml" "php$v-curl" "php$v-zip" "php$v-intl" "php$v-gd" "php$v-common" 2>/dev/null || true
+                command -v phpenmod &>/dev/null && phpenmod -v "$v" mysqlnd mysqli pdo_mysql mbstring xml curl zip intl gd 2>/dev/null || true
             done
             apt-get install -y php-mysql php-curl php-mbstring php-xml php-zip php-intl php-gd 2>/dev/null || true
+            command -v phpenmod &>/dev/null && phpenmod mysqlnd mysqli pdo_mysql mbstring xml curl zip intl gd 2>/dev/null || true
+
+            # Cài đặt cho OpenLiteSpeed (LSPHP)
+            for v in 85 84 83 82 81 80 74; do
+                apt-get install -y "lsphp$v-mysql" "lsphp$v-curl" "lsphp$v-opcache" "lsphp$v-mbstring" "lsphp$v-xml" "lsphp$v-zip" "lsphp$v-intl" "lsphp$v-gd" 2>/dev/null || true
+            done
+        elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
+            PKG_MGR="dnf"
+            command -v dnf &>/dev/null || PKG_MGR="yum"
+            $PKG_MGR install -y php-mysqlnd php-mysqli php-mbstring php-xml php-curl php-zip php-gd php-intl 2>/dev/null || true
+            for v in 85 84 83 82 81 80 74; do
+                $PKG_MGR install -y "php${v}-php-mysqlnd" "php${v}-php-mbstring" "php${v}-php-xml" "php${v}-php-gd" "php${v}-php-intl" 2>/dev/null || true
+                $PKG_MGR install -y "lsphp${v}-mysqlnd" "lsphp${v}-mbstring" "lsphp${v}-xml" "lsphp${v}-gd" "lsphp${v}-intl" 2>/dev/null || true
+            done
         fi
 
         # 6. Mở cổng tường lửa nếu đang bật (UFW hoặc Firewalld)
@@ -286,6 +305,27 @@ EOF
             if [ -f "$WPC_BASE/scripts/php_fpm_service.sh" ]; then
                 bash "$WPC_BASE/scripts/php_fpm_service.sh" create pma "$ACTIVE_PHP" 2>/dev/null || true
             fi
+
+            # Đảm bảo conf.d riêng của pma có đầy đủ 10-mysqlnd.ini và 20-mysqli.ini
+            PMA_CONF_D="/etc/php/${ACTIVE_PHP}/fpm/users/pma/conf.d"
+            mkdir -p "$PMA_CONF_D" 2>/dev/null || true
+            rm -f "$PMA_CONF_D/mysqli.ini" "$PMA_CONF_D/mysqlnd.ini" "$PMA_CONF_D/pdo_mysql.ini" 2>/dev/null || true
+            if [ -d "/etc/php/${ACTIVE_PHP}/fpm/conf.d" ]; then
+                for inifile in "/etc/php/${ACTIVE_PHP}/fpm/conf.d"/*.ini; do
+                    [ -f "$inifile" ] || continue
+                    ln -sf "$inifile" "$PMA_CONF_D/$(basename "$inifile")" 2>/dev/null || true
+                done
+            fi
+            for mdir in "/etc/php/${ACTIVE_PHP}/fpm/conf.d" "/etc/php/${ACTIVE_PHP}/mods-available" "/etc/php/${ACTIVE_PHP}/cli/conf.d"; do
+                [ -f "$mdir/mysqlnd.ini" ] && ln -sf "$mdir/mysqlnd.ini" "$PMA_CONF_D/10-mysqlnd.ini" 2>/dev/null || true
+                [ -f "$mdir/10-mysqlnd.ini" ] && ln -sf "$mdir/10-mysqlnd.ini" "$PMA_CONF_D/10-mysqlnd.ini" 2>/dev/null || true
+                [ -f "$mdir/mysqli.ini" ] && ln -sf "$mdir/mysqli.ini" "$PMA_CONF_D/20-mysqli.ini" 2>/dev/null || true
+                [ -f "$mdir/20-mysqli.ini" ] && ln -sf "$mdir/20-mysqli.ini" "$PMA_CONF_D/20-mysqli.ini" 2>/dev/null || true
+                [ -f "$mdir/pdo_mysql.ini" ] && ln -sf "$mdir/pdo_mysql.ini" "$PMA_CONF_D/20-pdo_mysql.ini" 2>/dev/null || true
+                [ -f "$mdir/20-pdo_mysql.ini" ] && ln -sf "$mdir/20-pdo_mysql.ini" "$PMA_CONF_D/20-pdo_mysql.ini" 2>/dev/null || true
+                [ -f "$mdir/mbstring.ini" ] && ln -sf "$mdir/mbstring.ini" "$PMA_CONF_D/20-mbstring.ini" 2>/dev/null || true
+            done
+            systemctl restart "wpc-php${ACTIVE_PHP}-fpm@pma" 2>/dev/null || true
 
             PMA_FPM_SOCK="/run/php/php${ACTIVE_PHP}-fpm-pma.sock"
             if [ ! -e "$PMA_FPM_SOCK" ]; then
