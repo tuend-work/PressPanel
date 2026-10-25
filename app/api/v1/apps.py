@@ -74,6 +74,19 @@ SUPPORTED_APPS = [
         ]
     },
     {
+        "id": "caddy",
+        "name": "Caddy Web Server",
+        "category": "webserver",
+        "icon": "🚀",
+        "desc": "Máy chủ Web hiện đại viết bằng Go, tự động cấu hình SSL Let's Encrypt, HTTP/3 và Zero-config.",
+        "service": "caddy",
+        "binary_checks": ["/usr/bin/caddy", "/usr/local/bin/caddy", "/bin/caddy"],
+        "default_version": "latest",
+        "versions": [
+            {"value": "latest", "label": "Caddy 2.x (Mới nhất, Auto SSL)"}
+        ]
+    },
+    {
         "id": "mysql",
         "name": "MySQL / MariaDB Database",
         "category": "database",
@@ -377,6 +390,7 @@ SUPPORTED_APPS = [
 APP_SERVICE_CANDIDATES: Dict[str, List[str]] = {
     "nginx": ["openresty", "nginx"],
     "apache": ["apache2", "httpd"],
+    "caddy": ["caddy"],
     "ols": ["lshttpd", "lsws"],
     "mysql": ["mariadb", "mysqld", "mysql"],
     "redis": ["valkey", "valkey-server", "redis-server", "redis"],
@@ -467,6 +481,13 @@ def resolve_app_config_path(app_id: str, file_type: str = "main") -> str:
             "/usr/local/openresty/nginx/conf/nginx.conf",
             "/etc/openresty/nginx.conf",
             "/etc/nginx/nginx.conf"
+        ],
+        "apache": [
+            "/etc/apache2/apache2.conf",
+            "/etc/httpd/conf/httpd.conf"
+        ],
+        "caddy": [
+            "/etc/caddy/Caddyfile"
         ],
         "ols": [
             "/usr/local/lsws/conf/httpd_config.conf",
@@ -938,6 +959,8 @@ async def get_service_logs(app_id: str, lines: int = 100, current_user: dict = D
     
     log_candidates = {
         "nginx": ["/var/log/nginx/error.log", "/usr/local/openresty/nginx/logs/error.log", "/var/log/nginx/access.log"],
+        "apache": ["/var/log/apache2/error.log", "/var/log/httpd/error_log", "/var/log/apache2/access.log"],
+        "caddy": ["/var/log/caddy/caddy.log", "/var/log/caddy/access.log"],
         "ols": ["/usr/local/lsws/logs/error.log", "/usr/local/lsws/logs/stderr.log"],
         "mysql": ["/var/log/mariadb/mariadb.log", "/var/log/mysql/error.log", "/var/log/mysqld.log"],
         "redis": ["/var/log/redis/redis-server.log", "/var/log/valkey/valkey.log", "/var/log/redis.log"],

@@ -149,6 +149,64 @@ async def sync_all_databases(current_user: dict = Depends(get_current_user)):
 
     return {"status": "ok", "message": f"Đã đồng bộ thành công {synced_count} cơ sở dữ liệu!"}
 
+def get_mysql_root_password() -> Optional[str]:
+    """Tìm mật khẩu root MariaDB/MySQL từ /root/.my.cnf hoặc /opt/wpc/conf/wpc.conf"""
+    try:
+        if os.path.exists("/root/.my.cnf"):
+            with open("/root/.my.cnf", "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip().startswith("password"):
+                        return line.split("=", 1)[1].strip().strip('"\'')
+    except Exception:
+        pass
+    try:
+        if os.path.exists("/opt/wpc/conf/wpc.conf"):
+            with open("/opt/wpc/conf/wpc.conf", "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip().startswith("mysql_root_password"):
+                        return line.split("=", 1)[1].strip().strip('"\'')
+    except Exception:
+        pass
+    return None
+
+def execute_mysql_sql(sql_commands: str) -> tuple[bool, str]:
+    """
+    Thực thi chuỗi lệnh SQL trên MySQL/MariaDB với các phương thức kết nối dự phòng:
+    1. Qua sudo mysql (auth_socket trên Ubuntu/Debian)
+    2. Qua mysql trực tiếp (khi có /root/.my.cnf)
+    3. Qua mysql -u root -p<password> nếu có file cấu hình
+    """
+    if os.name == "nt":
+        return True, "Dev Mock Success"
+
+    root_pass = get_mysql_root_password()
+    cmd_candidates = [
+        ["sudo", "mysql", "--batch"],
+        ["mysql", "--batch"]
+    ]
+    if root_pass:
+        cmd_candidates.append(["mysql", "-u", "root", f"-p{root_pass}", "--batch"])
+        cmd_candidates.append(["sudo", "mysql", "-u", "root", f"-p{root_pass}", "--batch"])
+
+    last_err = ""
+    for cmd in cmd_candidates:
+        try:
+            proc = subprocess.run(
+                cmd,
+                input=sql_commands,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=15
+            )
+            if proc.returncode == 0:
+                return True, ""
+            last_err = proc.stderr.strip()
+        except Exception as e:
+            last_err = str(e)
+
+    return False, last_err
+
 @router.post("/create")
 async def create_database(req: DatabaseCreateRequest, current_user: dict = Depends(get_current_user)):
     """Tạo database mới (MySQL / MariaDB / Mongo / Redis / PgSQL)"""
@@ -160,12 +218,34 @@ async def create_database(req: DatabaseCreateRequest, current_user: dict = Depen
     if not clean_name or not clean_user:
         raise HTTPException(status_code=400, detail="Tên CSDL và Tên User không được để trống")
 
-    # 2. Thực thi qua C Gatekeeper nếu là MySQL
+    if not re.match(r'^[a-zA-Z0-9_]+$', clean_name) or not re.match(r'^[a-zA-Z0-9_]+$', clean_user):
+        raise HTTPException(status_code=400, detail="Tên Database và User chỉ được chứa chữ cái, số và dấu gạch dưới")
+
+    # 2. Thực thi tạo database trên MySQL
     if req.db_type == "mysql":
+        clean_pass = req.password.replace("\\", "\\\\").replace("'", "''")
+        charset = req.charset if req.charset in ["utf8mb4_unicode_ci", "utf8mb4_general_ci", "utf8mb4", "utf8_general_ci"] else "utf8mb4_unicode_ci"
+        
+        sql_commands = f"""
+CREATE DATABASE IF NOT EXISTS `{clean_name}` CHARACTER SET utf8mb4 COLLATE {charset};
+CREATE USER IF NOT EXISTS '{clean_user}'@'localhost' IDENTIFIED BY '{clean_pass}';
+ALTER USER '{clean_user}'@'localhost' IDENTIFIED BY '{clean_pass}';
+CREATE USER IF NOT EXISTS '{clean_user}'@'127.0.0.1' IDENTIFIED BY '{clean_pass}';
+ALTER USER '{clean_user}'@'127.0.0.1' IDENTIFIED BY '{clean_pass}';
+GRANT ALL PRIVILEGES ON `{clean_name}`.* TO '{clean_user}'@'localhost';
+GRANT ALL PRIVILEGES ON `{clean_name}`.* TO '{clean_user}'@'127.0.0.1';
+FLUSH PRIVILEGES;
+"""
+        # Thử qua C gatekeeper trước
         res = await run_gatekeeper("db", "create", clean_name, clean_user, stdin_data=req.password)
-        if res.get("status") == "error":
-            # Nếu gatekeeper báo lỗi nhưng trong môi trường giả lập dev
-            pass
+        if res.get("status") != "ok":
+            # Fallback thực thi SQL trực tiếp với quyền root
+            success, err_msg = execute_mysql_sql(sql_commands)
+            if not success and os.name != "nt":
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Lỗi khởi tạo CSDL MariaDB/MySQL: {err_msg or res.get('message', 'Không thể kết nối MySQL server')}"
+                )
 
     # 3. Lưu vào CSDL SQLite Panel
     try:
@@ -176,7 +256,6 @@ async def create_database(req: DatabaseCreateRequest, current_user: dict = Depen
         await db.commit()
         db_id = cursor.lastrowid
     except Exception as e:
-        # Nếu đã tồn tại
         raise HTTPException(status_code=400, detail=f"Database '{clean_name}' đã tồn tại hoặc xảy ra lỗi: {str(e)}")
 
     return {
@@ -230,13 +309,13 @@ async def delete_database(db_id: int, current_user: dict = Depends(get_current_u
     # Xóa thực tế trên MySQL qua Gatekeeper và qua lệnh mysql trực tiếp
     if item["db_type"] == "mysql":
         await run_gatekeeper("db", "drop", db_name, db_user)
-        try:
-            subprocess.run(
-                ["mysql", "-e", f"DROP DATABASE IF EXISTS `{db_name}`; DROP USER IF EXISTS '{db_user}'@'localhost'; FLUSH PRIVILEGES;"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-        except Exception:
-            pass
+        drop_sql = f"""
+DROP DATABASE IF EXISTS `{db_name}`;
+DROP USER IF EXISTS '{db_user}'@'localhost';
+DROP USER IF EXISTS '{db_user}'@'127.0.0.1';
+FLUSH PRIVILEGES;
+"""
+        execute_mysql_sql(drop_sql)
 
     await db.execute("DELETE FROM databases WHERE id = ?", (db_id,))
     await db.commit()

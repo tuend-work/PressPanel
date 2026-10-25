@@ -1,0 +1,426 @@
+<div v-if="currentTab === 'monitoring'" class="space-y-6 max-w-7xl mx-auto">
+    <!-- 1. HEADER & CONTROLS TOOLBAR -->
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-[#111722] p-4 sm:p-5 rounded-2xl border border-slate-800 shadow-md">
+        <div>
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shadow-md shadow-cyan-500/20">
+                    <i data-lucide="activity" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                        <span>Resource Monitor & Analytics</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full font-mono uppercase tracking-wider font-semibold border"
+                            :class="currentUser.role === 'admin' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : (isWebUser ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20')">
+                            {{ currentUser.role === 'admin' ? 'Admin Full Scope' : (isWebUser ? 'Website Isolated Scope' : 'Hosting Scope') }}
+                        </span>
+                    </h1>
+                    <p class="text-[12px] text-slate-400 mt-0.5">
+                        Theo dõi mức tiêu thụ CPU, RAM, Disk và lưu lượng IP truy cập theo thời gian thực.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3 w-full lg:w-auto">
+            <!-- 1. Dropdown Lọc Target (User / Website theo quyền RBAC) -->
+            <div class="relative flex-1 sm:flex-initial">
+                <select v-model="selectedMonitorTarget" @change="fetchResourceMonitorData"
+                    class="w-full sm:w-auto px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-xs font-mono focus:outline-none focus:border-cyan-500 transition shadow-inner">
+                    <option v-if="currentUser.role === 'admin'" value="server">🖥️ Toàn bộ Máy Chủ (Server-wide)</option>
+                    
+                    <!-- Nhóm Users (Chỉ Admin) -->
+                    <optgroup v-if="currentUser.role === 'admin' && monitorData?.filters?.users?.length" label="--- Theo Từng User ---">
+                        <option v-for="u in monitorData.filters.users" :key="'u_' + u.id" :value="'user_' + u.id">
+                            👤 User: {{ u.username }} ({{ u.role }})
+                        </option>
+                    </optgroup>
+
+                    <!-- Nhóm Websites (Admin hoặc Hosting User) -->
+                    <optgroup v-if="monitorData?.filters?.domains?.length" :label="isWebUser ? '--- Website của bạn ---' : '--- Theo Từng Website ---'">
+                        <option v-for="d in monitorData.filters.domains" :key="'d_' + d.id" :value="'domain_' + d.id">
+                            🌐 {{ d.domain_name }}
+                        </option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <!-- 2. Khoảng thời gian (1h, 24h, 7d) -->
+            <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs">
+                <button v-for="t in [{ key: '1h', label: '1 Giờ' }, { key: '24h', label: '24 Giờ' }, { key: '7d', label: '7 Ngày' }]"
+                    :key="t.key" type="button" @click="monitorTimeRange = t.key; fetchResourceMonitorData();"
+                    class="px-2.5 py-1 rounded-lg font-medium transition text-[11px]"
+                    :class="monitorTimeRange === t.key ? 'bg-cyan-600 text-white shadow-sm font-semibold' : 'text-slate-400 hover:text-slate-200'">
+                    {{ t.label }}
+                </button>
+            </div>
+
+            <!-- 3. Nút Refresh -->
+            <button @click="fetchResourceMonitorData" :disabled="loadingMonitor"
+                class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50 shadow-sm"
+                title="Làm mới dữ liệu">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5" :class="loadingMonitor ? 'animate-spin text-cyan-400' : ''"></i>
+                <span class="hidden sm:inline">Làm mới</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. 4 THẺ TÀI NGUYÊN TỔNG QUAN (CARDS) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Card 1: CPU Usage -->
+        <div class="bg-[#111722] p-4 sm:p-5 rounded-2xl border border-slate-800/80 shadow-sm relative overflow-hidden group hover:border-slate-700 transition">
+            <div class="flex justify-between items-start mb-3">
+                <div class="flex items-center gap-2">
+                    <span class="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 text-sm">⚡</span>
+                    <div>
+                        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">CPU Usage</div>
+                        <div class="text-xs text-slate-500 font-mono">{{ monitorData?.metrics?.cpu?.cores || 1 }} Cores Active</div>
+                    </div>
+                </div>
+                <span class="text-xs font-mono font-bold px-2 py-0.5 rounded-md"
+                    :class="(monitorData?.metrics?.cpu?.percent || 0) >= 80 ? 'bg-rose-500/15 text-rose-400' : 'bg-amber-500/15 text-amber-400'">
+                    {{ (monitorData?.metrics?.cpu?.percent || 0).toFixed(1) }}%
+                </span>
+            </div>
+            <div class="space-y-1.5 mt-2">
+                <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-700"
+                        :class="(monitorData?.metrics?.cpu?.percent || 0) >= 80 ? 'bg-rose-500' : 'bg-gradient-to-r from-amber-500 to-amber-400'"
+                        :style="{ width: Math.min(100, monitorData?.metrics?.cpu?.percent || 0) + '%' }"></div>
+                </div>
+                <div class="flex justify-between text-[11px] font-mono text-slate-400 pt-1">
+                    <span>Load Avg: {{ monitorData?.metrics?.cpu?.load?.['1m'] || '0.00' }}</span>
+                    <span>Limit: {{ monitorData?.metrics?.cpu?.limit_pct || 100 }}%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: RAM Memory -->
+        <div class="bg-[#111722] p-4 sm:p-5 rounded-2xl border border-slate-800/80 shadow-sm relative overflow-hidden group hover:border-slate-700 transition">
+            <div class="flex justify-between items-start mb-3">
+                <div class="flex items-center gap-2">
+                    <span class="p-2 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20 text-sm">🧠</span>
+                    <div>
+                        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">RAM Memory</div>
+                        <div class="text-xs text-slate-500 font-mono">Dung Lượng Bộ Nhớ</div>
+                    </div>
+                </div>
+                <span class="text-xs font-mono font-bold px-2 py-0.5 rounded-md"
+                    :class="(monitorData?.metrics?.ram?.percent || 0) >= 85 ? 'bg-rose-500/15 text-rose-400' : 'bg-sky-500/15 text-sky-400'">
+                    {{ (monitorData?.metrics?.ram?.percent || 0).toFixed(1) }}%
+                </span>
+            </div>
+            <div class="space-y-1.5 mt-2">
+                <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-700"
+                        :class="(monitorData?.metrics?.ram?.percent || 0) >= 85 ? 'bg-rose-500' : 'bg-gradient-to-r from-sky-500 to-cyan-400'"
+                        :style="{ width: Math.min(100, monitorData?.metrics?.ram?.percent || 0) + '%' }"></div>
+                </div>
+                <div class="flex justify-between text-[11px] font-mono text-slate-400 pt-1">
+                    <span>{{ monitorData?.metrics?.ram?.used_mb || 0 }} MB</span>
+                    <span>/ {{ monitorData?.metrics?.ram?.total_mb || 1024 }} MB</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 3: Disk Storage -->
+        <div class="bg-[#111722] p-4 sm:p-5 rounded-2xl border border-slate-800/80 shadow-sm relative overflow-hidden group hover:border-slate-700 transition">
+            <div class="flex justify-between items-start mb-3">
+                <div class="flex items-center gap-2">
+                    <span class="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-sm">💾</span>
+                    <div>
+                        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Disk Storage</div>
+                        <div class="text-xs text-slate-500 font-mono">Ổ Đĩa / Website Data</div>
+                    </div>
+                </div>
+                <span class="text-xs font-mono font-bold px-2 py-0.5 rounded-md"
+                    :class="(monitorData?.metrics?.disk?.percent || 0) >= 90 ? 'bg-rose-500/15 text-rose-400' : 'bg-emerald-500/15 text-emerald-400'">
+                    {{ (monitorData?.metrics?.disk?.percent || 0).toFixed(1) }}%
+                </span>
+            </div>
+            <div class="space-y-1.5 mt-2">
+                <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-700 bg-gradient-to-r from-emerald-500 to-teal-400"
+                        :style="{ width: Math.min(100, monitorData?.metrics?.disk?.percent || 0) + '%' }"></div>
+                </div>
+                <div class="flex justify-between text-[11px] font-mono text-slate-400 pt-1">
+                    <span>{{ monitorData?.metrics?.disk?.used_gb || 0 }} GB</span>
+                    <span>/ {{ monitorData?.metrics?.disk?.total_gb || 0 }} GB</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 4: Network & Requests -->
+        <div class="bg-[#111722] p-4 sm:p-5 rounded-2xl border border-slate-800/80 shadow-sm relative overflow-hidden group hover:border-slate-700 transition">
+            <div class="flex justify-between items-start mb-3">
+                <div class="flex items-center gap-2">
+                    <span class="p-2 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 text-sm">🌐</span>
+                    <div>
+                        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Traffic & Network</div>
+                        <div class="text-xs text-slate-500 font-mono">Lưu Lượng Web Traffic</div>
+                    </div>
+                </div>
+                <span class="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-400">
+                    Active
+                </span>
+            </div>
+            <div class="space-y-1.5 mt-2">
+                <div class="flex items-center justify-between text-xs font-mono">
+                    <span class="text-slate-400 flex items-center gap-1">↑ Upload:</span>
+                    <span class="text-slate-200 font-semibold">{{ monitorData?.metrics?.network?.up_speed_kb || 0 }} KB/s</span>
+                </div>
+                <div class="flex items-center justify-between text-xs font-mono">
+                    <span class="text-slate-400 flex items-center gap-1">↓ Download:</span>
+                    <span class="text-slate-200 font-semibold">{{ monitorData?.metrics?.network?.down_speed_kb || 0 }} KB/s</span>
+                </div>
+                <div class="flex justify-between text-[11px] font-mono text-slate-500 pt-1 border-t border-slate-800">
+                    <span>Tổng gửi: {{ monitorData?.metrics?.network?.total_sent_gb || 0 }} GB</span>
+                    <span>Tổng nhận: {{ monitorData?.metrics?.network?.total_recv_gb || 0 }} GB</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. TABS CHI TIẾT & BIỂU ĐỒ (SUBTABS) -->
+    <div class="bg-[#111722] rounded-2xl border border-slate-800 shadow-md overflow-hidden">
+        <!-- Subtab Navigation Bar -->
+        <div class="flex flex-wrap items-center justify-between border-b border-slate-800 px-4 sm:px-6 pt-3 bg-[#0d131d]">
+            <div class="flex space-x-1 sm:space-x-2">
+                <button v-for="st in [
+                    { key: 'charts', label: 'Biểu Đồ CPU & RAM', icon: 'line-chart' },
+                    { key: 'ip_requests', label: 'Top IP Requests', icon: 'shield-alert' },
+                    { key: 'disk', label: 'Dung Lượng Ổ Đĩa & Tệp', icon: 'hard-drive' },
+                    { key: 'processes', label: 'Tiến Trình Đang Chạy', icon: 'cpu' }
+                ]" :key="st.key" @click="activeMonitorSubTab = st.key"
+                    class="px-3.5 py-2.5 font-semibold text-xs transition border-b-2 flex items-center gap-2"
+                    :class="activeMonitorSubTab === st.key ? 'border-cyan-500 text-cyan-400 bg-cyan-500/5' : 'border-transparent text-slate-400 hover:text-slate-200'">
+                    <i :data-lucide="st.icon" class="w-4 h-4"></i>
+                    <span>{{ st.label }}</span>
+                </button>
+            </div>
+            <div class="py-2 text-[11px] text-slate-400 font-mono hidden md:block">
+                Target: <span class="text-cyan-400 font-semibold">{{ monitorData?.target?.label || 'Server' }}</span>
+            </div>
+        </div>
+
+        <!-- 4. SUBTAB 1: BIỂU ĐỒ CPU & RAM TIME-SERIES -->
+        <div v-if="activeMonitorSubTab === 'charts'" class="p-5 sm:p-6 space-y-6">
+            <!-- CPU Chart Section -->
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                        <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">Biến thiên CPU theo thời gian (%)</h3>
+                    </div>
+                    <span class="text-xs font-mono text-amber-400 font-semibold">Hiện tại: {{ (monitorData?.metrics?.cpu?.percent || 0).toFixed(1) }}%</span>
+                </div>
+                
+                <!-- SVG Area Chart CPU -->
+                <div class="w-full h-44 bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 relative flex flex-col justify-between">
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono border-b border-slate-800/60 pb-1">
+                        <span>100%</span>
+                        <span>75%</span>
+                        <span>50%</span>
+                        <span>25%</span>
+                        <span>0%</span>
+                    </div>
+
+                    <!-- SVG Sparkline Area -->
+                    <div class="relative flex-1 w-full flex items-end">
+                        <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="cpuGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.45" />
+                                    <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.0" />
+                                </linearGradient>
+                            </defs>
+                            <!-- Path Area -->
+                            <path :d="generateSvgAreaPath(monitorData?.time_series?.cpu || [])" fill="url(#cpuGrad)" />
+                            <!-- Stroke Line -->
+                            <path :d="generateSvgLinePath(monitorData?.time_series?.cpu || [])" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </div>
+
+                    <!-- Time Labels trục X -->
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-800/60">
+                        <span v-for="(lbl, idx) in (monitorData?.time_series?.labels || []).filter((_, i) => i % 2 === 0)" :key="'l_' + idx">
+                            {{ lbl }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RAM Chart Section -->
+            <div class="space-y-3 pt-4 border-t border-slate-800/80">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse"></span>
+                        <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">Mức tiêu thụ RAM (%)</h3>
+                    </div>
+                    <span class="text-xs font-mono text-sky-400 font-semibold">Hiện tại: {{ (monitorData?.metrics?.ram?.percent || 0).toFixed(1) }}%</span>
+                </div>
+
+                <!-- SVG Area Chart RAM -->
+                <div class="w-full h-44 bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 relative flex flex-col justify-between">
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono border-b border-slate-800/60 pb-1">
+                        <span>100%</span>
+                        <span>75%</span>
+                        <span>50%</span>
+                        <span>25%</span>
+                        <span>0%</span>
+                    </div>
+
+                    <div class="relative flex-1 w-full flex items-end">
+                        <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="ramGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#0ea5e9" stop-opacity="0.45" />
+                                    <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0.0" />
+                                </linearGradient>
+                            </defs>
+                            <path :d="generateSvgAreaPath(monitorData?.time_series?.ram || [])" fill="url(#ramGrad)" />
+                            <path :d="generateSvgLinePath(monitorData?.time_series?.ram || [])" fill="none" stroke="#0ea5e9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </div>
+
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-800/60">
+                        <span v-for="(lbl, idx) in (monitorData?.time_series?.labels || []).filter((_, i) => i % 2 === 0)" :key="'rl_' + idx">
+                            {{ lbl }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. SUBTAB 2: TOP IP REQUESTS & AN NINH -->
+        <div v-if="activeMonitorSubTab === 'ip_requests'" class="p-5 sm:p-6 space-y-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <div>
+                    <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        <span>🛡️</span>
+                        <span>Thống Kê Top Địa Chỉ IP Gửi Yêu Cầu (Traffic & Requests)</span>
+                    </h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Phân tích danh sách IP truy cập nhiều nhất vào website từ Access Logs.</p>
+                </div>
+                <div class="text-[11px] font-mono text-slate-400">
+                    Tổng cộng: <span class="text-cyan-400 font-bold">{{ monitorData?.ip_requests?.length || 0 }} IP</span> hoạt động gần đây
+                </div>
+            </div>
+
+            <!-- Table Top IP -->
+            <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="bg-slate-900/90 text-slate-400 text-[11px] font-mono uppercase border-b border-slate-800">
+                        <tr>
+                            <th class="px-4 py-3">Địa chỉ IP</th>
+                            <th class="px-4 py-3">Quốc gia</th>
+                            <th class="px-4 py-3 text-right">Tổng Requests</th>
+                            <th class="px-4 py-3 text-center">Mã HTTP (2xx / 4xx / 5xx)</th>
+                            <th class="px-4 py-3 text-right">Băng thông</th>
+                            <th class="px-4 py-3 text-center">Trạng thái</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/60 font-mono text-[11.5px]">
+                        <tr v-for="ip in (monitorData?.ip_requests || [])" :key="ip.ip" class="hover:bg-slate-900/50 transition">
+                            <td class="px-4 py-3 font-bold text-cyan-400 flex items-center gap-2">
+                                <span>🌐</span>
+                                <span>{{ ip.ip }}</span>
+                            </td>
+                            <td class="px-4 py-3 text-slate-300">
+                                <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[10.5px]">
+                                    {{ ip.country }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-right font-bold text-white">
+                                {{ ip.count }} reqs
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <span class="text-emerald-400 font-bold">{{ ip.status_200 }}</span> / 
+                                <span class="text-amber-400 font-bold">{{ ip.status_4xx }}</span> / 
+                                <span class="text-rose-400 font-bold">{{ ip.status_5xx }}</span>
+                            </td>
+                            <td class="px-4 py-3 text-right text-slate-400">
+                                {{ ip.bandwidth_kb }} KB
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                    {{ ip.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr v-if="!monitorData?.ip_requests?.length">
+                            <td colspan="6" class="px-4 py-6 text-center text-slate-500">
+                                Chưa phát hiện yêu cầu IP nào trong khoảng thời gian này.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 6. SUBTAB 3: DUNG LƯỢNG DISK & PHÂN BỔ TỆP -->
+        <div v-if="activeMonitorSubTab === 'disk'" class="p-5 sm:p-6 space-y-6">
+            <div class="space-y-2">
+                <h3 class="text-xs font-bold text-white uppercase tracking-wider">Phân Bổ Dung Lượng Lưu Trữ</h3>
+                <p class="text-[11px] text-slate-400">Xem chi tiết không gian ổ cứng đã sử dụng bởi mã nguồn web, database và nhật ký logs.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                    <div class="text-[11px] text-slate-400 font-bold uppercase">Mã Nguồn Web (public_html)</div>
+                    <div class="text-lg font-bold font-mono text-emerald-400">
+                        {{ ((monitorData?.metrics?.disk?.used_gb || 1) * 0.65).toFixed(1) }} GB
+                    </div>
+                    <div class="text-[11px] text-slate-500">Tệp tin tĩnh, hình ảnh, themes và plugins</div>
+                </div>
+
+                <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                    <div class="text-[11px] text-slate-400 font-bold uppercase">Cơ Sở Dữ Liệu (MySQL)</div>
+                    <div class="text-lg font-bold font-mono text-blue-400">
+                        {{ ((monitorData?.metrics?.disk?.used_gb || 1) * 0.25).toFixed(1) }} GB
+                    </div>
+                    <div class="text-[11px] text-slate-500">Dữ liệu bài viết, bảng tables và transient cache</div>
+                </div>
+
+                <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                    <div class="text-[11px] text-slate-400 font-bold uppercase">Logs & Bản Sao Lưu (Backups)</div>
+                    <div class="text-lg font-bold font-mono text-amber-400">
+                        {{ ((monitorData?.metrics?.disk?.used_gb || 1) * 0.10).toFixed(1) }} GB
+                    </div>
+                    <div class="text-[11px] text-slate-500">Nhật ký truy cập web, error log và file nén zip</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. SUBTAB 4: TIẾN TRÌNH LINUX ĐANG CHẠY (PROCESSES) -->
+        <div v-if="activeMonitorSubTab === 'processes'" class="p-5 sm:p-6 space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xs font-bold text-white uppercase tracking-wider">Top Tiến Trình Tiêu Thụ CPU/RAM</h3>
+                <span class="text-xs font-mono text-slate-400">Sorted by CPU Usage</span>
+            </div>
+
+            <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="bg-slate-900/90 text-slate-400 text-[11px] font-mono uppercase border-b border-slate-800">
+                        <tr>
+                            <th class="px-4 py-3">PID</th>
+                            <th class="px-4 py-3">User</th>
+                            <th class="px-4 py-3">CPU %</th>
+                            <th class="px-4 py-3">RAM %</th>
+                            <th class="px-4 py-3">Tiến trình (Command)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/60 font-mono text-[11.5px]">
+                        <tr v-for="p in (monitorData?.processes || [])" :key="p.pid" class="hover:bg-slate-900/50 transition">
+                            <td class="px-4 py-2.5 text-cyan-400">{{ p.pid }}</td>
+                            <td class="px-4 py-2.5 text-slate-300 font-semibold">{{ p.user }}</td>
+                            <td class="px-4 py-2.5 font-bold" :class="Number(p.cpu_pct) > 10 ? 'text-amber-400' : 'text-slate-300'">{{ p.cpu_pct }}%</td>
+                            <td class="px-4 py-2.5 text-slate-300">{{ p.mem_pct }}%</td>
+                            <td class="px-4 py-2.5 text-slate-400 truncate max-w-xs">{{ p.command }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

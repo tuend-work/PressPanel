@@ -284,13 +284,13 @@ function showAlert(message) {
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 6. Statistics (Ẩn khi ở chế độ Hosting User) -->
-                            <button v-if="!isHostingUser" @click="currentTab = 'monitoring'" :class="navClass('monitoring')">
+                            <!-- 6. Resource Monitor (Hiển thị cho tất cả Quản Trị Viên, Hosting User & Website User) -->
+                            <button @click="currentTab = 'monitoring'; fetchResourceMonitorData();" :class="navClass('monitoring')">
                                 <div class="flex items-center space-x-3">
-                                    <i data-lucide="bar-chart-2" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Statistics</span>
+                                    <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i>
+                                    <span>Resource Monitor</span>
                                 </div>
-                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
                             </button>
 
                             <!-- 7. WordPress Toolkit (Hiển thị cho tất cả Quản Trị Viên & Khách Hàng) -->
@@ -426,18 +426,37 @@ function showAlert(message) {
                 <!-- Topbar Header WPCloud Style (Hỗ trợ Dark & Light Mode) -->
                 <header class="h-16 px-4 sm:px-6 flex items-center justify-between shrink-0 shadow-sm z-10 transition-colors duration-200"
                     :class="isDarkMode ? 'bg-[#111722] border-b border-[#1e2736]' : 'bg-white border-b border-slate-200/80'">
-                    <!-- Left: Hamburger toggle & Rounded Search Input -->
-                    <div class="flex items-center space-x-3 shrink-0">
+                    <!-- Left: Hamburger toggle & Server Info Badges (Hostname, IP, OS) -->
+                    <div class="flex items-center space-x-2 shrink-0">
                         <button class="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition md:hidden">
                             <i data-lucide="menu" class="w-5 h-5"></i>
                         </button>
-                        <div v-if="!isWebUser" class="relative w-36 md:w-44 lg:w-56 hidden sm:block">
-                            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                                <i data-lucide="search" class="w-4 h-4"></i>
-                            </span>
-                            <input type="text" placeholder="Tìm kiếm nhanh..."
-                                class="w-full pl-9 pr-4 py-1.5 rounded-full text-xs transition shadow-sm focus:outline-none"
-                                :class="isDarkMode ? 'bg-[#0b1017] border border-[#222d3d] text-slate-200 placeholder-slate-500 focus:border-blue-500 focus:bg-[#111722]' : 'bg-slate-50 border border-slate-200/80 text-slate-700 placeholder-slate-400 focus:border-blue-500 focus:bg-white'">
+                        
+                        <!-- System Identity Info Badges -->
+                        <div class="hidden sm:flex items-center gap-1.5 text-xs font-mono select-none">
+                            <!-- Hostname -->
+                            <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border transition shadow-sm"
+                                :class="isDarkMode ? 'bg-slate-900/90 border-slate-800 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'"
+                                :title="'Hostname máy chủ: ' + (sysStats?.hostname || 'wpc-server')">
+                                <span class="text-xs">🖥️</span>
+                                <span class="font-semibold truncate max-w-[110px] lg:max-w-[160px]">{{ sysStats?.hostname || currentHostName || 'localhost' }}</span>
+                            </div>
+
+                            <!-- IP Address -->
+                            <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border transition shadow-sm"
+                                :class="isDarkMode ? 'bg-slate-900/90 border-slate-800 text-cyan-400' : 'bg-cyan-50 border-cyan-200 text-cyan-800'"
+                                :title="'Địa chỉ IP máy chủ: ' + (sysStats?.server_ip || currentHostName)">
+                                <span class="text-xs">🌐</span>
+                                <span class="font-bold">{{ sysStats?.server_ip || currentHostName || '127.0.0.1' }}</span>
+                            </div>
+
+                            <!-- OS Badge -->
+                            <div class="hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border transition shadow-sm"
+                                :class="isDarkMode ? 'bg-slate-900/90 border-slate-800 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-800'"
+                                :title="'Hệ điều hành: ' + (sysStats?.os_name || 'Linux')">
+                                <span class="text-xs">🐧</span>
+                                <span class="font-medium truncate max-w-[120px] lg:max-w-[180px]">{{ sysStats?.os_name || 'Linux' }}</span>
+                            </div>
                         </div>
                     </div>
 
@@ -617,7 +636,7 @@ function showAlert(message) {
             const viewFiles = [
                 'dashboard.html', 'domains.html', 'wp.html', 'apps.html',
                 'customers.html', 'service_plans.html', 'databases.html',
-                'files.html', 'others.html', 'profile.html', 'crons.html'
+                'files.html', 'others.html', 'profile.html', 'crons.html', 'monitoring.html'
             ];
             try {
                 const cacheBuster = Date.now();
@@ -1895,6 +1914,61 @@ function showAlert(message) {
                     up:   [150, 40, 15, 10, 8, 5, 4, 6, 25, 22, 12]
                 });
                 const timeLabels = ref(['21:09:35', '21:09:41', '21:09:49', '21:09:56', '21:10:02']);
+
+                // --- RESOURCE MONITOR & ANALYTICS STATE ---
+                const activeMonitorSubTab = ref('charts');
+                const monitorTimeRange = ref('1h');
+                const selectedMonitorTarget = ref('server');
+                const loadingMonitor = ref(false);
+                const monitorData = ref(null);
+
+                const fetchResourceMonitorData = async () => {
+                    loadingMonitor.value = true;
+                    try {
+                        let queryParams = `time_range=${monitorTimeRange.value}`;
+                        if (selectedMonitorTarget.value.startsWith('user_')) {
+                            queryParams += `&target_user_id=${selectedMonitorTarget.value.replace('user_', '')}`;
+                        } else if (selectedMonitorTarget.value.startsWith('domain_')) {
+                            queryParams += `&target_domain_id=${selectedMonitorTarget.value.replace('domain_', '')}`;
+                        }
+                        const res = await fetch(`/api/v1/system/resource-monitor?${queryParams}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            monitorData.value = data;
+                            if (isWebUser.value && data.filters?.domains?.length > 0) {
+                                selectedMonitorTarget.value = 'domain_' + data.filters.domains[0].id;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Lỗi nạp dữ liệu Resource Monitor:', e);
+                    } finally {
+                        loadingMonitor.value = false;
+                        nextTick(() => {
+                            if (window.lucide) window.lucide.createIcons();
+                        });
+                    }
+                };
+
+                const generateSvgLinePath = (dataPoints) => {
+                    if (!dataPoints || dataPoints.length === 0) return 'M 0 100';
+                    const maxVal = 100;
+                    const w = 500;
+                    const h = 100;
+                    const step = w / Math.max(1, (dataPoints.length - 1));
+                    return dataPoints.map((val, idx) => {
+                        const x = (idx * step).toFixed(1);
+                        const y = (h - (Math.min(maxVal, Math.max(0, val)) / maxVal) * (h - 14) - 7).toFixed(1);
+                        return (idx === 0 ? 'M' : 'L') + ` ${x} ${y}`;
+                    }).join(' ');
+                };
+
+                const generateSvgAreaPath = (dataPoints) => {
+                    if (!dataPoints || dataPoints.length === 0) return 'M 0 100 L 500 100 Z';
+                    const line = generateSvgLinePath(dataPoints);
+                    return `${line} L 500 100 L 0 100 Z`;
+                };
 
                 const currentFormattedDate = computed(() => {
                     const now = new Date();
@@ -7136,7 +7210,10 @@ function showAlert(message) {
                     loadingWebsiteLogs, clearingWebsiteLogs, openWebsiteLogsModal,
                     fetchWebsiteLogs, clearWebsiteLogs,
                     showWebsiteSecurityModal, selectedSecurityDomain, savingWebsiteSecurity,
-                    websiteSecuritySettings, openWebsiteSecurityModal, saveWebsiteSecurity
+                    websiteSecuritySettings, openWebsiteSecurityModal, saveWebsiteSecurity,
+                    // Resource Monitor
+                    activeMonitorSubTab, monitorTimeRange, selectedMonitorTarget, loadingMonitor, monitorData,
+                    fetchResourceMonitorData, generateSvgLinePath, generateSvgAreaPath
                 };
             }
         }).mount('#app');
