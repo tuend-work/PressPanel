@@ -136,10 +136,6 @@ case "$ACTION" in
                 -e "s|{{RLIMIT_CORE}}|0|g" \
                 -e "s|{{PHP_OPEN_BASEDIR}}|/home/${USERNAME}/:/tmp/:/var/tmp/|g" \
                 -e "s|{{PHP_DISABLE_FUNCTIONS}}|exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source|g" \
-                -e "s|{{PHP_MEMORY_LIMIT}}|512M|g" \
-                -e "s|{{PHP_MAX_EXECUTION_TIME}}|300|g" \
-                -e "s|{{PHP_UPLOAD_MAX_FILESIZE}}|128M|g" \
-                -e "s|{{PHP_POST_MAX_SIZE}}|128M|g" \
                 -e "s|{{CUSTOM_DIRECTIVES}}||g" \
                 -e "s|{{EXT_CONFIG}}||g" \
                 "$TPL_FILE" > "$CONF_FILE"

@@ -1945,10 +1945,6 @@ php_admin_value[open_basedir] = {{PHP_OPEN_BASEDIR}}
 php_admin_value[upload_tmp_dir] = /home/{{USERNAME}}/.tmp
 php_admin_value[session.save_path] = /home/{{USERNAME}}/.sessions
 php_admin_value[disable_functions] = {{PHP_DISABLE_FUNCTIONS}}
-php_admin_value[memory_limit] = {{PHP_MEMORY_LIMIT}}
-php_admin_value[max_execution_time] = {{PHP_MAX_EXECUTION_TIME}}
-php_admin_value[upload_max_filesize] = {{PHP_UPLOAD_MAX_FILESIZE}}
-php_admin_value[post_max_size] = {{PHP_POST_MAX_SIZE}}
 php_admin_flag[log_errors] = on
 php_admin_value[error_log] = /home/{{USERNAME}}/logs/php-fpm.error.log
 {{CUSTOM_DIRECTIVES}}
