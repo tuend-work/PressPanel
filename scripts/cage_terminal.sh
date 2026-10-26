@@ -66,7 +66,20 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
         umount -l "$MNT_TMP_HOME" 2>/dev/null || true
         rmdir "$MNT_TMP_HOME" 2>/dev/null || true
 
-        # 4. Cách ly /tmp và /var/tmp: Ảo hóa tmpfs riêng biệt cho session (Ẩn toàn bộ file hệ thống/root/mysql trong /tmp)
+        # 4. Cách ly /tmp và /var/tmp: Ảo hóa tmpfs riêng biệt cho session
+        # Giữ lại socket MariaDB/MySQL để tối đa hóa hiệu năng kết nối UNIX Socket (bỏ qua TCP stack overhead)
+        MYSQL_SOCK=""
+        if [ -S "/var/run/mysqld/mysqld.sock" ]; then
+            MYSQL_SOCK="/var/run/mysqld/mysqld.sock"
+        elif [ -S "/run/mysqld/mysqld.sock" ]; then
+            MYSQL_SOCK="/run/mysqld/mysqld.sock"
+        elif [ -S "/tmp/mysql.sock" ]; then
+            MNT_TMP_SOCK="/run/cage_sock_$$"
+            mkdir -p "$MNT_TMP_SOCK"
+            mount --bind /tmp/mysql.sock "$MNT_TMP_SOCK" 2>/dev/null || true
+            MYSQL_SOCK="$MNT_TMP_SOCK"
+        fi
+
         # Giữ lại socket PHP/LSWS riêng của user này nếu có
         USER_LSWS_SOCKS=()
         if [ -d "/tmp/lshttpd" ]; then
@@ -87,9 +100,14 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
             done
         fi
 
-        # Ảo hóa /tmp & /var/tmp bằng tmpfs riêng biệt sạch 100% (Không chia sẻ mysql.sock hệ thống)
+        # Ảo hóa /tmp & /var/tmp bằng tmpfs riêng biệt
         mount -t tmpfs -o mode=1777,strictatime,nodev,nosuid,size=256M tmpfs /tmp 2>/dev/null || true
         mount -t tmpfs -o mode=1777,strictatime,nodev,nosuid,size=256M tmpfs /var/tmp 2>/dev/null || true
+
+        # Tái mount socket MySQL vào /tmp riêng để tối ưu hiệu năng kết nối UNIX Socket
+        if [ -n "$MYSQL_SOCK" ] && [ -e "$MYSQL_SOCK" ]; then
+            ln -sf "$MYSQL_SOCK" /tmp/mysql.sock 2>/dev/null || true
+        fi
 
         # Tái mount socket LSWS riêng của user nếu có
         if [ "${#USER_LSWS_SOCKS[@]}" -gt 0 ] && [ -d "$MNT_TMP_LS" ]; then
