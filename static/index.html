@@ -4811,6 +4811,9 @@ function showAlert(message) {
                         if (res.ok) {
                             const data = await res.json();
                             filesList.value = data.items || [];
+                            if (data.target_user && !fileTargetUser.value) {
+                                fileTargetUser.value = data.target_user;
+                            }
                         } else {
                             filesList.value = [];
                         }
@@ -4860,7 +4863,8 @@ function showAlert(message) {
                             const data = await res.json();
                             editingFileContent.value = data.content || '';
                         } else {
-                            editingFileContent.value = '// Không thể đọc nội dung tệp này';
+                            const errData = await res.json().catch(() => null);
+                            editingFileContent.value = `// Không thể đọc nội dung tệp này${errData?.detail ? ': ' + errData.detail : ''}`;
                         }
                     } catch (e) {
                         editingFileContent.value = '// Lỗi: ' + e.message;
@@ -5025,6 +5029,11 @@ function showAlert(message) {
                         if (match) {
                             fileTargetUser.value = match[1];
                             fetchFilesList(match[2] || '');
+                            return;
+                        } else if (!path.includes('/')) {
+                            // Trường hợp truyền thẳng username (ví dụ: domains[0]?.owner_username)
+                            fileTargetUser.value = path;
+                            fetchFilesList('');
                             return;
                         }
                     }

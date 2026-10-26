@@ -4,6 +4,8 @@ import re
 import json
 import time
 import subprocess
+import glob
+import platform
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -37,6 +39,38 @@ def is_domain_owner(user_id: int, target_user: str) -> bool:
     except Exception:
         return False
 
+def check_is_file_privileged(path: str) -> bool:
+    """Kiểm tra sự tồn tại của file, hỗ trợ cả trường hợp thư mục cha bị giới hạn quyền truy cập"""
+    try:
+        if os.path.isfile(path):
+            return True
+    except Exception:
+        pass
+    if platform.system() == "Linux":
+        try:
+            res = subprocess.run(["sudo", "test", "-f", path], check=False)
+            if res.returncode == 0:
+                return True
+        except Exception:
+            pass
+    return False
+
+def check_is_dir_privileged(path: str) -> bool:
+    """Kiểm tra sự tồn tại của thư mục với đặc quyền khi cần"""
+    try:
+        if os.path.isdir(path):
+            return True
+    except Exception:
+        pass
+    if platform.system() == "Linux":
+        try:
+            res = subprocess.run(["sudo", "test", "-d", path], check=False)
+            if res.returncode == 0:
+                return True
+        except Exception:
+            pass
+    return False
+
 def resolve_target_path(user: dict, target_user: Optional[str], subpath: str) -> str:
     clean_u = "".join(c for c in target_user if c.isalnum() or c in ("_", "-")) if target_user else None
 
@@ -57,6 +91,23 @@ def resolve_target_path(user: dict, target_user: Optional[str], subpath: str) ->
     clean_sub = subpath.lstrip("/\\")
     real_base = os.path.realpath(base_dir)
     real_target = os.path.realpath(os.path.join(real_base, clean_sub))
+
+    # Tự động nhận diện nếu đường dẫn bắt đầu bằng domains/<domain>/... mà thiếu target_user (dành cho Admin hoặc khi target_user rỗng)
+    if not os.path.exists(real_target) and not check_is_file_privileged(real_target) and not check_is_dir_privileged(real_target):
+        if clean_sub.startswith("domains/"):
+            parts = clean_sub.split("/")
+            if len(parts) >= 2:
+                dom_name = parts[1]
+                try:
+                    matched = glob.glob(f"/home/*/domains/{dom_name}")
+                    if matched:
+                        found_user_home = os.path.dirname(os.path.dirname(matched[0]))
+                        candidate = os.path.join(found_user_home, clean_sub)
+                        if os.path.exists(candidate) or check_is_file_privileged(candidate) or check_is_dir_privileged(candidate):
+                            real_base = os.path.realpath(found_user_home)
+                            real_target = os.path.realpath(candidate)
+                except Exception:
+                    pass
 
     # Chống Path Traversal vượt khỏi base_dir
     try:
@@ -376,27 +427,36 @@ async def get_file_content(
     current_user: dict = Depends(get_current_user)
 ):
     file_path = resolve_target_path(current_user, target_user, path)
-    if not os.path.isfile(file_path):
+    if not check_is_file_privileged(file_path):
         raise HTTPException(status_code=404, detail="Không tìm thấy tệp tin.")
 
+    content = None
     try:
         with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-            return {"path": path, "content": f.read(), "absolute_path": file_path}
-    except PermissionError:
-        gatekeeper_app = "/opt/wpc/bin/app"
-        if os.path.isfile(gatekeeper_app):
-            proc = subprocess.run([gatekeeper_app, "config-read", file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if proc.returncode == 0:
-                return {"path": path, "content": proc.stdout, "absolute_path": file_path}
+            content = f.read()
+    except Exception:
+        pass
+
+    # Fallback đọc với đặc quyền qua sudo cat (hỗ trợ log file, permission 600/700, v.v.)
+    if content is None and platform.system() == "Linux":
         try:
-            proc = subprocess.run(["sudo", "cat", file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            proc = subprocess.run(
+                ["sudo", "cat", file_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                errors="replace",
+                check=False
+            )
             if proc.returncode == 0:
-                return {"path": path, "content": proc.stdout, "absolute_path": file_path}
+                content = proc.stdout
         except Exception:
             pass
+
+    if content is None:
         raise HTTPException(status_code=403, detail="Không có quyền đọc tệp tin này.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Không thể đọc file: {str(e)}")
+
+    return {"path": path, "content": content, "absolute_path": file_path}
 
 @router.put("/content")
 async def save_file_content(
@@ -409,24 +469,20 @@ async def save_file_content(
             f.write(req.content)
         sync_owner(file_path)
         return {"status": "ok", "message": "Đã lưu nội dung tệp tin thành công!"}
-    except PermissionError:
-        gatekeeper_app = "/opt/wpc/bin/app"
+    except Exception:
         tmp_save_path = f"/tmp/wpc_edit_{os.getpid()}_{os.path.basename(file_path)}.tmp"
         try:
             with open(tmp_save_path, "w", encoding="utf-8") as ftmp:
                 ftmp.write(req.content)
-            if os.path.isfile(gatekeeper_app):
-                proc = subprocess.run([gatekeeper_app, "config-write", tmp_save_path, file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                if proc.returncode == 0:
-                    sync_owner(file_path)
-                    return {"status": "ok", "message": "Đã lưu nội dung tệp tin thành công!"}
-            proc_sudo = subprocess.run(["sudo", "cp", tmp_save_path, file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            proc_sudo = subprocess.run(["sudo", "cp", tmp_save_path, file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
             if os.path.exists(tmp_save_path):
                 os.remove(tmp_save_path)
             if proc_sudo.returncode == 0:
                 sync_owner(file_path)
                 return {"status": "ok", "message": "Đã lưu nội dung tệp tin thành công!"}
             raise HTTPException(status_code=403, detail="Không có quyền ghi tệp tin này.")
+        except HTTPException:
+            raise
         except Exception as e:
             if os.path.exists(tmp_save_path):
                 os.remove(tmp_save_path)
@@ -842,10 +898,22 @@ async def download_file(
     target_user: Optional[str] = Query(None),
     current_user: dict = Depends(get_current_user)
 ):
+    from starlette.background import BackgroundTask
     file_path = resolve_target_path(current_user, target_user, path)
-    if not os.path.isfile(file_path):
+    if not check_is_file_privileged(file_path):
         raise HTTPException(status_code=404, detail="Không tìm thấy tệp tin.")
 
+    try:
+        with open(file_path, "rb"):
+            pass
+        return FileResponse(file_path, filename=os.path.basename(file_path))
+    except Exception:
+        if platform.system() == "Linux":
+            tmp_dl = f"/tmp/wpc_dl_{os.getpid()}_{os.path.basename(file_path)}"
+            proc = subprocess.run(["sudo", "cp", file_path, tmp_dl], check=False)
+            subprocess.run(["sudo", "chmod", "644", tmp_dl], check=False)
+            if proc.returncode == 0 and os.path.exists(tmp_dl):
+                return FileResponse(tmp_dl, filename=os.path.basename(file_path), background=BackgroundTask(lambda: os.remove(tmp_dl) if os.path.exists(tmp_dl) else None))
     return FileResponse(file_path, filename=os.path.basename(file_path))
 
 @router.post("/compress")
