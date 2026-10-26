@@ -697,6 +697,27 @@ async def get_resource_monitor(
     current_ram_mb = int(stats["ram"]["used_gb"] * 1024)
     current_disk_mb = int(stats["disk"]["used_gb"] * 1024)
 
+    # CPU MAX THEO SỐ CORE:
+    # Máy chủ 10 core -> max là 1000%
+    # Website / User được cấp ví dụ 4 core -> max là 400%
+    if target_scope == "server":
+        max_cpu_pct = max(100, cpu_cores * 100)
+        # Tỷ lệ CPU thực tế tính theo số core: ví dụ 15% của 10 core = 150.0%
+        base_cpu = round((float(current_cpu_pct) / 100.0) * max_cpu_pct, 1)
+    else:
+        # User hoặc Domain:
+        max_cpu_pct = max(100, cpu_limit_pct)
+        base_cpu = round(min(float(max_cpu_pct), max(1.0, (float(current_cpu_pct) / 100.0) * max_cpu_pct)), 1)
+
+    # RAM TÍNH THEO MB (không dùng %):
+    total_ram_mb = mem_limit_mb if target_scope != "server" else int(stats["ram"]["total_gb"] * 1024)
+    base_ram_mb = current_ram_mb if target_scope == "server" else min(mem_limit_mb, max(64, int((float(stats["ram"]["percent"]) / 100.0) * mem_limit_mb)))
+    base_disk = min(95.0, max(5.0, float(stats["disk"]["percent"])))
+    base_bw_in = max(1.0, float(stats["network"]["down_speed_kb"]))
+    base_bw_out = max(1.0, float(stats["network"]["up_speed_kb"]))
+    base_pps_in = max(2.0, float(stats["network"]["in_pps"]))
+    base_pps_out = max(2.0, float(stats["network"]["out_pps"]))
+
     # 4. Sinh dữ liệu chuỗi thời gian (Time-series) cho biểu đồ trực quan
     points_count = 12 if time_range == "1h" else (24 if time_range == "24h" else 14)
     import datetime
@@ -713,15 +734,6 @@ async def get_resource_monitor(
     pps_in_series = []
     pps_out_series = []
 
-    # Thuật toán sinh biến thiên thực tế quanh giá trị hiện tại
-    base_cpu = min(95.0, max(2.0, float(current_cpu_pct)))
-    base_ram = min(95.0, max(5.0, float(stats["ram"]["percent"])))
-    base_disk = min(95.0, max(5.0, float(stats["disk"]["percent"])))
-    base_bw_in = max(1.0, float(stats["network"]["down_speed_kb"]))
-    base_bw_out = max(1.0, float(stats["network"]["up_speed_kb"]))
-    base_pps_in = max(2.0, float(stats["network"]["in_pps"]))
-    base_pps_out = max(2.0, float(stats["network"]["out_pps"]))
-
     import random
     random.seed(int(now.timestamp() // 300) + (target_domain_id or target_user_id or 1))
 
@@ -730,20 +742,22 @@ async def get_resource_monitor(
         lbl = t_point.strftime("%H:%M") if time_range in ("1h", "24h") else t_point.strftime("%d/%m")
         time_labels.append(lbl)
 
-        # CPU variation
-        c_val = round(min(100.0, max(1.0, base_cpu + random.uniform(-4.0, 5.0))), 1)
+        # CPU variation theo số core (e.g. 1000% cho 10 core, 400% cho 4 core)
+        cpu_jitter = random.uniform(-4.0, 5.0) * (max_cpu_pct / 100.0)
+        c_val = round(min(float(max_cpu_pct), max(0.5, base_cpu + cpu_jitter)), 1)
         cpu_series.append(c_val)
 
-        # RAM variation
-        r_val = round(min(100.0, max(5.0, base_ram + random.uniform(-2.5, 3.0))), 1)
-        ram_series.append(r_val)
+        # RAM variation theo MB
+        ram_jitter = int(random.uniform(-40, 50))
+        r_mb = int(max(32, min(total_ram_mb, base_ram_mb + ram_jitter)))
+        ram_series.append(r_mb)
 
         # Disk variation
         d_val = round(min(100.0, max(5.0, base_disk + random.uniform(-0.2, 0.3))), 1)
         disk_series.append(d_val)
 
         # Request count
-        req_val = max(1, int(random.uniform(5, 45) * (1.5 if c_val > 50 else 1.0)))
+        req_val = max(1, int(random.uniform(5, 45) * (1.5 if c_val > (max_cpu_pct * 0.5) else 1.0)))
         req_series.append(req_val)
 
         # Network Bandwidth In/Out (KB/s)
@@ -760,7 +774,7 @@ async def get_resource_monitor(
 
     # Điểm cuối cùng là số đo thực tại
     cpu_series[-1] = round(base_cpu, 1)
-    ram_series[-1] = round(base_ram, 1)
+    ram_series[-1] = base_ram_mb
     disk_series[-1] = round(base_disk, 1)
     bw_in_series[-1] = round(base_bw_in, 1)
     bw_out_series[-1] = round(base_bw_out, 1)
@@ -803,9 +817,9 @@ async def get_resource_monitor(
         # Sinh dữ liệu riêng cho từng website tương ứng mức tiêu thụ
         rng = random.Random(int(now.timestamp() // 300) + d["id"] * 23)
         ws_share = rng.uniform(0.6, 1.8) if total_domains_count > 1 else 1.0
-        ws_current_cpu = round(min(90.0, max(0.5, (base_cpu / total_domains_count) * ws_share)), 1)
-        ws_current_ram_pct = round(min(90.0, max(0.8, (base_ram / total_domains_count) * ws_share)), 1)
-        ws_current_ram_mb = int((ws_current_ram_pct / 100.0) * (mem_limit_mb if target_scope != "server" else stats["ram"]["total_gb"] * 1024))
+        ws_current_cpu = round(min(float(max_cpu_pct), max(0.5, (base_cpu / total_domains_count) * ws_share)), 1)
+        ws_current_ram_mb = int(max(32, min(total_ram_mb, (base_ram_mb / total_domains_count) * ws_share)))
+        ws_current_ram_pct = round((ws_current_ram_mb / max(1, total_ram_mb)) * 100.0, 1)
         ws_disk_pct = round(min(100.0, max(1.0, (ws_disk_mb / max(1, disk_limit_mb)) * 100)), 1)
 
         ws_cpu_points = []
@@ -813,12 +827,12 @@ async def get_resource_monitor(
         ws_disk_points = []
 
         for p_idx in range(points_count - 1, -1, -1):
-            ws_cpu_points.append(round(min(100.0, max(0.2, ws_current_cpu + rng.uniform(-1.5, 2.0))), 1))
-            ws_ram_points.append(round(min(100.0, max(0.5, ws_current_ram_pct + rng.uniform(-1.0, 1.5))), 1))
+            ws_cpu_points.append(round(min(float(max_cpu_pct), max(0.2, ws_current_cpu + rng.uniform(-1.5, 2.0) * (max_cpu_pct / 100.0))), 1))
+            ws_ram_points.append(int(max(16, min(total_ram_mb, ws_current_ram_mb + rng.uniform(-15, 20)))))
             ws_disk_points.append(round(min(100.0, max(0.5, ws_disk_pct + rng.uniform(-0.1, 0.1))), 1))
 
         ws_cpu_points[-1] = ws_current_cpu
-        ws_ram_points[-1] = ws_current_ram_pct
+        ws_ram_points[-1] = ws_current_ram_mb
         ws_disk_points[-1] = ws_disk_pct
 
         website_series.append({
@@ -974,15 +988,19 @@ async def get_resource_monitor(
         },
         "metrics": {
             "cpu": {
-                "percent": current_cpu_pct,
+                "percent": round(base_cpu, 1),
+                "raw_percent": stats["cpu"]["percent"],
                 "cores": cpu_cores,
+                "max_pct": max_cpu_pct,
+                "allocated_cores": round(max_cpu_pct / 100.0, 1),
                 "limit_pct": cpu_limit_pct,
                 "load": stats["load"]
             },
             "ram": {
-                "percent": stats["ram"]["percent"],
-                "used_mb": current_ram_mb,
-                "total_mb": mem_limit_mb if target_scope != "server" else int(stats["ram"]["total_gb"] * 1024),
+                "percent": round((base_ram_mb / max(1, total_ram_mb)) * 100.0, 1),
+                "used_mb": base_ram_mb,
+                "total_mb": total_ram_mb,
+                "max_mb": total_ram_mb,
                 "server_used_gb": stats["ram"]["used_gb"],
                 "server_total_gb": stats["ram"]["total_gb"]
             },

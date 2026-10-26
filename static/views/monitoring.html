@@ -212,24 +212,24 @@
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
                         <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                            Biến thiên CPU theo thời gian (%)
+                            Biến thiên CPU theo số Core (%)
                             <span v-if="monitorData?.website_series?.length > 1" class="text-[11px] text-amber-400 font-normal lowercase ml-1">
                                 (Mỗi website 1 đường line)
                             </span>
                         </h3>
                     </div>
-                    <span class="text-xs font-mono text-amber-400 font-semibold">Tổng hiện tại: {{ (monitorData?.metrics?.cpu?.percent || 0).toFixed(1) }}%</span>
+                    <span class="text-xs font-mono text-amber-400 font-semibold">Tổng hiện tại: {{ (monitorData?.metrics?.cpu?.percent || 0).toFixed(1) }}% / {{ getCpuMaxVal }}% ({{ monitorData?.metrics?.cpu?.allocated_cores || (getCpuMaxVal / 100) }} Cores)</span>
                 </div>
                 
                 <!-- SVG Area / Multi-line Chart CPU -->
                 <div class="w-full bg-slate-950/80 rounded-xl p-3 sm:p-4 border border-slate-800/80 relative select-none">
                     <div class="flex items-stretch h-52 sm:h-56">
-                        <!-- CỘT DỌC (Y-AXIS %): 100% ở trên cùng, 0% ở đáy -->
-                        <div class="w-10 sm:w-12 flex flex-col justify-between items-end pr-2.5 py-1 text-[10px] text-slate-400 font-mono select-none border-r border-slate-800/80 shrink-0">
-                            <span>100%</span>
-                            <span>75%</span>
-                            <span>50%</span>
-                            <span>25%</span>
+                        <!-- CỘT DỌC (Y-AXIS % THEO CORE): Max là (số core * 100)% -->
+                        <div class="w-12 sm:w-16 flex flex-col justify-between items-end pr-2.5 py-1 text-[10px] text-slate-400 font-mono select-none border-r border-slate-800/80 shrink-0">
+                            <span>{{ getCpuMaxVal }}%</span>
+                            <span>{{ Math.round(getCpuMaxVal * 0.75) }}%</span>
+                            <span>{{ Math.round(getCpuMaxVal * 0.5) }}%</span>
+                            <span>{{ Math.round(getCpuMaxVal * 0.25) }}%</span>
                             <span>0%</span>
                         </div>
 
@@ -255,14 +255,14 @@
 
                                 <!-- Single Website Scope -->
                                 <template v-if="!monitorData?.website_series?.length || monitorData?.website_series?.length <= 1">
-                                    <path :d="generateSvgAreaPath(monitorData?.time_series?.cpu || [])" fill="url(#cpuGrad)" />
-                                    <path :d="generateSvgLinePath(monitorData?.time_series?.cpu || [])" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                                    <path :d="generateSvgAreaPath(monitorData?.time_series?.cpu || [], getCpuMaxVal)" fill="url(#cpuGrad)" />
+                                    <path :d="generateSvgLinePath(monitorData?.time_series?.cpu || [], getCpuMaxVal)" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
                                 </template>
 
                                 <!-- Multi-Website Lines (Admin & Hosting User) -->
                                 <template v-else>
                                     <path v-for="ws in monitorData.website_series" :key="'cpu_line_' + ws.id"
-                                        :d="generateSvgLinePath(ws.cpu)"
+                                        :d="generateSvgLinePath(ws.cpu, getCpuMaxVal)"
                                         fill="none"
                                         :stroke="ws.color"
                                         stroke-width="2.2"
@@ -278,14 +278,14 @@
 
                                     <!-- Vòng tròn highlight trên đường tổng -->
                                     <circle :cx="chartHover.svgX"
-                                            :cy="getSvgPointY(monitorData?.time_series?.cpu?.[chartHover.index] || 0)"
+                                            :cy="getSvgPointY(monitorData?.time_series?.cpu?.[chartHover.index] || 0, getCpuMaxVal)"
                                             r="4.5" fill="#f59e0b" stroke="#ffffff" stroke-width="2" />
 
                                     <!-- Vòng tròn highlight từng website nếu có -->
                                     <template v-if="monitorData?.website_series?.length > 1">
                                         <circle v-for="ws in monitorData.website_series" :key="'dot_cpu_' + ws.id"
                                                 :cx="chartHover.svgX"
-                                                :cy="getSvgPointY(ws.cpu?.[chartHover.index] || 0)"
+                                                :cy="getSvgPointY(ws.cpu?.[chartHover.index] || 0, getCpuMaxVal)"
                                                 r="4" :fill="ws.color" stroke="#ffffff" stroke-width="1.8" />
                                     </template>
                                 </g>
@@ -293,7 +293,7 @@
 
                             <!-- Tooltip Nổi Thông Minh -->
                             <div v-if="chartHover.activeChart === 'cpu' && chartHover.index >= 0"
-                                 class="absolute z-30 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl text-xs min-w-[190px] transition-all duration-75 ease-out"
+                                 class="absolute z-30 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl text-xs min-w-[210px] transition-all duration-75 ease-out"
                                  :style="chartHover.tooltipStyle">
                                 <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5 mb-2 font-mono">
                                     <span class="text-slate-400 text-[10px] uppercase font-bold flex items-center gap-1">
@@ -305,7 +305,7 @@
                                     <div v-for="(item, idx) in chartHover.items" :key="'tt_cpu_' + idx"
                                          class="flex items-center justify-between gap-2 text-[11px]"
                                          :class="{'font-bold text-white pt-1 border-t border-slate-800/80': item.isTotal}">
-                                        <div class="flex items-center gap-1.5 truncate max-w-[125px]">
+                                        <div class="flex items-center gap-1.5 truncate max-w-[130px]">
                                             <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: item.color }"></span>
                                             <span class="truncate text-slate-300" :title="item.name">{{ item.name }}</span>
                                         </div>
@@ -317,7 +317,7 @@
                     </div>
 
                     <!-- CỘT NGANG (X-AXIS THỜI GIAN): Nằm ngang dưới đáy theo trục thời gian -->
-                    <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono pt-2 mt-1 border-t border-slate-800/80 pl-10 sm:pl-12">
+                    <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono pt-2 mt-1 border-t border-slate-800/80 pl-12 sm:pl-16">
                         <span v-for="(lbl, idx) in (monitorData?.time_series?.labels || []).filter((_, i) => i % 2 === 0)" :key="'l_' + idx">
                             {{ lbl }}
                         </span>
@@ -343,25 +343,25 @@
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse"></span>
                         <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                            Mức tiêu thụ RAM (%)
+                            Mức tiêu thụ RAM (MB)
                             <span v-if="monitorData?.website_series?.length > 1" class="text-[11px] text-sky-400 font-normal lowercase ml-1">
                                 (Mỗi website 1 đường line)
                             </span>
                         </h3>
                     </div>
-                    <span class="text-xs font-mono text-sky-400 font-semibold">Tổng hiện tại: {{ (monitorData?.metrics?.ram?.percent || 0).toFixed(1) }}% ({{ monitorData?.metrics?.ram?.used_mb || 0 }} MB)</span>
+                    <span class="text-xs font-mono text-sky-400 font-semibold">Tổng hiện tại: {{ monitorData?.metrics?.ram?.used_mb || 0 }} MB / {{ getRamMaxMb }} MB</span>
                 </div>
 
                 <!-- SVG Area / Multi-line Chart RAM -->
                 <div class="w-full bg-slate-950/80 rounded-xl p-3 sm:p-4 border border-slate-800/80 relative select-none">
                     <div class="flex items-stretch h-52 sm:h-56">
-                        <!-- CỘT DỌC (Y-AXIS %): 100% ở trên cùng, 0% ở đáy -->
-                        <div class="w-10 sm:w-12 flex flex-col justify-between items-end pr-2.5 py-1 text-[10px] text-slate-400 font-mono select-none border-r border-slate-800/80 shrink-0">
-                            <span>100%</span>
-                            <span>75%</span>
-                            <span>50%</span>
-                            <span>25%</span>
-                            <span>0%</span>
+                        <!-- CỘT DỌC (Y-AXIS RAM MB) -->
+                        <div class="w-12 sm:w-16 flex flex-col justify-between items-end pr-2.5 py-1 text-[10px] text-slate-400 font-mono select-none border-r border-slate-800/80 shrink-0">
+                            <span>{{ getRamMaxMb }} MB</span>
+                            <span>{{ Math.round(getRamMaxMb * 0.75) }} MB</span>
+                            <span>{{ Math.round(getRamMaxMb * 0.5) }} MB</span>
+                            <span>{{ Math.round(getRamMaxMb * 0.25) }} MB</span>
+                            <span>0 MB</span>
                         </div>
 
                         <!-- KHU VỰC VẼ BIỂU ĐỒ (SVG & CROSSHAIR HOVER) -->
@@ -384,13 +384,13 @@
                                 <line x1="0" y1="95" x2="500" y2="95" stroke="#475569" stroke-width="1" opacity="0.6" />
 
                                 <template v-if="!monitorData?.website_series?.length || monitorData?.website_series?.length <= 1">
-                                    <path :d="generateSvgAreaPath(monitorData?.time_series?.ram || [])" fill="url(#ramGrad)" />
-                                    <path :d="generateSvgLinePath(monitorData?.time_series?.ram || [])" fill="none" stroke="#0ea5e9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                                    <path :d="generateSvgAreaPath(monitorData?.time_series?.ram || [], getRamMaxMb)" fill="url(#ramGrad)" />
+                                    <path :d="generateSvgLinePath(monitorData?.time_series?.ram || [], getRamMaxMb)" fill="none" stroke="#0ea5e9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
                                 </template>
 
                                 <template v-else>
                                     <path v-for="ws in monitorData.website_series" :key="'ram_line_' + ws.id"
-                                        :d="generateSvgLinePath(ws.ram)"
+                                        :d="generateSvgLinePath(ws.ram, getRamMaxMb)"
                                         fill="none"
                                         :stroke="ws.color"
                                         stroke-width="2.2"
@@ -405,13 +405,13 @@
                                           stroke="#e2e8f0" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.85" />
 
                                     <circle :cx="chartHover.svgX"
-                                            :cy="getSvgPointY(monitorData?.time_series?.ram?.[chartHover.index] || 0)"
+                                            :cy="getSvgPointY(monitorData?.time_series?.ram?.[chartHover.index] || 0, getRamMaxMb)"
                                             r="4.5" fill="#0ea5e9" stroke="#ffffff" stroke-width="2" />
 
                                     <template v-if="monitorData?.website_series?.length > 1">
                                         <circle v-for="ws in monitorData.website_series" :key="'dot_ram_' + ws.id"
                                                 :cx="chartHover.svgX"
-                                                :cy="getSvgPointY(ws.ram?.[chartHover.index] || 0)"
+                                                :cy="getSvgPointY(ws.ram?.[chartHover.index] || 0, getRamMaxMb)"
                                                 r="4" :fill="ws.color" stroke="#ffffff" stroke-width="1.8" />
                                     </template>
                                 </g>
@@ -419,7 +419,7 @@
 
                             <!-- Tooltip Nổi Thông Minh -->
                             <div v-if="chartHover.activeChart === 'ram' && chartHover.index >= 0"
-                                 class="absolute z-30 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl text-xs min-w-[190px] transition-all duration-75 ease-out"
+                                 class="absolute z-30 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl text-xs min-w-[210px] transition-all duration-75 ease-out"
                                  :style="chartHover.tooltipStyle">
                                 <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5 mb-2 font-mono">
                                     <span class="text-slate-400 text-[10px] uppercase font-bold flex items-center gap-1">
@@ -431,7 +431,7 @@
                                     <div v-for="(item, idx) in chartHover.items" :key="'tt_ram_' + idx"
                                          class="flex items-center justify-between gap-2 text-[11px]"
                                          :class="{'font-bold text-white pt-1 border-t border-slate-800/80': item.isTotal}">
-                                        <div class="flex items-center gap-1.5 truncate max-w-[125px]">
+                                        <div class="flex items-center gap-1.5 truncate max-w-[130px]">
                                             <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: item.color }"></span>
                                             <span class="truncate text-slate-300" :title="item.name">{{ item.name }}</span>
                                         </div>
@@ -443,7 +443,7 @@
                     </div>
 
                     <!-- CỘT NGANG (X-AXIS THỜI GIAN) -->
-                    <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono pt-2 mt-1 border-t border-slate-800/80 pl-10 sm:pl-12">
+                    <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono pt-2 mt-1 border-t border-slate-800/80 pl-12 sm:pl-16">
                         <span v-for="(lbl, idx) in (monitorData?.time_series?.labels || []).filter((_, i) => i % 2 === 0)" :key="'rl_' + idx">
                             {{ lbl }}
                         </span>

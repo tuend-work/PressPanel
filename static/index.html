@@ -1968,6 +1968,16 @@ function showAlert(message) {
                     return Number((95 - (Math.min(maxVal, Math.max(0, num)) / Math.max(1, maxVal)) * 90).toFixed(1));
                 };
 
+                const getCpuMaxVal = computed(() => {
+                    if (!monitorData.value?.metrics?.cpu) return 100;
+                    return monitorData.value.metrics.cpu.max_pct || (monitorData.value.metrics.cpu.cores ? monitorData.value.metrics.cpu.cores * 100 : 100);
+                });
+
+                const getRamMaxMb = computed(() => {
+                    if (!monitorData.value?.metrics?.ram) return 2048;
+                    return monitorData.value.metrics.ram.total_mb || monitorData.value.metrics.ram.max_mb || 2048;
+                });
+
                 const getBwMaxVal = computed(() => {
                     if (!monitorData.value?.time_series) return 100;
                     const bIn = monitorData.value.time_series.bandwidth_in || [];
@@ -2000,6 +2010,7 @@ function showAlert(message) {
                     const items = [];
 
                     if (chartType === 'cpu') {
+                        const cpuMax = getCpuMaxVal.value;
                         const wsList = monitorData.value.website_series || [];
                         if (wsList.length > 1) {
                             wsList.forEach(ws => {
@@ -2015,14 +2026,16 @@ function showAlert(message) {
                         }
                         const total = (monitorData.value.time_series.cpu && monitorData.value.time_series.cpu[idx] !== undefined)
                             ? monitorData.value.time_series.cpu[idx] : 0;
+                        const coresCount = monitorData.value?.metrics?.cpu?.allocated_cores || (cpuMax / 100);
                         items.unshift({
-                            name: 'Tổng CPU',
+                            name: `Tổng CPU (${coresCount} Cores)`,
                             color: '#f59e0b',
-                            val: total.toFixed(1) + '%',
+                            val: `${total.toFixed(1)}% / ${cpuMax}%`,
                             isTotal: true,
                             rawVal: total
                         });
                     } else if (chartType === 'ram') {
+                        const ramMax = getRamMaxMb.value;
                         const wsList = monitorData.value.website_series || [];
                         if (wsList.length > 1) {
                             wsList.forEach(ws => {
@@ -2030,7 +2043,7 @@ function showAlert(message) {
                                 items.push({
                                     name: ws.domain_name,
                                     color: ws.color,
-                                    val: val.toFixed(1) + '%',
+                                    val: Math.round(val) + ' MB',
                                     rawVal: val
                                 });
                             });
@@ -2041,7 +2054,7 @@ function showAlert(message) {
                         items.unshift({
                             name: 'Tổng RAM',
                             color: '#0ea5e9',
-                            val: total.toFixed(1) + '%',
+                            val: `${Math.round(total)} MB / ${ramMax} MB`,
                             isTotal: true,
                             rawVal: total
                         });
@@ -7372,7 +7385,7 @@ function showAlert(message) {
                     // Resource Monitor
                     activeMonitorSubTab, monitorTimeRange, selectedMonitorTarget, loadingMonitor, monitorData,
                     fetchResourceMonitorData, generateSvgLinePath, generateSvgAreaPath,
-                    chartHover, getSvgPointY, getBwMaxVal, getPpsMaxVal, onChartMouseMove, onChartMouseLeave
+                    chartHover, getSvgPointY, getCpuMaxVal, getRamMaxMb, getBwMaxVal, getPpsMaxVal, onChartMouseMove, onChartMouseLeave
                 };
             }
         }).mount('#app');
