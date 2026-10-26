@@ -911,15 +911,18 @@ async def get_resource_monitor(
     base_pps_out = max(2.0, float(stats["network"]["out_pps"]))
 
     # 4. Sinh dữ liệu chuỗi thời gian (Time-series) cho biểu đồ trực quan từ SQLite Database
-    # Hỗ trợ cấu hình lưu trữ lâu dài: 1h, 24h, 7d, 14d, 30d, 60d, 90d
+    # Hỗ trợ cấu hình: 1m, 15m, 30m, 1h, 24h, 7d, 14d, 30d, 60d, 90d
     time_config = {
-        "1h":  {"points": 12, "delta_mins": 5,    "hours": 1,    "fmt": "%H:%M"},
-        "24h": {"points": 24, "delta_mins": 60,   "hours": 24,   "fmt": "%H:%M"},
-        "7d":  {"points": 14, "delta_mins": 720,  "hours": 168,  "fmt": "%d/%m"},
-        "14d": {"points": 14, "delta_mins": 1440, "hours": 336,  "fmt": "%d/%m"},
-        "30d": {"points": 15, "delta_mins": 2880, "hours": 720,  "fmt": "%d/%m"},
-        "60d": {"points": 20, "delta_mins": 4320, "hours": 1440, "fmt": "%d/%m"},
-        "90d": {"points": 18, "delta_mins": 7200, "hours": 2160, "fmt": "%d/%m"}
+        "1m":  {"points": 12, "delta_mins": 5 / 60, "hours": 1,    "fmt": "%H:%M:%S"},
+        "15m": {"points": 15, "delta_mins": 1,      "hours": 1,    "fmt": "%H:%M"},
+        "30m": {"points": 30, "delta_mins": 1,      "hours": 1,    "fmt": "%H:%M"},
+        "1h":  {"points": 12, "delta_mins": 5,      "hours": 1,    "fmt": "%H:%M"},
+        "24h": {"points": 24, "delta_mins": 60,     "hours": 24,   "fmt": "%H:%M"},
+        "7d":  {"points": 14, "delta_mins": 720,    "hours": 168,  "fmt": "%d/%m"},
+        "14d": {"points": 14, "delta_mins": 1440,   "hours": 336,  "fmt": "%d/%m"},
+        "30d": {"points": 15, "delta_mins": 2880,   "hours": 720,  "fmt": "%d/%m"},
+        "60d": {"points": 20, "delta_mins": 4320,   "hours": 1440, "fmt": "%d/%m"},
+        "90d": {"points": 18, "delta_mins": 7200,   "hours": 2160, "fmt": "%d/%m"}
     }
     cfg = time_config.get(time_range, time_config["1h"])
     points_count = cfg["points"]
@@ -1002,8 +1005,10 @@ async def get_resource_monitor(
             p_out = int(base_pps_out)
         else:
             # Điểm trong quá khứ: Ưu tiên lấy từ SQLite DB (dữ liệu lưu lâu dài từng phút)
-            matched_db = [r for r in db_metrics_rows if r["ts"] and abs(int(r["ts"]) - t_point_ts) <= half_window]
-            matched_mem = [s for s in history if abs(s["t"] - t_point_ts) <= half_window]
+            match_db_window = 30 if time_range == "1m" else half_window
+            match_mem_window = max(3.0, half_window)
+            matched_db = [r for r in db_metrics_rows if r["ts"] and abs(int(r["ts"]) - t_point_ts) <= match_db_window]
+            matched_mem = [s for s in history if abs(s["t"] - t_point_ts) <= match_mem_window]
 
             if matched_db:
                 c_val = round(sum(r["cpu_pct"] for r in matched_db) / len(matched_db), 1)
