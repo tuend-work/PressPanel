@@ -712,7 +712,11 @@ async def get_resource_monitor(
     # RAM TÍNH THEO MB (không dùng %):
     total_ram_mb = mem_limit_mb if target_scope != "server" else int(stats["ram"]["total_gb"] * 1024)
     base_ram_mb = current_ram_mb if target_scope == "server" else min(mem_limit_mb, max(64, int((float(stats["ram"]["percent"]) / 100.0) * mem_limit_mb)))
-    base_disk = min(95.0, max(5.0, float(stats["disk"]["percent"])))
+    
+    # DISK TÍNH THEO GB (không dùng %):
+    total_disk_gb = round(stats["disk"]["total_gb"], 1) if target_scope == "server" else round(disk_limit_mb / 1024.0, 1)
+    base_disk_gb = round(stats["disk"]["used_gb"], 2) if target_scope == "server" else round(min(total_disk_gb, max(0.1, (float(stats["disk"]["percent"]) / 100.0) * total_disk_gb)), 2)
+
     base_bw_in = max(1.0, float(stats["network"]["down_speed_kb"]))
     base_bw_out = max(1.0, float(stats["network"]["up_speed_kb"]))
     base_pps_in = max(2.0, float(stats["network"]["in_pps"]))
@@ -752,9 +756,9 @@ async def get_resource_monitor(
         r_mb = int(max(32, min(total_ram_mb, base_ram_mb + ram_jitter)))
         ram_series.append(r_mb)
 
-        # Disk variation
-        d_val = round(min(100.0, max(5.0, base_disk + random.uniform(-0.2, 0.3))), 1)
-        disk_series.append(d_val)
+        # Disk variation theo GB
+        d_gb = round(max(0.05, min(total_disk_gb, base_disk_gb + random.uniform(-0.05, 0.05))), 2)
+        disk_series.append(d_gb)
 
         # Request count
         req_val = max(1, int(random.uniform(5, 45) * (1.5 if c_val > (max_cpu_pct * 0.5) else 1.0)))
@@ -775,7 +779,7 @@ async def get_resource_monitor(
     # Điểm cuối cùng là số đo thực tại
     cpu_series[-1] = round(base_cpu, 1)
     ram_series[-1] = base_ram_mb
-    disk_series[-1] = round(base_disk, 1)
+    disk_series[-1] = round(base_disk_gb, 2)
     bw_in_series[-1] = round(base_bw_in, 1)
     bw_out_series[-1] = round(base_bw_out, 1)
     pps_in_series[-1] = int(base_pps_in)
@@ -820,6 +824,7 @@ async def get_resource_monitor(
         ws_current_cpu = round(min(float(max_cpu_pct), max(0.5, (base_cpu / total_domains_count) * ws_share)), 1)
         ws_current_ram_mb = int(max(32, min(total_ram_mb, (base_ram_mb / total_domains_count) * ws_share)))
         ws_current_ram_pct = round((ws_current_ram_mb / max(1, total_ram_mb)) * 100.0, 1)
+        ws_current_disk_gb = round(ws_disk_mb / 1024.0, 2)
         ws_disk_pct = round(min(100.0, max(1.0, (ws_disk_mb / max(1, disk_limit_mb)) * 100)), 1)
 
         ws_cpu_points = []
@@ -829,11 +834,11 @@ async def get_resource_monitor(
         for p_idx in range(points_count - 1, -1, -1):
             ws_cpu_points.append(round(min(float(max_cpu_pct), max(0.2, ws_current_cpu + rng.uniform(-1.5, 2.0) * (max_cpu_pct / 100.0))), 1))
             ws_ram_points.append(int(max(16, min(total_ram_mb, ws_current_ram_mb + rng.uniform(-15, 20)))))
-            ws_disk_points.append(round(min(100.0, max(0.5, ws_disk_pct + rng.uniform(-0.1, 0.1))), 1))
+            ws_disk_points.append(round(max(0.02, min(total_disk_gb, ws_current_disk_gb + rng.uniform(-0.02, 0.02))), 2))
 
         ws_cpu_points[-1] = ws_current_cpu
         ws_ram_points[-1] = ws_current_ram_mb
-        ws_disk_points[-1] = ws_disk_pct
+        ws_disk_points[-1] = ws_current_disk_gb
 
         website_series.append({
             "id": d["id"],
@@ -843,6 +848,7 @@ async def get_resource_monitor(
             "current_ram_mb": ws_current_ram_mb,
             "current_ram_pct": ws_current_ram_pct,
             "current_disk_mb": ws_disk_mb,
+            "current_disk_gb": ws_current_disk_gb,
             "current_disk_pct": ws_disk_pct,
             "cpu": ws_cpu_points,
             "ram": ws_ram_points,
@@ -1005,9 +1011,10 @@ async def get_resource_monitor(
                 "server_total_gb": stats["ram"]["total_gb"]
             },
             "disk": {
-                "percent": stats["disk"]["percent"],
-                "used_gb": stats["disk"]["used_gb"],
-                "total_gb": stats["disk"]["total_gb"],
+                "percent": round((base_disk_gb / max(0.1, total_disk_gb)) * 100.0, 1),
+                "used_gb": round(base_disk_gb, 2),
+                "total_gb": round(total_disk_gb, 1),
+                "max_gb": round(total_disk_gb, 1),
                 "limit_mb": disk_limit_mb
             },
             "network": stats["network"]

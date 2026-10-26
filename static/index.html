@@ -1978,6 +1978,11 @@ function showAlert(message) {
                     return monitorData.value.metrics.ram.total_mb || monitorData.value.metrics.ram.max_mb || 2048;
                 });
 
+                const getDiskMaxGb = computed(() => {
+                    if (!monitorData.value?.metrics?.disk) return 20;
+                    return Number((monitorData.value.metrics.disk.max_gb || monitorData.value.metrics.disk.total_gb || 20).toFixed(1));
+                });
+
                 const getBwMaxVal = computed(() => {
                     if (!monitorData.value?.time_series) return 100;
                     const bIn = monitorData.value.time_series.bandwidth_in || [];
@@ -2059,6 +2064,7 @@ function showAlert(message) {
                             rawVal: total
                         });
                     } else if (chartType === 'disk') {
+                        const diskMax = getDiskMaxGb.value;
                         const wsList = monitorData.value.website_series || [];
                         if (wsList.length > 1) {
                             wsList.forEach(ws => {
@@ -2066,7 +2072,7 @@ function showAlert(message) {
                                 items.push({
                                     name: ws.domain_name,
                                     color: ws.color,
-                                    val: val.toFixed(1) + '%',
+                                    val: Number(val).toFixed(2) + ' GB',
                                     rawVal: val
                                 });
                             });
@@ -2075,9 +2081,9 @@ function showAlert(message) {
                         const total = (monitorData.value.time_series.disk && monitorData.value.time_series.disk[idx] !== undefined)
                             ? monitorData.value.time_series.disk[idx] : 0;
                         items.unshift({
-                            name: 'Tổng Disk',
+                            name: 'Tổng Dung Lượng Disk',
                             color: '#10b981',
-                            val: total.toFixed(1) + '%',
+                            val: `${Number(total).toFixed(2)} GB / ${diskMax} GB`,
                             isTotal: true,
                             rawVal: total
                         });
@@ -7385,7 +7391,7 @@ function showAlert(message) {
                     // Resource Monitor
                     activeMonitorSubTab, monitorTimeRange, selectedMonitorTarget, loadingMonitor, monitorData,
                     fetchResourceMonitorData, generateSvgLinePath, generateSvgAreaPath,
-                    chartHover, getSvgPointY, getCpuMaxVal, getRamMaxMb, getBwMaxVal, getPpsMaxVal, onChartMouseMove, onChartMouseLeave
+                    chartHover, getSvgPointY, getCpuMaxVal, getRamMaxMb, getDiskMaxGb, getBwMaxVal, getPpsMaxVal, onChartMouseMove, onChartMouseLeave
                 };
             }
         }).mount('#app');

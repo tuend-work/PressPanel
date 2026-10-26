@@ -187,9 +187,8 @@
         <div class="flex flex-wrap items-center justify-between border-b border-slate-800 px-4 sm:px-6 pt-3 bg-[#0d131d]">
             <div class="flex flex-wrap gap-1 sm:gap-2">
                 <button v-for="st in [
-                    { key: 'charts', label: 'Biểu Đồ CPU & RAM', icon: 'line-chart' },
+                    { key: 'charts', label: 'Biểu Đồ CPU, RAM & Disk', icon: 'line-chart' },
                     { key: 'network_charts', label: 'Băng Thông & Gói Tin Mạng', icon: 'wifi' },
-                    { key: 'disk', label: 'Dung Lượng Ổ Đĩa (Disk)', icon: 'hard-drive' },
                     { key: 'ip_requests', label: 'Top IP Requests', icon: 'shield-alert' },
                     { key: 'processes', label: 'Tiến Trình Đang Chạy', icon: 'cpu' }
                 ]" :key="st.key" @click="activeMonitorSubTab = st.key"
@@ -459,6 +458,161 @@
                         <span class="text-slate-300 font-semibold">{{ ws.domain_name }}</span>
                         <span class="font-bold ml-1" :style="{ color: ws.color }">{{ ws.current_ram_mb }} MB</span>
                         <span v-if="idx === 0" class="text-[9px] px-1 py-0.2 rounded bg-sky-500/20 text-sky-300 font-sans uppercase">RAM lớn nhất</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Disk Chart Section -->
+            <div class="space-y-3 pt-4 border-t border-slate-800/80">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                            Mức Tiêu Thụ Dung Lượng Ổ Đĩa (Disk - GB)
+                            <span v-if="monitorData?.website_series?.length > 1" class="text-[11px] text-emerald-400 font-normal lowercase ml-1">
+                                (Mỗi website 1 đường line)
+                            </span>
+                        </h3>
+                    </div>
+                    <span class="text-xs font-mono text-emerald-400 font-semibold">
+                        Tổng hiện tại: {{ (monitorData?.metrics?.disk?.used_gb || 0).toFixed(2) }} GB / {{ getDiskMaxGb }} GB ({{ (monitorData?.metrics?.disk?.percent || 0).toFixed(1) }}%)
+                    </span>
+                </div>
+
+                <!-- SVG Area / Multi-line Chart Disk -->
+                <div class="w-full bg-slate-950/80 rounded-xl p-3 sm:p-4 border border-slate-800/80 relative select-none">
+                    <div class="flex items-stretch h-52 sm:h-56">
+                        <!-- CỘT DỌC (Y-AXIS GB): getDiskMaxGb ở trên cùng, 0 GB ở đáy -->
+                        <div class="w-12 sm:w-16 flex flex-col justify-between items-end pr-2.5 py-1 text-[10px] text-slate-400 font-mono select-none border-r border-slate-800/80 shrink-0">
+                            <span>{{ getDiskMaxGb }} GB</span>
+                            <span>{{ (getDiskMaxGb * 0.75).toFixed(1) }} GB</span>
+                            <span>{{ (getDiskMaxGb * 0.5).toFixed(1) }} GB</span>
+                            <span>{{ (getDiskMaxGb * 0.25).toFixed(1) }} GB</span>
+                            <span>0 GB</span>
+                        </div>
+
+                        <!-- KHU VỰC VẼ BIỂU ĐỒ (SVG & CROSSHAIR HOVER) -->
+                        <div class="relative flex-1 h-full pl-2 cursor-crosshair overflow-hidden"
+                             @mousemove="onChartMouseMove($event, 'disk')"
+                             @mouseleave="onChartMouseLeave">
+                            
+                            <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
+                                <defs>
+                                    <linearGradient id="diskGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stop-color="#10b981" stop-opacity="0.35" />
+                                        <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
+                                    </linearGradient>
+                                </defs>
+
+                                <line x1="0" y1="5" x2="500" y2="5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="27.5" x2="500" y2="27.5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="50" x2="500" y2="50" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="72.5" x2="500" y2="72.5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="95" x2="500" y2="95" stroke="#475569" stroke-width="1" opacity="0.6" />
+
+                                <template v-if="!monitorData?.website_series?.length || monitorData?.website_series?.length <= 1">
+                                    <path :d="generateSvgAreaPath(monitorData?.time_series?.disk || [], getDiskMaxGb)" fill="url(#diskGrad)" />
+                                    <path :d="generateSvgLinePath(monitorData?.time_series?.disk || [], getDiskMaxGb)" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                                </template>
+
+                                <template v-else>
+                                    <path v-for="ws in monitorData.website_series" :key="'disk_line_' + ws.id"
+                                        :d="generateSvgLinePath(ws.disk, getDiskMaxGb)"
+                                        fill="none"
+                                        :stroke="ws.color"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="transition-all hover:stroke-white hover:stroke-[3.5]" />
+                                </template>
+
+                                <!-- Crosshair Line & Point Dots khi Hover -->
+                                <g v-if="chartHover.activeChart === 'disk' && chartHover.index >= 0">
+                                    <line :x1="chartHover.svgX" y1="0" :x2="chartHover.svgX" y2="95"
+                                          stroke="#e2e8f0" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.85" />
+
+                                    <circle :cx="chartHover.svgX"
+                                            :cy="getSvgPointY(monitorData?.time_series?.disk?.[chartHover.index] || 0, getDiskMaxGb)"
+                                            r="4.5" fill="#10b981" stroke="#ffffff" stroke-width="2" />
+
+                                    <template v-if="monitorData?.website_series?.length > 1">
+                                        <circle v-for="ws in monitorData.website_series" :key="'dot_disk_' + ws.id"
+                                                :cx="chartHover.svgX"
+                                                :cy="getSvgPointY(ws.disk?.[chartHover.index] || 0, getDiskMaxGb)"
+                                                r="4" :fill="ws.color" stroke="#ffffff" stroke-width="1.8" />
+                                    </template>
+                                </g>
+                            </svg>
+
+                            <!-- Tooltip Nổi Thông Minh -->
+                            <div v-if="chartHover.activeChart === 'disk' && chartHover.index >= 0"
+                                 class="absolute z-30 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl text-xs min-w-[210px] transition-all duration-75 ease-out"
+                                 :style="chartHover.tooltipStyle">
+                                <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5 mb-2 font-mono">
+                                    <span class="text-slate-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                                        <span>🕒</span> Mốc thời gian
+                                    </span>
+                                    <span class="text-emerald-400 font-bold text-[11px]">{{ chartHover.time }}</span>
+                                </div>
+                                <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                    <div v-for="(item, idx) in chartHover.items" :key="'tt_disk_' + idx"
+                                         class="flex items-center justify-between gap-2 text-[11px]"
+                                         :class="{'font-bold text-white pt-1 border-t border-slate-800/80': item.isTotal}">
+                                        <div class="flex items-center gap-1.5 truncate max-w-[130px]">
+                                            <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: item.color }"></span>
+                                            <span class="truncate text-slate-300" :title="item.name">{{ item.name }}</span>
+                                        </div>
+                                        <span class="font-mono font-bold shrink-0" :style="{ color: item.color }">{{ item.val }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CỘT NGANG (X-AXIS THỜI GIAN) -->
+                    <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono pt-2 mt-1 border-t border-slate-800/80 pl-12 sm:pl-16">
+                        <span v-for="(lbl, idx) in (monitorData?.time_series?.labels || []).filter((_, i) => i % 2 === 0)" :key="'dl_' + idx">
+                            {{ lbl }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Legend Disk -->
+                <div v-if="monitorData?.website_series?.length > 1" class="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-mono">
+                    <span class="text-slate-400 font-sans text-xs font-semibold mr-1">Các website:</span>
+                    <div v-for="(ws, idx) in monitorData.website_series" :key="'leg_disk_' + ws.id"
+                        class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-1.5 hover:border-slate-700 transition">
+                        <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: ws.color }"></span>
+                        <span class="text-slate-300 font-semibold">{{ ws.domain_name }}</span>
+                        <span class="font-bold ml-1" :style="{ color: ws.color }">{{ ws.current_disk_gb || (ws.current_disk_mb ? (ws.current_disk_mb / 1024).toFixed(2) : 0) }} GB</span>
+                        <span v-if="idx === 0" class="text-[9px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-sans uppercase">Disk lớn nhất</span>
+                    </div>
+                </div>
+
+                <!-- Cards Phân bổ dung lượng -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-800/80">
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                        <div class="text-[11px] text-slate-400 font-bold uppercase">Mã Nguồn Web (public_html)</div>
+                        <div class="text-lg font-bold font-mono text-emerald-400">
+                            {{ ((monitorData?.metrics?.disk?.used_gb || 1) * 0.65).toFixed(1) }} GB
+                        </div>
+                        <div class="text-[11px] text-slate-500">Tệp tin tĩnh, hình ảnh, themes và plugins</div>
+                    </div>
+
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                        <div class="text-[11px] text-slate-400 font-bold uppercase">Cơ Sở Dữ Liệu (MySQL)</div>
+                        <div class="text-lg font-bold font-mono text-blue-400">
+                            {{ ((monitorData?.metrics?.disk?.used_gb || 1) * 0.25).toFixed(1) }} GB
+                        </div>
+                        <div class="text-[11px] text-slate-500">Dữ liệu bài viết, bảng tables và transient cache</div>
+                    </div>
+
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                        <div class="text-[11px] text-slate-400 font-bold uppercase">Logs & Bản Sao Lưu (Backups)</div>
+                        <div class="text-lg font-bold font-mono text-amber-400">
+                            {{ ((monitorData?.metrics?.disk?.used_gb || 1) * 0.10).toFixed(1) }} GB
+                        </div>
+                        <div class="text-[11px] text-slate-500">Nhật ký truy cập web, error log và file nén zip</div>
                     </div>
                 </div>
             </div>
@@ -737,159 +891,7 @@
             </div>
         </div>
 
-        <!-- 7. SUBTAB 4: DUNG LƯỢNG DISK & BIỂU ĐỒ (ĐA WEBSITE) -->
-        <div v-if="activeMonitorSubTab === 'disk'" class="p-5 sm:p-6 space-y-6">
-            <div class="space-y-3">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                    <div class="flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                            Mức Tiêu Thụ Ổ Đĩa Theo Thời Gian (%)
-                            <span v-if="monitorData?.website_series?.length > 1" class="text-[11px] text-emerald-400 font-normal lowercase ml-1">
-                                (Mỗi website 1 đường line)
-                            </span>
-                        </h3>
-                    </div>
-                    <span class="text-xs font-mono text-emerald-400 font-semibold">Tổng hiện tại: {{ (monitorData?.metrics?.disk?.percent || 0).toFixed(1) }}% ({{ monitorData?.metrics?.disk?.used_gb || 0 }} GB)</span>
-                </div>
 
-                <!-- SVG Area / Multi-line Chart Disk -->
-                <div class="w-full bg-slate-950/80 rounded-xl p-3 sm:p-4 border border-slate-800/80 relative select-none">
-                    <div class="flex items-stretch h-52 sm:h-56">
-                        <!-- CỘT DỌC (Y-AXIS %): 100% ở trên cùng, 0% ở đáy -->
-                        <div class="w-10 sm:w-12 flex flex-col justify-between items-end pr-2.5 py-1 text-[10px] text-slate-400 font-mono select-none border-r border-slate-800/80 shrink-0">
-                            <span>100%</span>
-                            <span>75%</span>
-                            <span>50%</span>
-                            <span>25%</span>
-                            <span>0%</span>
-                        </div>
-
-                        <!-- KHU VỰC VẼ BIỂU ĐỒ (SVG & CROSSHAIR HOVER) -->
-                        <div class="relative flex-1 h-full pl-2 cursor-crosshair overflow-hidden"
-                             @mousemove="onChartMouseMove($event, 'disk')"
-                             @mouseleave="onChartMouseLeave">
-                            
-                            <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
-                                <defs>
-                                    <linearGradient id="diskGrad" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stop-color="#10b981" stop-opacity="0.35" />
-                                        <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
-                                    </linearGradient>
-                                </defs>
-
-                                <line x1="0" y1="5" x2="500" y2="5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
-                                <line x1="0" y1="27.5" x2="500" y2="27.5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
-                                <line x1="0" y1="50" x2="500" y2="50" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
-                                <line x1="0" y1="72.5" x2="500" y2="72.5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
-                                <line x1="0" y1="95" x2="500" y2="95" stroke="#475569" stroke-width="1" opacity="0.6" />
-
-                                <template v-if="!monitorData?.website_series?.length || monitorData?.website_series?.length <= 1">
-                                    <path :d="generateSvgAreaPath(monitorData?.time_series?.disk || [])" fill="url(#diskGrad)" />
-                                    <path :d="generateSvgLinePath(monitorData?.time_series?.disk || [])" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                                </template>
-
-                                <template v-else>
-                                    <path v-for="ws in monitorData.website_series" :key="'disk_line_' + ws.id"
-                                        :d="generateSvgLinePath(ws.disk)"
-                                        fill="none"
-                                        :stroke="ws.color"
-                                        stroke-width="2.2"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        class="transition-all hover:stroke-white hover:stroke-[3.5]" />
-                                </template>
-
-                                <!-- Crosshair Line & Point Dots khi Hover -->
-                                <g v-if="chartHover.activeChart === 'disk' && chartHover.index >= 0">
-                                    <line :x1="chartHover.svgX" y1="0" :x2="chartHover.svgX" y2="95"
-                                          stroke="#e2e8f0" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.85" />
-
-                                    <circle :cx="chartHover.svgX"
-                                            :cy="getSvgPointY(monitorData?.time_series?.disk?.[chartHover.index] || 0)"
-                                            r="4.5" fill="#10b981" stroke="#ffffff" stroke-width="2" />
-
-                                    <template v-if="monitorData?.website_series?.length > 1">
-                                        <circle v-for="ws in monitorData.website_series" :key="'dot_disk_' + ws.id"
-                                                :cx="chartHover.svgX"
-                                                :cy="getSvgPointY(ws.disk?.[chartHover.index] || 0)"
-                                                r="4" :fill="ws.color" stroke="#ffffff" stroke-width="1.8" />
-                                    </template>
-                                </g>
-                            </svg>
-
-                            <!-- Tooltip Nổi Thông Minh -->
-                            <div v-if="chartHover.activeChart === 'disk' && chartHover.index >= 0"
-                                 class="absolute z-30 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl text-xs min-w-[190px] transition-all duration-75 ease-out"
-                                 :style="chartHover.tooltipStyle">
-                                <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5 mb-2 font-mono">
-                                    <span class="text-slate-400 text-[10px] uppercase font-bold flex items-center gap-1">
-                                        <span>🕒</span> Mốc thời gian
-                                    </span>
-                                    <span class="text-emerald-400 font-bold text-[11px]">{{ chartHover.time }}</span>
-                                </div>
-                                <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                                    <div v-for="(item, idx) in chartHover.items" :key="'tt_disk_' + idx"
-                                         class="flex items-center justify-between gap-2 text-[11px]"
-                                         :class="{'font-bold text-white pt-1 border-t border-slate-800/80': item.isTotal}">
-                                        <div class="flex items-center gap-1.5 truncate max-w-[125px]">
-                                            <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: item.color }"></span>
-                                            <span class="truncate text-slate-300" :title="item.name">{{ item.name }}</span>
-                                        </div>
-                                        <span class="font-mono font-bold shrink-0" :style="{ color: item.color }">{{ item.val }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- CỘT NGANG (X-AXIS THỜI GIAN) -->
-                    <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono pt-2 mt-1 border-t border-slate-800/80 pl-10 sm:pl-12">
-                        <span v-for="(lbl, idx) in (monitorData?.time_series?.labels || []).filter((_, i) => i % 2 === 0)" :key="'dl_' + idx">
-                            {{ lbl }}
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Legend Disk -->
-                <div v-if="monitorData?.website_series?.length > 1" class="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-mono">
-                    <span class="text-slate-400 font-sans text-xs font-semibold mr-1">Các website:</span>
-                    <div v-for="ws in monitorData.website_series" :key="'leg_disk_' + ws.id"
-                        class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-1.5 hover:border-slate-700 transition">
-                        <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: ws.color }"></span>
-                        <span class="text-slate-300 font-semibold">{{ ws.domain_name }}</span>
-                        <span class="font-bold ml-1" :style="{ color: ws.color }">{{ ws.current_disk_mb }} MB</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Cards Phân bổ dung lượng -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-800/80">
-                <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
-                    <div class="text-[11px] text-slate-400 font-bold uppercase">Mã Nguồn Web (public_html)</div>
-                    <div class="text-lg font-bold font-mono text-emerald-400">
-                        {{ ((monitorData?.metrics?.disk?.used_gb || 1) * 0.65).toFixed(1) }} GB
-                    </div>
-                    <div class="text-[11px] text-slate-500">Tệp tin tĩnh, hình ảnh, themes và plugins</div>
-                </div>
-
-                <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
-                    <div class="text-[11px] text-slate-400 font-bold uppercase">Cơ Sở Dữ Liệu (MySQL)</div>
-                    <div class="text-lg font-bold font-mono text-blue-400">
-                        {{ ((monitorData?.metrics?.disk?.used_gb || 1) * 0.25).toFixed(1) }} GB
-                    </div>
-                    <div class="text-[11px] text-slate-500">Dữ liệu bài viết, bảng tables và transient cache</div>
-                </div>
-
-                <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
-                    <div class="text-[11px] text-slate-400 font-bold uppercase">Logs & Bản Sao Lưu (Backups)</div>
-                    <div class="text-lg font-bold font-mono text-amber-400">
-                        {{ ((monitorData?.metrics?.disk?.used_gb || 1) * 0.10).toFixed(1) }} GB
-                    </div>
-                    <div class="text-[11px] text-slate-500">Nhật ký truy cập web, error log và file nén zip</div>
-                </div>
-            </div>
-        </div>
 
         <!-- 8. SUBTAB 5: TIẾN TRÌNH LINUX ĐANG CHẠY (PROCESSES - ĐÃ LỌC RBAC CHÍNH XÁC) -->
         <div v-if="activeMonitorSubTab === 'processes'" class="p-5 sm:p-6 space-y-4">
