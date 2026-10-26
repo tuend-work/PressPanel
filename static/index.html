@@ -1951,27 +1951,180 @@ function showAlert(message) {
                     }
                 };
 
+                // --- RESOURCE MONITOR HOVER TOOLTIP & CHART HELPERS ---
+                const chartHover = ref({
+                    activeChart: null,
+                    index: -1,
+                    svgX: 0,
+                    time: '',
+                    items: [],
+                    tooltipStyle: { left: '0px', top: '0px' }
+                });
+
+                const getSvgPointY = (val, customMax = null) => {
+                    let maxVal = customMax;
+                    if (!maxVal) maxVal = 100;
+                    const num = typeof val === 'number' ? val : (parseFloat(val) || 0);
+                    return Number((95 - (Math.min(maxVal, Math.max(0, num)) / Math.max(1, maxVal)) * 90).toFixed(1));
+                };
+
+                const getBwMaxVal = computed(() => {
+                    if (!monitorData.value?.time_series) return 100;
+                    const bIn = monitorData.value.time_series.bandwidth_in || [];
+                    const bOut = monitorData.value.time_series.bandwidth_out || [];
+                    const peak = Math.max(...bIn, ...bOut, 0);
+                    return peak > 50 ? Math.ceil(peak * 1.15) : 100;
+                });
+
+                const getPpsMaxVal = computed(() => {
+                    if (!monitorData.value?.time_series) return 100;
+                    const pIn = monitorData.value.time_series.pps_in || [];
+                    const pOut = monitorData.value.time_series.pps_out || [];
+                    const peak = Math.max(...pIn, ...pOut, 0);
+                    return peak > 50 ? Math.ceil(peak * 1.15) : 100;
+                });
+
+                const onChartMouseMove = (e, chartType) => {
+                    if (!monitorData.value || !monitorData.value.time_series) return;
+                    const labels = monitorData.value.time_series.labels || [];
+                    if (!labels.length) return;
+
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const mouseX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+                    const mouseY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+                    const ratio = mouseX / rect.width;
+                    const idx = Math.min(labels.length - 1, Math.max(0, Math.round(ratio * (labels.length - 1))));
+
+                    const svgX = Number(((idx / Math.max(1, labels.length - 1)) * 500).toFixed(1));
+                    const time = labels[idx];
+                    const items = [];
+
+                    if (chartType === 'cpu') {
+                        const wsList = monitorData.value.website_series || [];
+                        if (wsList.length > 1) {
+                            wsList.forEach(ws => {
+                                const val = (ws.cpu && ws.cpu[idx] !== undefined) ? ws.cpu[idx] : 0;
+                                items.push({
+                                    name: ws.domain_name,
+                                    color: ws.color,
+                                    val: val.toFixed(1) + '%',
+                                    rawVal: val
+                                });
+                            });
+                            items.sort((a, b) => b.rawVal - a.rawVal);
+                        }
+                        const total = (monitorData.value.time_series.cpu && monitorData.value.time_series.cpu[idx] !== undefined)
+                            ? monitorData.value.time_series.cpu[idx] : 0;
+                        items.unshift({
+                            name: 'Tổng CPU',
+                            color: '#f59e0b',
+                            val: total.toFixed(1) + '%',
+                            isTotal: true,
+                            rawVal: total
+                        });
+                    } else if (chartType === 'ram') {
+                        const wsList = monitorData.value.website_series || [];
+                        if (wsList.length > 1) {
+                            wsList.forEach(ws => {
+                                const val = (ws.ram && ws.ram[idx] !== undefined) ? ws.ram[idx] : 0;
+                                items.push({
+                                    name: ws.domain_name,
+                                    color: ws.color,
+                                    val: val.toFixed(1) + '%',
+                                    rawVal: val
+                                });
+                            });
+                            items.sort((a, b) => b.rawVal - a.rawVal);
+                        }
+                        const total = (monitorData.value.time_series.ram && monitorData.value.time_series.ram[idx] !== undefined)
+                            ? monitorData.value.time_series.ram[idx] : 0;
+                        items.unshift({
+                            name: 'Tổng RAM',
+                            color: '#0ea5e9',
+                            val: total.toFixed(1) + '%',
+                            isTotal: true,
+                            rawVal: total
+                        });
+                    } else if (chartType === 'disk') {
+                        const wsList = monitorData.value.website_series || [];
+                        if (wsList.length > 1) {
+                            wsList.forEach(ws => {
+                                const val = (ws.disk && ws.disk[idx] !== undefined) ? ws.disk[idx] : 0;
+                                items.push({
+                                    name: ws.domain_name,
+                                    color: ws.color,
+                                    val: val.toFixed(1) + '%',
+                                    rawVal: val
+                                });
+                            });
+                            items.sort((a, b) => b.rawVal - a.rawVal);
+                        }
+                        const total = (monitorData.value.time_series.disk && monitorData.value.time_series.disk[idx] !== undefined)
+                            ? monitorData.value.time_series.disk[idx] : 0;
+                        items.unshift({
+                            name: 'Tổng Disk',
+                            color: '#10b981',
+                            val: total.toFixed(1) + '%',
+                            isTotal: true,
+                            rawVal: total
+                        });
+                    } else if (chartType === 'bandwidth') {
+                        const down = (monitorData.value.time_series.bandwidth_in && monitorData.value.time_series.bandwidth_in[idx] !== undefined)
+                            ? monitorData.value.time_series.bandwidth_in[idx] : 0;
+                        const up = (monitorData.value.time_series.bandwidth_out && monitorData.value.time_series.bandwidth_out[idx] !== undefined)
+                            ? monitorData.value.time_series.bandwidth_out[idx] : 0;
+                        items.push({ name: 'Download (In)', color: '#06b6d4', val: down + ' KB/s', rawVal: down });
+                        items.push({ name: 'Upload (Out)', color: '#c084fc', val: up + ' KB/s', rawVal: up });
+                    } else if (chartType === 'pps') {
+                        const ppsIn = (monitorData.value.time_series.pps_in && monitorData.value.time_series.pps_in[idx] !== undefined)
+                            ? monitorData.value.time_series.pps_in[idx] : 0;
+                        const ppsOut = (monitorData.value.time_series.pps_out && monitorData.value.time_series.pps_out[idx] !== undefined)
+                            ? monitorData.value.time_series.pps_out[idx] : 0;
+                        items.push({ name: 'Gói nhận (In)', color: '#10b981', val: ppsIn + ' PPS', rawVal: ppsIn });
+                        items.push({ name: 'Gói gửi (Out)', color: '#f59e0b', val: ppsOut + ' PPS', rawVal: ppsOut });
+                    }
+
+                    const tooltipLeft = mouseX > (rect.width * 0.6) ? Math.max(10, mouseX - 220) : (mouseX + 15);
+                    const tooltipTop = Math.max(8, Math.min(mouseY - 20, rect.height - 120));
+
+                    chartHover.value = {
+                        activeChart: chartType,
+                        index: idx,
+                        svgX: svgX,
+                        time: time,
+                        items: items,
+                        tooltipStyle: {
+                            left: `${tooltipLeft}px`,
+                            top: `${tooltipTop}px`
+                        }
+                    };
+                };
+
+                const onChartMouseLeave = () => {
+                    chartHover.value.activeChart = null;
+                    chartHover.value.index = -1;
+                };
+
                 const generateSvgLinePath = (dataPoints, customMax = null) => {
-                    if (!dataPoints || dataPoints.length === 0) return 'M 0 100';
+                    if (!dataPoints || dataPoints.length === 0) return 'M 0 95 L 500 95';
                     let maxVal = customMax;
                     if (!maxVal) {
                         const peak = Math.max(...dataPoints, 0);
                         maxVal = peak > 100 ? peak * 1.15 : 100;
                     }
                     const w = 500;
-                    const h = 100;
                     const step = w / Math.max(1, (dataPoints.length - 1));
                     return dataPoints.map((val, idx) => {
                         const x = (idx * step).toFixed(1);
-                        const y = (h - (Math.min(maxVal, Math.max(0, val)) / Math.max(1, maxVal)) * (h - 14) - 7).toFixed(1);
+                        const y = (95 - (Math.min(maxVal, Math.max(0, val)) / Math.max(1, maxVal)) * 90).toFixed(1);
                         return (idx === 0 ? 'M' : 'L') + ` ${x} ${y}`;
                     }).join(' ');
                 };
 
                 const generateSvgAreaPath = (dataPoints, customMax = null) => {
-                    if (!dataPoints || dataPoints.length === 0) return 'M 0 100 L 500 100 Z';
+                    if (!dataPoints || dataPoints.length === 0) return 'M 0 95 L 500 95 Z';
                     const line = generateSvgLinePath(dataPoints, customMax);
-                    return `${line} L 500 100 L 0 100 Z`;
+                    return `${line} L 500 95 L 0 95 Z`;
                 };
 
                 const currentFormattedDate = computed(() => {
@@ -1991,6 +2144,7 @@ function showAlert(message) {
                         dashboard: 'Tổng quan hệ thống',
                         domains: 'Web Application',
                         databases: 'Quản lý Cơ sở dữ liệu (Databases)',
+                        monitoring: 'Giám sát Tài nguyên (Resource Monitor)',
                         wp: 'WordPress Toolkit',
                         files: 'Trình quản lý tệp tin',
                         apps: 'Kho ứng dụng (App Store)',
@@ -7217,7 +7371,8 @@ function showAlert(message) {
                     websiteSecuritySettings, openWebsiteSecurityModal, saveWebsiteSecurity,
                     // Resource Monitor
                     activeMonitorSubTab, monitorTimeRange, selectedMonitorTarget, loadingMonitor, monitorData,
-                    fetchResourceMonitorData, generateSvgLinePath, generateSvgAreaPath
+                    fetchResourceMonitorData, generateSvgLinePath, generateSvgAreaPath,
+                    chartHover, getSvgPointY, getBwMaxVal, getPpsMaxVal, onChartMouseMove, onChartMouseLeave
                 };
             }
         }).mount('#app');

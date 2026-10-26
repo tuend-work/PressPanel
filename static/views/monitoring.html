@@ -222,47 +222,102 @@
                 </div>
                 
                 <!-- SVG Area / Multi-line Chart CPU -->
-                <div class="w-full h-48 bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 relative flex flex-col justify-between">
-                    <div class="flex justify-between text-[10px] text-slate-500 font-mono border-b border-slate-800/60 pb-1">
-                        <span>100%</span>
-                        <span>75%</span>
-                        <span>50%</span>
-                        <span>25%</span>
-                        <span>0%</span>
+                <div class="w-full bg-slate-950/80 rounded-xl p-3 sm:p-4 border border-slate-800/80 relative select-none">
+                    <div class="flex items-stretch h-52 sm:h-56">
+                        <!-- CỘT DỌC (Y-AXIS %): 100% ở trên cùng, 0% ở đáy -->
+                        <div class="w-10 sm:w-12 flex flex-col justify-between items-end pr-2.5 py-1 text-[10px] text-slate-400 font-mono select-none border-r border-slate-800/80 shrink-0">
+                            <span>100%</span>
+                            <span>75%</span>
+                            <span>50%</span>
+                            <span>25%</span>
+                            <span>0%</span>
+                        </div>
+
+                        <!-- KHU VỰC VẼ BIỂU ĐỒ (SVG & CROSSHAIR HOVER) -->
+                        <div class="relative flex-1 h-full pl-2 cursor-crosshair overflow-hidden"
+                             @mousemove="onChartMouseMove($event, 'cpu')"
+                             @mouseleave="onChartMouseLeave">
+                            
+                            <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
+                                <defs>
+                                    <linearGradient id="cpuGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.35" />
+                                        <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.0" />
+                                    </linearGradient>
+                                </defs>
+
+                                <!-- Grid lines chuẩn độ cao Y: 100% (y=5), 75% (y=27.5), 50% (y=50), 25% (y=72.5), 0% (y=95) -->
+                                <line x1="0" y1="5" x2="500" y2="5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="27.5" x2="500" y2="27.5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="50" x2="500" y2="50" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="72.5" x2="500" y2="72.5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="95" x2="500" y2="95" stroke="#475569" stroke-width="1" opacity="0.6" />
+
+                                <!-- Single Website Scope -->
+                                <template v-if="!monitorData?.website_series?.length || monitorData?.website_series?.length <= 1">
+                                    <path :d="generateSvgAreaPath(monitorData?.time_series?.cpu || [])" fill="url(#cpuGrad)" />
+                                    <path :d="generateSvgLinePath(monitorData?.time_series?.cpu || [])" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                                </template>
+
+                                <!-- Multi-Website Lines (Admin & Hosting User) -->
+                                <template v-else>
+                                    <path v-for="ws in monitorData.website_series" :key="'cpu_line_' + ws.id"
+                                        :d="generateSvgLinePath(ws.cpu)"
+                                        fill="none"
+                                        :stroke="ws.color"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="transition-all hover:stroke-white hover:stroke-[3.5]" />
+                                </template>
+
+                                <!-- Crosshair Line & Point Dots khi Hover -->
+                                <g v-if="chartHover.activeChart === 'cpu' && chartHover.index >= 0">
+                                    <line :x1="chartHover.svgX" y1="0" :x2="chartHover.svgX" y2="95"
+                                          stroke="#e2e8f0" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.85" />
+
+                                    <!-- Vòng tròn highlight trên đường tổng -->
+                                    <circle :cx="chartHover.svgX"
+                                            :cy="getSvgPointY(monitorData?.time_series?.cpu?.[chartHover.index] || 0)"
+                                            r="4.5" fill="#f59e0b" stroke="#ffffff" stroke-width="2" />
+
+                                    <!-- Vòng tròn highlight từng website nếu có -->
+                                    <template v-if="monitorData?.website_series?.length > 1">
+                                        <circle v-for="ws in monitorData.website_series" :key="'dot_cpu_' + ws.id"
+                                                :cx="chartHover.svgX"
+                                                :cy="getSvgPointY(ws.cpu?.[chartHover.index] || 0)"
+                                                r="4" :fill="ws.color" stroke="#ffffff" stroke-width="1.8" />
+                                    </template>
+                                </g>
+                            </svg>
+
+                            <!-- Tooltip Nổi Thông Minh -->
+                            <div v-if="chartHover.activeChart === 'cpu' && chartHover.index >= 0"
+                                 class="absolute z-30 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl text-xs min-w-[190px] transition-all duration-75 ease-out"
+                                 :style="chartHover.tooltipStyle">
+                                <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5 mb-2 font-mono">
+                                    <span class="text-slate-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                                        <span>🕒</span> Mốc thời gian
+                                    </span>
+                                    <span class="text-amber-400 font-bold text-[11px]">{{ chartHover.time }}</span>
+                                </div>
+                                <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                    <div v-for="(item, idx) in chartHover.items" :key="'tt_cpu_' + idx"
+                                         class="flex items-center justify-between gap-2 text-[11px]"
+                                         :class="{'font-bold text-white pt-1 border-t border-slate-800/80': item.isTotal}">
+                                        <div class="flex items-center gap-1.5 truncate max-w-[125px]">
+                                            <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: item.color }"></span>
+                                            <span class="truncate text-slate-300" :title="item.name">{{ item.name }}</span>
+                                        </div>
+                                        <span class="font-mono font-bold shrink-0" :style="{ color: item.color }">{{ item.val }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- SVG Sparkline Area -->
-                    <div class="relative flex-1 w-full flex items-end">
-                        <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
-                            <defs>
-                                <linearGradient id="cpuGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.35" />
-                                    <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.0" />
-                                </linearGradient>
-                            </defs>
-
-                            <!-- Single Website Scope -->
-                            <template v-if="!monitorData?.website_series?.length || monitorData?.website_series?.length <= 1">
-                                <path :d="generateSvgAreaPath(monitorData?.time_series?.cpu || [])" fill="url(#cpuGrad)" />
-                                <path :d="generateSvgLinePath(monitorData?.time_series?.cpu || [])" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                            </template>
-
-                            <!-- Multi-Website Lines (Admin & Hosting User) -->
-                            <template v-else>
-                                <path v-for="ws in monitorData.website_series" :key="'cpu_line_' + ws.id"
-                                    :d="generateSvgLinePath(ws.cpu)"
-                                    fill="none"
-                                    :stroke="ws.color"
-                                    stroke-width="2.2"
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    class="transition-all hover:stroke-white hover:stroke-[3.5]" />
-                            </template>
-                        </svg>
-                    </div>
-
-                    <!-- Time Labels trục X -->
-                    <div class="flex justify-between text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-800/60">
+                    <!-- CỘT NGANG (X-AXIS THỜI GIAN): Nằm ngang dưới đáy theo trục thời gian -->
+                    <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono pt-2 mt-1 border-t border-slate-800/80 pl-10 sm:pl-12">
                         <span v-for="(lbl, idx) in (monitorData?.time_series?.labels || []).filter((_, i) => i % 2 === 0)" :key="'l_' + idx">
                             {{ lbl }}
                         </span>
@@ -298,43 +353,97 @@
                 </div>
 
                 <!-- SVG Area / Multi-line Chart RAM -->
-                <div class="w-full h-48 bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 relative flex flex-col justify-between">
-                    <div class="flex justify-between text-[10px] text-slate-500 font-mono border-b border-slate-800/60 pb-1">
-                        <span>100%</span>
-                        <span>75%</span>
-                        <span>50%</span>
-                        <span>25%</span>
-                        <span>0%</span>
+                <div class="w-full bg-slate-950/80 rounded-xl p-3 sm:p-4 border border-slate-800/80 relative select-none">
+                    <div class="flex items-stretch h-52 sm:h-56">
+                        <!-- CỘT DỌC (Y-AXIS %): 100% ở trên cùng, 0% ở đáy -->
+                        <div class="w-10 sm:w-12 flex flex-col justify-between items-end pr-2.5 py-1 text-[10px] text-slate-400 font-mono select-none border-r border-slate-800/80 shrink-0">
+                            <span>100%</span>
+                            <span>75%</span>
+                            <span>50%</span>
+                            <span>25%</span>
+                            <span>0%</span>
+                        </div>
+
+                        <!-- KHU VỰC VẼ BIỂU ĐỒ (SVG & CROSSHAIR HOVER) -->
+                        <div class="relative flex-1 h-full pl-2 cursor-crosshair overflow-hidden"
+                             @mousemove="onChartMouseMove($event, 'ram')"
+                             @mouseleave="onChartMouseLeave">
+                            
+                            <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
+                                <defs>
+                                    <linearGradient id="ramGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stop-color="#0ea5e9" stop-opacity="0.35" />
+                                        <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0.0" />
+                                    </linearGradient>
+                                </defs>
+
+                                <line x1="0" y1="5" x2="500" y2="5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="27.5" x2="500" y2="27.5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="50" x2="500" y2="50" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="72.5" x2="500" y2="72.5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="95" x2="500" y2="95" stroke="#475569" stroke-width="1" opacity="0.6" />
+
+                                <template v-if="!monitorData?.website_series?.length || monitorData?.website_series?.length <= 1">
+                                    <path :d="generateSvgAreaPath(monitorData?.time_series?.ram || [])" fill="url(#ramGrad)" />
+                                    <path :d="generateSvgLinePath(monitorData?.time_series?.ram || [])" fill="none" stroke="#0ea5e9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                                </template>
+
+                                <template v-else>
+                                    <path v-for="ws in monitorData.website_series" :key="'ram_line_' + ws.id"
+                                        :d="generateSvgLinePath(ws.ram)"
+                                        fill="none"
+                                        :stroke="ws.color"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="transition-all hover:stroke-white hover:stroke-[3.5]" />
+                                </template>
+
+                                <!-- Crosshair Line & Point Dots khi Hover -->
+                                <g v-if="chartHover.activeChart === 'ram' && chartHover.index >= 0">
+                                    <line :x1="chartHover.svgX" y1="0" :x2="chartHover.svgX" y2="95"
+                                          stroke="#e2e8f0" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.85" />
+
+                                    <circle :cx="chartHover.svgX"
+                                            :cy="getSvgPointY(monitorData?.time_series?.ram?.[chartHover.index] || 0)"
+                                            r="4.5" fill="#0ea5e9" stroke="#ffffff" stroke-width="2" />
+
+                                    <template v-if="monitorData?.website_series?.length > 1">
+                                        <circle v-for="ws in monitorData.website_series" :key="'dot_ram_' + ws.id"
+                                                :cx="chartHover.svgX"
+                                                :cy="getSvgPointY(ws.ram?.[chartHover.index] || 0)"
+                                                r="4" :fill="ws.color" stroke="#ffffff" stroke-width="1.8" />
+                                    </template>
+                                </g>
+                            </svg>
+
+                            <!-- Tooltip Nổi Thông Minh -->
+                            <div v-if="chartHover.activeChart === 'ram' && chartHover.index >= 0"
+                                 class="absolute z-30 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl text-xs min-w-[190px] transition-all duration-75 ease-out"
+                                 :style="chartHover.tooltipStyle">
+                                <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5 mb-2 font-mono">
+                                    <span class="text-slate-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                                        <span>🕒</span> Mốc thời gian
+                                    </span>
+                                    <span class="text-sky-400 font-bold text-[11px]">{{ chartHover.time }}</span>
+                                </div>
+                                <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                    <div v-for="(item, idx) in chartHover.items" :key="'tt_ram_' + idx"
+                                         class="flex items-center justify-between gap-2 text-[11px]"
+                                         :class="{'font-bold text-white pt-1 border-t border-slate-800/80': item.isTotal}">
+                                        <div class="flex items-center gap-1.5 truncate max-w-[125px]">
+                                            <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: item.color }"></span>
+                                            <span class="truncate text-slate-300" :title="item.name">{{ item.name }}</span>
+                                        </div>
+                                        <span class="font-mono font-bold shrink-0" :style="{ color: item.color }">{{ item.val }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="relative flex-1 w-full flex items-end">
-                        <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
-                            <defs>
-                                <linearGradient id="ramGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stop-color="#0ea5e9" stop-opacity="0.35" />
-                                    <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0.0" />
-                                </linearGradient>
-                            </defs>
-
-                            <template v-if="!monitorData?.website_series?.length || monitorData?.website_series?.length <= 1">
-                                <path :d="generateSvgAreaPath(monitorData?.time_series?.ram || [])" fill="url(#ramGrad)" />
-                                <path :d="generateSvgLinePath(monitorData?.time_series?.ram || [])" fill="none" stroke="#0ea5e9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                            </template>
-
-                            <template v-else>
-                                <path v-for="ws in monitorData.website_series" :key="'ram_line_' + ws.id"
-                                    :d="generateSvgLinePath(ws.ram)"
-                                    fill="none"
-                                    :stroke="ws.color"
-                                    stroke-width="2.2"
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    class="transition-all hover:stroke-white hover:stroke-[3.5]" />
-                            </template>
-                        </svg>
-                    </div>
-
-                    <div class="flex justify-between text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-800/60">
+                    <!-- CỘT NGANG (X-AXIS THỜI GIAN) -->
+                    <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono pt-2 mt-1 border-t border-slate-800/80 pl-10 sm:pl-12">
                         <span v-for="(lbl, idx) in (monitorData?.time_series?.labels || []).filter((_, i) => i % 2 === 0)" :key="'rl_' + idx">
                             {{ lbl }}
                         </span>
@@ -376,30 +485,82 @@
                     </div>
                 </div>
 
-                <div class="w-full h-48 bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 relative flex flex-col justify-between">
-                    <div class="flex justify-between text-[10px] text-slate-500 font-mono border-b border-slate-800/60 pb-1">
-                        <span>Đỉnh (Peak)</span>
-                        <span>75%</span>
-                        <span>50%</span>
-                        <span>25%</span>
-                        <span>0 KB/s</span>
+                <!-- SVG Chart Bandwidth -->
+                <div class="w-full bg-slate-950/80 rounded-xl p-3 sm:p-4 border border-slate-800/80 relative select-none">
+                    <div class="flex items-stretch h-52 sm:h-56">
+                        <!-- CỘT DỌC (Y-AXIS KB/s) -->
+                        <div class="w-12 sm:w-16 flex flex-col justify-between items-end pr-2.5 py-1 text-[10px] text-slate-400 font-mono select-none border-r border-slate-800/80 shrink-0">
+                            <span>{{ getBwMaxVal }}</span>
+                            <span>{{ Math.round(getBwMaxVal * 0.75) }}</span>
+                            <span>{{ Math.round(getBwMaxVal * 0.5) }}</span>
+                            <span>{{ Math.round(getBwMaxVal * 0.25) }}</span>
+                            <span>0 KB/s</span>
+                        </div>
+
+                        <!-- KHU VỰC VẼ BIỂU ĐỒ -->
+                        <div class="relative flex-1 h-full pl-2 cursor-crosshair overflow-hidden"
+                             @mousemove="onChartMouseMove($event, 'bandwidth')"
+                             @mouseleave="onChartMouseLeave">
+                            
+                            <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
+                                <defs>
+                                    <linearGradient id="bwDownGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.35" />
+                                        <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.0" />
+                                    </linearGradient>
+                                </defs>
+
+                                <line x1="0" y1="5" x2="500" y2="5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="27.5" x2="500" y2="27.5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="50" x2="500" y2="50" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="72.5" x2="500" y2="72.5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="95" x2="500" y2="95" stroke="#475569" stroke-width="1" opacity="0.6" />
+
+                                <path :d="generateSvgAreaPath(monitorData?.time_series?.bandwidth_in || [], getBwMaxVal)" fill="url(#bwDownGrad)" />
+                                <path :d="generateSvgLinePath(monitorData?.time_series?.bandwidth_in || [], getBwMaxVal)" fill="none" stroke="#06b6d4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                                <path :d="generateSvgLinePath(monitorData?.time_series?.bandwidth_out || [], getBwMaxVal)" fill="none" stroke="#c084fc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+
+                                <!-- Crosshair Line & Point Dots khi Hover -->
+                                <g v-if="chartHover.activeChart === 'bandwidth' && chartHover.index >= 0">
+                                    <line :x1="chartHover.svgX" y1="0" :x2="chartHover.svgX" y2="95"
+                                          stroke="#e2e8f0" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.85" />
+
+                                    <circle :cx="chartHover.svgX"
+                                            :cy="getSvgPointY(monitorData?.time_series?.bandwidth_in?.[chartHover.index] || 0, getBwMaxVal)"
+                                            r="4.5" fill="#06b6d4" stroke="#ffffff" stroke-width="2" />
+
+                                    <circle :cx="chartHover.svgX"
+                                            :cy="getSvgPointY(monitorData?.time_series?.bandwidth_out?.[chartHover.index] || 0, getBwMaxVal)"
+                                            r="4" fill="#c084fc" stroke="#ffffff" stroke-width="1.8" />
+                                </g>
+                            </svg>
+
+                            <!-- Tooltip Nổi Thông Minh -->
+                            <div v-if="chartHover.activeChart === 'bandwidth' && chartHover.index >= 0"
+                                 class="absolute z-30 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl text-xs min-w-[190px] transition-all duration-75 ease-out"
+                                 :style="chartHover.tooltipStyle">
+                                <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5 mb-2 font-mono">
+                                    <span class="text-slate-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                                        <span>🕒</span> Mốc thời gian
+                                    </span>
+                                    <span class="text-cyan-400 font-bold text-[11px]">{{ chartHover.time }}</span>
+                                </div>
+                                <div class="space-y-1.5 pr-1">
+                                    <div v-for="(item, idx) in chartHover.items" :key="'tt_bw_' + idx"
+                                         class="flex items-center justify-between gap-2 text-[11px]">
+                                        <div class="flex items-center gap-1.5 truncate max-w-[125px]">
+                                            <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: item.color }"></span>
+                                            <span class="truncate text-slate-300">{{ item.name }}</span>
+                                        </div>
+                                        <span class="font-mono font-bold shrink-0" :style="{ color: item.color }">{{ item.val }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="relative flex-1 w-full flex items-end">
-                        <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
-                            <defs>
-                                <linearGradient id="bwDownGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.35" />
-                                    <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.0" />
-                                </linearGradient>
-                            </defs>
-                            <path :d="generateSvgAreaPath(monitorData?.time_series?.bandwidth_in || [])" fill="url(#bwDownGrad)" />
-                            <path :d="generateSvgLinePath(monitorData?.time_series?.bandwidth_in || [])" fill="none" stroke="#06b6d4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                            <path :d="generateSvgLinePath(monitorData?.time_series?.bandwidth_out || [])" fill="none" stroke="#c084fc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
-                    </div>
-
-                    <div class="flex justify-between text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-800/60">
+                    <!-- CỘT NGANG (X-AXIS THỜI GIAN) -->
+                    <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono pt-2 mt-1 border-t border-slate-800/80 pl-12 sm:pl-16">
                         <span v-for="(lbl, idx) in (monitorData?.time_series?.labels || []).filter((_, i) => i % 2 === 0)" :key="'bwl_' + idx">
                             {{ lbl }}
                         </span>
@@ -426,30 +587,82 @@
                     </div>
                 </div>
 
-                <div class="w-full h-48 bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 relative flex flex-col justify-between">
-                    <div class="flex justify-between text-[10px] text-slate-500 font-mono border-b border-slate-800/60 pb-1">
-                        <span>Đỉnh (Peak PPS)</span>
-                        <span>75%</span>
-                        <span>50%</span>
-                        <span>25%</span>
-                        <span>0 PPS</span>
+                <!-- SVG Chart PPS -->
+                <div class="w-full bg-slate-950/80 rounded-xl p-3 sm:p-4 border border-slate-800/80 relative select-none">
+                    <div class="flex items-stretch h-52 sm:h-56">
+                        <!-- CỘT DỌC (Y-AXIS PPS) -->
+                        <div class="w-12 sm:w-16 flex flex-col justify-between items-end pr-2.5 py-1 text-[10px] text-slate-400 font-mono select-none border-r border-slate-800/80 shrink-0">
+                            <span>{{ getPpsMaxVal }}</span>
+                            <span>{{ Math.round(getPpsMaxVal * 0.75) }}</span>
+                            <span>{{ Math.round(getPpsMaxVal * 0.5) }}</span>
+                            <span>{{ Math.round(getPpsMaxVal * 0.25) }}</span>
+                            <span>0 PPS</span>
+                        </div>
+
+                        <!-- KHU VỰC VẼ BIỂU ĐỒ -->
+                        <div class="relative flex-1 h-full pl-2 cursor-crosshair overflow-hidden"
+                             @mousemove="onChartMouseMove($event, 'pps')"
+                             @mouseleave="onChartMouseLeave">
+                            
+                            <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
+                                <defs>
+                                    <linearGradient id="ppsInGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stop-color="#10b981" stop-opacity="0.35" />
+                                        <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
+                                    </linearGradient>
+                                </defs>
+
+                                <line x1="0" y1="5" x2="500" y2="5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="27.5" x2="500" y2="27.5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="50" x2="500" y2="50" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="72.5" x2="500" y2="72.5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="95" x2="500" y2="95" stroke="#475569" stroke-width="1" opacity="0.6" />
+
+                                <path :d="generateSvgAreaPath(monitorData?.time_series?.pps_in || [], getPpsMaxVal)" fill="url(#ppsInGrad)" />
+                                <path :d="generateSvgLinePath(monitorData?.time_series?.pps_in || [], getPpsMaxVal)" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                                <path :d="generateSvgLinePath(monitorData?.time_series?.pps_out || [], getPpsMaxVal)" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+
+                                <!-- Crosshair Line & Point Dots khi Hover -->
+                                <g v-if="chartHover.activeChart === 'pps' && chartHover.index >= 0">
+                                    <line :x1="chartHover.svgX" y1="0" :x2="chartHover.svgX" y2="95"
+                                          stroke="#e2e8f0" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.85" />
+
+                                    <circle :cx="chartHover.svgX"
+                                            :cy="getSvgPointY(monitorData?.time_series?.pps_in?.[chartHover.index] || 0, getPpsMaxVal)"
+                                            r="4.5" fill="#10b981" stroke="#ffffff" stroke-width="2" />
+
+                                    <circle :cx="chartHover.svgX"
+                                            :cy="getSvgPointY(monitorData?.time_series?.pps_out?.[chartHover.index] || 0, getPpsMaxVal)"
+                                            r="4" fill="#f59e0b" stroke="#ffffff" stroke-width="1.8" />
+                                </g>
+                            </svg>
+
+                            <!-- Tooltip Nổi Thông Minh -->
+                            <div v-if="chartHover.activeChart === 'pps' && chartHover.index >= 0"
+                                 class="absolute z-30 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl text-xs min-w-[190px] transition-all duration-75 ease-out"
+                                 :style="chartHover.tooltipStyle">
+                                <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5 mb-2 font-mono">
+                                    <span class="text-slate-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                                        <span>🕒</span> Mốc thời gian
+                                    </span>
+                                    <span class="text-emerald-400 font-bold text-[11px]">{{ chartHover.time }}</span>
+                                </div>
+                                <div class="space-y-1.5 pr-1">
+                                    <div v-for="(item, idx) in chartHover.items" :key="'tt_pps_' + idx"
+                                         class="flex items-center justify-between gap-2 text-[11px]">
+                                        <div class="flex items-center gap-1.5 truncate max-w-[125px]">
+                                            <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: item.color }"></span>
+                                            <span class="truncate text-slate-300">{{ item.name }}</span>
+                                        </div>
+                                        <span class="font-mono font-bold shrink-0" :style="{ color: item.color }">{{ item.val }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="relative flex-1 w-full flex items-end">
-                        <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
-                            <defs>
-                                <linearGradient id="ppsInGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stop-color="#10b981" stop-opacity="0.35" />
-                                    <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
-                                </linearGradient>
-                            </defs>
-                            <path :d="generateSvgAreaPath(monitorData?.time_series?.pps_in || [])" fill="url(#ppsInGrad)" />
-                            <path :d="generateSvgLinePath(monitorData?.time_series?.pps_in || [])" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                            <path :d="generateSvgLinePath(monitorData?.time_series?.pps_out || [])" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
-                    </div>
-
-                    <div class="flex justify-between text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-800/60">
+                    <!-- CỘT NGANG (X-AXIS THỜI GIAN) -->
+                    <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono pt-2 mt-1 border-t border-slate-800/80 pl-12 sm:pl-16">
                         <span v-for="(lbl, idx) in (monitorData?.time_series?.labels || []).filter((_, i) => i % 2 === 0)" :key="'ppsl_' + idx">
                             {{ lbl }}
                         </span>
@@ -541,43 +754,97 @@
                 </div>
 
                 <!-- SVG Area / Multi-line Chart Disk -->
-                <div class="w-full h-48 bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 relative flex flex-col justify-between">
-                    <div class="flex justify-between text-[10px] text-slate-500 font-mono border-b border-slate-800/60 pb-1">
-                        <span>100%</span>
-                        <span>75%</span>
-                        <span>50%</span>
-                        <span>25%</span>
-                        <span>0%</span>
+                <div class="w-full bg-slate-950/80 rounded-xl p-3 sm:p-4 border border-slate-800/80 relative select-none">
+                    <div class="flex items-stretch h-52 sm:h-56">
+                        <!-- CỘT DỌC (Y-AXIS %): 100% ở trên cùng, 0% ở đáy -->
+                        <div class="w-10 sm:w-12 flex flex-col justify-between items-end pr-2.5 py-1 text-[10px] text-slate-400 font-mono select-none border-r border-slate-800/80 shrink-0">
+                            <span>100%</span>
+                            <span>75%</span>
+                            <span>50%</span>
+                            <span>25%</span>
+                            <span>0%</span>
+                        </div>
+
+                        <!-- KHU VỰC VẼ BIỂU ĐỒ (SVG & CROSSHAIR HOVER) -->
+                        <div class="relative flex-1 h-full pl-2 cursor-crosshair overflow-hidden"
+                             @mousemove="onChartMouseMove($event, 'disk')"
+                             @mouseleave="onChartMouseLeave">
+                            
+                            <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
+                                <defs>
+                                    <linearGradient id="diskGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stop-color="#10b981" stop-opacity="0.35" />
+                                        <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
+                                    </linearGradient>
+                                </defs>
+
+                                <line x1="0" y1="5" x2="500" y2="5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="27.5" x2="500" y2="27.5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="50" x2="500" y2="50" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="72.5" x2="500" y2="72.5" stroke="#334155" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35" />
+                                <line x1="0" y1="95" x2="500" y2="95" stroke="#475569" stroke-width="1" opacity="0.6" />
+
+                                <template v-if="!monitorData?.website_series?.length || monitorData?.website_series?.length <= 1">
+                                    <path :d="generateSvgAreaPath(monitorData?.time_series?.disk || [])" fill="url(#diskGrad)" />
+                                    <path :d="generateSvgLinePath(monitorData?.time_series?.disk || [])" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                                </template>
+
+                                <template v-else>
+                                    <path v-for="ws in monitorData.website_series" :key="'disk_line_' + ws.id"
+                                        :d="generateSvgLinePath(ws.disk)"
+                                        fill="none"
+                                        :stroke="ws.color"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="transition-all hover:stroke-white hover:stroke-[3.5]" />
+                                </template>
+
+                                <!-- Crosshair Line & Point Dots khi Hover -->
+                                <g v-if="chartHover.activeChart === 'disk' && chartHover.index >= 0">
+                                    <line :x1="chartHover.svgX" y1="0" :x2="chartHover.svgX" y2="95"
+                                          stroke="#e2e8f0" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.85" />
+
+                                    <circle :cx="chartHover.svgX"
+                                            :cy="getSvgPointY(monitorData?.time_series?.disk?.[chartHover.index] || 0)"
+                                            r="4.5" fill="#10b981" stroke="#ffffff" stroke-width="2" />
+
+                                    <template v-if="monitorData?.website_series?.length > 1">
+                                        <circle v-for="ws in monitorData.website_series" :key="'dot_disk_' + ws.id"
+                                                :cx="chartHover.svgX"
+                                                :cy="getSvgPointY(ws.disk?.[chartHover.index] || 0)"
+                                                r="4" :fill="ws.color" stroke="#ffffff" stroke-width="1.8" />
+                                    </template>
+                                </g>
+                            </svg>
+
+                            <!-- Tooltip Nổi Thông Minh -->
+                            <div v-if="chartHover.activeChart === 'disk' && chartHover.index >= 0"
+                                 class="absolute z-30 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl text-xs min-w-[190px] transition-all duration-75 ease-out"
+                                 :style="chartHover.tooltipStyle">
+                                <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5 mb-2 font-mono">
+                                    <span class="text-slate-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                                        <span>🕒</span> Mốc thời gian
+                                    </span>
+                                    <span class="text-emerald-400 font-bold text-[11px]">{{ chartHover.time }}</span>
+                                </div>
+                                <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                    <div v-for="(item, idx) in chartHover.items" :key="'tt_disk_' + idx"
+                                         class="flex items-center justify-between gap-2 text-[11px]"
+                                         :class="{'font-bold text-white pt-1 border-t border-slate-800/80': item.isTotal}">
+                                        <div class="flex items-center gap-1.5 truncate max-w-[125px]">
+                                            <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: item.color }"></span>
+                                            <span class="truncate text-slate-300" :title="item.name">{{ item.name }}</span>
+                                        </div>
+                                        <span class="font-mono font-bold shrink-0" :style="{ color: item.color }">{{ item.val }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="relative flex-1 w-full flex items-end">
-                        <svg class="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
-                            <defs>
-                                <linearGradient id="diskGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stop-color="#10b981" stop-opacity="0.35" />
-                                    <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
-                                </linearGradient>
-                            </defs>
-
-                            <template v-if="!monitorData?.website_series?.length || monitorData?.website_series?.length <= 1">
-                                <path :d="generateSvgAreaPath(monitorData?.time_series?.disk || [])" fill="url(#diskGrad)" />
-                                <path :d="generateSvgLinePath(monitorData?.time_series?.disk || [])" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                            </template>
-
-                            <template v-else>
-                                <path v-for="ws in monitorData.website_series" :key="'disk_line_' + ws.id"
-                                    :d="generateSvgLinePath(ws.disk)"
-                                    fill="none"
-                                    :stroke="ws.color"
-                                    stroke-width="2.2"
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    class="transition-all hover:stroke-white hover:stroke-[3.5]" />
-                            </template>
-                        </svg>
-                    </div>
-
-                    <div class="flex justify-between text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-800/60">
+                    <!-- CỘT NGANG (X-AXIS THỜI GIAN) -->
+                    <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono pt-2 mt-1 border-t border-slate-800/80 pl-10 sm:pl-12">
                         <span v-for="(lbl, idx) in (monitorData?.time_series?.labels || []).filter((_, i) => i % 2 === 0)" :key="'dl_' + idx">
                             {{ lbl }}
                         </span>
