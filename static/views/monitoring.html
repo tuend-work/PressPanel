@@ -74,23 +74,26 @@
                     <span class="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 text-sm">⚡</span>
                     <div>
                         <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">CPU Usage</div>
-                        <div class="text-xs text-slate-500 font-mono">{{ monitorData?.metrics?.cpu?.cores || 1 }} Cores Active</div>
+                        <div class="text-xs text-slate-500 font-mono">
+                            <span v-if="monitorData?.target?.scope === 'server'">{{ monitorData?.metrics?.cpu?.cores || 1 }} Cores Active</span>
+                            <span v-else>{{ monitorData?.metrics?.cpu?.allocated_cores || (monitorData?.metrics?.cpu?.max_pct ? (monitorData.metrics.cpu.max_pct / 100).toFixed(0) : 1) }} Core được cấp (Server: {{ monitorData?.metrics?.cpu?.cores || 1 }} Cores)</span>
+                        </div>
                     </div>
                 </div>
                 <span class="text-xs font-mono font-bold px-2 py-0.5 rounded-md"
-                    :class="(monitorData?.metrics?.cpu?.percent || 0) >= 80 ? 'bg-rose-500/15 text-rose-400' : 'bg-amber-500/15 text-amber-400'">
+                    :class="(monitorData?.metrics?.cpu?.percent || 0) >= (monitorData?.metrics?.cpu?.max_pct || 100) * 0.8 ? 'bg-rose-500/15 text-rose-400' : 'bg-amber-500/15 text-amber-400'">
                     {{ (monitorData?.metrics?.cpu?.percent || 0).toFixed(1) }}%
                 </span>
             </div>
             <div class="space-y-1.5 mt-2">
                 <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden">
                     <div class="h-full rounded-full transition-all duration-700"
-                        :class="(monitorData?.metrics?.cpu?.percent || 0) >= 80 ? 'bg-rose-500' : 'bg-gradient-to-r from-amber-500 to-amber-400'"
-                        :style="{ width: Math.min(100, monitorData?.metrics?.cpu?.percent || 0) + '%' }"></div>
+                        :class="(monitorData?.metrics?.cpu?.percent || 0) >= (monitorData?.metrics?.cpu?.max_pct || 100) * 0.8 ? 'bg-rose-500' : 'bg-gradient-to-r from-amber-500 to-amber-400'"
+                        :style="{ width: Math.min(100, ((monitorData?.metrics?.cpu?.percent || 0) / Math.max(1, monitorData?.metrics?.cpu?.max_pct || 100)) * 100) + '%' }"></div>
                 </div>
                 <div class="flex justify-between text-[11px] font-mono text-slate-400 pt-1">
                     <span>Load Avg: {{ monitorData?.metrics?.cpu?.load?.['1m'] || '0.00' }}</span>
-                    <span>Limit: {{ monitorData?.metrics?.cpu?.limit_pct || 100 }}%</span>
+                    <span>Limit: {{ monitorData?.metrics?.cpu?.max_pct || monitorData?.metrics?.cpu?.limit_pct || 100 }}% ({{ monitorData?.metrics?.cpu?.allocated_cores || 1 }} Cores)</span>
                 </div>
             </div>
         </div>

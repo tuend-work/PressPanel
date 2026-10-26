@@ -4,6 +4,7 @@ import platform
 import time
 import asyncio
 import re
+import subprocess
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from app.api.deps import get_current_user
@@ -649,6 +650,8 @@ async def get_resource_monitor(
         allowed_users = [{"id": current_uid, "username": current_user.get("username", "user"), "role": user_role, "full_name": current_user.get("full_name", "")}]
         cur_d = await db_conn.execute("SELECT id, domain_name, user_id, document_root, is_system FROM domains WHERE user_id = ? ORDER BY domain_name ASC", (current_uid,))
         allowed_domains = [dict(r) for r in await cur_d.fetchall()]
+        if not target_domain_id and allowed_domains:
+            target_domain_id = allowed_domains[0]["id"]
 
     else:
         # Website User: Bắt buộc chỉ gán đúng web_domain_id của chính mình
@@ -677,45 +680,207 @@ async def get_resource_monitor(
     # 3. Lấy thông số thực tế hiện tại
     stats = get_system_stats()
     cpu_cores = stats["cpu_cores"]
-    
-    # Tính toán tài nguyên theo scope
+
+    # Thu thập danh sách Linux users và thư mục để đo lường tài nguyên thực tế
+    target_system_users = set()
+    target_doc_roots = []
+
+    # Tính toán tài nguyên theo scope (Giới hạn CPU %, RAM MB, Disk MB)
     cpu_limit_pct = 100
     mem_limit_mb = 1024
     disk_limit_mb = 5120
 
-    if user_role != "admin" or target_scope in ("user", "domain"):
-        user_info_cur = current_user
-        if target_user_id and target_user_id != current_uid:
-            u_row = await db_conn.execute("SELECT * FROM users WHERE id = ?", (target_user_id,))
-            user_info_cur = await u_row.fetchone() or current_user
-        cpu_limit_pct = int(user_info_cur.get("cpu_pct") or 100)
-        mem_limit_mb = int(user_info_cur.get("mem_mb") or 1024)
-        disk_limit_mb = int(user_info_cur.get("disk_mb") or 5120)
+    if target_scope == "domain" and selected_domain:
+        dom_id = selected_domain["id"]
+        d_info_cur = await db_conn.execute("""
+            SELECT d.id, d.domain_name, d.document_root, d.user_id,
+                   COALESCE(p_dom.cpu_pct, p.cpu_pct, u.cpu_pct, 100) as cpu_pct,
+                   COALESCE(p_dom.mem_mb, p.mem_mb, u.mem_mb, 1024) as mem_mb,
+                   COALESCE(p_dom.disk_mb, p.disk_mb, u.disk_mb, 5120) as disk_mb,
+                   u.username as owner_username
+            FROM domains d
+            LEFT JOIN users u ON d.user_id = u.id
+            LEFT JOIN packages p ON u.package_id = p.id
+            LEFT JOIN packages p_dom ON d.package_id = p_dom.id
+            WHERE d.id = ?
+        """, (dom_id,))
+        d_row = await d_info_cur.fetchone()
+        if d_row:
+            cpu_limit_pct = int(d_row["cpu_pct"] or 100)
+            mem_limit_mb = int(d_row["mem_mb"] or 1024)
+            disk_limit_mb = int(d_row["disk_mb"] or 5120)
+            if d_row["owner_username"]:
+                target_system_users.add(d_row["owner_username"])
 
-    # Đo lường tiến trình và dung lượng thực tế
-    current_cpu_pct = stats["cpu"]["percent"]
-    current_ram_mb = int(stats["ram"]["used_gb"] * 1024)
-    current_disk_mb = int(stats["disk"]["used_gb"] * 1024)
+        clean_d = re.sub(r"^(https?://)?(www\.)?", "", (selected_domain.get("domain_name") or "").strip().lower()).rstrip("/")
+        clean_u = re.sub(r"[^a-z0-9]", "", clean_d)[:30]
+        if clean_u:
+            target_system_users.add(clean_u)
+        if selected_domain.get("document_root"):
+            target_doc_roots.append(selected_domain["document_root"])
 
-    # CPU MAX THEO SỐ CORE:
-    # Máy chủ 10 core -> max là 1000%
-    # Website / User được cấp ví dụ 4 core -> max là 400%
+    elif target_scope == "user" or (user_role != "admin" and not selected_domain):
+        effective_uid = target_user_id or current_uid
+        u_info_cur = await db_conn.execute("SELECT id, username, cpu_pct, mem_mb, disk_mb FROM users WHERE id = ?", (effective_uid,))
+        u_row = await u_info_cur.fetchone()
+        if u_row:
+            cpu_limit_pct = int(u_row["cpu_pct"] or 100)
+            mem_limit_mb = int(u_row["mem_mb"] or 1024)
+            disk_limit_mb = int(u_row["disk_mb"] or 5120)
+            target_system_users.add(u_row["username"])
+
+        d_cur = await db_conn.execute("SELECT domain_name, document_root FROM domains WHERE user_id = ?", (effective_uid,))
+        for dr in await d_cur.fetchall():
+            if dr["document_root"]:
+                target_doc_roots.append(dr["document_root"])
+            c_d = re.sub(r"^(https?://)?(www\.)?", "", (dr["domain_name"] or "").strip().lower()).rstrip("/")
+            c_u = re.sub(r"[^a-z0-9]", "", c_d)[:30]
+            if c_u:
+                target_system_users.add(c_u)
+
+    # 3.1. Đo lường tiến trình CPU và RAM thực tế từ Linux Process Table & CGroup v2
+    real_user_cpu_pct = 0.0
+    real_user_rss_bytes = 0
+    cgroup_mem_bytes = 0
+    real_disk_mb = 0
+    active_user_pids = []
+    query_sys_users = []
+
+    if target_scope != "server" and platform.system() == "Linux":
+        valid_sys_users = []
+        for su in target_system_users:
+            if not su:
+                continue
+            try:
+                import pwd
+                pwd.getpwnam(su)
+                valid_sys_users.append(su)
+            except Exception:
+                pass
+
+        query_sys_users = valid_sys_users if valid_sys_users else [u for u in target_system_users if u]
+
+        if query_sys_users:
+            try:
+                u_arg = ",".join(query_sys_users)
+                ps_res = subprocess.run(
+                    ["ps", "-u", u_arg, "-o", "pid,%cpu,rss", "--no-headers"],
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1.5
+                )
+                if ps_res.returncode == 0 and ps_res.stdout:
+                    for line in ps_res.stdout.splitlines():
+                        parts = line.strip().split()
+                        if len(parts) >= 3:
+                            try:
+                                p_id = parts[0]
+                                c_val = float(parts[1])
+                                m_kb = int(parts[2])
+                                real_user_cpu_pct += c_val
+                                real_user_rss_bytes += m_kb * 1024
+                                active_user_pids.append(p_id)
+                            except (ValueError, IndexError):
+                                pass
+            except Exception:
+                pass
+
+        # Fallback: Quét theo tên pool PHP-FPM nếu ps -u chưa tìm thấy tiến trình nào
+        if not active_user_pids and query_sys_users:
+            try:
+                for su in query_sys_users:
+                    pg = subprocess.run(
+                        ["pgrep", "-f", f"pool {su}"],
+                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1.0
+                    )
+                    if pg.returncode == 0 and pg.stdout:
+                        fpm_pids = [p.strip() for p in pg.stdout.splitlines() if p.strip()]
+                        if fpm_pids:
+                            ps_p_proc = subprocess.run(
+                                ["ps", "-p", ",".join(fpm_pids[:30]), "-o", "pid,%cpu,rss", "--no-headers"],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1.0
+                            )
+                            if ps_p_proc.returncode == 0 and ps_p_proc.stdout:
+                                for line in ps_p_proc.stdout.splitlines():
+                                    parts = line.strip().split()
+                                    if len(parts) >= 3:
+                                        try:
+                                            p_id = parts[0]
+                                            c_val = float(parts[1])
+                                            m_kb = int(parts[2])
+                                            real_user_cpu_pct += c_val
+                                            real_user_rss_bytes += m_kb * 1024
+                                            active_user_pids.append(p_id)
+                                        except (ValueError, IndexError):
+                                            pass
+            except Exception:
+                pass
+
+        # Quét Cgroup v2 memory
+        for su in query_sys_users:
+            for cg_dir in [
+                f"/sys/fs/cgroup/wpc/reseller_1/user_{su}",
+                f"/sys/fs/cgroup/wpc/user_{su}",
+                f"/sys/fs/cgroup/wpc/reseller_{target_user_id or current_uid}/user_{su}"
+            ]:
+                mem_file = os.path.join(cg_dir, "memory.current")
+                if os.path.exists(mem_file):
+                    try:
+                        with open(mem_file, "r") as f:
+                            val = int(f.read().strip())
+                            if val > cgroup_mem_bytes:
+                                cgroup_mem_bytes = val
+                    except Exception:
+                        pass
+
+        # Quét dung lượng thực tế ổ đĩa (du -sm)
+        scanned_dirs = set()
+        for dr in target_doc_roots:
+            if dr and os.path.exists(dr) and dr not in scanned_dirs:
+                scanned_dirs.add(dr)
+                try:
+                    du_proc = subprocess.run(["du", "-sm", dr], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1.5)
+                    if du_proc.returncode == 0 and du_proc.stdout:
+                        real_disk_mb += int(du_proc.stdout.split()[0])
+                except Exception:
+                    pass
+
+        for su in query_sys_users:
+            h_dir = f"/home/{su}"
+            if os.path.exists(h_dir) and h_dir not in scanned_dirs:
+                scanned_dirs.add(h_dir)
+                try:
+                    du_proc = subprocess.run(["du", "-sm", h_dir], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1.5)
+                    if du_proc.returncode == 0 and du_proc.stdout:
+                        real_disk_mb += int(du_proc.stdout.split()[0])
+                except Exception:
+                    pass
+
+    # 3.2. Tính toán các giá trị chuẩn hóa
     if target_scope == "server":
         max_cpu_pct = max(100, cpu_cores * 100)
-        # Tỷ lệ CPU thực tế tính theo số core: ví dụ 15% của 10 core = 150.0%
-        base_cpu = round((float(current_cpu_pct) / 100.0) * max_cpu_pct, 1)
+        base_cpu = round((float(stats["cpu"]["percent"]) / 100.0) * max_cpu_pct, 1)
+        total_ram_mb = int(stats["ram"]["total_gb"] * 1024)
+        base_ram_mb = int(stats["ram"]["used_gb"] * 1024)
+        total_disk_gb = round(stats["disk"]["total_gb"], 1)
+        base_disk_gb = round(stats["disk"]["used_gb"], 2)
     else:
-        # User hoặc Domain:
+        # Đối với User hoặc Website Scope:
+        # max_cpu_pct tính theo số core được cấp (VD 1 core = 100%, 4 core = 400%)
         max_cpu_pct = max(100, cpu_limit_pct)
-        base_cpu = round(min(float(max_cpu_pct), max(1.0, (float(current_cpu_pct) / 100.0) * max_cpu_pct)), 1)
+        # base_cpu lấy trực tiếp từ mức tiêu thụ thực tế đo từ bảng tiến trình của website/user
+        base_cpu = round(min(float(max_cpu_pct), max(0.0, real_user_cpu_pct)), 1)
 
-    # RAM TÍNH THEO MB (không dùng %):
-    total_ram_mb = mem_limit_mb if target_scope != "server" else int(stats["ram"]["total_gb"] * 1024)
-    base_ram_mb = current_ram_mb if target_scope == "server" else min(mem_limit_mb, max(64, int((float(stats["ram"]["percent"]) / 100.0) * mem_limit_mb)))
-    
-    # DISK TÍNH THEO GB (không dùng %):
-    total_disk_gb = round(stats["disk"]["total_gb"], 1) if target_scope == "server" else round(disk_limit_mb / 1024.0, 1)
-    base_disk_gb = round(stats["disk"]["used_gb"], 2) if target_scope == "server" else round(min(total_disk_gb, max(0.1, (float(stats["disk"]["percent"]) / 100.0) * total_disk_gb)), 2)
+        # RAM tính theo MB thực tế (RSS hoặc CGroup memory)
+        total_ram_mb = mem_limit_mb
+        mem_used_bytes = max(cgroup_mem_bytes, real_user_rss_bytes)
+        base_ram_mb = int(min(total_ram_mb, round(mem_used_bytes / (1024 * 1024), 1)))
+        if base_ram_mb == 0 and os.name == "nt":
+            base_ram_mb = 64
+
+        # DISK tính theo GB thực tế (từ du -sm)
+        total_disk_gb = round(disk_limit_mb / 1024.0, 1)
+        base_disk_gb = round(min(total_disk_gb, max(0.01, real_disk_mb / 1024.0)), 2)
+        if base_disk_gb <= 0.01 and os.name == "nt":
+            base_disk_gb = 0.06
 
     base_bw_in = max(1.0, float(stats["network"]["down_speed_kb"]))
     base_bw_out = max(1.0, float(stats["network"]["up_speed_kb"]))
@@ -936,41 +1101,52 @@ async def get_resource_monitor(
 
     # 6. Lấy danh sách Top tiến trình (Processes) CHUẨN XÁC theo quyền RBAC
     process_list = []
-    filter_user = None
-    if user_role == "website_user" or is_web_user:
-        filter_user = current_user.get("username")
-    elif target_scope == "domain" and selected_domain:
-        u_owner = next((u for u in allowed_users if u["id"] == selected_domain.get("user_id")), None)
-        if u_owner:
-            filter_user = u_owner["username"]
-    elif target_scope == "user" and target_user_id:
-        sel_u = next((u for u in allowed_users if u["id"] == target_user_id), None)
-        if sel_u:
-            filter_user = sel_u["username"]
-
-    if os.name != "nt":
+    if platform.system() == "Linux":
         try:
-            if filter_user and filter_user != "root":
-                cmd_ps = ["ps", "-u", filter_user, "-o", "pid,user,%cpu,%mem,comm", "--sort=-%cpu"]
-            elif user_role == "admin" and target_scope == "server":
+            if target_scope == "server" and user_role == "admin":
                 cmd_ps = ["ps", "-eo", "pid,user,%cpu,%mem,comm", "--sort=-%cpu"]
+            elif query_sys_users:
+                cmd_ps = ["ps", "-u", ",".join(query_sys_users), "-o", "pid,user,%cpu,%mem,comm", "--sort=-%cpu"]
             else:
                 cmd_ps = ["ps", "-u", current_user.get("username", "wpc"), "-o", "pid,user,%cpu,%mem,comm", "--sort=-%cpu"]
 
-            proc = subprocess.run(cmd_ps, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
-            lines = proc.stdout.splitlines()[1:15]
-            for l in lines:
-                parts = l.split(None, 4)
-                if len(parts) >= 5:
-                    process_list.append({
-                        "pid": parts[0],
-                        "user": parts[1],
-                        "cpu_pct": parts[2],
-                        "mem_pct": parts[3],
-                        "command": parts[4]
-                    })
+            proc = subprocess.run(cmd_ps, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=2)
+            if proc.returncode == 0 and proc.stdout:
+                lines = proc.stdout.splitlines()[1:15]
+                for l in lines:
+                    parts = l.split(None, 4)
+                    if len(parts) >= 5:
+                        process_list.append({
+                            "pid": parts[0],
+                            "user": parts[1],
+                            "cpu_pct": parts[2],
+                            "mem_pct": parts[3],
+                            "command": parts[4]
+                        })
         except Exception:
             pass
+
+        # Nếu ps -u chưa tìm thấy tiến trình nào mà có active_user_pids (như PHP-FPM pool worker)
+        if not process_list and active_user_pids:
+            try:
+                ps_fpm = subprocess.run(
+                    ["ps", "-p", ",".join(active_user_pids[:15]), "-o", "pid,user,%cpu,%mem,comm", "--sort=-%cpu"],
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1.5
+                )
+                if ps_fpm.returncode == 0 and ps_fpm.stdout:
+                    lines = ps_fpm.stdout.splitlines()[1:15]
+                    for l in lines:
+                        parts = l.split(None, 4)
+                        if len(parts) >= 5:
+                            process_list.append({
+                                "pid": parts[0],
+                                "user": parts[1],
+                                "cpu_pct": parts[2],
+                                "mem_pct": parts[3],
+                                "command": parts[4]
+                            })
+            except Exception:
+                pass
 
     # TUYỆT ĐỐI KHÔNG thêm mock fake data có mysql, redis, nginx nếu user là website_user hoặc domain-specific!
     # Nếu là admin toàn server trên Windows (dev environment), mới hiển thị mẫu tiến trình server
