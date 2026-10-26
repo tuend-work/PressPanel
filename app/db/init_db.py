@@ -178,6 +178,31 @@ CREATE TABLE IF NOT EXISTS firewall_rules (
     comment TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 13. Bảng Cấu Hình Hệ Thống Toàn Cục (System Settings)
+CREATE TABLE IF NOT EXISTS system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 14. Bảng Ghi Nhận Lịch Sử Tài Nguyên Chi Tiết Từng Phút (Resource Metrics History)
+CREATE TABLE IF NOT EXISTS resource_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_type TEXT NOT NULL,  -- 'server', 'user', 'domain'
+    target_id INTEGER NOT NULL DEFAULT 0,  -- 0 cho server, user_id hoặc domain_id
+    cpu_pct REAL NOT NULL DEFAULT 0.0,
+    mem_mb INTEGER NOT NULL DEFAULT 0,
+    disk_mb INTEGER NOT NULL DEFAULT 0,
+    bw_in_kb REAL NOT NULL DEFAULT 0.0,
+    bw_out_kb REAL NOT NULL DEFAULT 0.0,
+    pps_in INTEGER NOT NULL DEFAULT 0,
+    pps_out INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_metrics_target_created ON resource_metrics(target_type, target_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_metrics_created_at ON resource_metrics(created_at);
 """
 
 async def init_database():
@@ -186,6 +211,14 @@ async def init_database():
     async with aiosqlite.connect(settings.DB_PATH) as db:
         await db.execute("PRAGMA journal_mode = WAL;")
         await db.executescript(SCHEMA_SQL)
+
+        # Seed system_settings mặc định cho tính năng lưu trữ lịch sử metrics
+        try:
+            await db.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('metrics_history_enabled', 'true')")
+            await db.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('metrics_retention_days', '7')")
+            await db.commit()
+        except Exception:
+            pass
         
         # Migration: Tự động bổ sung cột allow_ssh, plan_type cho packages và domains nếu đã tạo từ trước
         try:

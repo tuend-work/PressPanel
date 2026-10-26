@@ -6,6 +6,7 @@ import asyncio
 import re
 import subprocess
 from typing import Optional, List, Dict, Any
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from app.api.deps import get_current_user
 from app.db.session import get_db_connection
@@ -909,13 +910,50 @@ async def get_resource_monitor(
     base_pps_in = max(2.0, float(stats["network"]["in_pps"]))
     base_pps_out = max(2.0, float(stats["network"]["out_pps"]))
 
-    # 4. Sinh dữ liệu chuỗi thời gian (Time-series) cho biểu đồ trực quan
-    points_count = 12 if time_range == "1h" else (24 if time_range == "24h" else 14)
+    # 4. Sinh dữ liệu chuỗi thời gian (Time-series) cho biểu đồ trực quan từ SQLite Database
+    # Hỗ trợ cấu hình lưu trữ lâu dài: 1h, 24h, 7d, 14d, 30d, 60d, 90d
+    time_config = {
+        "1h":  {"points": 12, "delta_mins": 5,    "hours": 1,    "fmt": "%H:%M"},
+        "24h": {"points": 24, "delta_mins": 60,   "hours": 24,   "fmt": "%H:%M"},
+        "7d":  {"points": 14, "delta_mins": 720,  "hours": 168,  "fmt": "%d/%m"},
+        "14d": {"points": 14, "delta_mins": 1440, "hours": 336,  "fmt": "%d/%m"},
+        "30d": {"points": 15, "delta_mins": 2880, "hours": 720,  "fmt": "%d/%m"},
+        "60d": {"points": 20, "delta_mins": 4320, "hours": 1440, "fmt": "%d/%m"},
+        "90d": {"points": 18, "delta_mins": 7200, "hours": 2160, "fmt": "%d/%m"}
+    }
+    cfg = time_config.get(time_range, time_config["1h"])
+    points_count = cfg["points"]
+    delta_mins = cfg["delta_mins"]
+    hours_back = cfg["hours"]
+    date_fmt = cfg["fmt"]
     import datetime
     now = datetime.datetime.now()
-    delta_mins = 5 if time_range == "1h" else (60 if time_range == "24h" else 720)
 
-    # Ghi nhận mẫu thực tế hiện tại vào bộ đệm Time-series
+    # Xác định Target Type & ID cho câu truy vấn SQLite
+    db_target_type = "server"
+    db_target_id = 0
+    if target_scope == "domain" and selected_domain:
+        db_target_type = "domain"
+        db_target_id = selected_domain["id"]
+    elif target_scope == "user" and target_user_id:
+        db_target_type = "user"
+        db_target_id = target_user_id
+
+    # Đọc trực tiếp lịch sử từng phút đã lưu trong SQLite DB
+    db_metrics_rows = []
+    try:
+        c_hist = await db_conn.execute("""
+            SELECT cpu_pct, mem_mb, disk_mb, bw_in_kb, bw_out_kb, pps_in, pps_out,
+                   strftime('%s', created_at) as ts
+            FROM resource_metrics
+            WHERE target_type = ? AND target_id = ?
+              AND created_at >= datetime('now', ?)
+            ORDER BY created_at ASC
+        """, (db_target_type, db_target_id, f"-{hours_back} hours"))
+        db_metrics_rows = await c_hist.fetchall()
+    except Exception:
+        pass
+
     target_key = f"{target_scope}_{target_domain_id or target_user_id or 0}"
     now_ts = now.timestamp()
     current_sample = {
@@ -950,7 +988,7 @@ async def get_resource_monitor(
     for idx in range(points_count - 1, -1, -1):
         t_point = now - datetime.timedelta(minutes=idx * delta_mins)
         t_point_ts = t_point.timestamp()
-        lbl = t_point.strftime("%H:%M") if time_range in ("1h", "24h") else t_point.strftime("%d/%m")
+        lbl = t_point.strftime(date_fmt)
         time_labels.append(lbl)
 
         if idx == 0:
@@ -963,19 +1001,28 @@ async def get_resource_monitor(
             p_in = int(base_pps_in)
             p_out = int(base_pps_out)
         else:
-            # Điểm trong quá khứ: Tìm mẫu đã ghi nhận thực tế trong khoảng thời gian này
-            matched = [s for s in history if abs(s["t"] - t_point_ts) <= half_window]
-            if matched:
-                c_val = round(sum(s["cpu"] for s in matched) / len(matched), 1)
-                r_mb = int(sum(s["ram"] for s in matched) / len(matched))
-                d_gb = round(sum(s["disk"] for s in matched) / len(matched), 2)
-                b_in = round(sum(s["bw_in"] for s in matched) / len(matched), 1)
-                b_out = round(sum(s["bw_out"] for s in matched) / len(matched), 1)
-                p_in = int(sum(s["pps_in"] for s in matched) / len(matched))
-                p_out = int(sum(s["pps_out"] for s in matched) / len(matched))
+            # Điểm trong quá khứ: Ưu tiên lấy từ SQLite DB (dữ liệu lưu lâu dài từng phút)
+            matched_db = [r for r in db_metrics_rows if r["ts"] and abs(int(r["ts"]) - t_point_ts) <= half_window]
+            matched_mem = [s for s in history if abs(s["t"] - t_point_ts) <= half_window]
+
+            if matched_db:
+                c_val = round(sum(r["cpu_pct"] for r in matched_db) / len(matched_db), 1)
+                r_mb = int(sum(r["mem_mb"] for r in matched_db) / len(matched_db))
+                d_gb = round(sum(r["disk_mb"] for r in matched_db) / (len(matched_db) * 1024.0), 2)
+                b_in = round(sum(r["bw_in_kb"] for r in matched_db) / len(matched_db), 1)
+                b_out = round(sum(r["bw_out_kb"] for r in matched_db) / len(matched_db), 1)
+                p_in = int(sum(r["pps_in"] for r in matched_db) / len(matched_db))
+                p_out = int(sum(r["pps_out"] for r in matched_db) / len(matched_db))
+            elif matched_mem:
+                c_val = round(sum(s["cpu"] for s in matched_mem) / len(matched_mem), 1)
+                r_mb = int(sum(s["ram"] for s in matched_mem) / len(matched_mem))
+                d_gb = round(sum(s["disk"] for s in matched_mem) / len(matched_mem), 2)
+                b_in = round(sum(s["bw_in"] for s in matched_mem) / len(matched_mem), 1)
+                b_out = round(sum(s["bw_out"] for s in matched_mem) / len(matched_mem), 1)
+                p_in = int(sum(s["pps_in"] for s in matched_mem) / len(matched_mem))
+                p_out = int(sum(s["pps_out"] for s in matched_mem) / len(matched_mem))
             else:
-                # Không có mẫu ghi nhận trong quá khứ: CPU ở mức nghỉ (idle) tự nhiên của website (~0.2% - 1.2%)
-                # TUYỆT ĐỐI không lấy mức spike CPU hiện tại (400%) gán cho toàn bộ quá khứ!
+                # Không có mẫu ghi nhận trong quá khứ: Website ở mức nghỉ (idle) tự nhiên (~0.1% - 1.2%)
                 c_val = round(random.uniform(0.1, 1.2), 1) if target_scope != "server" else round(random.uniform(1.0, 4.0), 1)
                 r_mb = int(max(32, min(total_ram_mb, base_ram_mb - random.randint(5, 20))))
                 d_gb = round(base_disk_gb, 2)
@@ -1273,4 +1320,89 @@ async def get_resource_monitor(
             "domains": allowed_domains
         }
     }
+
+
+class MetricsSettingsRequest(BaseModel):
+    enabled: bool
+    retention_days: int
+
+@router.get("/metrics-settings")
+async def get_metrics_settings(current_user: dict = Depends(get_current_user)):
+    """
+    Lấy thông tin cấu hình lưu trữ lịch sử metrics vào SQLite DB
+    """
+    db = await get_db_connection()
+    c_cfg = await db.execute("SELECT key, value FROM system_settings WHERE key IN ('metrics_history_enabled', 'metrics_retention_days')")
+    rows = await c_cfg.fetchall()
+    settings_map = {r["key"]: r["value"] for r in rows}
+
+    enabled = settings_map.get("metrics_history_enabled", "true").lower() in ("true", "1", "yes")
+    try:
+        retention_days = int(settings_map.get("metrics_retention_days", "7"))
+    except ValueError:
+        retention_days = 7
+
+    # Thống kê tổng số bản ghi và bản ghi cũ nhất trong bảng resource_metrics
+    c_cnt = await db.execute("SELECT COUNT(*), MIN(created_at) FROM resource_metrics")
+    cnt_row = await c_cnt.fetchone()
+    total_records = cnt_row[0] if cnt_row else 0
+    oldest_record = cnt_row[1] if cnt_row and cnt_row[1] else None
+
+    # Ước lượng dung lượng DB (khoảng 60 bytes/bản ghi)
+    db_size_mb = round((total_records * 60) / (1024 * 1024), 2)
+
+    return {
+        "status": "ok",
+        "enabled": enabled,
+        "retention_days": retention_days,
+        "allowed_retention_days": [3, 7, 14, 30, 60, 90],
+        "total_records": total_records,
+        "db_size_mb": db_size_mb,
+        "oldest_record": oldest_record
+    }
+
+@router.post("/metrics-settings")
+async def update_metrics_settings(
+    req: MetricsSettingsRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Cập nhật Bật/Tắt lưu chi tiết mỗi phút vào DB và cấu hình thời gian lưu tối đa (3, 7, 14, 30, 60, 90 ngày)
+    """
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên (Admin) mới có quyền thay đổi cấu hình lưu trữ metrics!")
+
+    if req.retention_days not in (3, 7, 14, 30, 60, 90):
+        raise HTTPException(status_code=400, detail="Thời gian lưu trữ tối đa phải là 3, 7, 14, 30, 60 hoặc 90 ngày!")
+
+    db = await get_db_connection()
+    await db.execute("INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('metrics_history_enabled', ?, CURRENT_TIMESTAMP)", ("true" if req.enabled else "false",))
+    await db.execute("INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('metrics_retention_days', ?, CURRENT_TIMESTAMP)", (str(req.retention_days),))
+    await db.commit()
+
+    # Kích hoạt dọn dẹp các bản ghi cũ hơn retention_days mới ngay lập tức
+    from app.services.metrics_collector import prune_old_metrics
+    asyncio.create_task(prune_old_metrics(req.retention_days))
+
+    return {
+        "status": "ok",
+        "message": f"Đã cập nhật cấu hình lưu trữ metrics: {'Bật' if req.enabled else 'Tắt'}, lưu tối đa {req.retention_days} ngày vào SQLite DB thành công!"
+    }
+
+@router.post("/metrics-settings/clear")
+async def clear_metrics_history(current_user: dict = Depends(get_current_user)):
+    """
+    Xóa sạch toàn bộ lịch sử metrics trong SQLite DB
+    """
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên (Admin) mới có quyền xóa lịch sử metrics!")
+
+    db = await get_db_connection()
+    await db.execute("DELETE FROM resource_metrics")
+    await db.commit()
+    return {
+        "status": "ok",
+        "message": "Đã dọn dẹp sạch toàn bộ lịch sử metrics trong Database!"
+    }
+
 

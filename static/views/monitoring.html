@@ -45,17 +45,33 @@
                 </select>
             </div>
 
-            <!-- 2. Khoảng thời gian (1h, 24h, 7d) -->
-            <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs">
-                <button v-for="t in [{ key: '1h', label: '1 Giờ' }, { key: '24h', label: '24 Giờ' }, { key: '7d', label: '7 Ngày' }]"
+            <!-- 2. Khoảng thời gian (1h, 24h, 7d, 14d, 30d, 60d, 90d) -->
+            <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs overflow-x-auto max-w-full">
+                <button v-for="t in [
+                    { key: '1h', label: '1 Giờ' },
+                    { key: '24h', label: '24 Giờ' },
+                    { key: '7d', label: '7 Ngày' },
+                    { key: '14d', label: '14 Ngày' },
+                    { key: '30d', label: '30 Ngày' },
+                    { key: '60d', label: '60 Ngày' },
+                    { key: '90d', label: '90 Ngày' }
+                ]"
                     :key="t.key" type="button" @click="monitorTimeRange = t.key; fetchResourceMonitorData();"
-                    class="px-2.5 py-1 rounded-lg font-medium transition text-[11px]"
+                    class="px-2.5 py-1 rounded-lg font-medium transition text-[11px] whitespace-nowrap"
                     :class="monitorTimeRange === t.key ? 'bg-cyan-600 text-white shadow-sm font-semibold' : 'text-slate-400 hover:text-slate-200'">
                     {{ t.label }}
                 </button>
             </div>
 
-            <!-- 3. Nút Refresh -->
+            <!-- 3. Nút Cấu hình Lưu Trữ Lịch Sử DB -->
+            <button v-if="currentUser.role === 'admin'" @click="openMetricsSettingsModal"
+                class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
+                title="Cấu hình lưu trữ lịch sử chi tiết từng phút vào Database SQLite">
+                <i data-lucide="database" class="w-3.5 h-3.5"></i>
+                <span class="hidden sm:inline">Cấu hình DB</span>
+            </button>
+
+            <!-- 4. Nút Refresh -->
             <button @click="fetchResourceMonitorData" :disabled="loadingMonitor"
                 class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50 shadow-sm"
                 title="Làm mới dữ liệu">

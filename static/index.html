@@ -1922,6 +1922,91 @@ function showAlert(message) {
                 const loadingMonitor = ref(false);
                 const monitorData = ref(null);
 
+                // Cấu hình Lưu trữ Lịch sử Resource Metrics vào Database
+                const showMetricsSettingsModal = ref(false);
+                const savingMetricsSettings = ref(false);
+                const clearingMetricsHistory = ref(false);
+                const metricsConfig = ref({
+                    enabled: true,
+                    retention_days: 7,
+                    total_records: 0,
+                    db_size_mb: 0,
+                    oldest_record: ''
+                });
+
+                const fetchMetricsSettings = async () => {
+                    try {
+                        const res = await fetch('/api/v1/system/metrics-settings', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            metricsConfig.value = data;
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải cấu hình metrics:', e);
+                    }
+                };
+
+                const openMetricsSettingsModal = async () => {
+                    showMetricsSettingsModal.value = true;
+                    await fetchMetricsSettings();
+                };
+
+                const handleSaveMetricsSettings = async () => {
+                    savingMetricsSettings.value = true;
+                    try {
+                        const res = await fetch('/api/v1/system/metrics-settings', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                enabled: metricsConfig.value.enabled,
+                                retention_days: parseInt(metricsConfig.value.retention_days)
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showAlert(data.message || 'Đã cập nhật cấu hình lưu lịch sử tài nguyên!');
+                            await fetchMetricsSettings();
+                            showMetricsSettingsModal.value = false;
+                        } else {
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể lưu cấu hình'));
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        savingMetricsSettings.value = false;
+                    }
+                };
+
+                const handleClearMetricsHistory = async () => {
+                    if (!confirm('CẢNH BÁO: Toàn bộ dữ liệu lịch sử tài nguyên trong cơ sở dữ liệu sẽ bị xóa hoàn toàn. Bạn có chắc chắn muốn xóa không?')) {
+                        return;
+                    }
+                    clearingMetricsHistory.value = true;
+                    try {
+                        const res = await fetch('/api/v1/system/metrics-settings/clear', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showAlert(data.message || 'Đã xóa toàn bộ lịch sử metrics thành công!');
+                            await fetchMetricsSettings();
+                            await fetchResourceMonitorData();
+                        } else {
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể xóa dữ liệu'));
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        clearingMetricsHistory.value = false;
+                    }
+                };
+
                 const fetchResourceMonitorData = async () => {
                     loadingMonitor.value = true;
                     try {
@@ -7415,7 +7500,10 @@ function showAlert(message) {
                     // Resource Monitor
                     activeMonitorSubTab, monitorTimeRange, selectedMonitorTarget, loadingMonitor, monitorData,
                     fetchResourceMonitorData, generateSvgLinePath, generateSvgAreaPath,
-                    chartHover, getSvgPointY, getCpuMaxVal, getRamMaxMb, getDiskMaxGb, getBwMaxVal, getPpsMaxVal, onChartMouseMove, onChartMouseLeave
+                    chartHover, getSvgPointY, getCpuMaxVal, getRamMaxMb, getDiskMaxGb, getBwMaxVal, getPpsMaxVal, onChartMouseMove, onChartMouseLeave,
+                    // Metrics History DB Retention Settings
+                    showMetricsSettingsModal, savingMetricsSettings, clearingMetricsHistory, metricsConfig,
+                    fetchMetricsSettings, openMetricsSettingsModal, handleSaveMetricsSettings, handleClearMetricsHistory
                 };
             }
         }).mount('#app');

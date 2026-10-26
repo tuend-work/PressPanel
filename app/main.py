@@ -27,14 +27,19 @@ from app.api.v1.tasks import router as tasks_router
 from app.api.v1.users import router as users_router
 from app.api.v1.terminal import router as terminal_router
 from app.api.v1.databases import router as databases_router
+import asyncio
 from app.api.v1.crons import router as crons_router
+from app.services.metrics_collector import start_metrics_collector
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Khởi động: Tạo cấu trúc SQLite 12 bảng nếu chưa có
+    # Khởi động: Tạo cấu trúc SQLite nếu chưa có
     await init_database()
+    # Khởi động tiến trình ngầm ghi nhận chỉ số tài nguyên mỗi phút vào SQLite DB
+    metrics_task = asyncio.create_task(start_metrics_collector())
     yield
     # Tắt dịch vụ: cleanup nếu cần
+    metrics_task.cancel()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
