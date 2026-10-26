@@ -2368,7 +2368,10 @@ async def save_domain_fpm_service(
         upload_max_v = str(req.php_upload_max_filesize or "128M").strip()
         post_max_v = str(req.php_post_max_size or "128M").strip()
         open_basedir_v = (req.php_open_basedir or f"/home/{isolated_user}/:/tmp/:/var/tmp/").strip()
-        disable_funcs_v = (req.php_disable_functions or "exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source").strip()
+        if req.php_disable_functions is not None:
+            disable_funcs_v = req.php_disable_functions.strip()
+        else:
+            disable_funcs_v = "exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source"
 
         custom_block = ""
         if req.custom_directives and req.custom_directives.strip():

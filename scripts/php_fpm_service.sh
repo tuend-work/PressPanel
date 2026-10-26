@@ -5,7 +5,7 @@
 #   - Tự động sinh file cấu hình standalone chứa [global] + [pool]
 #   - Service chạy trực tiếp dưới Slice=wpc-user-%i.slice
 #   - Tự động fallback về pool mặc định nếu pool riêng gặp sự cố để chống lỗi 502
-# Cú pháp: php_fpm_service.sh <create|start|stop|restart|reload|delete> <username> <php_version> [hosting_user]
+# Cú pháp: php_fpm_service.sh <create|start|stop|restart|reload|delete|set-disable-functions> <username> <php_version> [hosting_user] [disable_functions]
 # ==============================================================================
 
 set -uo pipefail
@@ -14,9 +14,10 @@ ACTION="${1:-help}"
 USERNAME="${2:-}"
 PHP_VER="${3:-8.2}"
 HOSTING_USER="${4:-$USERNAME}"
+CUSTOM_DISABLE_FUNCS="${5:-}"
 
 if [ -z "$USERNAME" ] || [ -z "$PHP_VER" ]; then
-    echo "[-] Thiếu tham số: php_fpm_service.sh <create|start|stop|restart|reload|delete> <username> <php_version> [hosting_user]"
+    echo "[-] Thiếu tham số: php_fpm_service.sh <create|start|stop|restart|reload|delete|set-disable-functions> <username> <php_version> [hosting_user] [disable_functions]"
     exit 1
 fi
 
@@ -109,6 +110,32 @@ case "$ACTION" in
         TPL_FILE="/opt/wpc/templates/vhost_nginx/php_fpm_pool.tpl"
         [ ! -f "$TPL_FILE" ] && TPL_FILE="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/templates/vhost_nginx/php_fpm_pool.tpl"
 
+        # Quyết định danh sách disable_functions:
+        # - Ưu tiên 1: Tham số truyền vào ($CUSTOM_DISABLE_FUNCS) hoặc biến môi trường DISABLE_FUNCTIONS
+        # - Ưu tiên 2: Nếu file $CONF_FILE đã tồn tại trước đó, GIỮ NGUYÊN cấu hình php_admin_value[disable_functions]
+        # - Ưu tiên 3: Mặc định an toàn hệ thống
+        DEFAULT_DISABLE_FUNCS="exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source"
+        if [ "$USERNAME" = "pma" ] || [ "$USERNAME" = "admin" ]; then
+            DEFAULT_DISABLE_FUNCS="exec,passthru,shell_exec,system,proc_open,popen"
+        fi
+
+        FINAL_DISABLE_FUNCS=""
+        if [ -n "$CUSTOM_DISABLE_FUNCS" ]; then
+            FINAL_DISABLE_FUNCS="$CUSTOM_DISABLE_FUNCS"
+        elif [ -n "${DISABLE_FUNCTIONS:-}" ]; then
+            FINAL_DISABLE_FUNCS="$DISABLE_FUNCTIONS"
+        elif [ -f "$CONF_FILE" ]; then
+            EXISTING_VAL=$(grep -E '^[;[:space:]]*php_admin_value\[disable_functions\]' "$CONF_FILE" 2>/dev/null | tail -n1 | sed -E 's/^[;[:space:]]*php_admin_value\[disable_functions\][[:space:]]*=[[:space:]]*//' | tr -d '"' | tr -d "'")
+            if [ -n "$EXISTING_VAL" ]; then
+                FINAL_DISABLE_FUNCS="$EXISTING_VAL"
+            fi
+        fi
+
+        [ -z "$FINAL_DISABLE_FUNCS" ] && FINAL_DISABLE_FUNCS="$DEFAULT_DISABLE_FUNCS"
+        if [ "$FINAL_DISABLE_FUNCS" = "none" ] || [ "$FINAL_DISABLE_FUNCS" = "off" ] || [ "$FINAL_DISABLE_FUNCS" = "empty" ]; then
+            FINAL_DISABLE_FUNCS=""
+        fi
+
         if [ -f "$TPL_FILE" ]; then
             sed \
                 -e "s|{{PID_FILE}}|$PID_FILE|g" \
@@ -135,16 +162,11 @@ case "$ACTION" in
                 -e "s|{{RLIMIT_FILES}}|65535|g" \
                 -e "s|{{RLIMIT_CORE}}|0|g" \
                 -e "s|{{PHP_OPEN_BASEDIR}}|/home/${USERNAME}/:/tmp/:/var/tmp/|g" \
-                -e "s|{{PHP_DISABLE_FUNCTIONS}}|exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source|g" \
+                -e "s|{{PHP_DISABLE_FUNCTIONS}}|$FINAL_DISABLE_FUNCS|g" \
                 -e "s|{{CUSTOM_DIRECTIVES}}||g" \
                 -e "s|{{EXT_CONFIG}}||g" \
                 "$TPL_FILE" > "$CONF_FILE"
         else
-            DISABLE_FUNCS="exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source"
-            if [ "$USERNAME" = "pma" ] || [ "$USERNAME" = "admin" ]; then
-                DISABLE_FUNCS="exec,passthru,shell_exec,system,proc_open,popen"
-            fi
-
             cat << EOF > "$CONF_FILE"
 [global]
 pid = $PID_FILE
@@ -172,7 +194,7 @@ ping.path = /ping-${USERNAME}
 php_admin_value[open_basedir] = /home/${USERNAME}/:/tmp/:/var/tmp/
 php_admin_value[upload_tmp_dir] = /home/${USERNAME}/.tmp
 php_admin_value[session.save_path] = /home/${USERNAME}/.sessions
-php_admin_value[disable_functions] = ${DISABLE_FUNCS}
+php_admin_value[disable_functions] = ${FINAL_DISABLE_FUNCS}
 php_admin_flag[log_errors] = on
 php_admin_value[error_log] = /home/${USERNAME}/logs/php-fpm.error.log
 EOF
@@ -293,6 +315,23 @@ EOF
         rm -f "$CONF_FILE" "$PID_FILE" "$SOCK_FILE" "$USER_CONF_DIR/${USERNAME}.env" 2>/dev/null || true
         rm -rf "$USER_CONF_DIR/${USERNAME}" 2>/dev/null || true
         systemctl daemon-reload 2>/dev/null || true
+        ;;
+
+    set-disable-functions)
+        NEW_FUNCS="${CUSTOM_DISABLE_FUNCS:-${4:-}}"
+        [ "$NEW_FUNCS" = "none" ] || [ "$NEW_FUNCS" = "off" ] && NEW_FUNCS=""
+        if [ -f "$CONF_FILE" ]; then
+            if grep -q "php_admin_value\[disable_functions\]" "$CONF_FILE"; then
+                sed -i -E "s|^[;[:space:]]*php_admin_value\[disable_functions\].*|php_admin_value[disable_functions] = ${NEW_FUNCS}|g" "$CONF_FILE"
+            else
+                echo "php_admin_value[disable_functions] = ${NEW_FUNCS}" >> "$CONF_FILE"
+            fi
+            systemctl reload "$SVC_NAME" 2>/dev/null || systemctl restart "$SVC_NAME" 2>/dev/null || true
+            echo "[+] Đã cập nhật disable_functions cho $USERNAME ($PHP_VER) thành công."
+        else
+            echo "[-] Không tìm thấy file cấu hình: $CONF_FILE"
+            exit 1
+        fi
         ;;
 
     *)

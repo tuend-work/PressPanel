@@ -953,9 +953,22 @@
                                                 class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
                                         </div>
                                         <div>
-                                            <label class="text-slate-300 text-[11px] font-semibold block mb-1">disable_functions (Chặn hàm nguy hiểm):</label>
-                                            <input type="text" v-model="domainFpmData.settings.php_disable_functions" placeholder="exec,passthru,shell_exec,system,popen,proc_open"
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="text-slate-300 text-[11px] font-semibold">disable_functions (Chặn hàm nguy hiểm):</label>
+                                                <div class="flex items-center gap-1.5 text-[10px]">
+                                                    <button type="button" @click="domainFpmData.settings.php_disable_functions = 'exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source'"
+                                                        class="text-cyan-400 hover:text-cyan-300 hover:underline">Mặc định an toàn</button>
+                                                    <span class="text-slate-600">•</span>
+                                                    <button type="button" @click="domainFpmData.settings.php_disable_functions = 'passthru,system,curl_multi_exec,parse_ini_file,show_source'"
+                                                        class="text-amber-400 hover:text-amber-300 hover:underline">Mở WP-CLI / Shell</button>
+                                                    <span class="text-slate-600">•</span>
+                                                    <button type="button" @click="domainFpmData.settings.php_disable_functions = ''"
+                                                        class="text-rose-400 hover:text-rose-300 hover:underline">Không chặn</button>
+                                                </div>
+                                            </div>
+                                            <input type="text" v-model="domainFpmData.settings.php_disable_functions" placeholder="Để trống nếu không muốn chặn hàm nào"
                                                 class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                            <span class="text-[10px] text-slate-500 mt-0.5 block">Nhập danh sách hàm cần chặn cách nhau bởi dấu phẩy, hoặc để trống để cho phép toàn bộ hàm.</span>
                                         </div>
                                     </div>
 
