@@ -7273,6 +7273,9 @@ function showAlert(message) {
                             if (currentTab.value === 'domains') {
                                 fetchDomains();
                             }
+                            if (currentTab.value === 'monitoring' && !loadingMonitor.value) {
+                                fetchResourceMonitorData();
+                            }
                             fetchTasks();
                         }
                     }, 3000);

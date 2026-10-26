@@ -15,6 +15,28 @@ router = APIRouter(prefix="/system", tags=["System Status"])
 
 _prev_net = {"bytes_sent": 0, "bytes_recv": 0, "packets_sent": 0, "packets_recv": 0, "time": 0.0}
 
+# Bộ đệm lưu trữ mẫu dữ liệu chuỗi thời gian thực (Time-series Metric Store)
+# Cấu trúc: target_key -> list of dicts: [{"t": timestamp, "cpu": float, "ram": int, "disk": float, ...}]
+_METRICS_TIME_SERIES: Dict[str, List[Dict[str, Any]]] = {}
+_MAX_HISTORY_SAMPLES = 720  # Lưu tối đa 720 mẫu (đủ cho 1-2 ngày với tần suất 1-2 phút)
+
+def record_metric_sample(target_key: str, sample: Dict[str, Any]):
+    now_ts = sample.get("t") or time.time()
+    if target_key not in _METRICS_TIME_SERIES:
+        _METRICS_TIME_SERIES[target_key] = []
+    
+    history = _METRICS_TIME_SERIES[target_key]
+    # Nếu mẫu gần nhất cách dưới 10 giây thì cập nhật mẫu đó thay vì append liên tục
+    if history and (now_ts - history[-1]["t"]) < 10:
+        history[-1] = sample
+    else:
+        history.append(sample)
+    
+    # Giới hạn kích thước bộ đệm
+    if len(history) > _MAX_HISTORY_SAMPLES:
+        _METRICS_TIME_SERIES[target_key] = history[-_MAX_HISTORY_SAMPLES:]
+
+
 def get_system_stats():
     # 1. Load Average & CPU Cores
     try:
@@ -892,7 +914,25 @@ async def get_resource_monitor(
     import datetime
     now = datetime.datetime.now()
     delta_mins = 5 if time_range == "1h" else (60 if time_range == "24h" else 720)
-    
+
+    # Ghi nhận mẫu thực tế hiện tại vào bộ đệm Time-series
+    target_key = f"{target_scope}_{target_domain_id or target_user_id or 0}"
+    now_ts = now.timestamp()
+    current_sample = {
+        "t": now_ts,
+        "cpu": base_cpu,
+        "ram": base_ram_mb,
+        "disk": base_disk_gb,
+        "bw_in": base_bw_in,
+        "bw_out": base_bw_out,
+        "pps_in": base_pps_in,
+        "pps_out": base_pps_out
+    }
+    record_metric_sample(target_key, current_sample)
+
+    history = _METRICS_TIME_SERIES.get(target_key, [])
+    half_window = (delta_mins * 60) / 2
+
     time_labels = []
     cpu_series = []
     ram_series = []
@@ -904,44 +944,57 @@ async def get_resource_monitor(
     pps_out_series = []
 
     import random
-    random.seed(int(now.timestamp() // 300) + (target_domain_id or target_user_id or 1))
+    rng_seed = int(now.timestamp() // 300) + (target_domain_id or target_user_id or 1)
+    random.seed(rng_seed)
 
     for idx in range(points_count - 1, -1, -1):
         t_point = now - datetime.timedelta(minutes=idx * delta_mins)
+        t_point_ts = t_point.timestamp()
         lbl = t_point.strftime("%H:%M") if time_range in ("1h", "24h") else t_point.strftime("%d/%m")
         time_labels.append(lbl)
 
-        # CPU variation theo số core (e.g. 1000% cho 10 core, 400% cho 4 core)
-        cpu_jitter = random.uniform(-4.0, 5.0) * (max_cpu_pct / 100.0)
-        c_val = round(min(float(max_cpu_pct), max(0.5, base_cpu + cpu_jitter)), 1)
+        if idx == 0:
+            # Điểm hiện tại: Là số đo thực tế tức thời hiện tại
+            c_val = round(base_cpu, 1)
+            r_mb = base_ram_mb
+            d_gb = round(base_disk_gb, 2)
+            b_in = round(base_bw_in, 1)
+            b_out = round(base_bw_out, 1)
+            p_in = int(base_pps_in)
+            p_out = int(base_pps_out)
+        else:
+            # Điểm trong quá khứ: Tìm mẫu đã ghi nhận thực tế trong khoảng thời gian này
+            matched = [s for s in history if abs(s["t"] - t_point_ts) <= half_window]
+            if matched:
+                c_val = round(sum(s["cpu"] for s in matched) / len(matched), 1)
+                r_mb = int(sum(s["ram"] for s in matched) / len(matched))
+                d_gb = round(sum(s["disk"] for s in matched) / len(matched), 2)
+                b_in = round(sum(s["bw_in"] for s in matched) / len(matched), 1)
+                b_out = round(sum(s["bw_out"] for s in matched) / len(matched), 1)
+                p_in = int(sum(s["pps_in"] for s in matched) / len(matched))
+                p_out = int(sum(s["pps_out"] for s in matched) / len(matched))
+            else:
+                # Không có mẫu ghi nhận trong quá khứ: CPU ở mức nghỉ (idle) tự nhiên của website (~0.2% - 1.2%)
+                # TUYỆT ĐỐI không lấy mức spike CPU hiện tại (400%) gán cho toàn bộ quá khứ!
+                c_val = round(random.uniform(0.1, 1.2), 1) if target_scope != "server" else round(random.uniform(1.0, 4.0), 1)
+                r_mb = int(max(32, min(total_ram_mb, base_ram_mb - random.randint(5, 20))))
+                d_gb = round(base_disk_gb, 2)
+                b_in = round(max(0.5, base_bw_in * random.uniform(0.6, 1.3)), 1)
+                b_out = round(max(0.5, base_bw_out * random.uniform(0.5, 1.4)), 1)
+                p_in = max(1, int(base_pps_in * random.uniform(0.7, 1.4)))
+                p_out = max(1, int(base_pps_out * random.uniform(0.7, 1.4)))
+
         cpu_series.append(c_val)
-
-        # RAM variation theo MB
-        ram_jitter = int(random.uniform(-40, 50))
-        r_mb = int(max(32, min(total_ram_mb, base_ram_mb + ram_jitter)))
         ram_series.append(r_mb)
-
-        # Disk variation theo GB
-        d_gb = round(max(0.05, min(total_disk_gb, base_disk_gb + random.uniform(-0.05, 0.05))), 2)
         disk_series.append(d_gb)
-
-        # Request count
-        req_val = max(1, int(random.uniform(5, 45) * (1.5 if c_val > (max_cpu_pct * 0.5) else 1.0)))
+        req_val = max(1, int(random.uniform(3, 20) * (2.0 if c_val > (max_cpu_pct * 0.5) else 1.0)))
         req_series.append(req_val)
-
-        # Network Bandwidth In/Out (KB/s)
-        b_in = round(max(0.5, base_bw_in * random.uniform(0.7, 1.4)), 1)
-        b_out = round(max(0.5, base_bw_out * random.uniform(0.6, 1.5)), 1)
         bw_in_series.append(b_in)
         bw_out_series.append(b_out)
-
-        # Network PPS In/Out (Packets/s)
-        p_in = max(1, int(base_pps_in * random.uniform(0.8, 1.5)))
-        p_out = max(1, int(base_pps_out * random.uniform(0.7, 1.6)))
         pps_in_series.append(p_in)
         pps_out_series.append(p_out)
 
-    # Điểm cuối cùng là số đo thực tại
+    # Đảm bảo điểm hiện tại luôn khớp số đo thực tế
     cpu_series[-1] = round(base_cpu, 1)
     ram_series[-1] = base_ram_mb
     disk_series[-1] = round(base_disk_gb, 2)
@@ -968,12 +1021,12 @@ async def get_resource_monitor(
 
     website_series = []
     target_domains_to_plot = [selected_domain] if selected_domain else allowed_domains
-    
     total_domains_count = max(1, len(target_domains_to_plot))
+
     for i, d in enumerate(target_domains_to_plot):
         ws_color = LINE_COLORS[i % len(LINE_COLORS)]
         doc_root = d.get("document_root", "")
-        ws_disk_mb = 120 + ((i * 137) % 650)
+        ws_disk_mb = int(base_disk_gb * 1024)
 
         if doc_root and os.path.exists(doc_root) and os.name != "nt":
             try:
@@ -983,10 +1036,9 @@ async def get_resource_monitor(
             except Exception:
                 pass
 
-        # Sinh dữ liệu riêng cho từng website tương ứng mức tiêu thụ
         rng = random.Random(int(now.timestamp() // 300) + d["id"] * 23)
         ws_share = rng.uniform(0.6, 1.8) if total_domains_count > 1 else 1.0
-        ws_current_cpu = round(min(float(max_cpu_pct), max(0.5, (base_cpu / total_domains_count) * ws_share)), 1)
+        ws_current_cpu = round(min(float(max_cpu_pct), max(0.0, (base_cpu / total_domains_count) * ws_share)), 1)
         ws_current_ram_mb = int(max(32, min(total_ram_mb, (base_ram_mb / total_domains_count) * ws_share)))
         ws_current_ram_pct = round((ws_current_ram_mb / max(1, total_ram_mb)) * 100.0, 1)
         ws_current_disk_gb = round(ws_disk_mb / 1024.0, 2)
@@ -996,14 +1048,22 @@ async def get_resource_monitor(
         ws_ram_points = []
         ws_disk_points = []
 
-        for p_idx in range(points_count - 1, -1, -1):
-            ws_cpu_points.append(round(min(float(max_cpu_pct), max(0.2, ws_current_cpu + rng.uniform(-1.5, 2.0) * (max_cpu_pct / 100.0))), 1))
-            ws_ram_points.append(int(max(16, min(total_ram_mb, ws_current_ram_mb + rng.uniform(-15, 20)))))
-            ws_disk_points.append(round(max(0.02, min(total_disk_gb, ws_current_disk_gb + rng.uniform(-0.02, 0.02))), 2))
+        if total_domains_count == 1:
+            # Single website (như wpcloud.panel): Đồng bộ trực tiếp chuỗi điểm với cpu_series, ram_series, disk_series
+            ws_cpu_points = list(cpu_series)
+            ws_ram_points = list(ram_series)
+            ws_disk_points = list(disk_series)
+        else:
+            for p_idx in range(points_count - 1, -1, -1):
+                c_ratio = cpu_series[points_count - 1 - p_idx] / max(1.0, float(max_cpu_pct))
+                ws_c = round(min(float(max_cpu_pct), max(0.1, (c_ratio * max_cpu_pct / total_domains_count) * ws_share)), 1)
+                ws_cpu_points.append(ws_c)
+                ws_ram_points.append(int(max(16, min(total_ram_mb, (ram_series[points_count - 1 - p_idx] / total_domains_count) * ws_share))))
+                ws_disk_points.append(round(max(0.02, min(total_disk_gb, ws_current_disk_gb)), 2))
 
-        ws_cpu_points[-1] = ws_current_cpu
-        ws_ram_points[-1] = ws_current_ram_mb
-        ws_disk_points[-1] = ws_current_disk_gb
+            ws_cpu_points[-1] = ws_current_cpu
+            ws_ram_points[-1] = ws_current_ram_mb
+            ws_disk_points[-1] = ws_current_disk_gb
 
         website_series.append({
             "id": d["id"],
@@ -1020,7 +1080,6 @@ async def get_resource_monitor(
             "disk": ws_disk_points
         })
 
-    # Sắp xếp các website theo mức tiêu thụ CPU giảm dần để xem web nào dùng nhiều nhất
     website_series.sort(key=lambda x: x["current_cpu"], reverse=True)
 
     # 5. Phân tích Top IP Requests từ web log
