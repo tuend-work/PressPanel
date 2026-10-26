@@ -2166,7 +2166,7 @@ async def get_domain_fpm_service(
         "php_upload_max_filesize": "128M",
         "php_post_max_size": "128M",
         "php_open_basedir": f"/home/{isolated_user}/:/tmp/:/var/tmp/",
-        "php_disable_functions": "exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source",
+        "php_disable_functions": "exec,passthru,shell_exec,system,proc_open,popen,parse_ini_file,show_source",
         "custom_directives": ""
     }
     raw_config = ""
@@ -2267,7 +2267,7 @@ async def get_domain_fpm_service(
             "RLIMIT_FILES": "65535",
             "RLIMIT_CORE": "0",
             "PHP_OPEN_BASEDIR": f"/home/{isolated_user}/:/tmp/:/var/tmp/",
-            "PHP_DISABLE_FUNCTIONS": "exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source",
+            "PHP_DISABLE_FUNCTIONS": "exec,passthru,shell_exec,system,proc_open,popen,parse_ini_file,show_source",
             "PHP_MEMORY_LIMIT": "512M",
             "PHP_MAX_EXECUTION_TIME": "300",
             "PHP_UPLOAD_MAX_FILESIZE": "128M",
@@ -2371,7 +2371,7 @@ async def save_domain_fpm_service(
         if req.php_disable_functions is not None:
             disable_funcs_v = req.php_disable_functions.strip()
         else:
-            disable_funcs_v = "exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source"
+            disable_funcs_v = "exec,passthru,shell_exec,system,proc_open,popen,parse_ini_file,show_source"
 
         custom_block = ""
         if req.custom_directives and req.custom_directives.strip():
@@ -2580,7 +2580,7 @@ ping.path = /ping-{isolated_user}
 php_admin_value[open_basedir] = /home/{isolated_user}/:/tmp/:/var/tmp/
 php_admin_value[upload_tmp_dir] = /home/{isolated_user}/.tmp
 php_admin_value[session.save_path] = /home/{isolated_user}/.sessions
-php_admin_value[disable_functions] = exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source
+php_admin_value[disable_functions] = exec,passthru,shell_exec,system,proc_open,popen,parse_ini_file,show_source
 php_admin_flag[log_errors] = on
 php_admin_value[error_log] = /home/{isolated_user}/logs/php-fpm.error.log
 """

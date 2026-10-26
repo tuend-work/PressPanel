@@ -114,7 +114,7 @@ case "$ACTION" in
         # - Ưu tiên 1: Tham số truyền vào ($CUSTOM_DISABLE_FUNCS) hoặc biến môi trường DISABLE_FUNCTIONS
         # - Ưu tiên 2: Nếu file $CONF_FILE đã tồn tại trước đó, GIỮ NGUYÊN cấu hình php_admin_value[disable_functions]
         # - Ưu tiên 3: Mặc định an toàn hệ thống
-        DEFAULT_DISABLE_FUNCS="exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source"
+        DEFAULT_DISABLE_FUNCS="exec,passthru,shell_exec,system,proc_open,popen,parse_ini_file,show_source"
         if [ "$USERNAME" = "pma" ] || [ "$USERNAME" = "admin" ]; then
             DEFAULT_DISABLE_FUNCS="exec,passthru,shell_exec,system,proc_open,popen"
         fi

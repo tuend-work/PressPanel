@@ -956,10 +956,10 @@
                                             <div class="flex items-center justify-between mb-1">
                                                 <label class="text-slate-300 text-[11px] font-semibold">disable_functions (Chặn hàm nguy hiểm):</label>
                                                 <div class="flex items-center gap-1.5 text-[10px]">
-                                                    <button type="button" @click="domainFpmData.settings.php_disable_functions = 'exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source'"
+                                                    <button type="button" @click="domainFpmData.settings.php_disable_functions = 'exec,passthru,shell_exec,system,proc_open,popen,parse_ini_file,show_source'"
                                                         class="text-cyan-400 hover:text-cyan-300 hover:underline">Mặc định an toàn</button>
                                                     <span class="text-slate-600">•</span>
-                                                    <button type="button" @click="domainFpmData.settings.php_disable_functions = 'passthru,system,curl_multi_exec,parse_ini_file,show_source'"
+                                                    <button type="button" @click="domainFpmData.settings.php_disable_functions = 'passthru,system,parse_ini_file,show_source'"
                                                         class="text-amber-400 hover:text-amber-300 hover:underline">Mở WP-CLI / Shell</button>
                                                     <span class="text-slate-600">•</span>
                                                     <button type="button" @click="domainFpmData.settings.php_disable_functions = ''"
