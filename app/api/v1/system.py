@@ -662,16 +662,33 @@ async def get_resource_monitor(
         allowed_users = [dict(r) for r in await cur_u.fetchall()]
 
         if target_user_id:
-            cur_d = await db_conn.execute("SELECT id, domain_name, user_id, document_root, is_system FROM domains WHERE user_id = ? ORDER BY domain_name ASC", (target_user_id,))
+            cur_d = await db_conn.execute("""
+                SELECT d.id, d.domain_name, d.user_id, d.document_root, d.is_system, u.username as owner_username
+                FROM domains d
+                LEFT JOIN users u ON d.user_id = u.id
+                WHERE d.user_id = ?
+                ORDER BY d.domain_name ASC
+            """, (target_user_id,))
         else:
-            cur_d = await db_conn.execute("SELECT id, domain_name, user_id, document_root, is_system FROM domains ORDER BY domain_name ASC")
+            cur_d = await db_conn.execute("""
+                SELECT d.id, d.domain_name, d.user_id, d.document_root, d.is_system, u.username as owner_username
+                FROM domains d
+                LEFT JOIN users u ON d.user_id = u.id
+                ORDER BY d.domain_name ASC
+            """)
         allowed_domains = [dict(r) for r in await cur_d.fetchall()]
 
     elif not is_web_user:
         # Hosting User: Chỉ được xem các domain thuộc về mình
         target_user_id = current_uid
         allowed_users = [{"id": current_uid, "username": current_user.get("username", "user"), "role": user_role, "full_name": current_user.get("full_name", "")}]
-        cur_d = await db_conn.execute("SELECT id, domain_name, user_id, document_root, is_system FROM domains WHERE user_id = ? ORDER BY domain_name ASC", (current_uid,))
+        cur_d = await db_conn.execute("""
+            SELECT d.id, d.domain_name, d.user_id, d.document_root, d.is_system, u.username as owner_username
+            FROM domains d
+            LEFT JOIN users u ON d.user_id = u.id
+            WHERE d.user_id = ?
+            ORDER BY d.domain_name ASC
+        """, (current_uid,))
         allowed_domains = [dict(r) for r in await cur_d.fetchall()]
         if not target_domain_id and allowed_domains:
             target_domain_id = allowed_domains[0]["id"]
@@ -680,7 +697,12 @@ async def get_resource_monitor(
         # Website User: Bắt buộc chỉ gán đúng web_domain_id của chính mình
         target_user_id = current_uid
         target_domain_id = current_user["web_domain_id"]
-        cur_d = await db_conn.execute("SELECT id, domain_name, user_id, document_root, is_system FROM domains WHERE id = ?", (target_domain_id,))
+        cur_d = await db_conn.execute("""
+            SELECT d.id, d.domain_name, d.user_id, d.document_root, d.is_system, u.username as owner_username
+            FROM domains d
+            LEFT JOIN users u ON d.user_id = u.id
+            WHERE d.id = ?
+        """, (target_domain_id,))
         allowed_domains = [dict(r) for r in await cur_d.fetchall()]
         allowed_users = [{"id": current_uid, "username": current_user.get("username", "user"), "role": "web_user", "full_name": current_user.get("full_name", "")}]
 
@@ -957,6 +979,22 @@ async def get_resource_monitor(
     except Exception:
         pass
 
+    # Đọc lịch sử của tất cả domains để hiển thị trên biểu đồ đa đường (Multi-line)
+    domain_metrics_by_id = {}
+    try:
+        c_all_dom = await db_conn.execute("""
+            SELECT target_id, cpu_pct, mem_mb, disk_mb,
+                   strftime('%s', created_at) as ts
+            FROM resource_metrics
+            WHERE target_type = 'domain'
+              AND created_at >= datetime('now', ?)
+            ORDER BY created_at ASC
+        """, (f"-{hours_back} hours",))
+        for r in await c_all_dom.fetchall():
+            domain_metrics_by_id.setdefault(r["target_id"], []).append(r)
+    except Exception:
+        pass
+
     target_key = f"{target_scope}_{target_domain_id or target_user_id or 0}"
     now_ts = now.timestamp()
     current_sample = {
@@ -1073,12 +1111,11 @@ async def get_resource_monitor(
 
     website_series = []
     target_domains_to_plot = [selected_domain] if selected_domain else allowed_domains
-    total_domains_count = max(1, len(target_domains_to_plot))
 
     for i, d in enumerate(target_domains_to_plot):
         ws_color = LINE_COLORS[i % len(LINE_COLORS)]
         doc_root = d.get("document_root", "")
-        ws_disk_mb = int(base_disk_gb * 1024)
+        ws_disk_mb = 0
 
         if doc_root and os.path.exists(doc_root) and os.name != "nt":
             try:
@@ -1088,34 +1125,137 @@ async def get_resource_monitor(
             except Exception:
                 pass
 
-        rng = random.Random(int(now.timestamp() // 300) + d["id"] * 23)
-        ws_share = rng.uniform(0.6, 1.8) if total_domains_count > 1 else 1.0
-        ws_current_cpu = round(min(float(max_cpu_pct), max(0.0, (base_cpu / total_domains_count) * ws_share)), 1)
-        ws_current_ram_mb = int(max(32, min(total_ram_mb, (base_ram_mb / total_domains_count) * ws_share)))
+        # 1. Đo lường thông số CPU & RAM tức thời thực tế của domain d
+        if selected_domain and selected_domain["id"] == d["id"]:
+            # Nếu đang xem riêng website này: dùng trực tiếp kết quả đo lường đã quét từ Linux process
+            ws_current_cpu = round(real_user_cpu_pct, 1)
+            ws_current_ram_mb = int(real_user_rss_bytes / (1024 * 1024))
+        else:
+            # Quét tiến trình thực tế của website này trên Linux
+            d_cpu_val = 0.0
+            d_ram_val_mb = 0
+            if platform.system() == "Linux":
+                dom_name = (d.get("domain_name") or "").strip().lower()
+                clean_d = re.sub(r"^(https?://)?(www\.)?", "", dom_name).rstrip("/")
+                clean_u = re.sub(r"[^a-z0-9]", "", clean_d)[:30]
+                target_u_set = set()
+                if clean_u:
+                    target_u_set.add(clean_u)
+                if d.get("owner_username"):
+                    target_u_set.add(d["owner_username"])
+                if clean_d.startswith("phpmyadmin") or clean_d == "pma":
+                    target_u_set.add("pma")
+                    target_u_set.add("phpmyadmin")
+                elif clean_d.startswith("roundcube"):
+                    target_u_set.add("roundcube")
+                elif clean_d.startswith("pgadmin"):
+                    target_u_set.add("pgadmin")
+
+                if target_u_set:
+                    try:
+                        p = subprocess.run(
+                            ["ps", "-u", ",".join(target_u_set), "-o", "pid,%cpu,rss", "--no-headers"],
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1.0
+                        )
+                        if p.returncode == 0 and p.stdout:
+                            for l in p.stdout.splitlines():
+                                parts = l.strip().split()
+                                if len(parts) >= 3:
+                                    try:
+                                        d_cpu_val += float(parts[1])
+                                        d_ram_val_mb += int(int(parts[2]) / 1024)
+                                    except ValueError:
+                                        pass
+                    except Exception:
+                        pass
+
+                    # Fallback quét pool PHP-FPM
+                    if d_cpu_val == 0.0 and d_ram_val_mb == 0:
+                        try:
+                            fpm_patt = f"pool ({'|'.join(target_u_set)})"
+                            pg = subprocess.run(
+                                ["pgrep", "-f", fpm_patt],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=0.8
+                            )
+                            if pg.returncode == 0 and pg.stdout:
+                                pids = [pid.strip() for pid in pg.stdout.splitlines() if pid.strip()]
+                                if pids:
+                                    ps_fpm = subprocess.run(
+                                        ["ps", "-p", ",".join(pids[:20]), "-o", "pid,%cpu,rss", "--no-headers"],
+                                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=0.8
+                                    )
+                                    if ps_fpm.returncode == 0 and ps_fpm.stdout:
+                                        for l in ps_fpm.stdout.splitlines():
+                                            parts = l.strip().split()
+                                            if len(parts) >= 3:
+                                                try:
+                                                    d_cpu_val += float(parts[1])
+                                                    d_ram_val_mb += int(int(parts[2]) / 1024)
+                                                except ValueError:
+                                                    pass
+                        except Exception:
+                            pass
+
+            ws_current_cpu = round(d_cpu_val, 1)
+            ws_current_ram_mb = d_ram_val_mb
+
         ws_current_ram_pct = round((ws_current_ram_mb / max(1, total_ram_mb)) * 100.0, 1)
         ws_current_disk_gb = round(ws_disk_mb / 1024.0, 2)
-        ws_disk_pct = round(min(100.0, max(1.0, (ws_disk_mb / max(1, disk_limit_mb)) * 100)), 1)
+        ws_disk_pct = round(min(100.0, max(0.0, (ws_disk_mb / max(1, disk_limit_mb)) * 100)), 1)
+
+        # Lưu mẫu tức thời vào bộ nhớ cho website này
+        record_metric_sample(f"domain_{d['id']}", {
+            "t": now_ts,
+            "cpu": ws_current_cpu,
+            "ram": ws_current_ram_mb,
+            "disk": ws_current_disk_gb,
+            "bw_in": 0.0,
+            "bw_out": 0.0,
+            "pps_in": 0,
+            "pps_out": 0
+        })
+
+        # 2. Xây dựng chuỗi dữ liệu lịch sử thực tế cho website d (không dùng giả lập)
+        d_db_rows = domain_metrics_by_id.get(d["id"], [])
+        d_mem_hist = _METRICS_TIME_SERIES.get(f"domain_{d['id']}", [])
 
         ws_cpu_points = []
         ws_ram_points = []
         ws_disk_points = []
 
-        if total_domains_count == 1:
-            # Single website (như wpcloud.panel): Đồng bộ trực tiếp chuỗi điểm với cpu_series, ram_series, disk_series
+        if selected_domain and selected_domain["id"] == d["id"]:
+            # Khi xem lọc đúng website này: chuỗi điểm khớp chính xác với cpu_series, ram_series
             ws_cpu_points = list(cpu_series)
             ws_ram_points = list(ram_series)
             ws_disk_points = list(disk_series)
         else:
             for p_idx in range(points_count - 1, -1, -1):
-                c_ratio = cpu_series[points_count - 1 - p_idx] / max(1.0, float(max_cpu_pct))
-                ws_c = round(min(float(max_cpu_pct), max(0.1, (c_ratio * max_cpu_pct / total_domains_count) * ws_share)), 1)
-                ws_cpu_points.append(ws_c)
-                ws_ram_points.append(int(max(16, min(total_ram_mb, (ram_series[points_count - 1 - p_idx] / total_domains_count) * ws_share))))
-                ws_disk_points.append(round(max(0.02, min(total_disk_gb, ws_current_disk_gb)), 2))
+                if p_idx == 0:
+                    ws_cpu_points.append(ws_current_cpu)
+                    ws_ram_points.append(ws_current_ram_mb)
+                    ws_disk_points.append(ws_current_disk_gb)
+                else:
+                    t_pt_ts = (now - datetime.timedelta(minutes=p_idx * delta_mins)).timestamp()
+                    matched_d_db = [r for r in d_db_rows if r["ts"] and abs(int(r["ts"]) - t_pt_ts) <= match_db_window]
+                    matched_d_mem = [s for s in d_mem_hist if abs(s["t"] - t_pt_ts) <= match_mem_window]
 
-            ws_cpu_points[-1] = ws_current_cpu
-            ws_ram_points[-1] = ws_current_ram_mb
-            ws_disk_points[-1] = ws_current_disk_gb
+                    if matched_d_db:
+                        c_pt = round(sum(r["cpu_pct"] for r in matched_d_db) / len(matched_d_db), 1)
+                        r_pt = int(sum(r["mem_mb"] for r in matched_d_db) / len(matched_d_db))
+                        d_pt = round(sum(r["disk_mb"] for r in matched_d_db) / (len(matched_d_db) * 1024.0), 2)
+                    elif matched_d_mem:
+                        c_pt = round(sum(s["cpu"] for s in matched_d_mem) / len(matched_d_mem), 1)
+                        r_pt = int(sum(s["ram"] for s in matched_d_mem) / len(matched_d_mem))
+                        d_pt = round(sum(s["disk"] for s in matched_d_mem) / len(matched_d_mem), 2)
+                    else:
+                        # Website ở trạng thái nghỉ, không có tiến trình chạy tại mốc thời gian này
+                        c_pt = 0.0
+                        r_pt = 0
+                        d_pt = ws_current_disk_gb
+
+                    ws_cpu_points.append(c_pt)
+                    ws_ram_points.append(r_pt)
+                    ws_disk_points.append(d_pt)
 
         website_series.append({
             "id": d["id"],

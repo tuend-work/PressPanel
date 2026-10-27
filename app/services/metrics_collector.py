@@ -72,7 +72,11 @@ async def start_metrics_collector():
             ))
 
             # 3. Thu thập chỉ số của từng Website (Domains)
-            c_dom = await db.execute("SELECT id, domain_name, user_id, document_root FROM domains WHERE is_system = 0")
+            c_dom = await db.execute("""
+                SELECT d.id, d.domain_name, d.user_id, d.document_root, u.username as owner_username
+                FROM domains d
+                LEFT JOIN users u ON d.user_id = u.id
+            """)
             domains_list = await c_dom.fetchall()
 
             for d in domains_list:
@@ -82,15 +86,29 @@ async def start_metrics_collector():
                 clean_d = re.sub(r"^(https?://)?(www\.)?", "", dom_name.strip().lower()).rstrip("/")
                 clean_u = re.sub(r"[^a-z0-9]", "", clean_d)[:30]
 
+                target_users = set()
+                if clean_u:
+                    target_users.add(clean_u)
+                if d["owner_username"]:
+                    target_users.add(d["owner_username"])
+                if clean_d.startswith("phpmyadmin") or clean_d == "pma":
+                    target_users.add("pma")
+                    target_users.add("phpmyadmin")
+                elif clean_d.startswith("roundcube"):
+                    target_users.add("roundcube")
+                elif clean_d.startswith("pgadmin"):
+                    target_users.add("pgadmin")
+
                 d_cpu = 0.0
                 d_ram_mb = 0
                 d_disk_mb = 0
 
-                if platform.system() == "Linux":
+                if platform.system() == "Linux" and target_users:
+                    u_arg = ",".join(target_users)
                     # Quét CPU và RAM từ ps
                     try:
                         p = subprocess.run(
-                            ["ps", "-u", clean_u, "-o", "pid,%cpu,rss", "--no-headers"],
+                            ["ps", "-u", u_arg, "-o", "pid,%cpu,rss", "--no-headers"],
                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1.0
                         )
                         if p.returncode == 0 and p.stdout:
@@ -105,11 +123,12 @@ async def start_metrics_collector():
                     except Exception:
                         pass
 
-                    # Fallback quét pool FPM
+                    # Fallback quét pool FPM nếu chưa có tiến trình nào
                     if d_cpu == 0.0 and d_ram_mb == 0:
                         try:
+                            fpm_patt = f"pool ({'|'.join(target_users)})"
                             pg = subprocess.run(
-                                ["pgrep", "-f", f"pool {clean_u}"],
+                                ["pgrep", "-f", fpm_patt],
                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=0.8
                             )
                             if pg.returncode == 0 and pg.stdout:
