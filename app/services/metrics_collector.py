@@ -58,7 +58,10 @@ async def start_metrics_collector():
 
             # 2. Thu thập chỉ số của Toàn bộ Máy Chủ (Server)
             sys_stats = get_system_stats()
-            srv_cpu = round(float(sys_stats["cpu"]["percent"]), 1)
+            srv_cores = sys_stats.get("cpu_cores", 1) or 1
+            raw_srv_cpu = float(sys_stats["cpu"]["percent"])
+            # Quy đổi về thang điểm theo số core (1 core = 100%, 16 cores = 1600%) để khớp với các website
+            srv_cpu = round((raw_srv_cpu / 100.0) * (srv_cores * 100), 1)
             srv_ram = int(sys_stats["ram"]["used_gb"] * 1024)
             srv_disk = int(sys_stats["disk"]["used_gb"] * 1024)
             srv_bw_in = round(float(sys_stats["network"]["down_speed_kb"]), 1)
@@ -206,6 +209,15 @@ async def start_metrics_collector():
                     "user", uid, round(u_cpu, 1), u_ram_mb, u_disk_mb,
                     0.0, 0.0, 0, 0
                 ))
+
+            # Đảm bảo Tổng CPU của Server luôn >= tổng CPU của các website cộng lại
+            dom_total_cpu = sum(r[2] for r in batch_records if r[0] == "domain")
+            if dom_total_cpu > srv_cpu:
+                srv_cpu = round(dom_total_cpu, 1)
+                batch_records[0] = (
+                    "server", 0, srv_cpu, srv_ram, srv_disk,
+                    srv_bw_in, srv_bw_out, srv_pps_in, srv_pps_out
+                )
 
             # 5. Lưu vào database SQLite trong 1 transaction nhanh
             if batch_records:

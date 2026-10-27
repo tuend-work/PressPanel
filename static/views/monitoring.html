@@ -45,25 +45,28 @@
                 </select>
             </div>
 
-            <!-- 2. Khoảng thời gian (1m, 15m, 30m, 1h, 24h, 7d, 14d, 30d, 60d, 90d) -->
-            <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs overflow-x-auto max-w-full">
-                <button v-for="t in [
-                    { key: '1m', label: '1 Phút' },
-                    { key: '15m', label: '15 Phút' },
-                    { key: '30m', label: '30 Phút' },
-                    { key: '1h', label: '1 Giờ' },
-                    { key: '24h', label: '24 Giờ' },
-                    { key: '7d', label: '7 Ngày' },
-                    { key: '14d', label: '14 Ngày' },
-                    { key: '30d', label: '30 Ngày' },
-                    { key: '60d', label: '60 Ngày' },
-                    { key: '90d', label: '90 Ngày' }
-                ]"
-                    :key="t.key" type="button" @click="monitorTimeRange = t.key; fetchResourceMonitorData();"
-                    class="px-2.5 py-1 rounded-lg font-medium transition text-[11px] whitespace-nowrap"
-                    :class="monitorTimeRange === t.key ? 'bg-cyan-600 text-white shadow-sm font-semibold' : 'text-slate-400 hover:text-slate-200'">
-                    {{ t.label }}
-                </button>
+            <!-- 2. Chu kỳ biểu đồ (Selectbox gọn gàng) -->
+            <div class="relative flex items-center">
+                <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-cyan-400">
+                    <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                </div>
+                <select v-model="monitorTimeRange" @change="fetchResourceMonitorData"
+                    class="pl-7 pr-8 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 hover:border-slate-600 text-slate-200 text-xs font-semibold focus:outline-none focus:border-cyan-500 shadow-sm cursor-pointer appearance-none transition"
+                    title="Chọn chu kỳ thời gian hiển thị">
+                    <option value="1m">⏱️ 1 Phút</option>
+                    <option value="15m">⏱️ 15 Phút</option>
+                    <option value="30m">⏱️ 30 Phút (Mặc định)</option>
+                    <option value="1h">⏱️ 1 Giờ</option>
+                    <option value="24h">⏱️ 24 Giờ</option>
+                    <option value="7d">📅 7 Ngày</option>
+                    <option value="14d">📅 14 Ngày</option>
+                    <option value="30d">📅 30 Ngày</option>
+                    <option value="60d">📅 60 Ngày</option>
+                    <option value="90d">📅 90 Ngày</option>
+                </select>
+                <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none text-slate-400">
+                    <i data-lucide="chevron-down" class="w-3 h-3"></i>
+                </div>
             </div>
 
             <!-- 3. Nút Cấu hình Lưu Trữ Lịch Sử DB -->

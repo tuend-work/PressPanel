@@ -639,7 +639,7 @@ async def trigger_restart(
 async def get_resource_monitor(
     target_user_id: Optional[int] = None,
     target_domain_id: Optional[int] = None,
-    time_range: str = "1h",
+    time_range: str = "30m",
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -946,7 +946,7 @@ async def get_resource_monitor(
         "60d": {"points": 20, "delta_mins": 4320,   "hours": 1440, "fmt": "%d/%m"},
         "90d": {"points": 18, "delta_mins": 7200,   "hours": 2160, "fmt": "%d/%m"}
     }
-    cfg = time_config.get(time_range, time_config["1h"])
+    cfg = time_config.get(time_range, time_config["30m"])
     points_count = cfg["points"]
     delta_mins = cfg["delta_mins"]
     hours_back = cfg["hours"]
@@ -1273,6 +1273,17 @@ async def get_resource_monitor(
         })
 
     website_series.sort(key=lambda x: x["current_cpu"], reverse=True)
+
+    # Đảm bảo Tổng CPU của Server (cpu_series) tại mọi mốc thời gian luôn >= tổng CPU của tất cả website cộng lại
+    if target_scope == "server" and website_series:
+        for p_i in range(len(cpu_series)):
+            ws_sum_at_p = sum(ws["cpu"][p_i] for ws in website_series if len(ws["cpu"]) > p_i)
+            if ws_sum_at_p > cpu_series[p_i]:
+                cpu_series[p_i] = round(ws_sum_at_p, 1)
+
+        total_curr_ws_cpu = sum(ws["current_cpu"] for ws in website_series)
+        if total_curr_ws_cpu > base_cpu:
+            base_cpu = round(total_curr_ws_cpu, 1)
 
     # 5. Phân tích Top IP Requests từ web log
     ip_stats = []
