@@ -711,7 +711,7 @@ function showAlert(message) {
                     if (isWebUser.value && (chosen === 'dashboard' || chosen === 'service_plans' || chosen === 'customers' || chosen === 'apps' || chosen === 'firewall' || chosen === 'tools_settings')) {
                         chosen = 'domains';
                     }
-                    if (isHostingUser.value && ['mail', 'files', 'databases', 'monitoring'].includes(chosen)) {
+                    if (isHostingUser.value && ['mail', 'files', 'databases'].includes(chosen)) {
                         chosen = 'domains';
                     }
                     return chosen;
@@ -7357,6 +7357,9 @@ function showAlert(message) {
                     }
                     if (newTab === 'crons') {
                         fetchCrons();
+                    }
+                    if (newTab === 'monitoring') {
+                        fetchResourceMonitorData();
                     }
                     refreshLucideIcons();
                 });
