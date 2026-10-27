@@ -293,15 +293,6 @@ function showAlert(message) {
                                 <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
                             </button>
 
-                            <!-- 7. WordPress Toolkit (Hiển thị cho tất cả Quản Trị Viên & Khách Hàng) -->
-                            <button @click="currentTab = 'wp'" :class="navClass('wp')">
-                                <div class="flex items-center space-x-3">
-                                    <div class="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-[10px]">W</div>
-                                    <span>WordPress</span>
-                                </div>
-                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
-                            </button>
-
                             <!-- Terminal SSH: Hiển thị cho Admin (root) và Website User (caged), Tắt hoàn toàn cho Hosting User -->
                             <button v-if="currentUser.role === 'admin' || currentUser.web_domain_id" @click="openWebTerminal()" :class="navClass('terminal')">
                                 <div class="flex items-center space-x-3">
@@ -324,12 +315,11 @@ function showAlert(message) {
                                 </span>
                             </button>
 
-                            <!-- 8. Service Plans / Website Plans (Chỉ Admin & Hosting User, Website User không cần) -->
-                            <button v-if="(currentUser.role === 'admin' || isHostingUser) && !isWebUser" @click="currentTab = 'service_plans'" :class="navClass('service_plans')">
+                            <!-- Website Plans (Chỉ dành riêng cho Hosting User quản lý các gói website lẻ của mình) -->
+                            <button v-if="isHostingUser && !isWebUser" @click="currentTab = 'service_plans'" :class="navClass('service_plans')">
                                 <div class="flex items-center space-x-3">
                                     <i data-lucide="cpu" class="w-4 h-4 text-slate-400"></i>
-                                    <span v-if="currentUser.role === 'admin'">User Package</span>
-                                    <span v-else>Website Plan</span>
+                                    <span>Website Plan</span>
                                 </div>
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
@@ -812,16 +802,51 @@ function showAlert(message) {
                 const showAddPlanModal = ref(false);
                 const creatingPlan = ref(false);
                 const selectedPlanTab = ref('all'); // 'all', 'user', 'website'
+                const customersSubTab = ref('users'); // 'users', 'packages'
+                const showEditPlanModal = ref(false);
+                const updatingPlan = ref(false);
+                const editingPlan = ref(null);
+                const editPlanForm = ref({
+                    id: null,
+                    name: '',
+                    plan_type: 'user',
+                    disk_mb: 5120,
+                    max_inodes: 250000,
+                    mem_mb: 1024,
+                    cpu_pct: 100,
+                    max_domains: 10,
+                    max_databases: 10,
+                    allow_ssh: true,
+                    max_php_sites: 10,
+                    max_wp_sites: 5,
+                    max_nodejs_sites: 2,
+                    max_python_sites: 2,
+                    max_go_sites: 2,
+                    max_mysql_dbs: 10,
+                    max_mongo_dbs: 2,
+                    bandwidth_mb: 0,
+                    max_ftp_accounts: 5
+                });
                 const newPlan = ref({
                     name: '',
                     package_type: 'user',
                     plan_type: 'user', // 'user' hoặc 'website'
                     disk_mb: 5120,
+                    max_inodes: 250000,
                     mem_mb: 1024,
                     cpu_pct: 100,
                     max_domains: 10,
                     max_databases: 10,
-                    allow_ssh: true
+                    allow_ssh: true,
+                    max_php_sites: 10,
+                    max_wp_sites: 5,
+                    max_nodejs_sites: 2,
+                    max_python_sites: 2,
+                    max_go_sites: 2,
+                    max_mysql_dbs: 10,
+                    max_mongo_dbs: 2,
+                    bandwidth_mb: 0,
+                    max_ftp_accounts: 5
                 });
 
                 watch(() => newPlan.value.plan_type, (val) => {
@@ -2714,11 +2739,21 @@ function showAlert(message) {
                                 package_type: 'user',
                                 plan_type: (currentUser.value?.role === 'reseller' || isHostingUser.value) ? 'website' : 'user',
                                 disk_mb: 5120,
+                                max_inodes: 250000,
                                 mem_mb: 1024,
                                 cpu_pct: 100,
                                 max_domains: (currentUser.value?.role === 'reseller' || isHostingUser.value) ? 1 : 10,
                                 max_databases: 10,
-                                allow_ssh: true
+                                allow_ssh: true,
+                                max_php_sites: 10,
+                                max_wp_sites: 5,
+                                max_nodejs_sites: 2,
+                                max_python_sites: 2,
+                                max_go_sites: 2,
+                                max_mysql_dbs: 10,
+                                max_mongo_dbs: 2,
+                                bandwidth_mb: 0,
+                                max_ftp_accounts: 5
                             };
                             fetchServicePlans();
                         } else {
@@ -2728,6 +2763,84 @@ function showAlert(message) {
                         showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         creatingPlan.value = false;
+                    }
+                };
+
+                const openEditPlanModal = (plan) => {
+                    editingPlan.value = plan;
+                    editPlanForm.value = {
+                        id: plan.id,
+                        name: plan.name,
+                        plan_type: plan.plan_type || 'user',
+                        disk_mb: plan.disk_mb || 5120,
+                        max_inodes: plan.max_inodes || 250000,
+                        mem_mb: plan.mem_mb || 1024,
+                        cpu_pct: plan.cpu_pct || 100,
+                        max_domains: plan.max_domains || 10,
+                        max_databases: plan.max_databases || 10,
+                        allow_ssh: !!plan.allow_ssh,
+                        max_php_sites: plan.max_php_sites ?? 10,
+                        max_wp_sites: plan.max_wp_sites ?? 5,
+                        max_nodejs_sites: plan.max_nodejs_sites ?? 2,
+                        max_python_sites: plan.max_python_sites ?? 2,
+                        max_go_sites: plan.max_go_sites ?? 2,
+                        max_mysql_dbs: plan.max_mysql_dbs ?? plan.max_databases ?? 10,
+                        max_mongo_dbs: plan.max_mongo_dbs ?? 2,
+                        bandwidth_mb: plan.bandwidth_mb || 0,
+                        max_ftp_accounts: plan.max_ftp_accounts ?? 5
+                    };
+                    showEditPlanModal.value = true;
+                };
+
+                const handleUpdatePlan = async () => {
+                    if (!editingPlan.value) return;
+                    updatingPlan.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/users/plans/${editingPlan.value.id}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify(editPlanForm.value)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showAlert(data.message || 'Cập nhật gói dịch vụ thành công!');
+                            showEditPlanModal.value = false;
+                            fetchServicePlans();
+                        } else {
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể cập nhật gói'));
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        updatingPlan.value = false;
+                    }
+                };
+
+                const handleDeletePlan = async (plan) => {
+                    if (plan.subscriber_count > 0) {
+                        showAlert(`Không thể xóa gói '${plan.name}' vì đang có ${plan.subscriber_count} tài khoản/website sử dụng!`);
+                        return;
+                    }
+                    if (!confirm(`Bạn có chắc chắn muốn xóa gói dịch vụ '${plan.name}' (#${plan.id})?`)) {
+                        return;
+                    }
+                    try {
+                        const res = await fetch(`/api/v1/users/plans/${plan.id}`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showAlert(data.message || 'Đã xóa gói dịch vụ thành công!');
+                            fetchServicePlans();
+                        } else {
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể xóa gói'));
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
@@ -5933,6 +6046,10 @@ function showAlert(message) {
                             const d = await res.json();
                             if (d.status === 'ok') {
                                 wpInstances.value = d.instances || [];
+                                // Nếu phát hiện có web WordPress và chưa chọn category cụ thể, chọn tab WordPress (tab 1)
+                                if (wpInstances.value.length > 0 && domainCategoryFilter.value === 'all') {
+                                    domainCategoryFilter.value = 'wordpress';
+                                }
                             }
                         }
                     } catch(e) {
@@ -5951,6 +6068,9 @@ function showAlert(message) {
                         if (d.status === 'ok') {
                             showAlert(d.message || 'Quét WordPress thành công');
                             await fetchWpInstances();
+                            if (wpInstances.value.length > 0) {
+                                domainCategoryFilter.value = 'wordpress';
+                            }
                         } else {
                             showAlert(d.detail || 'Quét thất bại');
                         }
@@ -5976,8 +6096,9 @@ function showAlert(message) {
                 };
 
                 const openDomainWp = async (domain) => {
-                    currentTab.value = 'wp';
-                    window.location.hash = 'wp';
+                    currentTab.value = 'domains';
+                    domainCategoryFilter.value = 'wordpress';
+                    window.location.hash = 'domains';
                     if (!wpInstances.value.length) {
                         await fetchWpInstances();
                     }
@@ -7381,6 +7502,7 @@ function showAlert(message) {
                     fetchCustomers, handleAddCustomer, impersonateUser, impersonateWebsiteUser, exitImpersonation, loadHomePage,
                     servicePlans, showAddPlanModal, creatingPlan, newPlan, fetchServicePlans, handleAddPlan,
                     selectedPlanTab, filteredServicePlans, websitePlans,
+                    customersSubTab, showEditPlanModal, editingPlan, editPlanForm, updatingPlan, openEditPlanModal, handleUpdatePlan, handleDeletePlan,
                     showChangePlanModal, selectedCustomerForPlan, targetPlanId, changingPlan, selectedPlanPreview,
                     openChangePlanModal, confirmChangePlan,
                     panelVersion, showUpdateModal, isUpdating, updateCompleted, updateCountdown, updateLogText, handlePanelUpdate, reloadNow,

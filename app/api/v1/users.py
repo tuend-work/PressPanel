@@ -431,10 +431,20 @@ class PlanCreate(BaseModel):
     plan_type: str = Field("user", pattern="^(user|website)$")
     disk_mb: int = Field(5120, ge=100, le=500000)
     mem_mb: int = Field(1024, ge=128, le=65536)
-    cpu_pct: int = Field(100, ge=10, le=400)
+    cpu_pct: int = Field(100, ge=10, le=1600)
     max_domains: int = Field(10, ge=1, le=1000)
-    max_databases: int = Field(10, ge=1, le=1000)
+    max_databases: int = Field(10, ge=0, le=1000)
     allow_ssh: bool = True
+    max_php_sites: int = Field(10, ge=0, le=1000)
+    max_wp_sites: int = Field(5, ge=0, le=1000)
+    max_nodejs_sites: int = Field(2, ge=0, le=1000)
+    max_python_sites: int = Field(2, ge=0, le=1000)
+    max_go_sites: int = Field(2, ge=0, le=1000)
+    max_inodes: int = Field(250000, ge=1000, le=10000000)
+    max_mysql_dbs: int = Field(10, ge=0, le=1000)
+    max_mongo_dbs: int = Field(2, ge=0, le=1000)
+    bandwidth_mb: int = Field(0, ge=0)
+    max_ftp_accounts: int = Field(5, ge=0, le=1000)
 
 class PlanUpdate(BaseModel):
     name: Optional[str] = None
@@ -445,6 +455,16 @@ class PlanUpdate(BaseModel):
     max_domains: Optional[int] = None
     max_databases: Optional[int] = None
     allow_ssh: Optional[bool] = None
+    max_php_sites: Optional[int] = None
+    max_wp_sites: Optional[int] = None
+    max_nodejs_sites: Optional[int] = None
+    max_python_sites: Optional[int] = None
+    max_go_sites: Optional[int] = None
+    max_inodes: Optional[int] = None
+    max_mysql_dbs: Optional[int] = None
+    max_mongo_dbs: Optional[int] = None
+    bandwidth_mb: Optional[int] = None
+    max_ftp_accounts: Optional[int] = None
 
 @router.get("/plans")
 async def list_service_plans(
@@ -453,8 +473,8 @@ async def list_service_plans(
 ):
     """
     Lấy danh sách các gói dịch vụ (Service Plans)
-    - Loại 1: User Plan (plan_type='user') - Quản trị viên cấp tổng tài nguyên cho Hosting User
-    - Loại 2: Website Plan (plan_type='website') - Khách hàng tạo gói cho từng website con
+    - Admin: Chỉ xem các gói cấp cho User (plan_type='user')
+    - Hosting User: Chỉ xem các gói cấp cho Website (plan_type='website')
     """
     db = await get_db_connection()
     query = """
@@ -467,9 +487,14 @@ async def list_service_plans(
     """
     params = []
     if current_user["role"] in ("reseller", "user") and current_user["username"] != "admin":
-        # Chỉ Admin mới thấy User Plan. Còn Hosting user CHỈ nhìn thấy Website Plan
+        # Hosting user CHỈ nhìn thấy Website Plan
         query += " WHERE p.plan_type = 'website' AND (p.owner_id = ? OR p.owner_id = 0)"
         params.append(current_user["id"])
+    elif current_user["role"] == "admin":
+        # Admin chỉ xem các gói của User (plan_type='user')
+        target_pt = plan_type or "user"
+        query += " WHERE p.plan_type = ?"
+        params.append(target_pt)
     elif plan_type:
         query += " WHERE p.plan_type = ?"
         params.append(plan_type)
@@ -484,19 +509,15 @@ async def list_service_plans(
 async def create_service_plan(req: PlanCreate, current_user: dict = Depends(require_role("admin", "reseller", "user"))):
     """
     Tạo gói dịch vụ (Service Plan) mới
-    - Admin: Tạo User Plan hoặc Website Plan
-    - Reseller / Hosting User: Tạo Website Plan trong giới hạn tài nguyên của mình
+    - Admin: Tạo User Plan
+    - Reseller / Hosting User: Tạo Website Plan
     """
     db = await get_db_connection()
     try:
-        # Nếu là Hosting User (reseller hoặc user), chỉ được phép tạo Website Plan
         is_hosting = current_user["role"] in ("reseller", "user") and current_user["username"] != "admin"
         actual_plan_type = "website" if is_hosting else req.plan_type
-        
-        # Với gói Website Plan: Không có số lượng web, mỗi gói là 1 web duy nhất
         actual_max_domains = 1 if actual_plan_type == "website" else req.max_domains
 
-        # Nếu là Hosting User, kiểm tra hạn mức không vượt quá gói User Plan của mình
         if is_hosting:
             if req.disk_mb > current_user.get("disk_mb", 5120):
                 raise HTTPException(status_code=400, detail=f"Dung lượng website plan ({req.disk_mb}MB) vượt quá hạn mức User Plan của bạn ({current_user.get('disk_mb')}MB)")
@@ -504,9 +525,18 @@ async def create_service_plan(req: PlanCreate, current_user: dict = Depends(requ
                 raise HTTPException(status_code=400, detail=f"RAM website plan ({req.mem_mb}MB) vượt quá hạn mức User Plan của bạn ({current_user.get('mem_mb')}MB)")
 
         await db.execute("""
-            INSERT INTO packages (owner_id, name, package_type, plan_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases, allow_ssh)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 100, 100, ?, ?, ?)
-        """, (current_user["id"], req.name, req.package_type, actual_plan_type, req.cpu_pct, req.mem_mb, req.disk_mb, actual_max_domains, req.max_databases, 1 if req.allow_ssh else 0))
+            INSERT INTO packages (
+                owner_id, name, package_type, plan_type, cpu_pct, mem_mb, disk_mb,
+                io_weight, pids_max, max_domains, max_databases, allow_ssh,
+                max_php_sites, max_wp_sites, max_nodejs_sites, max_python_sites, max_go_sites,
+                max_inodes, max_mysql_dbs, max_mongo_dbs, bandwidth_mb, max_ftp_accounts
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 100, 100, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            current_user["id"], req.name, req.package_type, actual_plan_type, req.cpu_pct, req.mem_mb, req.disk_mb,
+            actual_max_domains, req.max_databases, 1 if req.allow_ssh else 0,
+            req.max_php_sites, req.max_wp_sites, req.max_nodejs_sites, req.max_python_sites, req.max_go_sites,
+            req.max_inodes, req.max_mysql_dbs, req.max_mongo_dbs, req.bandwidth_mb, req.max_ftp_accounts
+        ))
         await db.commit()
     except HTTPException:
         await db.close()
@@ -520,7 +550,7 @@ async def create_service_plan(req: PlanCreate, current_user: dict = Depends(requ
 
 @router.put("/plans/{plan_id}")
 async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict = Depends(require_role("admin", "reseller", "user"))):
-    """Cập nhật gói dịch vụ (bật/tắt SSH, chỉnh quota)"""
+    """Cập nhật thông tin chi tiết và hạn mức gói dịch vụ"""
     db = await get_db_connection()
     cursor = await db.execute("SELECT * FROM packages WHERE id = ?", (plan_id,))
     plan = await cursor.fetchone()
@@ -552,7 +582,6 @@ async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict 
         updates.append("cpu_pct = ?")
         params.append(req.cpu_pct)
     if req.max_domains is not None:
-        # Nếu là website plan thì cố định max_domains = 1
         if plan["plan_type"] != "website":
             updates.append("max_domains = ?")
             params.append(req.max_domains)
@@ -562,6 +591,36 @@ async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict 
     if req.allow_ssh is not None:
         updates.append("allow_ssh = ?")
         params.append(1 if req.allow_ssh else 0)
+    if req.max_php_sites is not None:
+        updates.append("max_php_sites = ?")
+        params.append(req.max_php_sites)
+    if req.max_wp_sites is not None:
+        updates.append("max_wp_sites = ?")
+        params.append(req.max_wp_sites)
+    if req.max_nodejs_sites is not None:
+        updates.append("max_nodejs_sites = ?")
+        params.append(req.max_nodejs_sites)
+    if req.max_python_sites is not None:
+        updates.append("max_python_sites = ?")
+        params.append(req.max_python_sites)
+    if req.max_go_sites is not None:
+        updates.append("max_go_sites = ?")
+        params.append(req.max_go_sites)
+    if req.max_inodes is not None:
+        updates.append("max_inodes = ?")
+        params.append(req.max_inodes)
+    if req.max_mysql_dbs is not None:
+        updates.append("max_mysql_dbs = ?")
+        params.append(req.max_mysql_dbs)
+    if req.max_mongo_dbs is not None:
+        updates.append("max_mongo_dbs = ?")
+        params.append(req.max_mongo_dbs)
+    if req.bandwidth_mb is not None:
+        updates.append("bandwidth_mb = ?")
+        params.append(req.bandwidth_mb)
+    if req.max_ftp_accounts is not None:
+        updates.append("max_ftp_accounts = ?")
+        params.append(req.max_ftp_accounts)
 
     if updates:
         params.append(plan_id)
@@ -570,6 +629,35 @@ async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict 
 
     await db.close()
     return {"status": "ok", "message": "Đã cập nhật gói dịch vụ thành công!"}
+
+@router.delete("/plans/{plan_id}")
+async def delete_service_plan(plan_id: int, current_user: dict = Depends(require_role("admin", "reseller", "user"))):
+    """Xóa gói dịch vụ (chỉ xóa khi không có user hay website nào đang sử dụng)"""
+    db = await get_db_connection()
+    cursor = await db.execute("SELECT * FROM packages WHERE id = ?", (plan_id,))
+    plan = await cursor.fetchone()
+    if not plan:
+        await db.close()
+        raise HTTPException(status_code=404, detail="Không tìm thấy gói dịch vụ")
+
+    if current_user["role"] != "admin" and plan["owner_id"] != current_user["id"]:
+        await db.close()
+        raise HTTPException(status_code=403, detail="Bạn chỉ có thể xóa gói do bạn tạo ra")
+
+    # Kiểm tra ràng buộc xem có user hay website nào đang sử dụng không
+    u_chk = await db.execute("SELECT COUNT(*) FROM users WHERE package_id = ?", (plan_id,))
+    u_cnt = (await u_chk.fetchone())[0]
+    d_chk = await db.execute("SELECT COUNT(*) FROM domains WHERE package_id = ?", (plan_id,))
+    d_cnt = (await d_chk.fetchone())[0]
+
+    if u_cnt > 0 or d_cnt > 0:
+        await db.close()
+        raise HTTPException(status_code=400, detail=f"Không thể xóa gói này vì đang có {u_cnt} user và {d_cnt} website đang sử dụng.")
+
+    await db.execute("DELETE FROM packages WHERE id = ?", (plan_id,))
+    await db.commit()
+    await db.close()
+    return {"status": "ok", "message": f"Đã xóa gói '{plan['name']}' thành công!"}
 
 # ==========================================
 # USER PROFILE & SECURITY MANAGEMENT

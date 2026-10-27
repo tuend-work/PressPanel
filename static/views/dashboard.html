@@ -641,7 +641,7 @@
                                             </div>
                                             <div class="flex justify-end space-x-1 pt-1 text-[11px]">
                                                 <button v-if="!getApp('wp-cli').installed" @click="handleAppAction('wp-cli', 'install')" class="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium">Cài Đặt</button>
-                                                <button v-else @click="currentTab = 'wp'" class="px-2 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 font-medium">Mở Toolkit</button>
+                                                <button v-else @click="currentTab = 'domains'; domainCategoryFilter = 'wordpress'; fetchWpInstances();" class="px-2 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 font-medium">Mở Toolkit</button>
                                             </div>
                                         </div>
                                     </div>

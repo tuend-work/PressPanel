@@ -344,7 +344,7 @@
                             </h4>
                             <p class="text-[11px] text-slate-500 mt-0.5">Truy cập thẳng vào trang quản trị WP-Admin của {{ profileData.domain_name }} không cần nhập mật khẩu</p>
                         </div>
-                        <button @click="currentTab = 'wp'" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition flex items-center gap-1.5 shrink-0">
+                        <button @click="currentTab = 'domains'; domainCategoryFilter = 'wordpress'; fetchWpInstances();" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition flex items-center gap-1.5 shrink-0">
                             <i data-lucide="layers" class="w-3.5 h-3.5"></i>
                             <span>WordPress Toolkit</span>
                         </button>

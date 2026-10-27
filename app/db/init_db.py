@@ -27,6 +27,17 @@ CREATE TABLE IF NOT EXISTS packages (
     max_databases INTEGER NOT NULL DEFAULT 10,
     max_sub_users INTEGER DEFAULT 0,
     allow_ssh INTEGER NOT NULL DEFAULT 1,
+    plan_type TEXT NOT NULL DEFAULT 'user',
+    max_php_sites INTEGER NOT NULL DEFAULT 10,
+    max_wp_sites INTEGER NOT NULL DEFAULT 5,
+    max_nodejs_sites INTEGER NOT NULL DEFAULT 2,
+    max_python_sites INTEGER NOT NULL DEFAULT 2,
+    max_go_sites INTEGER NOT NULL DEFAULT 2,
+    max_inodes INTEGER NOT NULL DEFAULT 250000,
+    max_mysql_dbs INTEGER NOT NULL DEFAULT 10,
+    max_mongo_dbs INTEGER NOT NULL DEFAULT 2,
+    bandwidth_mb INTEGER NOT NULL DEFAULT 0,
+    max_ftp_accounts INTEGER NOT NULL DEFAULT 5,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -227,6 +238,46 @@ async def init_database():
             pass
         try:
             await db.execute("ALTER TABLE packages ADD COLUMN plan_type TEXT NOT NULL DEFAULT 'user'")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE packages ADD COLUMN max_php_sites INTEGER NOT NULL DEFAULT 10")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE packages ADD COLUMN max_wp_sites INTEGER NOT NULL DEFAULT 5")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE packages ADD COLUMN max_nodejs_sites INTEGER NOT NULL DEFAULT 2")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE packages ADD COLUMN max_python_sites INTEGER NOT NULL DEFAULT 2")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE packages ADD COLUMN max_go_sites INTEGER NOT NULL DEFAULT 2")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE packages ADD COLUMN max_inodes INTEGER NOT NULL DEFAULT 250000")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE packages ADD COLUMN max_mysql_dbs INTEGER NOT NULL DEFAULT 10")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE packages ADD COLUMN max_mongo_dbs INTEGER NOT NULL DEFAULT 2")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE packages ADD COLUMN bandwidth_mb INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE packages ADD COLUMN max_ftp_accounts INTEGER NOT NULL DEFAULT 5")
         except Exception:
             pass
         try:

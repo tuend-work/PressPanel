@@ -1764,73 +1764,123 @@
             </div>
 
             <!-- MODAL: THÊM SERVICE PLAN MỚI (WPC HOSTING PACKAGE) -->
-            <div v-if="showAddPlanModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div class="glass rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-700">
+            <div v-if="showAddPlanModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+                <div class="glass rounded-2xl max-w-xl w-full p-6 shadow-2xl relative border border-slate-700 my-8">
                     <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
                         <div class="flex items-center space-x-2">
                             <span class="text-xl">📦</span>
-                            <h3 class="text-base font-bold text-white">{{ currentUser.role === 'admin' ? 'Thêm User Package (Gói Cấp Cho User)' : 'Tạo Website Plan (Gói Từng Website)' }}</h3>
+                            <h3 class="text-base font-bold text-white">{{ currentUser.role === 'admin' ? 'Thêm User Package (Cấp Quyền Cho User)' : 'Tạo Website Plan (Cấp Cho 1 Website)' }}</h3>
                         </div>
                         <button @click="showAddPlanModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
-                    </div>
-                    <div v-if="currentUser.role === 'reseller' || isHostingUser" class="mb-3 p-2.5 rounded-xl bg-blue-950/60 border border-blue-800 text-blue-300 text-[11px]">
-                        ℹ️ <b>Website Plan:</b> Bạn đang tạo gói tài nguyên riêng để gán cho các website của mình. Hạn mức không vượt quá gói User Package được cấp.
                     </div>
 
                     <form @submit.prevent="handleAddPlan" class="space-y-4 text-xs">
                         <div>
                             <label class="block font-semibold text-slate-300 mb-1">Tên Gói Dịch Vụ</label>
-                            <input type="text" v-model="newPlan.name" placeholder="vd: WordPress Business, VIP Turbo" required
+                            <input type="text" v-model="newPlan.name" placeholder="vd: Standard Hosting, Pro WordPress Turbo" required
                                 class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
                         </div>
 
+                        <!-- Cấp độ & CPU -->
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block font-semibold text-slate-300 mb-1">Cấp Độ Gói (Plan Type)</label>
+                                <label class="block font-semibold text-slate-300 mb-1">Cấp Độ Gói</label>
                                 <select v-model="newPlan.plan_type" :disabled="currentUser.role === 'reseller' || isHostingUser"
                                     class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-cyan-500">
-                                    <option value="user" v-if="currentUser.role === 'admin'">Loại 1: User Package (Cấp tổng cho User)</option>
-                                    <option value="website">Loại 2: Website Plan (Cấp lẻ cho từng Website)</option>
+                                    <option value="user" v-if="currentUser.role === 'admin'">User Package (Cấp cho User)</option>
+                                    <option value="website">Website Plan (Cấp cho Website)</option>
                                 </select>
                             </div>
                             <div>
                                 <label class="block font-semibold text-slate-300 mb-1">Giới Hạn CPU (%)</label>
-                                <input type="number" v-model.number="newPlan.cpu_pct" min="10" max="800" required
+                                <input type="number" v-model.number="newPlan.cpu_pct" min="10" max="1600" required
                                     class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3">
+                        <!-- Dung lượng, Inodes & RAM -->
+                        <div class="grid grid-cols-3 gap-3">
                             <div>
-                                <label class="block font-semibold text-slate-300 mb-1">Dung Lượng Ổ Cứng (MB)</label>
-                                <input type="number" v-model.number="newPlan.disk_mb" min="500" max="500000" required
+                                <label class="block font-semibold text-slate-300 mb-1">Ổ Cứng (MB)</label>
+                                <input type="number" v-model.number="newPlan.disk_mb" min="100" max="1000000" required
                                     class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
                                 <span class="text-[10px] text-slate-500 font-mono mt-0.5 block">≈ {{ (newPlan.disk_mb / 1024).toFixed(1) }} GB</span>
                             </div>
                             <div>
-                                <label class="block font-semibold text-slate-300 mb-1">Bộ Nhớ RAM (MB)</label>
-                                <input type="number" v-model.number="newPlan.mem_mb" min="256" max="65536" required
+                                <label class="block font-semibold text-slate-300 mb-1">Số File (Inodes)</label>
+                                <input type="number" v-model.number="newPlan.max_inodes" min="1000" max="10000000" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                                <span class="text-[10px] text-slate-500 font-mono mt-0.5 block">{{ (newPlan.max_inodes || 0).toLocaleString() }}</span>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">RAM (MB)</label>
+                                <input type="number" v-model.number="newPlan.mem_mb" min="128" max="65536" required
                                     class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
                                 <span class="text-[10px] text-slate-500 font-mono mt-0.5 block">≈ {{ (newPlan.mem_mb / 1024).toFixed(1) }} GB</span>
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3">
-                            <div v-if="newPlan.plan_type !== 'website'">
-                                <label class="block font-semibold text-slate-300 mb-1">Số Tên Miền Tối Đa</label>
-                                <input type="number" v-model.number="newPlan.max_domains" min="1" max="1000" required
-                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                        <!-- Hạn mức số lượng website theo từng mã nguồn (Chỉ áp dụng cho User Package) -->
+                        <div v-if="newPlan.plan_type !== 'website'" class="p-3 rounded-xl bg-slate-900/80 border border-slate-700/80 space-y-2.5">
+                            <div class="flex justify-between items-center">
+                                <span class="font-semibold text-slate-200">Giới hạn số Website theo nền tảng:</span>
+                                <span class="text-[11px] font-mono text-cyan-400">Tổng tối đa: {{ newPlan.max_domains }}</span>
                             </div>
-                            <div v-else class="flex flex-col justify-center">
-                                <label class="block font-semibold text-slate-400 mb-1">Quy Mô Website</label>
-                                <div class="px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700/60 text-emerald-400 font-medium text-[11px] flex items-center gap-1.5">
-                                    <span>🌐</span> <span><b>1 Website duy nhất</b> (1 web / gói)</span>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-slate-400 mb-0.5">Tổng số Website / Domain</label>
+                                    <input type="number" v-model.number="newPlan.max_domains" min="1" max="1000" required
+                                        class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-400 mb-0.5">Website WordPress</label>
+                                    <input type="number" v-model.number="newPlan.max_wp_sites" min="0" max="1000" required
+                                        class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-400 mb-0.5">Website PHP (Thuần/Laravel)</label>
+                                    <input type="number" v-model.number="newPlan.max_php_sites" min="0" max="1000" required
+                                        class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-400 mb-0.5">Website Node.js</label>
+                                    <input type="number" v-model.number="newPlan.max_nodejs_sites" min="0" max="1000" required
+                                        class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-400 mb-0.5">Website Python</label>
+                                    <input type="number" v-model.number="newPlan.max_python_sites" min="0" max="1000" required
+                                        class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-400 mb-0.5">Website Go (Golang)</label>
+                                    <input type="number" v-model.number="newPlan.max_go_sites" min="0" max="1000" required
+                                        class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono">
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Hạn mức Database, Băng thông & FTP -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                             <div>
-                                <label class="block font-semibold text-slate-300 mb-1">Số Database Tối Đa</label>
-                                <input type="number" v-model.number="newPlan.max_databases" min="1" max="1000" required
-                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                                <label class="block font-semibold text-slate-300 mb-1">DB MySQL</label>
+                                <input type="number" v-model.number="newPlan.max_mysql_dbs" min="0" max="1000" required
+                                    class="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">DB MongoDB</label>
+                                <input type="number" v-model.number="newPlan.max_mongo_dbs" min="0" max="1000" required
+                                    class="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Băng Thông (MB)</label>
+                                <input type="number" v-model.number="newPlan.bandwidth_mb" min="0" placeholder="0 = Không giới hạn"
+                                    class="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Tài Khoản FTP</label>
+                                <input type="number" v-model.number="newPlan.max_ftp_accounts" min="0" max="1000" required
+                                    class="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
                             </div>
                         </div>
 
@@ -1855,6 +1905,151 @@
                                 class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold shadow-lg shadow-cyan-500/20 flex items-center space-x-1.5">
                                 <span v-if="creatingPlan" class="animate-spin">⏳</span>
                                 <span>{{ creatingPlan ? 'Đang Tạo Plan...' : 'Tạo Service Plan' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- MODAL: SỬA SERVICE PLAN / USER PACKAGE -->
+            <div v-if="showEditPlanModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+                <div class="glass rounded-2xl max-w-xl w-full p-6 shadow-2xl relative border border-slate-700 my-8">
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xl">✏️</span>
+                            <h3 class="text-base font-bold text-white">Chỉnh Sửa Thông Tin Gói (#{{ editingPlan?.id }})</h3>
+                        </div>
+                        <button @click="showEditPlanModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+                    </div>
+
+                    <form @submit.prevent="handleUpdatePlan" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Tên Gói Dịch Vụ</label>
+                            <input type="text" v-model="editPlanForm.name" required
+                                class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+                        </div>
+
+                        <!-- Cấp độ & CPU -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Cấp Độ Gói</label>
+                                <input type="text" :value="editPlanForm.plan_type === 'website' ? 'Website Plan' : 'User Package'" disabled
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-400 font-medium">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Giới Hạn CPU (%)</label>
+                                <input type="number" v-model.number="editPlanForm.cpu_pct" min="10" max="1600" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                        </div>
+
+                        <!-- Dung lượng, Inodes & RAM -->
+                        <div class="grid grid-cols-3 gap-3">
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Ổ Cứng (MB)</label>
+                                <input type="number" v-model.number="editPlanForm.disk_mb" min="100" max="1000000" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                                <span class="text-[10px] text-slate-500 font-mono mt-0.5 block">≈ {{ (editPlanForm.disk_mb / 1024).toFixed(1) }} GB</span>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Số File (Inodes)</label>
+                                <input type="number" v-model.number="editPlanForm.max_inodes" min="1000" max="10000000" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                                <span class="text-[10px] text-slate-500 font-mono mt-0.5 block">{{ (editPlanForm.max_inodes || 0).toLocaleString() }}</span>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">RAM (MB)</label>
+                                <input type="number" v-model.number="editPlanForm.mem_mb" min="128" max="65536" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                                <span class="text-[10px] text-slate-500 font-mono mt-0.5 block">≈ {{ (editPlanForm.mem_mb / 1024).toFixed(1) }} GB</span>
+                            </div>
+                        </div>
+
+                        <!-- Hạn mức số lượng website theo từng mã nguồn -->
+                        <div v-if="editPlanForm.plan_type !== 'website'" class="p-3 rounded-xl bg-slate-900/80 border border-slate-700/80 space-y-2.5">
+                            <div class="flex justify-between items-center">
+                                <span class="font-semibold text-slate-200">Giới hạn số Website theo nền tảng:</span>
+                                <span class="text-[11px] font-mono text-cyan-400">Tổng tối đa: {{ editPlanForm.max_domains }}</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-slate-400 mb-0.5">Tổng số Website / Domain</label>
+                                    <input type="number" v-model.number="editPlanForm.max_domains" min="1" max="1000" required
+                                        class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-400 mb-0.5">Website WordPress</label>
+                                    <input type="number" v-model.number="editPlanForm.max_wp_sites" min="0" max="1000" required
+                                        class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-400 mb-0.5">Website PHP (Thuần/Laravel)</label>
+                                    <input type="number" v-model.number="editPlanForm.max_php_sites" min="0" max="1000" required
+                                        class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-400 mb-0.5">Website Node.js</label>
+                                    <input type="number" v-model.number="editPlanForm.max_nodejs_sites" min="0" max="1000" required
+                                        class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-400 mb-0.5">Website Python</label>
+                                    <input type="number" v-model.number="editPlanForm.max_python_sites" min="0" max="1000" required
+                                        class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-400 mb-0.5">Website Go (Golang)</label>
+                                    <input type="number" v-model.number="editPlanForm.max_go_sites" min="0" max="1000" required
+                                        class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Hạn mức Database, Băng thông & FTP -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">DB MySQL</label>
+                                <input type="number" v-model.number="editPlanForm.max_mysql_dbs" min="0" max="1000" required
+                                    class="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">DB MongoDB</label>
+                                <input type="number" v-model.number="editPlanForm.max_mongo_dbs" min="0" max="1000" required
+                                    class="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Băng Thông (MB)</label>
+                                <input type="number" v-model.number="editPlanForm.bandwidth_mb" min="0" placeholder="0 = Không giới hạn"
+                                    class="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Tài Khoản FTP</label>
+                                <input type="number" v-model.number="editPlanForm.max_ftp_accounts" min="0" max="1000" required
+                                    class="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                        </div>
+
+                        <!-- Quyền Terminal SSH -->
+                        <div class="p-3 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-between">
+                            <div>
+                                <div class="font-semibold text-slate-200 text-xs flex items-center gap-1.5">
+                                    <i data-lucide="terminal" class="w-3.5 h-3.5 text-emerald-400"></i>
+                                    <span>Quyền Terminal SSH</span>
+                                </div>
+                                <p class="text-[10px] text-slate-400 mt-0.5">Cho phép người dùng sử dụng Web Terminal để thao tác dòng lệnh</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" v-model="editPlanForm.allow_ssh" class="sr-only peer">
+                                <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                            </label>
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-2 border-t border-slate-800">
+                            <button type="button" @click="showEditPlanModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
+                            <button type="submit" :disabled="updatingPlan"
+                                class="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold shadow-lg shadow-blue-500/20 flex items-center space-x-1.5">
+                                <span v-if="updatingPlan" class="animate-spin">⏳</span>
+                                <span>{{ updatingPlan ? 'Đang Lưu...' : 'Cập Nhật Gói' }}</span>
                             </button>
                         </div>
                     </form>
