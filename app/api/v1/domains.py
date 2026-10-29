@@ -2290,7 +2290,7 @@ async def get_domain_fpm_service(
             "WORKER_GRP": sock_group,
             "LISTEN_MODE": "0666",
             "LISTEN_BACKLOG": "511",
-            "PM_DIRECTIVES": "pm = dynamic\npm.max_children = 10\npm.start_servers = 2\npm.min_spare_servers = 1\npm.max_spare_servers = 3\npm.process_idle_timeout = 10s\npm.max_requests = 500",
+            "PM_DIRECTIVES": "pm = dynamic\npm.max_children = 20\npm.start_servers = 4\npm.min_spare_servers = 2\npm.max_spare_servers = 6\npm.process_idle_timeout = 60s\npm.max_requests = 2000",
             "REQUEST_TERMINATE_TIMEOUT": "0s",
             "REQUEST_SLOWLOG_TIMEOUT": "0s",
             "SLOWLOG": f"/home/{isolated_user}/logs/php-fpm.slow.log",

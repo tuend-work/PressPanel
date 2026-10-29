@@ -32,6 +32,7 @@ server {
     # Bật HTTP/2 và HTTP/3
     http2 on;
     http3 on;
+    tcp_nodelay on;
 
     # Quảng bá giao thức HTTP/3 tới trình duyệt web (nếu bật)
     add_header Alt-Svc 'h3=":443"; ma=86400' always;
@@ -86,6 +87,7 @@ server {
         fastcgi_buffers 256 16k;
         fastcgi_busy_buffers_size 256k;
         fastcgi_temp_file_write_size 256k;
+        fastcgi_keep_conn on;
     }
 
     # ========================================================
