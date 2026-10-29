@@ -831,12 +831,43 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
         "repo_name": repo_name
     }
 
+def detect_primary_webserver() -> str:
+    """Phát hiện webserver chính đang chiếm giữ port 80/443 (ols hoặc nginx)"""
+    if os.name != "nt":
+        for svc in ["lshttpd", "lsws"]:
+            try:
+                r = subprocess.run(["systemctl", "is-active", "--quiet", svc], check=False)
+                if r.returncode == 0:
+                    return "ols"
+            except Exception:
+                pass
+        for svc in ["nginx", "openresty"]:
+            try:
+                r = subprocess.run(["systemctl", "is-active", "--quiet", svc], check=False)
+                if r.returncode == 0:
+                    return "nginx"
+            except Exception:
+                pass
+    try:
+        from app.core.config import CONF_DATA
+        return str(CONF_DATA.get("default_webserver", "ols")).lower()
+    except Exception:
+        return "ols"
+
 @router.get("/list")
 async def get_apps_list(current_user: dict = Depends(get_current_user)):
     """Trả về danh sách ứng dụng kèm trạng thái cài đặt thực tế"""
-    apps_status = [check_app_status(app) for app in SUPPORTED_APPS]
+    primary_ws = detect_primary_webserver()
+    apps_status = []
+    for app in SUPPORTED_APPS:
+        st = check_app_status(app)
+        if st.get("category") == "webserver":
+            st["is_primary"] = (st["id"] == primary_ws and st.get("running", False))
+        apps_status.append(st)
+
     return {
         "apps": apps_status,
+        "primary_webserver": primary_ws,
         "counts": {
             "all": len(apps_status),
             "installed": sum(1 for a in apps_status if a["installed"]),
@@ -1819,6 +1850,21 @@ async def rewrite_webserver_config(
             except Exception as ols_e:
                 backup_notes.append(f"Lỗi khởi động OLS: {str(ols_e)}")
 
+        # 5. Cập nhật default_webserver trong /opt/wpc/conf/wpc.conf
+        for cfg_file in ["/opt/wpc/conf/wpc.conf", os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../conf/wpc.conf"))]:
+            if os.path.isfile(cfg_file):
+                try:
+                    with open(cfg_file, "r", encoding="utf-8") as f:
+                        c_data = f.read()
+                    if "default_webserver=" in c_data:
+                        c_data = re.sub(r"^default_webserver=.*$", f"default_webserver={ws}", c_data, flags=re.MULTILINE)
+                    else:
+                        c_data += f"\ndefault_webserver={ws}\n"
+                    with open(cfg_file, "w", encoding="utf-8") as f:
+                        f.write(c_data)
+                except Exception:
+                    pass
+
         if len(domains) == 0:
             msg = f"Đã chuẩn bị xong cấu hình cho {ws.upper()}, nhưng hiện tại chưa có website nào trong cơ sở dữ liệu."
         elif fail_count > 0:
@@ -1841,6 +1887,36 @@ async def rewrite_webserver_config(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Lỗi tái tạo cấu hình webserver: {str(e)}")
+
+
+class SwitchWebserverRequest(BaseModel):
+    webserver: str  # ols | nginx
+
+
+@router.post("/switch-webserver")
+async def switch_webserver(
+    req: SwitchWebserverRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Chuyển đổi Webserver chính chiếm giữ port 80 & 443 (OpenLiteSpeed hoặc Nginx)
+    và tự động nạp/tái tạo toàn bộ VirtualHost cho tất cả websites.
+    """
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền chuyển đổi máy chủ Web chính.")
+    ws = req.webserver.lower().strip()
+    if ws not in ["ols", "nginx"]:
+        raise HTTPException(status_code=400, detail="Chỉ hỗ trợ chuyển đổi giữa OpenLiteSpeed ('ols') và Nginx ('nginx').")
+
+    rewrite_req = RewriteConfigRequest(webserver=ws)
+    res = await rewrite_webserver_config(req=rewrite_req, current_user=current_user)
+    ws_name = "OpenLiteSpeed" if ws == "ols" else "Nginx"
+    return {
+        "status": res.get("status", "ok"),
+        "primary_webserver": ws,
+        "message": f"Đã kích hoạt và chuyển đổi máy chủ Web chính (Port 80/443) sang {ws_name} thành công!",
+        "details": res.get("details", {})
+    }
 
 
 class WebserverSettingsUpdateRequest(BaseModel):

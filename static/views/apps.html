@@ -48,6 +48,21 @@
                             </div>
                         </div>
 
+                        <!-- Webserver Global Status Banner -->
+                        <div v-if="appsCategory === 'webserver' || (!appsCategory && primaryWebserver)" class="mb-3 px-4 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <div class="flex items-center gap-2">
+                                <span class="text-slate-400">Máy chủ Web chính (Port 80/443):</span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold border"
+                                    :class="primaryWebserver === 'nginx' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'">
+                                    <span>{{ primaryWebserver === 'nginx' ? '🌐 Nginx Web Server' : '⚡ OpenLiteSpeed (LSWS)' }}</span>
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                </span>
+                            </div>
+                            <div class="text-[11px] text-slate-400">
+                                💡 Cổng 80 & 443 do 1 Webserver duy nhất chiếm giữ. Bấm <span class="text-amber-300 font-semibold">"Kích hoạt (80/443)"</span> ở Webserver còn lại để đổi máy chủ phục vụ.
+                            </div>
+                        </div>
+
                         <!-- App Store Table (COMPACT VIEW - NO HORIZONTAL SCROLLBAR) -->
                         <div class="bg-[#12151c] rounded-xl border border-[#22262e] overflow-hidden shadow-xl w-full">
                             <table class="w-full text-left text-xs table-fixed">
@@ -58,7 +73,7 @@
                                         <th class="py-3 px-2 w-14 text-center">Location</th>
                                         <th class="py-3 px-2 w-14 text-center">Status</th>
                                         <th class="py-3 px-2 w-28 text-center">Display on Home</th>
-                                        <th class="py-3 px-4 w-40 text-right">Operate</th>
+                                        <th class="py-3 px-4 w-56 text-right">Operate</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-[#1e232d] text-[12px]">
@@ -76,8 +91,11 @@
                                                     <span v-else>{{ app.icon || '📦' }}</span>
                                                 </div>
                                                 <div class="min-w-0 flex-1">
-                                                    <div class="font-medium text-slate-100 truncate text-[12px]" :title="app.detailed_version || app.name">
-                                                        {{ truncateText(app.detailed_version || (app.name + ' ' + (app.exact_version ? 'v' + app.exact_version : app.default_version)), 30) }}
+                                                    <div class="font-medium text-slate-100 truncate text-[12px] flex items-center gap-1.5" :title="app.detailed_version || app.name">
+                                                        <span>{{ truncateText(app.detailed_version || (app.name + ' ' + (app.exact_version ? 'v' + app.exact_version : app.default_version)), 26) }}</span>
+                                                        <span v-if="app.category === 'webserver' && app.running" class="shrink-0 px-1 py-0.5 rounded text-[9.5px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                                            Port 80/443
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -122,6 +140,19 @@
                                         <td class="py-3 px-4 text-right whitespace-nowrap">
                                             <template v-if="app.installed">
                                                 <span class="inline-flex items-center space-x-1.5 font-medium text-[11.5px]">
+                                                    <!-- Webserver Primary Activate Switcher -->
+                                                    <template v-if="app.category === 'webserver'">
+                                                        <button v-if="!app.running" @click="handleSwitchPrimaryWebserver(app.id)"
+                                                            :disabled="switchingWebserver"
+                                                            class="text-amber-400 hover:text-amber-300 transition hover:underline font-bold flex items-center gap-0.5"
+                                                            title="Kích hoạt Webserver này làm máy chủ chính chiếm giữ Port 80 & 443">
+                                                            <span>⚡ Kích hoạt (80/443)</span>
+                                                        </button>
+                                                        <span v-else class="text-emerald-400 font-bold flex items-center gap-1" title="Đang chạy Port 80 & 443">
+                                                            <span>● Đang phục vụ</span>
+                                                        </span>
+                                                        <span class="text-slate-600">|</span>
+                                                    </template>
                                                     <!-- Update -->
                                                     <button @click="app.category === 'php' ? handleCheckPhpUpdate(app) : handleAppAction(app.id, 'update')"
                                                         class="text-emerald-400 hover:text-emerald-300 transition hover:underline">

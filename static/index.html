@@ -1211,6 +1211,9 @@ function showAlert(message) {
                         if (res.ok) {
                             const data = await res.json();
                             appsList.value = data.apps || [];
+                            if (data.primary_webserver) {
+                                primaryWebserver.value = data.primary_webserver;
+                            }
                             // Tự động gán phiên bản mặc định
                             appsList.value.forEach(a => {
                                 if (!appVersions.value[a.id] && a.default_version) {
@@ -1316,6 +1319,45 @@ function showAlert(message) {
                         showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         rewritingConfig.value = false;
+                    }
+                };
+
+                const primaryWebserver = ref('ols');
+                const switchingWebserver = ref(false);
+
+                const handleSwitchPrimaryWebserver = async (targetWs) => {
+                    const wsId = (targetWs || '').toLowerCase().trim();
+                    const wsName = wsId === 'ols' ? 'OpenLiteSpeed (LSWS)' : (wsId === 'nginx' ? 'Nginx Web Server' : wsId.toUpperCase());
+                    if (!confirm(`Bạn có chắc chắn muốn KÍCH HOẠT ${wsName} làm máy chủ Web chính (Port 80 & 443)?\n\n- Webserver cũ sẽ được dừng để giải phóng cổng 80/443.\n- Toàn bộ VirtualHost của các website sẽ được tự động đồng bộ và nạp lại sang ${wsName}.`)) {
+                        return;
+                    }
+                    switchingWebserver.value = true;
+                    showAlert(`Đang chuyển đổi máy chủ Web chính sang ${wsName}... Vui lòng đợi trong giây lát!`);
+                    try {
+                        const res = await fetch('/api/v1/apps/switch-webserver', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ webserver: wsId })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            primaryWebserver.value = wsId;
+                            showAlert(data.message || `Đã chuyển đổi thành công sang ${wsName}!`);
+                            await fetchAppsList();
+                            await fetchDomains();
+                            if (typeof fetchSystemStatus === 'function') {
+                                await fetchSystemStatus();
+                            }
+                        } else {
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể chuyển đổi webserver'));
+                        }
+                    } catch (err) {
+                        showAlert('Lỗi kết nối khi chuyển đổi webserver: ' + err.message);
+                    } finally {
+                        switchingWebserver.value = false;
                     }
                 };
 
@@ -7645,6 +7687,7 @@ if ($host ~* ^www\\.(.*)$) {
                     isUserIsolatedApp, getUserAppPools, navigateToWebsiteFpm, restartAllUserAppPools,
                     installingAppId, installedAppsCount, filteredApps,
                     getApp, fetchAppsList, handleAppAction, handleCheckPhpUpdate, checkingPhpUpdateId, openPhpMyAdmin, appVersions,
+                    primaryWebserver, switchingWebserver, handleSwitchPrimaryWebserver,
                     showAppSettingModal, selectedSettingApp, appSettingTab, appConfigPath, selectedSwitchVersion, handleSwitchAppVersion,
                     appConfigContent, savingConfig, rewritingConfig, handleRewriteWebserverConfig,
                     wsServerTab, wsServerConfig, savingWsServerConfig, fetchWsServerSettings, saveWsServerSettings,

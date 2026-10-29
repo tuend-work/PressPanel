@@ -3742,93 +3742,100 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
 @router.get("/{domain_id}/vhost-config")
 async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(get_current_user)):
     """Lấy nội dung file cấu hình VirtualHost (OpenLiteSpeed / Nginx) cho từng domain kèm settings đã parse"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT d.*, u.username as owner_username, u.parent_id
-        FROM domains d
-        LEFT JOIN users u ON d.user_id = u.id
-        WHERE d.id = ?
-    """, (domain_id,))
-    domain = await cursor.fetchone()
-    await db.close()
-    if not domain:
-        raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+    try:
+        db = await get_db_connection()
+        cursor = await db.execute("""
+            SELECT d.*, u.username as owner_username, u.parent_id
+            FROM domains d
+            LEFT JOIN users u ON d.user_id = u.id
+            WHERE d.id = ?
+        """, (domain_id,))
+        row = await cursor.fetchone()
+        await db.close()
+        if not row:
+            raise HTTPException(status_code=404, detail="Không tìm thấy website này")
 
-    if current_user["role"] != "admin":
-        raise HTTPException(
-            status_code=403,
-            detail="Chỉ Quản trị viên (Admin) mới có quyền xem và chỉnh sửa tệp Virtual Host trực tiếp của hệ thống vì lý do an toàn phân quyền Shared Hosting."
-        )
+        domain = dict(row)
 
-    clean_domain = domain["domain_name"]
-    ws = domain["webserver"] or "ols"
-    isolated_user = domain_to_linux_user(clean_domain)
-    doc_root = domain["document_root"] if domain.get("document_root") else f"/home/{isolated_user}/domains/{clean_domain}/public_html"
-    if not os.path.exists(doc_root) and os.path.exists(f"/home/{isolated_user}/public_html"):
-        doc_root = f"/home/{isolated_user}/public_html"
+        if current_user["role"] != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail="Chỉ Quản trị viên (Admin) mới có quyền xem và chỉnh sửa tệp Virtual Host trực tiếp của hệ thống vì lý do an toàn phân quyền Shared Hosting."
+            )
 
-    if ws == "ols":
-        conf_path = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
-        if not os.path.exists(conf_path) and clean_domain in ("phpmyadmin.sys", "phpmyadmin"):
-            conf_path = "/usr/local/lsws/conf/vhosts/phpmyadmin/vhconf.conf"
-    else:
-        conf_path = f"/etc/nginx/conf.d/{clean_domain}.conf"
-        if not os.path.exists(conf_path) and clean_domain in ("phpmyadmin.sys", "phpmyadmin"):
-            conf_path = "/etc/nginx/conf.d/00_phpmyadmin.conf"
+        clean_domain = str(domain.get("domain_name") or "").strip()
+        ws = str(domain.get("webserver") or detect_running_webserver()).lower()
+        isolated_user = domain_to_linux_user(clean_domain)
+        doc_root = domain.get("document_root") or f"/home/{isolated_user}/domains/{clean_domain}/public_html"
+        if not os.path.exists(doc_root) and os.path.exists(f"/home/{isolated_user}/public_html"):
+            doc_root = f"/home/{isolated_user}/public_html"
 
-    content = read_file_privileged(conf_path)
-    p_ver = str(domain["php_version"] or "8.2").strip()
-    p_num = p_ver.replace(".", "")
+        if ws == "ols":
+            conf_path = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
+            if not os.path.exists(conf_path) and clean_domain in ("phpmyadmin.sys", "phpmyadmin"):
+                conf_path = "/usr/local/lsws/conf/vhosts/phpmyadmin/vhconf.conf"
+        else:
+            conf_path = f"/etc/nginx/conf.d/{clean_domain}.conf"
+            if not os.path.exists(conf_path) and clean_domain in ("phpmyadmin.sys", "phpmyadmin"):
+                conf_path = "/etc/nginx/conf.d/00_phpmyadmin.conf"
 
-    if not content:
-        # Tự động nạp template chuẩn nếu chưa có file cấu hình thực tế trên disk
-        tpl_path = f"/opt/wpc/templates/vhost_{ws}/default.tpl"
-        if not os.path.exists(tpl_path):
-            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
-            tpl_path = os.path.join(base_dir, f"templates/vhost_{ws}/default.tpl")
-
-        if os.path.exists(tpl_path):
-            try:
-                with open(tpl_path, "r", encoding="utf-8", errors="ignore") as tf:
-                    raw_tpl = tf.read()
-                    content = (
-                        raw_tpl
-                        .replace("{{DOMAIN}}", clean_domain)
-                        .replace("{{USERNAME}}", isolated_user)
-                        .replace("{{DOCUMENT_ROOT}}", doc_root)
-                        .replace("{{PHP_VERSION}}", p_num)
-                        .replace("{{PHP_NUM}}", p_num)
-                        .replace("{{SSL_CERT}}", f"/etc/ssl/certs/{clean_domain}.crt")
-                        .replace("{{SSL_KEY}}", f"/etc/ssl/private/{clean_domain}.key")
-                        .replace("{{PHP_SOCK}}", f"/run/php/php{p_ver}-fpm-{isolated_user}.sock")
-                    )
-            except Exception:
-                pass
-        if not content:
-            content = f"# VirtualHost configuration for {clean_domain} ({ws.upper()})\n# File: {conf_path}\n"
-
-    if content and ws == "ols":
-        p_ver = str(domain["php_version"] or "8.2").strip()
+        content = read_file_privileged(conf_path)
+        p_ver = str(domain.get("php_version") or "8.2").strip()
         p_num = p_ver.replace(".", "")
-        content = re.sub(r"^[ \t]*path[ \t]+/usr/local/lsws/lsphp[^\n\r]*[{][^\n\r]*/bin/lsphp", f"  path                    /usr/local/lsws/lsphp{p_num}/bin/lsphp", content, flags=re.MULTILINE)
-        content = re.sub(r"/usr/local/lsws/lsphp\{\{[^}]+\}\}/bin/lsphp", f"/usr/local/lsws/lsphp{p_num}/bin/lsphp", content)
-        content = content.replace("{{PHP_VERSION}}", p_num).replace("{{PHP_NUM}}", p_num)
 
-    parsed_settings = parse_vhost_content(content, ws, clean_domain)
+        if not content:
+            # Tự động nạp template chuẩn nếu chưa có file cấu hình thực tế trên disk
+            tpl_path = f"/opt/wpc/templates/vhost_{ws}/default.tpl"
+            if not os.path.exists(tpl_path):
+                base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+                tpl_path = os.path.join(base_dir, f"templates/vhost_{ws}/default.tpl")
 
-    return {
-        "status": "success",
-        "domain_id": domain_id,
-        "domain_name": clean_domain,
-        "webserver": ws,
-        "php_version": domain["php_version"],
-        "isolated_user": isolated_user,
-        "doc_root": doc_root,
-        "ssl_enabled": bool(domain["ssl_enabled"]),
-        "config_path": conf_path,
-        "content": content,
-        "settings": parsed_settings
-    }
+            if os.path.exists(tpl_path):
+                try:
+                    with open(tpl_path, "r", encoding="utf-8", errors="ignore") as tf:
+                        raw_tpl = tf.read()
+                        content = (
+                            raw_tpl
+                            .replace("{{DOMAIN}}", clean_domain)
+                            .replace("{{USERNAME}}", isolated_user)
+                            .replace("{{DOCUMENT_ROOT}}", doc_root)
+                            .replace("{{PHP_VERSION}}", p_num)
+                            .replace("{{PHP_NUM}}", p_num)
+                            .replace("{{SSL_CERT}}", f"/etc/ssl/certs/{clean_domain}.crt")
+                            .replace("{{SSL_KEY}}", f"/etc/ssl/private/{clean_domain}.key")
+                            .replace("{{PHP_SOCK}}", f"/run/php/php{p_ver}-fpm-{isolated_user}.sock")
+                        )
+                except Exception:
+                    pass
+            if not content:
+                content = f"# VirtualHost configuration for {clean_domain} ({ws.upper()})\n# File: {conf_path}\n"
+
+        if content and ws == "ols":
+            content = re.sub(r"^[ \t]*path[ \t]+/usr/local/lsws/lsphp[^\n\r]*[{][^\n\r]*/bin/lsphp", f"  path                    /usr/local/lsws/lsphp{p_num}/bin/lsphp", content, flags=re.MULTILINE)
+            content = re.sub(r"/usr/local/lsws/lsphp\{\{[^}]+\}\}/bin/lsphp", f"/usr/local/lsws/lsphp{p_num}/bin/lsphp", content)
+            content = content.replace("{{PHP_VERSION}}", p_num).replace("{{PHP_NUM}}", p_num)
+
+        parsed_settings = parse_vhost_content(content, ws, clean_domain)
+
+        return {
+            "status": "success",
+            "domain_id": domain_id,
+            "domain_name": clean_domain,
+            "webserver": ws,
+            "php_version": domain.get("php_version", "8.2"),
+            "isolated_user": isolated_user,
+            "doc_root": doc_root,
+            "ssl_enabled": bool(domain.get("ssl_enabled", 0)),
+            "config_path": conf_path,
+            "content": content,
+            "settings": parsed_settings
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Lỗi tải cấu hình VirtualHost: {str(e)}")
 
 
 @router.post("/{domain_id}/vhost-settings")
@@ -3841,20 +3848,22 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
         LEFT JOIN users u ON d.user_id = u.id
         WHERE d.id = ?
     """, (domain_id,))
-    domain = await cursor.fetchone()
+    row = await cursor.fetchone()
     await db.close()
-    if not domain:
+    if not row:
         raise HTTPException(status_code=404, detail="Không tìm thấy website này")
 
+    domain = dict(row)
+
     if current_user["role"] != "admin":
-        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+        if current_user["id"] != domain.get("user_id") and current_user["id"] != domain.get("parent_id"):
             raise HTTPException(status_code=403, detail="Không có quyền chỉnh sửa cấu hình website này")
 
-    clean_domain = domain["domain_name"]
-    ws = domain["webserver"] or "ols"
+    clean_domain = str(domain.get("domain_name") or "").strip()
+    ws = str(domain.get("webserver") or detect_running_webserver()).lower()
     isolated_user = domain_to_linux_user(clean_domain)
 
-    php_ver = str(domain["php_version"] or "8.2").strip()
+    php_ver = str(domain.get("php_version") or "8.2").strip()
     if req.php_version and req.php_version in ALLOWED_PHP_VERSIONS and req.php_version != php_ver:
         db = await get_db_connection()
         await db.execute("UPDATE domains SET php_version = ? WHERE id = ?", (req.php_version, domain_id))
@@ -3862,31 +3871,6 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
         await db.close()
         php_ver = req.php_version
     php_num = php_ver.replace(".", "")
-
-    # Xử lý chuyển đổi Webserver nếu Admin đổi webserver
-    if req.webserver and req.webserver in ALLOWED_WEBSERVERS and req.webserver != ws:
-        old_ws = ws
-        new_ws = req.webserver
-        hosting_username = domain["owner_username"]
-        if old_ws == "ols":
-            try:
-                subprocess.run(["sudo", "rm", "-rf", f"/usr/local/lsws/conf/vhosts/{clean_domain}"], check=False)
-            except Exception:
-                pass
-        else:
-            try:
-                subprocess.run(["sudo", "rm", "-f", f"/etc/nginx/conf.d/{clean_domain}.conf"], check=False)
-                subprocess.run(["sudo", "nginx", "-t"], check=False)
-                subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=False)
-            except Exception:
-                pass
-
-        await run_gatekeeper("vhost", "add", isolated_user, clean_domain, new_ws, php_ver, hosting_username)
-        db = await get_db_connection()
-        await db.execute("UPDATE domains SET webserver = ? WHERE id = ?", (new_ws, domain_id))
-        await db.commit()
-        await db.close()
-        ws = new_ws
 
     if ws == "ols":
         conf_path = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
@@ -4004,10 +3988,12 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
         LEFT JOIN users u ON d.user_id = u.id
         WHERE d.id = ?
     """, (domain_id,))
-    domain = await cursor.fetchone()
+    row = await cursor.fetchone()
     await db.close()
-    if not domain:
+    if not row:
         raise HTTPException(status_code=404, detail="Không tìm thấy website này")
+
+    domain = dict(row)
 
     if current_user["role"] != "admin":
         raise HTTPException(
@@ -4015,8 +4001,8 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
             detail="Chỉ Quản trị viên (Admin) mới có quyền chỉnh sửa trực tiếp tệp Virtual Host của hệ thống vì lý do an toàn phân quyền Shared Hosting."
         )
 
-    clean_domain = domain["domain_name"]
-    ws = domain["webserver"] or "ols"
+    clean_domain = str(domain.get("domain_name") or "").strip()
+    ws = str(domain.get("webserver") or detect_running_webserver()).lower()
     isolated_user = domain_to_linux_user(clean_domain)
     if ws == "ols":
         conf_path = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
@@ -4151,19 +4137,21 @@ async def rebuild_domain_vhost(domain_id: int, current_user: dict = Depends(get_
         LEFT JOIN users u ON d.user_id = u.id
         WHERE d.id = ?
     """, (domain_id,))
-    domain = await cursor.fetchone()
+    row = await cursor.fetchone()
     await db.close()
-    if not domain:
+    if not row:
         raise HTTPException(status_code=404, detail="Không tìm thấy website này")
 
+    domain = dict(row)
+
     if current_user["role"] != "admin":
-        if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+        if current_user["id"] != domain.get("user_id") and current_user["id"] != domain.get("parent_id"):
             raise HTTPException(status_code=403, detail="Không có quyền tái tạo website này")
 
-    clean_domain = domain["domain_name"]
-    ws = domain["webserver"] or "ols"
+    clean_domain = str(domain.get("domain_name") or "").strip()
+    ws = str(domain.get("webserver") or detect_running_webserver()).lower()
     isolated_user = domain_to_linux_user(clean_domain)
-    hosting_username = domain["owner_username"] or isolated_user
+    hosting_username = domain.get("owner_username") or isolated_user
 
     res = await run_gatekeeper("vhost", "add", isolated_user, clean_domain, ws, domain["php_version"], hosting_username)
     return {"status": "success", "message": f"Đã tái tạo cấu hình VirtualHost cho {clean_domain} từ template chuẩn!"}
