@@ -3465,11 +3465,15 @@ RewriteRule ^/xmlrpc\\.php$ - [F,L]""",
         if m_crw:
             settings["rewriteRules"] = m_crw.group(1).strip()
         else:
-            m_tf = re.search(r"try_files\s+([^;]+);", content)
-            if m_tf:
-                settings["rewriteRules"] = f"try_files {m_tf.group(1).strip()};"
+            m_loc = re.search(r"(location\s+/\s*\{[^}]*try_files[^}]*\})", content)
+            if m_loc:
+                settings["rewriteRules"] = m_loc.group(1).strip()
             else:
-                settings["rewriteRules"] = "try_files $uri $uri/ /index.php?$args;"
+                m_tf = re.search(r"try_files\s+([^;]+);", content)
+                if m_tf:
+                    settings["rewriteRules"] = f"location / {{\n    try_files {m_tf.group(1).strip()};\n}}"
+                else:
+                    settings["rewriteRules"] = "location / {\n    try_files $uri $uri/ /index.php?$args;\n}"
 
         m_ws = re.search(r"location\s+([^\s{]+)\s*\{[^}]*proxy_pass\s+http://([^;]+);", content)
         if m_ws:
@@ -3680,13 +3684,37 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
         if settings.rewriteRules is not None:
             clean_rw = settings.rewriteRules.replace("\r\n", "\n").replace("\r", "\n").strip()
             if clean_rw:
-                rw_block = f"\n    # BEGIN PRESSPANEL CUSTOM REWRITE\n    {clean_rw}\n    # END PRESSPANEL CUSTOM REWRITE\n"
-                if "# BEGIN PRESSPANEL CUSTOM REWRITE" in content:
-                    content = re.sub(r"# BEGIN PRESSPANEL CUSTOM REWRITE[\s\S]*?# END PRESSPANEL CUSTOM REWRITE", lambda _: rw_block.strip(), content)
+                if "location /" in clean_rw:
+                    # Tránh lỗi duplicate location "/" khi template đã có sẵn location / { try_files ... }
+                    if re.search(r"location\s+/\s*\{[^}]*try_files[^}]*\}", content):
+                        content = re.sub(r"location\s+/\s*\{[^}]*try_files[^}]*\}", lambda _: clean_rw, content, count=1)
+                    elif "# BEGIN PRESSPANEL CUSTOM REWRITE" in content:
+                        rw_block = f"\n    # BEGIN PRESSPANEL CUSTOM REWRITE\n    {clean_rw}\n    # END PRESSPANEL CUSTOM REWRITE\n"
+                        content = re.sub(r"# BEGIN PRESSPANEL CUSTOM REWRITE[\s\S]*?# END PRESSPANEL CUSTOM REWRITE", lambda _: rw_block.strip(), content)
+                    else:
+                        last_brace = content.rfind("}")
+                        if last_brace != -1:
+                            content = content[:last_brace] + f"\n    {clean_rw}\n" + "\n}\n"
+                elif clean_rw.startswith("try_files ") or "try_files " in clean_rw:
+                    m_tf = re.search(r"try_files\s+[^;]+;", clean_rw)
+                    if m_tf and re.search(r"location\s+/\s*\{[^}]*try_files[^}]*\}", content):
+                        content = re.sub(r"(location\s+/\s*\{[^}]*)try_files\s+[^;]+;", rf"\g<1>{m_tf.group(0)}", content, count=1)
+                    else:
+                        rw_block = f"\n    # BEGIN PRESSPANEL CUSTOM REWRITE\n    {clean_rw}\n    # END PRESSPANEL CUSTOM REWRITE\n"
+                        if "# BEGIN PRESSPANEL CUSTOM REWRITE" in content:
+                            content = re.sub(r"# BEGIN PRESSPANEL CUSTOM REWRITE[\s\S]*?# END PRESSPANEL CUSTOM REWRITE", lambda _: rw_block.strip(), content)
+                        else:
+                            last_brace = content.rfind("}")
+                            if last_brace != -1:
+                                content = content[:last_brace] + rw_block + "\n}\n"
                 else:
-                    last_brace = content.rfind("}")
-                    if last_brace != -1:
-                        content = content[:last_brace] + rw_block + "\n}\n"
+                    rw_block = f"\n    # BEGIN PRESSPANEL CUSTOM REWRITE\n    {clean_rw}\n    # END PRESSPANEL CUSTOM REWRITE\n"
+                    if "# BEGIN PRESSPANEL CUSTOM REWRITE" in content:
+                        content = re.sub(r"# BEGIN PRESSPANEL CUSTOM REWRITE[\s\S]*?# END PRESSPANEL CUSTOM REWRITE", lambda _: rw_block.strip(), content)
+                    else:
+                        last_brace = content.rfind("}")
+                        if last_brace != -1:
+                            content = content[:last_brace] + rw_block + "\n}\n"
 
         if settings.wsEnabled is True:
             uri = (settings.wsUri or "/ws").strip()
