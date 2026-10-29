@@ -3265,7 +3265,9 @@ class VHostConfigRequest(BaseModel):
 
 
 class VHostSettingsUpdateRequest(BaseModel):
+    webserver: Optional[str] = None
     php_version: Optional[str] = None
+    clientMaxBodySize: Optional[str] = None
     aliases: Optional[str] = None
     adminEmail: Optional[str] = None
     indexFiles: Optional[str] = None
@@ -3295,9 +3297,11 @@ class VHostSettingsUpdateRequest(BaseModel):
 
 def parse_vhost_content(content: str, ws: str, domain_name: str) -> dict:
     settings = {
+        "webserver": ws or "ols",
         "aliases": f"www.{domain_name}",
         "adminEmail": f"admin@{domain_name}",
         "indexFiles": "index.php, index.html, index.htm",
+        "clientMaxBodySize": "128M",
         "enableGzip": True,
         "enableBr": True,
         "autoFixPerms": True,
@@ -3349,6 +3353,10 @@ RewriteRule ^/xmlrpc\\.php$ - [F,L]""",
         m_idx = re.search(r"indexFiles\s+([^\r\n]+)", content)
         if m_idx:
             settings["indexFiles"] = m_idx.group(1).strip()
+
+        m_body = re.search(r"maxReqBodySize\s+([0-9]+[A-Za-z]*)", content)
+        if m_body:
+            settings["clientMaxBodySize"] = m_body.group(1).strip()
 
         m_gzip = re.search(r"enableGzip\s+(\d+)", content)
         if m_gzip:
@@ -3417,6 +3425,7 @@ RewriteRule ^/xmlrpc\\.php$ - [F,L]""",
             settings["wsTarget"] = m_ws.group(2).strip()
 
     else:
+        # Nginx
         m_srv = re.search(r"server_name\s+([^;]+);", content)
         if m_srv:
             names = m_srv.group(1).strip().split()
@@ -3427,11 +3436,40 @@ RewriteRule ^/xmlrpc\\.php$ - [F,L]""",
         if m_idx:
             settings["indexFiles"] = m_idx.group(1).strip()
 
+        m_body = re.search(r"client_max_body_size\s+([^\s;]+);", content)
+        if m_body:
+            settings["clientMaxBodySize"] = m_body.group(1).strip()
+
+        m_gz = re.search(r"gzip\s+(on|off);", content)
+        if m_gz:
+            settings["enableGzip"] = (m_gz.group(1).lower() == "on")
+
+        m_br = re.search(r"brotli\s+(on|off);", content)
+        if m_br:
+            settings["enableBr"] = (m_br.group(1).lower() == "on")
+
+        m_log = re.search(r"error_log\s+[^\s;]+(?:\s+([a-zA-Z]+))?;", content)
+        if m_log and m_log.group(1):
+            settings["logLevel"] = m_log.group(1).upper()
+
+        settings["browserCacheEnabled"] = bool(re.search(r"expires\s+[0-9]+[a-z]*;", content))
+        settings["lscacheEnabled"] = bool("fastcgi_cache" in content or "proxy_cache" in content)
+
         settings["blockWpConfig"] = ("wp-config.php" in content)
         settings["blockUploadsPhp"] = ("uploads" in content and ".php" in content)
-        settings["blockDotFiles"] = (".env" in content or ".git" in content)
+        settings["blockDotFiles"] = ("well-known" in content and "\\." in content)
         settings["blockXmlrpc"] = ("xmlrpc.php" in content)
         settings["secHeaders"] = ("X-Frame-Options" in content)
+
+        m_crw = re.search(r"# BEGIN PRESSPANEL CUSTOM REWRITE\s*([\s\S]*?)# END PRESSPANEL CUSTOM REWRITE", content)
+        if m_crw:
+            settings["rewriteRules"] = m_crw.group(1).strip()
+        else:
+            m_tf = re.search(r"try_files\s+([^;]+);", content)
+            if m_tf:
+                settings["rewriteRules"] = f"try_files {m_tf.group(1).strip()};"
+            else:
+                settings["rewriteRules"] = "try_files $uri $uri/ /index.php?$args;"
 
         m_ws = re.search(r"location\s+([^\s{]+)\s*\{[^}]*proxy_pass\s+http://([^;]+);", content)
         if m_ws:
@@ -3491,17 +3529,25 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
             if re.search(r"^enableBr\s+.*$", content, flags=re.MULTILINE):
                 content = re.sub(r"^enableBr\s+.*$", f"enableBr                  {br_val}", content, flags=re.MULTILINE)
 
-        # 6. Log level
+        # 6. clientMaxBodySize / maxReqBodySize
+        if settings.clientMaxBodySize:
+            clean_body = settings.clientMaxBodySize.strip()
+            if re.search(r"^maxReqBodySize\s+.*$", content, flags=re.MULTILINE):
+                content = re.sub(r"^maxReqBodySize\s+.*$", f"maxReqBodySize             {clean_body}", content, flags=re.MULTILINE)
+            elif re.search(r"^enableBr\s+.*$", content, flags=re.MULTILINE):
+                content = re.sub(r"^(enableBr\s+.*)$", rf"\1\nmaxReqBodySize             {clean_body}", content, flags=re.MULTILINE)
+
+        # 7. Log level
         if settings.logLevel is not None:
             content = re.sub(r"(errorlog[^{]*\{[^}]*logLevel\s+)[A-Za-z]+", rf"\g<1>{settings.logLevel}", content)
 
-        # 7. Rolling size & keepDays
+        # 8. Rolling size & keepDays
         if settings.rollingSize is not None:
             content = re.sub(r"(rollingSize\s+)[0-9]+[A-Za-z]*", rf"\g<1>{settings.rollingSize}", content)
         if settings.keepDays is not None:
             content = re.sub(r"(keepDays\s+)[0-9]+", rf"\g<1>{settings.keepDays}", content)
 
-        # 8. External App tuning
+        # 9. External App tuning
         if settings.maxConns is not None:
             content = re.sub(r"(maxConns\s+)[0-9]+", rf"\g<1>{settings.maxConns}", content)
             content = re.sub(r"((?:PHP_)?LSAPI_CHILDREN=)[0-9]+", rf"\g<1>{settings.maxConns}", content)
@@ -3514,14 +3560,14 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
         if settings.procHardLimit is not None:
             content = re.sub(r"(procHardLimit\s+)[0-9]+", rf"\g<1>{settings.procHardLimit}", content)
 
-        # 9. Rewrite Rules
+        # 10. Rewrite Rules
         if settings.rewriteRules is not None:
             clean_rw = settings.rewriteRules.replace("\r\n", "\n").replace("\r", "\n").strip()
             rw_block = f"rules                   <<<END_rules\n{clean_rw}\nEND_rules"
             if "END_rules" in content:
                 content = re.sub(r"rules\s+<<<END_rules[\s\S]*?END_rules", lambda _: rw_block, content)
 
-        # 10. WebSocket Proxy
+        # 11. WebSocket Proxy
         if settings.wsEnabled is True:
             uri = (settings.wsUri or "/ws").strip()
             tgt = (settings.wsTarget or "127.0.0.1:3000").strip()
@@ -3532,10 +3578,8 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
                 content = content + "\n" + ws_code
         elif settings.wsEnabled is False:
             content = re.sub(r"\n?websocket\s+[^\s{]+\s*\{[^}]*\}\n?", "\n", content)
-            content = re.sub(r"\n?websocket\s+[^\s{]+\s*\{[^}]*\}\n?", "\n", content)
 
-        # 11. BẢO VỆ CHỐNG SHELL METACHARACTERS & LỖI 403 DO PLACEHOLDER PHP
-        # Bắt buộc thay thế mọi {{PHP_VERSION}} hoặc {{PHP_NUM}} còn sót lại bằng số phiên bản PHP cụ thể (ví dụ: 82)
+        # 12. BẢO VỆ CHỐNG SHELL METACHARACTERS & LỖI 403 DO PLACEHOLDER PHP
         php_clean = str(php_ver or "8.2").strip()
         php_num = php_clean.replace(".", "")
         content = re.sub(r"^[ \t]*path[ \t]+/usr/local/lsws/lsphp[^\n\r]*[{][^\n\r]*/bin/lsphp", f"  path                    /usr/local/lsws/lsphp{php_num}/bin/lsphp", content, flags=re.MULTILINE)
@@ -3552,6 +3596,97 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
         if settings.indexFiles is not None:
             idx = " ".join(settings.indexFiles.replace(",", " ").split())
             content = re.sub(r"index\s+[^;]+;", f"index {idx};", content)
+
+        if settings.clientMaxBodySize:
+            clean_b = settings.clientMaxBodySize.strip()
+            if re.search(r"client_max_body_size\s+[^;]+;", content):
+                content = re.sub(r"client_max_body_size\s+[^;]+;", f"client_max_body_size {clean_b};", content)
+            elif re.search(r"server_name\s+[^;]+;", content):
+                content = re.sub(r"(server_name\s+[^;]+;)", rf"\1\n    client_max_body_size {clean_b};", content, count=1)
+
+        if settings.enableGzip is not None:
+            gz_str = "on" if settings.enableGzip else "off"
+            if re.search(r"gzip\s+(on|off);", content):
+                content = re.sub(r"gzip\s+(on|off);", f"gzip {gz_str};", content)
+            elif re.search(r"server_name\s+[^;]+;", content):
+                content = re.sub(r"(server_name\s+[^;]+;)", rf"\1\n    gzip {gz_str};", content, count=1)
+
+        if settings.enableBr is not None:
+            br_str = "on" if settings.enableBr else "off"
+            if re.search(r"brotli\s+(on|off);", content):
+                content = re.sub(r"brotli\s+(on|off);", f"brotli {br_str};", content)
+            elif settings.enableBr and re.search(r"server_name\s+[^;]+;", content):
+                content = re.sub(r"(server_name\s+[^;]+;)", rf"\1\n    brotli {br_str};", content, count=1)
+
+        if settings.logLevel:
+            lvl = settings.logLevel.lower()
+            content = re.sub(r"(error_log\s+[^\s;]+)(\s+[a-z]+)?;", rf"\1 {lvl};", content)
+
+        if settings.secHeaders is True:
+            if "X-Frame-Options" not in content and re.search(r"server_name\s+[^;]+;", content):
+                sec_block = '\n    add_header X-Frame-Options "SAMEORIGIN" always;\n    add_header X-Content-Type-Options "nosniff" always;\n    add_header X-XSS-Protection "1; mode=block" always;\n    add_header Referrer-Policy "strict-origin-when-cross-origin" always;'
+                content = re.sub(r"(server_name\s+[^;]+;)", rf"\1{sec_block}", content, count=1)
+        elif settings.secHeaders is False:
+            content = re.sub(r"\s*add_header\s+X-Frame-Options[^\n\r]+", "", content)
+            content = re.sub(r"\s*add_header\s+X-Content-Type-Options[^\n\r]+", "", content)
+            content = re.sub(r"\s*add_header\s+X-XSS-Protection[^\n\r]+", "", content)
+            content = re.sub(r"\s*add_header\s+Referrer-Policy[^\n\r]+", "", content)
+
+        if settings.blockWpConfig is True:
+            if "wp-config.php" not in content:
+                wp_block = "\n    location = /wp-config.php {\n        deny all;\n        access_log off;\n        log_not_found off;\n    }\n"
+                last_brace = content.rfind("}")
+                if last_brace != -1:
+                    content = content[:last_brace] + wp_block + "\n}\n"
+        elif settings.blockWpConfig is False:
+            content = re.sub(r"\s*location\s*=\s*/wp-config\.php\s*\{[^}]*\}", "", content)
+
+        if settings.blockUploadsPhp is True:
+            if "uploads" not in content or ".php$" not in content:
+                up_block = "\n    location ~* /(?:uploads|files|wp-content/uploads|cache)/.*\\.php$ {\n        deny all;\n    }\n"
+                last_brace = content.rfind("}")
+                if last_brace != -1:
+                    content = content[:last_brace] + up_block + "\n}\n"
+        elif settings.blockUploadsPhp is False:
+            content = re.sub(r"\s*location\s*~\*\s*/\(\?:uploads[^\}]*\}", "", content)
+
+        if settings.blockDotFiles is True:
+            if "well-known" not in content:
+                dot_block = "\n    location ~ /\\.(?!well-known).* {\n        deny all;\n        access_log off;\n        log_not_found off;\n    }\n"
+                last_brace = content.rfind("}")
+                if last_brace != -1:
+                    content = content[:last_brace] + dot_block + "\n}\n"
+        elif settings.blockDotFiles is False:
+            content = re.sub(r"\s*location\s*~\s*/\\\.\(\?!well-known\)[^\}]*\}", "", content)
+
+        if settings.blockXmlrpc is True:
+            if "xmlrpc.php" not in content:
+                xml_block = "\n    location = /xmlrpc.php {\n        deny all;\n        access_log off;\n        log_not_found off;\n    }\n"
+                last_brace = content.rfind("}")
+                if last_brace != -1:
+                    content = content[:last_brace] + xml_block + "\n}\n"
+        elif settings.blockXmlrpc is False:
+            content = re.sub(r"\s*location\s*=\s*/xmlrpc\\.php\s*\{[^}]*\}", "", content)
+
+        if settings.browserCacheEnabled is True:
+            if not re.search(r"expires\s+[0-9]+[a-z]*;", content):
+                cache_block = "\n    location ~* \\.(jpg|jpeg|gif|png|webp|svg|ico|css|js|woff2?|ttf|eot)$ {\n        expires 30d;\n        add_header Cache-Control \"public, no-transform\";\n        access_log off;\n    }\n"
+                last_brace = content.rfind("}")
+                if last_brace != -1:
+                    content = content[:last_brace] + cache_block + "\n}\n"
+        elif settings.browserCacheEnabled is False:
+            content = re.sub(r"\s*location\s*~\*\s*\\.\(jpg\|jpeg[^\}]*\}", "", content)
+
+        if settings.rewriteRules is not None:
+            clean_rw = settings.rewriteRules.replace("\r\n", "\n").replace("\r", "\n").strip()
+            if clean_rw:
+                rw_block = f"\n    # BEGIN PRESSPANEL CUSTOM REWRITE\n    {clean_rw}\n    # END PRESSPANEL CUSTOM REWRITE\n"
+                if "# BEGIN PRESSPANEL CUSTOM REWRITE" in content:
+                    content = re.sub(r"# BEGIN PRESSPANEL CUSTOM REWRITE[\s\S]*?# END PRESSPANEL CUSTOM REWRITE", lambda _: rw_block.strip(), content)
+                else:
+                    last_brace = content.rfind("}")
+                    if last_brace != -1:
+                        content = content[:last_brace] + rw_block + "\n}\n"
 
         if settings.wsEnabled is True:
             uri = (settings.wsUri or "/ws").strip()
@@ -3663,13 +3798,6 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
     clean_domain = domain["domain_name"]
     ws = domain["webserver"] or "ols"
     isolated_user = domain_to_linux_user(clean_domain)
-    if ws == "ols":
-        conf_path = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
-    else:
-        conf_path = f"/etc/nginx/conf.d/{clean_domain}.conf"
-
-    # Đọc cấu hình hiện tại
-    content = read_file_privileged(conf_path)
 
     php_ver = str(domain["php_version"] or "8.2").strip()
     if req.php_version and req.php_version in ALLOWED_PHP_VERSIONS and req.php_version != php_ver:
@@ -3680,8 +3808,40 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
         php_ver = req.php_version
     php_num = php_ver.replace(".", "")
 
+    # Xử lý chuyển đổi Webserver nếu Admin đổi webserver
+    if req.webserver and req.webserver in ALLOWED_WEBSERVERS and req.webserver != ws:
+        old_ws = ws
+        new_ws = req.webserver
+        hosting_username = domain["owner_username"]
+        if old_ws == "ols":
+            try:
+                subprocess.run(["sudo", "rm", "-rf", f"/usr/local/lsws/conf/vhosts/{clean_domain}"], check=False)
+            except Exception:
+                pass
+        else:
+            try:
+                subprocess.run(["sudo", "rm", "-f", f"/etc/nginx/conf.d/{clean_domain}.conf"], check=False)
+                subprocess.run(["sudo", "nginx", "-t"], check=False)
+                subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=False)
+            except Exception:
+                pass
+
+        await run_gatekeeper("vhost", "add", isolated_user, clean_domain, new_ws, php_ver, hosting_username)
+        db = await get_db_connection()
+        await db.execute("UPDATE domains SET webserver = ? WHERE id = ?", (new_ws, domain_id))
+        await db.commit()
+        await db.close()
+        ws = new_ws
+
+    if ws == "ols":
+        conf_path = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
+    else:
+        conf_path = f"/etc/nginx/conf.d/{clean_domain}.conf"
+
+    # Đọc cấu hình hiện tại để dự phòng rollback nếu cú pháp lỗi
+    content = read_file_privileged(conf_path)
+
     if not content:
-        # Nếu chưa có file vhost, lấy từ template
         tpl_path = f"/opt/wpc/templates/vhost_ols/default.tpl" if ws == "ols" else f"/opt/wpc/templates/vhost_nginx/default.tpl"
         if os.path.exists(tpl_path):
             with open(tpl_path, "r", encoding="utf-8", errors="ignore") as tf:
@@ -3692,7 +3852,6 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
     new_content = apply_vhost_settings(content, ws, clean_domain, req, php_ver=php_ver)
     new_content = new_content.replace("\r\n", "\n").replace("\r", "\n")
 
-    # Ghi file cấu hình an toàn
     conf_dir = os.path.dirname(conf_path)
     try:
         os.makedirs(conf_dir, exist_ok=True)
@@ -3715,6 +3874,22 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
         except Exception:
             subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
 
+        # Kiểm tra cú pháp Nginx trước khi reload
+        if ws == "nginx":
+            t_res = subprocess.run(["sudo", "nginx", "-t"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+            if t_res.returncode != 0:
+                if content:
+                    try:
+                        with open(conf_path, "w", encoding="utf-8") as f_rb:
+                            f_rb.write(content)
+                    except Exception:
+                        pass
+                return {
+                    "status": "error",
+                    "message": f"Kiểm tra cú pháp Nginx thất bại. Đã tự động khôi phục cấu hình trước đó: {t_res.stderr.strip()}",
+                    "detail": t_res.stderr.strip()
+                }
+
         # Gọi C SUID Gatekeeper để reload và chuẩn hóa phân quyền vhost
         try:
             res_gate = await run_gatekeeper("vhost", "reload-vhost", isolated_user, clean_domain, ws, php_ver)
@@ -3732,13 +3907,11 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
             subprocess.run(["sudo", "chmod", "755", conf_dir], check=False)
             subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
 
-            # Dừng tiến trình lsphp cũ và xóa socket để OpenLiteSpeed khởi tạo lại pool với thông số mới (LSAPI_CHILDREN)
             subprocess.run(["sudo", "pkill", "-9", "-u", isolated_user, "-f", "lsphp"], check=False)
             subprocess.run(["sudo", "rm", "-f", f"/tmp/lshttpd/lsphp_{isolated_user}.sock"], check=False)
             subprocess.run(["sudo", "mkdir", "-p", "/tmp/lshttpd"], check=False)
             subprocess.run(["sudo", "chmod", "1777", "/tmp/lshttpd"], check=False)
 
-            # Chuẩn hóa phân quyền 0711 Shared Hosting cho toàn bộ cây thư mục website tránh triệt để lỗi 403
             subprocess.run(["sudo", "chmod", "711", "/home"], check=False)
             subprocess.run(["sudo", "chmod", "711", f"/home/{isolated_user}"], check=False)
             subprocess.run(["sudo", "chmod", "711", f"/home/{isolated_user}/domains"], check=False)
@@ -3749,7 +3922,6 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
 
             subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
         else:
-            subprocess.run(["sudo", "nginx", "-t"], check=False)
             subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=False)
 
         updated_settings = parse_vhost_content(new_content, ws, clean_domain)
@@ -3802,6 +3974,7 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
     except Exception:
         subprocess.run(["sudo", "mkdir", "-p", conf_dir], check=False)
 
+    orig_content = read_file_privileged(conf_path)
     clean_content = req.content.replace("\r\n", "\n").replace("\r", "\n")
     php_ver = str(domain["php_version"] or "8.2").strip()
 
@@ -3850,6 +4023,22 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
         except Exception:
             subprocess.run(["sudo", "chmod", "644", conf_path], check=False)
 
+        # Kiểm tra cú pháp Nginx nếu webserver là Nginx
+        if ws == "nginx":
+            t_res = subprocess.run(["sudo", "nginx", "-t"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+            if t_res.returncode != 0:
+                if orig_content:
+                    try:
+                        with open(conf_path, "w", encoding="utf-8") as f_rb:
+                            f_rb.write(orig_content)
+                    except Exception:
+                        pass
+                return {
+                    "status": "error",
+                    "message": f"Kiểm tra cú pháp Nginx thất bại. Đã tự động khôi phục cấu hình trước đó: {t_res.stderr.strip()}",
+                    "detail": t_res.stderr.strip()
+                }
+
         # Gọi C SUID Gatekeeper để reload và chuẩn hóa phân quyền vhost
         try:
             res_gate = await run_gatekeeper("vhost", "reload-vhost", isolated_user, clean_domain, ws, php_ver)
@@ -3881,7 +4070,6 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
 
             subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
         else:
-            subprocess.run(["sudo", "nginx", "-t"], check=False)
             subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=False)
 
         updated_settings = parse_vhost_content(clean_content, ws, clean_domain)

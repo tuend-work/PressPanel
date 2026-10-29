@@ -4160,6 +4160,9 @@ function showAlert(message) {
                 };
 
                 const defaultVhostSettings = () => ({
+                    webserver: 'ols',
+                    php_version: '8.2',
+                    clientMaxBodySize: '128M',
                     aliases: '',
                     adminEmail: '',
                     indexFiles: 'index.php, index.html, index.htm',
@@ -4206,7 +4209,7 @@ function showAlert(message) {
 
                 const openDomainVhostModal = async (domain, initialTab = 'registration') => {
                     if (currentUser.value?.role !== 'admin') {
-                        showAlert('Chỉ Quản trị viên (Admin) mới có quyền truy cập cấu hình Virtual Host trực tiếp. Vui lòng sử dụng các cửa sổ thiết lập con (Rewrite rules, SSL, Logs).');
+                        showAlert('Chỉ Quản trị viên (Admin) mới có quyền truy cập cấu hình Virtual Host trực tiếp.');
                         return;
                     }
                     selectedVhostDomain.value = domain;
@@ -4230,7 +4233,12 @@ function showAlert(message) {
                             if (data.settings) {
                                 domainVhostSettings.value = {
                                     ...domainVhostSettings.value,
-                                    [dom.id]: { ...defaultVhostSettings(), ...data.settings }
+                                    [dom.id]: {
+                                        ...defaultVhostSettings(),
+                                        webserver: data.webserver || dom.webserver || 'ols',
+                                        php_version: data.php_version || dom.php_version || '8.2',
+                                        ...data.settings
+                                    }
                                 };
                             }
                         }
@@ -4239,6 +4247,110 @@ function showAlert(message) {
                     } finally {
                         loadingVhostConfig.value = false;
                     }
+                };
+
+                const applyVhostRewritePreset = (presetType) => {
+                    const dom = selectedVhostDomain.value;
+                    if (!dom) return;
+                    const isOls = (getDomainVhostSettings(dom.id)?.webserver || dom.webserver || 'ols') === 'ols';
+                    let rules = '';
+                    if (isOls) {
+                        if (presetType === 'wordpress') {
+                            rules = `# WordPress Standard Rewrite Rules (OpenLiteSpeed / Apache)
+RewriteRule ^/\\.well-known/ - [L]
+RewriteRule ^/(\\.git|\\.env|\\.user\\.ini|\\.svn|composer\\.(json|lock)|package\\.json|\\.sql|\\.bak|\\.log) - [F,L]
+RewriteRule ^/wp-config\\.php$ - [F,L]
+RewriteRule ^/(wp-content/uploads|cache)/.*\\.php$ - [F,L]
+RewriteRule ^/xmlrpc\\.php$ - [F,L]
+
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]`;
+                        } else if (presetType === 'laravel') {
+                            rules = `# Laravel Rewrite Rules (OpenLiteSpeed / Apache)
+RewriteEngine On
+RewriteRule ^/\\.well-known/ - [L]
+RewriteRule ^/(\\.git|\\.env|\\.sql|\\.bak) - [F,L]
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [L]`;
+                        } else if (presetType === 'spa') {
+                            rules = `# Single Page Application (Vue / React / Angular)
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\\.html$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.html [L]`;
+                        } else if (presetType === 'force_https') {
+                            rules = `# Chuyển hướng bắt buộc HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]`;
+                        } else if (presetType === 'force_non_www') {
+                            rules = `# Chuyển hướng www sang non-www
+RewriteEngine On
+RewriteCond %{HTTP_HOST} ^www\\.(.*)$ [NC]
+RewriteRule ^(.*)$ https://%1/$1 [R=301,L]`;
+                        }
+                    } else {
+                        if (presetType === 'wordpress') {
+                            rules = `# WordPress Standard Nginx Directives
+location / {
+    try_files $uri $uri/ /index.php?$args;
+}
+
+# Chống chạy mã PHP trong thư mục upload/cache
+location ~* /(?:uploads|files|wp-content/uploads|cache)/.*\\.php$ {
+    deny all;
+}
+
+# Bảo vệ wp-config.php và file ẩn
+location = /wp-config.php {
+    deny all;
+    access_log off;
+    log_not_found off;
+}
+location ~ /\\.(?!well-known).* {
+    deny all;
+    access_log off;
+    log_not_found off;
+}`;
+                        } else if (presetType === 'laravel') {
+                            rules = `# Laravel Nginx Directives
+location / {
+    try_files $uri $uri/ /index.php?$query_string;
+}
+
+location = /favicon.ico { access_log off; log_not_found off; }
+location = /robots.txt  { access_log off; log_not_found off; }
+
+location ~ /\\.(?!well-known).* {
+    deny all;
+}`;
+                        } else if (presetType === 'spa') {
+                            rules = `# Single Page Application (Vue / React / Angular)
+location / {
+    try_files $uri $uri/ /index.html;
+}`;
+                        } else if (presetType === 'force_https') {
+                            rules = `# Chuyển hướng bắt buộc HTTPS
+if ($scheme != "https") {
+    return 301 https://$host$request_uri;
+}`;
+                        } else if (presetType === 'force_non_www') {
+                            rules = `# Chuyển hướng www sang non-www
+if ($host ~* ^www\\.(.*)$) {
+    return 301 $scheme://$1$request_uri;
+}`;
+                        }
+                    }
+                    const current = getDomainVhostSettings(dom.id);
+                    current.rewriteRules = rules;
+                    showAlert(`Đã áp dụng mẫu Rewrite (${presetType}) cho ${isOls ? 'OpenLiteSpeed' : 'Nginx'}! Bấm 'Lưu Quy Tắc Rewrite' để áp dụng.`);
                 };
 
                 const saveDomainVhostConfig = async (domain) => {
@@ -4255,7 +4367,7 @@ function showAlert(message) {
                             body: JSON.stringify({ content: domainVhostConfigContent.value })
                         });
                         const data = await res.json();
-                        if (res.ok) {
+                        if (res.ok && data.status !== 'error') {
                             if (data.settings) {
                                 domainVhostSettings.value = {
                                     ...domainVhostSettings.value,
@@ -4264,7 +4376,7 @@ function showAlert(message) {
                             }
                             showAlert(data.message || 'Lưu cấu hình VirtualHost thành công!');
                         } else {
-                            showAlert(data.detail || 'Lỗi khi lưu cấu hình VirtualHost.');
+                            showAlert(data.message || data.detail || 'Lỗi khi lưu cấu hình VirtualHost.');
                         }
                     } catch (e) {
                         showAlert('Lỗi: ' + e.message);
@@ -4302,6 +4414,13 @@ function showAlert(message) {
                             }
                             if (data.content) {
                                 domainVhostConfigContent.value = data.content;
+                            }
+                            if (payload.webserver && dom.webserver !== payload.webserver) {
+                                dom.webserver = payload.webserver;
+                                if (selectedVhostDomain.value) {
+                                    selectedVhostDomain.value.webserver = payload.webserver;
+                                }
+                                fetchDomains();
                             }
                             showAlert(data.message || 'Đã lưu và áp dụng cấu hình VirtualHost thành công!');
                         } else {
@@ -7537,7 +7656,7 @@ function showAlert(message) {
                     domainVhostSettings, getDomainVhostSettings, saveDomainVhostSettings,
                     showDomainVhostModal, selectedVhostDomain, domainVhostConfigContent, domainVhostConfigPath,
                     loadingVhostConfig, savingVhostConfig, rebuildingVhost, openDomainVhostModal,
-                    fetchDomainVhostConfig, saveDomainVhostConfig, rebuildDomainVhost,
+                    fetchDomainVhostConfig, saveDomainVhostConfig, rebuildDomainVhost, applyVhostRewritePreset,
                     openChangePhpModal, confirmChangePhp,
                     phpModalTab, domainPhpIni, loadingDomainPhpIni, savingDomainPhpIni, applyPhpPreset, loadDomainPhpIni, saveDomainPhpIni,
                     domainPhpExtensions, loadingDomainPhpExtensions, savingDomainPhpExtensions, loadDomainPhpExtensions, saveDomainPhpExtensions, applyPhpExtPreset,

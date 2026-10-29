@@ -3781,8 +3781,18 @@
                                         <span class="font-mono font-bold text-white block mt-0.5">{{ selectedVhostDomain?.domain_name }}</span>
                                     </div>
                                     <div>
-                                        <span class="text-slate-400 text-[11px]">Webserver Engine:</span>
-                                        <span class="font-bold text-emerald-400 block mt-0.5">{{ selectedVhostDomain?.webserver === 'ols' ? 'OpenLiteSpeed (LSWS)' : 'Nginx Web Server' }}</span>
+                                        <span class="text-slate-400 text-[11px] block">Webserver Engine:</span>
+                                        <div class="flex items-center gap-2 mt-1">
+                                            <select v-model="getDomainVhostSettings(selectedVhostDomain?.id).webserver"
+                                                class="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-bold text-xs focus:border-emerald-500 focus:outline-none">
+                                                <option value="ols">⚡ OpenLiteSpeed (LSWS)</option>
+                                                <option value="nginx">🌐 Nginx Web Server</option>
+                                            </select>
+                                            <span v-if="getDomainVhostSettings(selectedVhostDomain?.id).webserver && getDomainVhostSettings(selectedVhostDomain?.id).webserver !== selectedVhostDomain?.webserver"
+                                                class="text-[10px] text-amber-400 font-medium bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                                ⚠️ Sẽ chuyển sang {{ getDomainVhostSettings(selectedVhostDomain?.id).webserver === 'ols' ? 'OpenLiteSpeed' : 'Nginx' }} khi lưu!
+                                            </span>
+                                        </div>
                                     </div>
                                     <div>
                                         <span class="text-slate-400 text-[11px]">Document Root:</span>
@@ -3847,6 +3857,20 @@
                                         <label class="text-slate-400 text-[11px] block mb-1">Index Files (Thứ tự file mặc định):</label>
                                         <input type="text" v-model="getDomainVhostSettings(selectedVhostDomain?.id).indexFiles" placeholder="index.php, index.html, index.htm"
                                             class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="text-slate-400 text-[11px] block mb-1">Client Max Body Size (Giới hạn dung lượng tải lên tối đa):</label>
+                                        <div class="flex items-center gap-2">
+                                            <input type="text" v-model="getDomainVhostSettings(selectedVhostDomain?.id).clientMaxBodySize" placeholder="128M"
+                                                class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
+                                            <div class="flex gap-1 shrink-0">
+                                                <button type="button" @click="getDomainVhostSettings(selectedVhostDomain?.id).clientMaxBodySize = '64M'" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[10px]">64M</button>
+                                                <button type="button" @click="getDomainVhostSettings(selectedVhostDomain?.id).clientMaxBodySize = '128M'" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[10px]">128M</button>
+                                                <button type="button" @click="getDomainVhostSettings(selectedVhostDomain?.id).clientMaxBodySize = '256M'" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[10px]">256M</button>
+                                                <button type="button" @click="getDomainVhostSettings(selectedVhostDomain?.id).clientMaxBodySize = '512M'" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[10px]">512M</button>
+                                                <button type="button" @click="getDomainVhostSettings(selectedVhostDomain?.id).clientMaxBodySize = '1G'" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[10px]">1G</button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="pt-3 border-t border-[#232b36] flex flex-wrap gap-4">
@@ -4061,10 +4085,37 @@
                                         <h4 class="font-bold text-white text-sm">Rewrite Rules & Hardening</h4>
                                         <p class="text-[11px] text-slate-400 mt-0.5">Quy tắc định tuyến và chặn lọc URL cho website này.</p>
                                     </div>
-                                    <span class="text-[10px] px-2 py-0.5 rounded font-mono bg-emerald-500/20 text-emerald-400 font-bold">
-                                        {{ selectedVhostDomain?.webserver === 'ols' ? 'autoLoadHtaccess 1' : 'try_files $uri $uri/ /index.php' }}
+                                    <span class="text-[10px] px-2 py-0.5 rounded font-mono font-bold"
+                                        :class="(getDomainVhostSettings(selectedVhostDomain?.id).webserver || selectedVhostDomain?.webserver) === 'ols' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'">
+                                        {{ (getDomainVhostSettings(selectedVhostDomain?.id).webserver || selectedVhostDomain?.webserver) === 'ols' ? 'autoLoadHtaccess 1 (OLS/Apache Syntax)' : 'try_files / Directives (Nginx Syntax)' }}
                                     </span>
                                 </div>
+
+                                <!-- Presets Toolbar -->
+                                <div class="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-slate-950/80 border border-slate-800">
+                                    <span class="text-[11px] text-slate-400 font-medium mr-1">Mẫu định tuyến sẵn:</span>
+                                    <button type="button" @click="applyVhostRewritePreset('wordpress')"
+                                        class="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-[10px] font-semibold transition">
+                                        WordPress
+                                    </button>
+                                    <button type="button" @click="applyVhostRewritePreset('laravel')"
+                                        class="px-2.5 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-[10px] font-semibold transition">
+                                        Laravel
+                                    </button>
+                                    <button type="button" @click="applyVhostRewritePreset('spa')"
+                                        class="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-[10px] font-semibold transition">
+                                        Vue / React SPA
+                                    </button>
+                                    <button type="button" @click="applyVhostRewritePreset('force_https')"
+                                        class="px-2.5 py-1 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-[10px] font-semibold transition">
+                                        Bắt buộc HTTPS
+                                    </button>
+                                    <button type="button" @click="applyVhostRewritePreset('force_non_www')"
+                                        class="px-2.5 py-1 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-[10px] font-semibold transition">
+                                        Bỏ www (Non-WWW)
+                                    </button>
+                                </div>
+
                                 <textarea v-model="getDomainVhostSettings(selectedVhostDomain?.id).rewriteRules"
                                     class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 font-mono text-[11px] h-52 custom-scrollbar resize-y leading-relaxed focus:border-emerald-500 focus:outline-none"></textarea>
                                 <div class="pt-3 border-t border-[#232b36] flex justify-end">
