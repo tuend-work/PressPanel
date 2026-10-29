@@ -82,7 +82,7 @@ case "$ACTION" in
             yum install -y epel-release 2>/dev/null || true
         fi
 
-        local WORKER_USER="nginx"
+        WORKER_USER="nginx"
         if command -v apt-get &>/dev/null; then
             WORKER_USER="www-data"
         else
@@ -175,7 +175,7 @@ server_tokens off;
 EOF_OPT
 
             # 2.3 CẤU HÌNH COMPRESSION NÉN GZIP & BROTLI THÔNG MINH
-            local HAS_BR="no"
+            HAS_BR="no"
             if nginx -V 2>&1 | grep -qE "ngx_brotli|brotli"; then
                 HAS_BR="yes"
             elif ls /usr/lib/nginx/modules/*brotli* &>/dev/null || ls /etc/nginx/modules-enabled/*brotli* &>/dev/null; then
@@ -235,8 +235,8 @@ EOF_COMP
 
     build)
         echo "[+] Đang chuẩn bị biên dịch Nginx từ source với các đối số tùy chỉnh..."
-        local ARGS_FILE="/opt/wpc/config/build/nginx.args"
-        local BUILD_ARGS=""
+        ARGS_FILE="/opt/wpc/config/build/nginx.args"
+        BUILD_ARGS=""
         if [ -f "$ARGS_FILE" ]; then
             BUILD_ARGS=$(grep -v '^[[:space:]]*#' "$ARGS_FILE" | tr '\n' ' ' | sed 's/\\//g')
         fi
@@ -255,8 +255,8 @@ EOF_COMP
             $PKG_MGR install -y gcc gcc-c++ make pcre pcre-devel zlib zlib-devel openssl openssl-devel libxml2-devel libxslt-devel gd-devel curl wget tar || true
         fi
 
-        local NGINX_VER="1.26.2"
-        local BUILD_DIR="/tmp/nginx_src_build"
+        NGINX_VER="1.26.2"
+        BUILD_DIR="/tmp/nginx_src_build"
         rm -rf "$BUILD_DIR"
         mkdir -p "$BUILD_DIR"
         cd "$BUILD_DIR"
