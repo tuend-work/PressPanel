@@ -69,15 +69,11 @@ function configure_openresty_env() {
 case "$ACTION" in
     install|switch|reinstall|update)
         echo "[+] Đang thực thi $ACTION Nginx / OpenResty ($VERSION) kèm gói tăng tốc WordPress tối đa..."
-        echo "[+] Đang cập nhật danh mục gói hệ điều hành AlmaLinux/Debian/Ubuntu..."
         if command -v apt-get &>/dev/null; then
             export DEBIAN_FRONTEND=noninteractive
+            # Dọn dẹp PPA nginx lỗi nếu từng được thêm trước đó
+            rm -f /etc/apt/sources.list.d/*ondrej*nginx*.list 2>/dev/null || true
             apt-get update -y || true
-            # Thêm repo PPA Ondrej Nginx nếu có add-apt-repository để có HTTP/3 QUIC & Brotli mới nhất
-            if command -v add-apt-repository &>/dev/null; then
-                add-apt-repository -y ppa:ondrej/nginx 2>/dev/null || true
-                apt-get update -y || true
-            fi
         elif command -v dnf &>/dev/null; then
             dnf check-update -y 2>/dev/null || true
             dnf install -y epel-release 2>/dev/null || true

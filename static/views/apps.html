@@ -65,17 +65,18 @@
 
                         <!-- App Store Table (COMPACT VIEW - NO HORIZONTAL SCROLLBAR) -->
                         <div class="bg-[#12151c] rounded-xl border border-[#22262e] overflow-hidden shadow-xl w-full">
-                            <table class="w-full text-left text-xs table-fixed">
-                                <thead>
-                                    <tr class="border-b border-[#22262e] text-slate-400 font-medium text-[12px] bg-[#161a22]">
-                                        <th class="py-3 px-4 w-56">Software name</th>
-                                        <th class="py-3 px-3">Instructions</th>
-                                        <th class="py-3 px-2 w-14 text-center">Location</th>
-                                        <th class="py-3 px-2 w-14 text-center">Status</th>
-                                        <th class="py-3 px-2 w-28 text-center">Display on Home</th>
-                                        <th class="py-3 px-4 w-56 text-right">Operate</th>
-                                    </tr>
-                                </thead>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs table-fixed min-w-[760px]">
+                                    <thead>
+                                        <tr class="border-b border-[#22262e] text-slate-400 font-medium text-[12px] bg-[#161a22]">
+                                            <th class="py-3 px-4 w-52">Software name</th>
+                                            <th class="py-3 px-3">Instructions</th>
+                                            <th class="py-3 px-2 w-14 text-center">Location</th>
+                                            <th class="py-3 px-2 w-14 text-center">Status</th>
+                                            <th class="py-3 px-2 w-28 text-center">Display on Home</th>
+                                            <th class="py-3 px-4 w-80 text-right">Operate</th>
+                                        </tr>
+                                    </thead>
                                 <tbody class="divide-y divide-[#1e232d] text-[12px]">
                                     <tr v-for="app in filteredApps" :key="app.id" class="hover:bg-[#161a24] transition duration-150">
                                         <!-- 1. Software Name (Icon + Detailed Version truncated <= 30 chars) -->
@@ -140,17 +141,14 @@
                                         <td class="py-3 px-4 text-right whitespace-nowrap">
                                             <template v-if="app.installed">
                                                 <span class="inline-flex items-center space-x-1.5 font-medium text-[11.5px]">
-                                                    <!-- Webserver Primary Activate Switcher -->
-                                                    <template v-if="app.category === 'webserver'">
-                                                        <button v-if="!app.running" @click="handleSwitchPrimaryWebserver(app.id)"
+                                                    <!-- Webserver Primary Activate Switcher (Chỉ hiển thị cho webserver phụ để chuyển đổi) -->
+                                                    <template v-if="app.category === 'webserver' && !app.running">
+                                                        <button @click="handleSwitchPrimaryWebserver(app.id)"
                                                             :disabled="switchingWebserver"
                                                             class="text-amber-400 hover:text-amber-300 transition hover:underline font-bold flex items-center gap-0.5"
                                                             title="Kích hoạt Webserver này làm máy chủ chính chiếm giữ Port 80 & 443">
-                                                            <span>⚡ Kích hoạt (80/443)</span>
+                                                            <span>⚡ Kích hoạt</span>
                                                         </button>
-                                                        <span v-else class="text-emerald-400 font-bold flex items-center gap-1" title="Đang chạy Port 80 & 443">
-                                                            <span>● Đang phục vụ</span>
-                                                        </span>
                                                         <span class="text-slate-600">|</span>
                                                     </template>
                                                     <!-- Update -->
@@ -171,13 +169,15 @@
                                                     </template>
                                                     <!-- Setting -->
                                                     <button @click="openAppSettings(app)"
-                                                        class="text-emerald-400 hover:text-emerald-300 transition hover:underline font-semibold">
+                                                        class="text-emerald-400 hover:text-emerald-300 transition hover:underline font-bold"
+                                                        title="Cài đặt & Cấu hình dịch vụ (Setting / Config)">
                                                         Setting
                                                     </button>
                                                     <span class="text-slate-600">|</span>
                                                     <!-- Uninstall -->
                                                     <button @click="handleAppAction(app.id, 'uninstall')"
-                                                        class="text-emerald-400 hover:text-rose-400 transition hover:underline">
+                                                        class="text-emerald-400 hover:text-rose-400 transition hover:underline"
+                                                        title="Gỡ cài đặt">
                                                         Uninstall
                                                     </button>
                                                 </span>
@@ -194,5 +194,6 @@
                                     </tr>
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     </div>
