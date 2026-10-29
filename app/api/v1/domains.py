@@ -89,6 +89,42 @@ def detect_running_webserver() -> str:
         return "ols"
     return "nginx"
 
+def nginx_supports_brotli() -> bool:
+    """Kiểm tra xem Nginx hiện tại có hỗ trợ directive brotli hay không (module ngx_brotli)"""
+    if platform.system() != "Linux":
+        return False
+    try:
+        proc = subprocess.run(["nginx", "-V"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+        output = (proc.stderr or "") + (proc.stdout or "")
+        if "ngx_brotli" in output or "brotli" in output:
+            return True
+    except Exception:
+        pass
+    for mod_path in ["/etc/nginx/modules-enabled", "/etc/nginx/modules", "/usr/lib/nginx/modules"]:
+        if os.path.isdir(mod_path):
+            try:
+                for f in os.listdir(mod_path):
+                    if "brotli" in f.lower():
+                        return True
+            except Exception:
+                pass
+    return False
+
+def clean_nginx_conf_brotli(file_path: str):
+    """Xóa bỏ triệt để directive brotli khỏi file vhost nếu Nginx không hỗ trợ ngx_brotli"""
+    if not file_path or not os.path.exists(file_path):
+        return
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            c = f.read()
+        if "brotli" in c:
+            c_clean = re.sub(r"^[ \t]*brotli(?:_[a-z_]+)?[ \t]+[^;]+;[ \t]*[\r\n]*", "", c, flags=re.MULTILINE)
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(c_clean)
+    except Exception:
+        subprocess.run(["sudo", "sed", "-i", "-E", r"/^[[:space:]]*brotli/d", file_path], check=False)
+
+
 def read_file_privileged(path: str) -> str:
     """Đọc nội dung file an toàn, fallback qua sudo cat nếu user wpc bị PermissionError hoặc thư mục cha bị khóa quyền"""
     if not path:
@@ -3445,8 +3481,10 @@ RewriteRule ^/xmlrpc\\.php$ - [F,L]""",
             settings["enableGzip"] = (m_gz.group(1).lower() == "on")
 
         m_br = re.search(r"brotli\s+(on|off);", content)
-        if m_br:
+        if m_br and nginx_supports_brotli():
             settings["enableBr"] = (m_br.group(1).lower() == "on")
+        else:
+            settings["enableBr"] = False
 
         m_log = re.search(r"error_log\s+[^\s;]+(?:\s+([a-zA-Z]+))?;", content)
         if m_log and m_log.group(1):
@@ -3615,12 +3653,16 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
             elif re.search(r"server_name\s+[^;]+;", content):
                 content = re.sub(r"(server_name\s+[^;]+;)", rf"\1\n    gzip {gz_str};", content, count=1)
 
-        if settings.enableBr is not None:
-            br_str = "on" if settings.enableBr else "off"
-            if re.search(r"brotli\s+(on|off);", content):
-                content = re.sub(r"brotli\s+(on|off);", f"brotli {br_str};", content)
-            elif settings.enableBr and re.search(r"server_name\s+[^;]+;", content):
-                content = re.sub(r"(server_name\s+[^;]+;)", rf"\1\n    brotli {br_str};", content, count=1)
+        if not nginx_supports_brotli():
+            # Xóa triệt để các directive brotli nếu Nginx không có module ngx_brotli tránh lỗi unknown directive "brotli"
+            content = re.sub(r"^[ \t]*brotli(?:_[a-z_]+)?[ \t]+[^;]+;[ \t]*[\r\n]*", "", content, flags=re.MULTILINE)
+        else:
+            if settings.enableBr is not None:
+                br_str = "on" if settings.enableBr else "off"
+                if re.search(r"brotli\s+(on|off);", content):
+                    content = re.sub(r"brotli\s+(on|off);", f"brotli {br_str};", content)
+                elif settings.enableBr and re.search(r"server_name\s+[^;]+;", content):
+                    content = re.sub(r"(server_name\s+[^;]+;)", rf"\1\n    brotli {br_str};", content, count=1)
 
         if settings.logLevel:
             lvl = settings.logLevel.lower()
@@ -3810,6 +3852,10 @@ async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(g
             if not content:
                 content = f"# VirtualHost configuration for {clean_domain} ({ws.upper()})\n# File: {conf_path}\n"
 
+        if content and ws == "nginx" and not nginx_supports_brotli():
+            content = re.sub(r"^[ \t]*brotli(?:_[a-z_]+)?[ \t]+[^;]+;[ \t]*[\r\n]*", "", content, flags=re.MULTILINE)
+            clean_nginx_conf_brotli(conf_path)
+
         if content and ws == "ols":
             content = re.sub(r"^[ \t]*path[ \t]+/usr/local/lsws/lsphp[^\n\r]*[{][^\n\r]*/bin/lsphp", f"  path                    /usr/local/lsws/lsphp{p_num}/bin/lsphp", content, flags=re.MULTILINE)
             content = re.sub(r"/usr/local/lsws/lsphp\{\{[^}]+\}\}/bin/lsphp", f"/usr/local/lsws/lsphp{p_num}/bin/lsphp", content)
@@ -3916,6 +3962,21 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
         # Kiểm tra cú pháp Nginx trước khi reload
         if ws == "nginx":
             t_res = subprocess.run(["sudo", "nginx", "-t"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+            if t_res.returncode != 0:
+                err_text = (t_res.stderr or t_res.stdout or "")
+                # Tự động khắc phục lỗi [emerg] unknown directive "brotli" trong toàn bộ /etc/nginx/conf.d/*.conf
+                if 'unknown directive "brotli"' in err_text or 'unknown directive "brotli_static"' in err_text:
+                    try:
+                        conf_d = "/etc/nginx/conf.d"
+                        if os.path.isdir(conf_d):
+                            for fn in os.listdir(conf_d):
+                                if fn.endswith(".conf"):
+                                    clean_nginx_conf_brotli(os.path.join(conf_d, fn))
+                        clean_nginx_conf_brotli(conf_path)
+                        t_res = subprocess.run(["sudo", "nginx", "-t"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+                    except Exception:
+                        pass
+
             if t_res.returncode != 0:
                 if content:
                     try:
@@ -4067,6 +4128,20 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
         # Kiểm tra cú pháp Nginx nếu webserver là Nginx
         if ws == "nginx":
             t_res = subprocess.run(["sudo", "nginx", "-t"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+            if t_res.returncode != 0:
+                err_text = (t_res.stderr or t_res.stdout or "")
+                if 'unknown directive "brotli"' in err_text or 'unknown directive "brotli_static"' in err_text:
+                    try:
+                        conf_d = "/etc/nginx/conf.d"
+                        if os.path.isdir(conf_d):
+                            for fn in os.listdir(conf_d):
+                                if fn.endswith(".conf"):
+                                    clean_nginx_conf_brotli(os.path.join(conf_d, fn))
+                        clean_nginx_conf_brotli(conf_path)
+                        t_res = subprocess.run(["sudo", "nginx", "-t"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+                    except Exception:
+                        pass
+
             if t_res.returncode != 0:
                 if orig_content:
                     try:

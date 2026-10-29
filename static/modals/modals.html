@@ -3879,9 +3879,16 @@
                                         <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).enableGzip" class="rounded text-emerald-500 bg-slate-950 border-slate-700">
                                         <span class="text-slate-300">Bật Gzip Compression (enableGzip 1)</span>
                                     </label>
-                                    <label class="flex items-center space-x-2 cursor-pointer">
-                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).enableBr" class="rounded text-emerald-500 bg-slate-950 border-slate-700">
-                                        <span class="text-slate-300">Bật Brotli Compression (enableBr 1)</span>
+                                    <label class="flex items-center space-x-2 cursor-pointer" :class="(selectedVhostDomain?.webserver === 'nginx' || primaryWebserver === 'nginx') ? 'opacity-60 cursor-not-allowed' : ''">
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).enableBr"
+                                            :disabled="selectedVhostDomain?.webserver === 'nginx' || primaryWebserver === 'nginx'"
+                                            class="rounded text-emerald-500 bg-slate-950 border-slate-700">
+                                        <span class="text-slate-300">
+                                            Bật Brotli Compression (enableBr 1)
+                                            <span v-if="selectedVhostDomain?.webserver === 'nginx' || primaryWebserver === 'nginx'" class="text-[10px] text-amber-400 font-medium block">
+                                                (Chỉ hỗ trợ trên OpenLiteSpeed, Nginx cần module ngx_brotli)
+                                            </span>
+                                        </span>
                                     </label>
                                     <label class="flex items-center space-x-2 cursor-pointer">
                                         <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).autoFixPerms" class="rounded text-emerald-500 bg-slate-950 border-slate-700">
