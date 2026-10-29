@@ -1107,14 +1107,25 @@ async def app_action(
 
     gatekeeper_bin = f"{WPC_BASE}/bin/app"
 
-    # 1. HÀNH ĐỘNG CÀI ĐẶT HOẶC CHUYỂN ĐỔI PHIÊN BẢN (INSTALL / SWITCH)
-    if req.action in ["install", "switch"]:
+    # 1. HÀNH ĐỘNG CÀI ĐẶT, CHUYỂN ĐỔI HOẶC CÀI ĐẶT LẠI (INSTALL / SWITCH / REINSTALL)
+    if req.action in ["install", "switch", "reinstall"]:
         script_path = f"{WPC_BASE}/scripts/apps/{req.app_id}.sh"
+        if not os.path.exists(script_path):
+            base_p = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+            local_s = os.path.join(base_p, f"scripts/apps/{req.app_id}.sh")
+            if os.path.exists(local_s):
+                script_path = local_s
+
         version_param = req.version if req.version and req.version != "default" else app.get("default_version", "latest")
-        action_title = "Switch Version" if req.action == "switch" else "Install"
+        if req.action == "switch":
+            action_title = "Switch Version"
+        elif req.action == "reinstall":
+            action_title = "Reinstall"
+        else:
+            action_title = "Install"
         
         if os.path.exists(script_path):
-            install_subcmd = f"sudo bash {script_path} install {version_param}"
+            install_subcmd = f"sudo bash {script_path} {req.action} {version_param}"
         elif os.path.isfile(gatekeeper_bin) and os.access(gatekeeper_bin, os.X_OK):
             install_subcmd = f"{gatekeeper_bin} install {req.app_id} {version_param}"
         else:
@@ -1193,6 +1204,12 @@ async def app_action(
     # 2.4 HÀNH ĐỘNG CẬP NHẬT ỨNG DỤNG / PHP (UPDATE / UPGRADE)
     if req.action in ["update", "upgrade"]:
         script_path = f"{WPC_BASE}/scripts/apps/{req.app_id}.sh"
+        if not os.path.exists(script_path):
+            base_p = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+            local_s = os.path.join(base_p, f"scripts/apps/{req.app_id}.sh")
+            if os.path.exists(local_s):
+                script_path = local_s
+
         ver = req.version if req.version and req.version != "default" else app.get("default_version", "latest")
         if os.path.exists(script_path):
             update_subcmd = f"sudo bash {script_path} update {ver}"

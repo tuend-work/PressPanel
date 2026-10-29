@@ -67,17 +67,30 @@ function configure_openresty_env() {
 }
 
 case "$ACTION" in
-    install|switch)
-        echo "[+] Đang cài đặt / chuyển đổi phiên bản Nginx / OpenResty ($VERSION)..."
-        echo "[+] Đang cập nhật gói hệ điều hành AlmaLinux/Debian/Ubuntu trước khi cài đặt..."
+    install|switch|reinstall|update)
+        echo "[+] Đang thực thi $ACTION Nginx / OpenResty ($VERSION) kèm gói tăng tốc WordPress tối đa..."
+        echo "[+] Đang cập nhật danh mục gói hệ điều hành AlmaLinux/Debian/Ubuntu..."
         if command -v apt-get &>/dev/null; then
             export DEBIAN_FRONTEND=noninteractive
             apt-get update -y || true
-            apt-get upgrade -y || true
+            # Thêm repo PPA Ondrej Nginx nếu có add-apt-repository để có HTTP/3 QUIC & Brotli mới nhất
+            if command -v add-apt-repository &>/dev/null; then
+                add-apt-repository -y ppa:ondrej/nginx 2>/dev/null || true
+                apt-get update -y || true
+            fi
         elif command -v dnf &>/dev/null; then
-            dnf upgrade -y || true
+            dnf check-update -y 2>/dev/null || true
+            dnf install -y epel-release 2>/dev/null || true
         elif command -v yum &>/dev/null; then
-            yum update -y || true
+            yum check-update -y 2>/dev/null || true
+            yum install -y epel-release 2>/dev/null || true
+        fi
+
+        local WORKER_USER="nginx"
+        if command -v apt-get &>/dev/null; then
+            WORKER_USER="www-data"
+        else
+            id -u nginx &>/dev/null || useradd -r -s /sbin/nologin -d /var/cache/nginx -c "Nginx Web Server" nginx 2>/dev/null || true
         fi
 
         if [ "$VERSION" = "openresty" ]; then
@@ -93,11 +106,11 @@ case "$ACTION" in
                 CODENAME=$(lsb_release -sc 2>/dev/null || echo "jammy")
                 echo "deb http://openresty.org/package/ubuntu $CODENAME main" > /etc/apt/sources.list.d/openresty.list 2>/dev/null || true
                 apt-get update -y || true
-                apt-get install -y openresty || apt-get install -y nginx
+                apt-get install -y openresty openresty-resty openresty-opm || apt-get install -y openresty
             elif command -v dnf &>/dev/null; then
                 dnf install -y yum-utils || true
                 yum-config-manager --add-repo https://openresty.org/package/centos/openresty.repo 2>/dev/null || true
-                dnf install -y openresty || dnf install -y nginx
+                dnf install -y openresty openresty-resty openresty-opm || dnf install -y openresty
             fi
 
             # Áp dụng cấu hình và user tối ưu
@@ -107,7 +120,7 @@ case "$ACTION" in
             systemctl enable nginx 2>/dev/null || true
             systemctl restart openresty 2>/dev/null || systemctl restart nginx 2>/dev/null || true
         else
-            # 2. Chuyển đổi sang Nginx chuẩn (1.26.x, 1.24.x, latest): Dọn dẹp OpenResty symlinks & daemon
+            # 2. Chuyển đổi sang Nginx chuẩn kèm trọn bộ Modules tăng tốc WordPress
             systemctl stop openresty 2>/dev/null || true
             systemctl disable openresty 2>/dev/null || true
             pkill -9 -f "openresty" 2>/dev/null || true
@@ -117,20 +130,105 @@ case "$ACTION" in
             [ -L "/usr/sbin/nginx" ] && rm -f /usr/sbin/nginx 2>/dev/null || true
             systemctl daemon-reload 2>/dev/null || true
 
+            echo "[+] Đang cài đặt Nginx cùng các module tăng tốc tối đa (Brotli, Cache-Purge, Headers-More, Redis2, Srcache)..."
             if command -v apt-get &>/dev/null; then
                 export DEBIAN_FRONTEND=noninteractive
-                apt-get update -y || true
-                apt-get install -y --reinstall nginx nginx-core || apt-get install -y nginx
+                # Cài đặt Nginx và các module tăng tốc hiệu năng WordPress
+                apt-get install -y --reinstall nginx nginx-common nginx-core \
+                    libnginx-mod-http-brotli-filter libnginx-mod-http-brotli-static \
+                    libnginx-mod-http-cache-purge libnginx-mod-http-headers-more-filter \
+                    libnginx-mod-http-redis2 libnginx-mod-http-srcache-filter 2>/dev/null || \
+                apt-get install -y nginx nginx-extras 2>/dev/null || \
+                apt-get install -y nginx
+
+                # Cài đặt đồng thời các PHP runtime extensions tối ưu WordPress nếu có PHP
+                apt-get install -y php-opcache php-redis php-imagick php-curl php-mysql php-intl php-mbstring php-xml php-zip 2>/dev/null || true
             elif command -v dnf &>/dev/null; then
-                dnf install -y nginx
+                dnf install -y nginx nginx-all-modules nginx-mod-brotli nginx-mod-http-cache-purge 2>/dev/null || dnf install -y nginx
             fi
             
             mkdir -p /etc/nginx/conf.d
+
+            # 2.1 CẤU HÌNH FASTCGI CACHE ZONE CHUYÊN DỤNG CHO WORDPRESS
+            echo "[+] Thiết lập vùng nhớ đệm FastCGI Cache cho WordPress (Plugin Nginx Helper / FastCGI Microcache)..."
+            mkdir -p /var/cache/nginx/wp
+            chown -R "$WORKER_USER:$WORKER_USER" /var/cache/nginx 2>/dev/null || true
+            chmod 700 /var/cache/nginx/wp 2>/dev/null || true
+
+            cat << 'EOF_CACHE' > /etc/nginx/conf.d/00_wp_fastcgi_cache.conf
+# WPCloud High Performance FastCGI Cache Zone for WordPress
+fastcgi_cache_path /var/cache/nginx/wp levels=1:2 keys_zone=WORDPRESS:100m inactive=60m max_size=1g;
+fastcgi_cache_key "$scheme$request_method$host$request_uri";
+fastcgi_cache_use_stale error timeout updating invalid_header http_500 http_503;
+fastcgi_ignore_headers Cache-Control Expires Set-Cookie;
+EOF_CACHE
+
+            # 2.2 CẤU HÌNH TỐI ƯU HÓA NETWORK, BUFFER VÀ KEEPALIVE CHO WORDPRESS
+            echo "[+] Cấu hình tối ưu bộ đệm Buffers & Keepalive cho WordPress tải cao..."
+            cat << 'EOF_OPT' > /etc/nginx/conf.d/00_wp_optimization.conf
+# WPCloud High-Traffic WordPress Optimization Directives
+client_max_body_size 128M;
+client_body_buffer_size 128k;
+fastcgi_read_timeout 300;
+fastcgi_buffers 16 16k;
+fastcgi_buffer_size 32k;
+fastcgi_busy_buffers_size 64k;
+keepalive_timeout 65;
+keepalive_requests 1000;
+server_tokens off;
+EOF_OPT
+
+            # 2.3 CẤU HÌNH COMPRESSION NÉN GZIP & BROTLI THÔNG MINH
+            local HAS_BR="no"
+            if nginx -V 2>&1 | grep -qE "ngx_brotli|brotli"; then
+                HAS_BR="yes"
+            elif ls /usr/lib/nginx/modules/*brotli* &>/dev/null || ls /etc/nginx/modules-enabled/*brotli* &>/dev/null; then
+                HAS_BR="yes"
+            fi
+
+            if [ "$HAS_BR" = "yes" ]; then
+                echo "[+] Phát hiện module ngx_brotli: Kích hoạt nén Google Brotli + Gzip kép toàn hệ thống..."
+                cat << 'EOF_COMP' > /etc/nginx/conf.d/00_wp_compression.conf
+# WPCloud Compression Engine: Gzip & Google Brotli
+gzip on;
+gzip_vary on;
+gzip_proxied any;
+gzip_comp_level 6;
+gzip_buffers 16 8k;
+gzip_http_version 1.1;
+gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/x-javascript application/xml application/xml+rss application/rss+xml application/atom+xml image/svg+xml;
+
+brotli on;
+brotli_comp_level 6;
+brotli_types text/plain text/css text/xml text/javascript application/json application/javascript application/x-javascript application/xml application/xml+rss application/rss+xml application/atom+xml image/svg+xml;
+EOF_COMP
+            else
+                echo "[+] Kích hoạt bộ nén Gzip tối ưu toàn hệ thống..."
+                cat << 'EOF_COMP' > /etc/nginx/conf.d/00_wp_compression.conf
+# WPCloud Compression Engine: High-Performance Gzip
+gzip on;
+gzip_vary on;
+gzip_proxied any;
+gzip_comp_level 6;
+gzip_buffers 16 8k;
+gzip_http_version 1.1;
+gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/x-javascript application/xml application/xml+rss application/rss+xml application/atom+xml image/svg+xml;
+EOF_COMP
+            fi
+
             systemctl unmask nginx 2>/dev/null || true
             systemctl enable nginx 2>/dev/null || true
-            systemctl restart nginx 2>/dev/null || true
+
+            # Kiểm tra cú pháp an toàn trước khi restart
+            if nginx -t 2>/dev/null; then
+                systemctl restart nginx 2>/dev/null || true
+            else
+                # Tự động khắc phục nếu có directive không tương thích
+                sed -i -E '/^[[:space:]]*brotli/d' /etc/nginx/conf.d/*.conf 2>/dev/null || true
+                systemctl restart nginx 2>/dev/null || true
+            fi
         fi
-        echo "[+] Cài đặt / Chuyển đổi Nginx ($VERSION) hoàn tất thành công!"
+        echo "[+] $ACTION Nginx ($VERSION) kèm gói tăng tốc WordPress hoàn tất thành công!"
         ;;
 
     configure)

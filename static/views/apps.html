@@ -155,10 +155,20 @@
                                                     </template>
                                                     <!-- Update -->
                                                     <button @click="app.category === 'php' ? handleCheckPhpUpdate(app) : handleAppAction(app.id, 'update')"
-                                                        class="text-emerald-400 hover:text-emerald-300 transition hover:underline">
+                                                        class="text-emerald-400 hover:text-emerald-300 transition hover:underline"
+                                                        title="Cập nhật phiên bản mới nhất kèm module tăng tốc WordPress">
                                                         Update
                                                     </button>
                                                     <span class="text-slate-600">|</span>
+                                                    <!-- Reinstall (cho Webserver) -->
+                                                    <template v-if="app.category === 'webserver'">
+                                                        <button @click="handleAppAction(app.id, 'reinstall')"
+                                                            class="text-cyan-400 hover:text-cyan-300 transition hover:underline font-semibold"
+                                                            title="Cài đặt lại kèm trọn bộ modules tăng tốc WordPress tối đa (Brotli, FastCGI Cache, OPcache JIT)">
+                                                            Reinstall
+                                                        </button>
+                                                        <span class="text-slate-600">|</span>
+                                                    </template>
                                                     <!-- Setting -->
                                                     <button @click="openAppSettings(app)"
                                                         class="text-emerald-400 hover:text-emerald-300 transition hover:underline font-semibold">

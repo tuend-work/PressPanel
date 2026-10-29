@@ -1702,14 +1702,17 @@ function showAlert(message) {
                 };
 
                 const handleAppAction = async (appId, action, customVersion = null) => {
-                    if (action === 'install') {
+                    if (action === 'install' || action === 'reinstall') {
                         installingAppId.value = appId;
                     }
                     if (action === 'uninstall') {
                         if (!confirm(`Bạn có chắc chắn muốn gỡ cài đặt ứng dụng này khỏi máy chủ?`)) return;
                     }
                     if (action === 'update') {
-                        if (!confirm(`Bạn có chắc muốn cập nhật ${appId} lên phiên bản mới nhất từ kho lưu trữ (Remi / Ondřej PPA)?`)) return;
+                        if (!confirm(`Bạn có chắc muốn cập nhật ${appId} lên phiên bản mới nhất từ kho lưu trữ (kèm trọn bộ modules tăng tốc WordPress tối đa)?`)) return;
+                    }
+                    if (action === 'reinstall') {
+                        if (!confirm(`Bạn có chắc muốn CÀI ĐẶT LẠI ${appId} kèm toàn bộ module tăng tốc WordPress tối đa?\n\nHệ thống sẽ tự động cấu hình bộ nhớ đệm (Cache), nén dữ liệu và tối ưu hoá buffer hiệu năng cao nhất.`)) return;
                     }
                     const version = customVersion || appVersions.value[appId] || 'default';
                     try {
