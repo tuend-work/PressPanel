@@ -389,7 +389,8 @@ server {
     }
 }
 EOF
-            ln -sf "/etc/nginx/conf.d/00_phpmyadmin.conf" "/etc/nginx/sites-enabled/00_phpmyadmin.conf" 2>/dev/null || true
+            # Xóa symlink thừa trong sites-enabled vì Nginx đã tự nạp từ /etc/nginx/conf.d
+            rm -f "/etc/nginx/sites-enabled/00_phpmyadmin.conf" 2>/dev/null || true
 
             # Khởi động lại Nginx để bind cổng mới 888
             if nginx -t 2>/dev/null; then

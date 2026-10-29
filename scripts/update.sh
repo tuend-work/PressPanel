@@ -503,8 +503,8 @@ if [ -f "/usr/local/openresty/nginx/conf/nginx.conf" ] || command -v openresty &
     bash "$TMP_DIR/scripts/apps/nginx.sh" configure 2>/dev/null || true
 fi
 
-# Tự động dọn dẹp file cấu hình thừa gây xung đột nginx -t (duplicate gzip hoặc fastcgi buffer mismatch)
-rm -f /etc/nginx/conf.d/00_wp_compression.conf /etc/nginx/conf.d/00_wp_optimization.conf 2>/dev/null || true
+# Tự động dọn dẹp file cấu hình thừa gây xung đột nginx -t (duplicate gzip, fastcgi buffer mismatch, hoặc trùng lặp cổng 888)
+rm -f /etc/nginx/conf.d/00_wp_compression.conf /etc/nginx/conf.d/00_wp_optimization.conf /etc/nginx/sites-enabled/00_phpmyadmin.conf 2>/dev/null || true
 
 # 7.7 Tự động sửa lỗi unknown "http3" variable nếu Nginx không có module ngx_http_v3_module
 if command -v nginx &>/dev/null; then
