@@ -4241,9 +4241,13 @@ function showAlert(message) {
                                     }
                                 };
                             }
+                        } else {
+                            const err = await res.json().catch(() => ({}));
+                            showAlert(err.detail || `Không thể tải cấu hình VirtualHost (Lỗi HTTP ${res.status})`);
                         }
                     } catch (e) {
                         console.error('Lỗi tải vhost config:', e);
+                        showAlert('Lỗi kết nối khi tải cấu hình VirtualHost: ' + e.message);
                     } finally {
                         loadingVhostConfig.value = false;
                     }

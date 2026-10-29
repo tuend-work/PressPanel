@@ -3746,7 +3746,7 @@ async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(g
     cursor = await db.execute("""
         SELECT d.*, u.username as owner_username, u.parent_id
         FROM domains d
-        JOIN users u ON d.user_id = u.id
+        LEFT JOIN users u ON d.user_id = u.id
         WHERE d.id = ?
     """, (domain_id,))
     domain = await cursor.fetchone()
@@ -3777,8 +3777,35 @@ async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(g
             conf_path = "/etc/nginx/conf.d/00_phpmyadmin.conf"
 
     content = read_file_privileged(conf_path)
+    p_ver = str(domain["php_version"] or "8.2").strip()
+    p_num = p_ver.replace(".", "")
+
     if not content:
-        content = f"# Chưa tìm thấy file vhost cấu hình tại {conf_path}.\n# Bấm 'Tái Tạo VHost Từ Template' để tự động tạo lại."
+        # Tự động nạp template chuẩn nếu chưa có file cấu hình thực tế trên disk
+        tpl_path = f"/opt/wpc/templates/vhost_{ws}/default.tpl"
+        if not os.path.exists(tpl_path):
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+            tpl_path = os.path.join(base_dir, f"templates/vhost_{ws}/default.tpl")
+
+        if os.path.exists(tpl_path):
+            try:
+                with open(tpl_path, "r", encoding="utf-8", errors="ignore") as tf:
+                    raw_tpl = tf.read()
+                    content = (
+                        raw_tpl
+                        .replace("{{DOMAIN}}", clean_domain)
+                        .replace("{{USERNAME}}", isolated_user)
+                        .replace("{{DOCUMENT_ROOT}}", doc_root)
+                        .replace("{{PHP_VERSION}}", p_num)
+                        .replace("{{PHP_NUM}}", p_num)
+                        .replace("{{SSL_CERT}}", f"/etc/ssl/certs/{clean_domain}.crt")
+                        .replace("{{SSL_KEY}}", f"/etc/ssl/private/{clean_domain}.key")
+                        .replace("{{PHP_SOCK}}", f"/run/php/php{p_ver}-fpm-{isolated_user}.sock")
+                    )
+            except Exception:
+                pass
+        if not content:
+            content = f"# VirtualHost configuration for {clean_domain} ({ws.upper()})\n# File: {conf_path}\n"
 
     if content and ws == "ols":
         p_ver = str(domain["php_version"] or "8.2").strip()
@@ -3811,7 +3838,7 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
     cursor = await db.execute("""
         SELECT d.*, u.username as owner_username, u.parent_id
         FROM domains d
-        JOIN users u ON d.user_id = u.id
+        LEFT JOIN users u ON d.user_id = u.id
         WHERE d.id = ?
     """, (domain_id,))
     domain = await cursor.fetchone()
@@ -3974,7 +4001,7 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
     cursor = await db.execute("""
         SELECT d.*, u.username as owner_username, u.parent_id
         FROM domains d
-        JOIN users u ON d.user_id = u.id
+        LEFT JOIN users u ON d.user_id = u.id
         WHERE d.id = ?
     """, (domain_id,))
     domain = await cursor.fetchone()
@@ -4121,7 +4148,7 @@ async def rebuild_domain_vhost(domain_id: int, current_user: dict = Depends(get_
     cursor = await db.execute("""
         SELECT d.*, u.username as owner_username, u.parent_id
         FROM domains d
-        JOIN users u ON d.user_id = u.id
+        LEFT JOIN users u ON d.user_id = u.id
         WHERE d.id = ?
     """, (domain_id,))
     domain = await cursor.fetchone()
@@ -4136,7 +4163,7 @@ async def rebuild_domain_vhost(domain_id: int, current_user: dict = Depends(get_
     clean_domain = domain["domain_name"]
     ws = domain["webserver"] or "ols"
     isolated_user = domain_to_linux_user(clean_domain)
-    hosting_username = domain["owner_username"]
+    hosting_username = domain["owner_username"] or isolated_user
 
     res = await run_gatekeeper("vhost", "add", isolated_user, clean_domain, ws, domain["php_version"], hosting_username)
     return {"status": "success", "message": f"Đã tái tạo cấu hình VirtualHost cho {clean_domain} từ template chuẩn!"}
@@ -4150,7 +4177,7 @@ class RewriteRulesRequest(BaseModel):
 async def get_domain_rewrite_rules(domain_id: int, current_user: dict = Depends(get_current_user)):
     """Lấy quy tắc Rewrite (.htaccess) của website cho Webuser / Hosting user"""
     db = await get_db_connection()
-    cursor = await db.execute("SELECT d.*, u.parent_id FROM domains d JOIN users u ON d.user_id = u.id WHERE d.id = ?", (domain_id,))
+    cursor = await db.execute("SELECT d.*, u.parent_id FROM domains d LEFT JOIN users u ON d.user_id = u.id WHERE d.id = ?", (domain_id,))
     domain = await cursor.fetchone()
     await db.close()
     if not domain:
