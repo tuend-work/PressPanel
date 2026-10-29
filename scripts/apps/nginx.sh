@@ -169,12 +169,12 @@ fastcgi_read_timeout 300;
 fastcgi_buffers 16 16k;
 fastcgi_buffer_size 32k;
 fastcgi_busy_buffers_size 64k;
-keepalive_timeout 65;
-keepalive_requests 1000;
-server_tokens off;
 EOF_OPT
 
-            # 2.3 CẤU HÌNH COMPRESSION NÉN GZIP & BROTLI THÔNG MINH
+            # Xóa triệt để file nén trùng lặp gây lỗi duplicate "gzip" với /etc/nginx/nginx.conf
+            rm -f /etc/nginx/conf.d/00_wp_compression.conf 2>/dev/null || true
+
+            # 2.3 CẤU HÌNH BROTLI NẾU ĐƯỢC HỖ TRỢ VÀ VALIDATE CÚ PHÁP
             HAS_BR="no"
             if nginx -V 2>&1 | grep -qE "ngx_brotli|brotli"; then
                 HAS_BR="yes"
@@ -183,33 +183,20 @@ EOF_OPT
             fi
 
             if [ "$HAS_BR" = "yes" ]; then
-                echo "[+] Phát hiện module ngx_brotli: Kích hoạt nén Google Brotli + Gzip kép toàn hệ thống..."
-                cat << 'EOF_COMP' > /etc/nginx/conf.d/00_wp_compression.conf
-# WPCloud Compression Engine: Gzip & Google Brotli
-gzip on;
-gzip_vary on;
-gzip_proxied any;
-gzip_comp_level 6;
-gzip_buffers 16 8k;
-gzip_http_version 1.1;
-gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/x-javascript application/xml application/xml+rss application/rss+xml application/atom+xml image/svg+xml;
-
+                echo "[+] Phát hiện module ngx_brotli: Cấu hình nén Google Brotli an toàn..."
+                cat << 'EOF_BR' > /etc/nginx/conf.d/00_wp_brotli.conf
+# WPCloud Google Brotli Compression Engine
 brotli on;
 brotli_comp_level 6;
 brotli_types text/plain text/css text/xml text/javascript application/json application/javascript application/x-javascript application/xml application/xml+rss application/rss+xml application/atom+xml image/svg+xml;
-EOF_COMP
+EOF_BR
+                # Kiểm tra cú pháp, nếu brotli directive chưa được compile thì tự động dọn dẹp
+                if ! nginx -t 2>/dev/null; then
+                    echo "[-] Module Brotli chưa được nạp vào Nginx core, tự động loại bỏ để đảm bảo ổn định."
+                    rm -f /etc/nginx/conf.d/00_wp_brotli.conf 2>/dev/null || true
+                fi
             else
-                echo "[+] Kích hoạt bộ nén Gzip tối ưu toàn hệ thống..."
-                cat << 'EOF_COMP' > /etc/nginx/conf.d/00_wp_compression.conf
-# WPCloud Compression Engine: High-Performance Gzip
-gzip on;
-gzip_vary on;
-gzip_proxied any;
-gzip_comp_level 6;
-gzip_buffers 16 8k;
-gzip_http_version 1.1;
-gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/x-javascript application/xml application/xml+rss application/rss+xml application/atom+xml image/svg+xml;
-EOF_COMP
+                rm -f /etc/nginx/conf.d/00_wp_brotli.conf 2>/dev/null || true
             fi
 
             systemctl unmask nginx 2>/dev/null || true

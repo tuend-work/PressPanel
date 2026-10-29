@@ -503,6 +503,9 @@ if [ -f "/usr/local/openresty/nginx/conf/nginx.conf" ] || command -v openresty &
     bash "$TMP_DIR/scripts/apps/nginx.sh" configure 2>/dev/null || true
 fi
 
+# Tự động dọn dẹp file nén trùng lặp gây lỗi nginx -t (duplicate gzip)
+rm -f /etc/nginx/conf.d/00_wp_compression.conf 2>/dev/null || true
+
 # 7.7 Tự động sửa lỗi unknown "http3" variable nếu Nginx không có module ngx_http_v3_module
 if command -v nginx &>/dev/null; then
     HAS_HTTP3=0
