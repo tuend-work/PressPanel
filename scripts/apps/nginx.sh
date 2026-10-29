@@ -159,19 +159,8 @@ fastcgi_cache_use_stale error timeout updating invalid_header http_500 http_503;
 fastcgi_ignore_headers Cache-Control Expires Set-Cookie;
 EOF_CACHE
 
-            # 2.2 CẤU HÌNH TỐI ƯU HÓA NETWORK, BUFFER VÀ KEEPALIVE CHO WORDPRESS
-            echo "[+] Cấu hình tối ưu bộ đệm Buffers & Keepalive cho WordPress tải cao..."
-            cat << 'EOF_OPT' > /etc/nginx/conf.d/00_wp_optimization.conf
-# WPCloud High-Traffic WordPress Optimization Directives
-client_max_body_size 128M;
-client_body_buffer_size 128k;
-fastcgi_read_timeout 300;
-fastcgi_buffers 16 16k;
-fastcgi_buffer_size 32k;
-fastcgi_busy_buffers_size 64k;
-EOF_OPT
-
-            # Xóa triệt để file nén trùng lặp gây lỗi duplicate "gzip" với /etc/nginx/nginx.conf
+            # Dọn dẹp các tệp tối ưu thừa có thể gây xung đột buffer/directive với các vhost
+            rm -f /etc/nginx/conf.d/00_wp_optimization.conf 2>/dev/null || true
             rm -f /etc/nginx/conf.d/00_wp_compression.conf 2>/dev/null || true
 
             # 2.3 CẤU HÌNH BROTLI NẾU ĐƯỢC HỖ TRỢ VÀ VALIDATE CÚ PHÁP
