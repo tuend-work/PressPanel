@@ -202,6 +202,25 @@ echo "$PANEL_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wpc 2>/dev/null || t
 chmod 440 /etc/sudoers.d/wpc 2>/dev/null || true
 rm -f /etc/sudoers.d/presspanel 2>/dev/null || true
 
+# 6.1 Chuẩn bị file log /var/log/wpc.log và cấu hình logrotate
+touch /var/log/wpc.log 2>/dev/null || true
+chown "$PANEL_USER":"$PANEL_USER" /var/log/wpc.log 2>/dev/null || true
+chmod 644 /var/log/wpc.log 2>/dev/null || true
+
+if [ -d "/etc/logrotate.d" ]; then
+    cat << 'EOF_LOGROTATE' > /etc/logrotate.d/wpc
+/var/log/wpc.log {
+    daily
+    missingok
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    copytruncate
+}
+EOF_LOGROTATE
+fi
+
 # 7. Đăng ký & Khởi động lại dịch vụ wpc.service
 echo "[+] Đăng ký dịch vụ wpc.service..."
 # Dọn dẹp presspanel cũ nếu có để tránh xung đột cổng

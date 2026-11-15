@@ -103,7 +103,12 @@ case "$ACTION" in
         echo "[+] Hoàn tất!"
         ;;
     logs)
-        sudo journalctl -u wpc -f
+        if [ -f "/var/log/wpc.log" ]; then
+            echo "[+] Theo dõi nhật ký /var/log/wpc.log (Nhấn Ctrl+C để thoát)..."
+            sudo tail -f -n 100 /var/log/wpc.log
+        else
+            sudo journalctl -u wpc -f
+        fi
         ;;
     version)
         if [ -f "$INSTALL_DIR/VERSION" ]; then

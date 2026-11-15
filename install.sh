@@ -286,6 +286,25 @@ chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR"/data
 chmod 775 "$INSTALL_DIR"/data
 chmod 664 "$INSTALL_DIR"/data/panel.db* 2>/dev/null || true
 
+# Chuẩn bị file log /var/log/wpc.log và logrotate
+touch /var/log/wpc.log 2>/dev/null || true
+chown "$PANEL_USER":"$PANEL_GROUP" /var/log/wpc.log 2>/dev/null || true
+chmod 644 /var/log/wpc.log 2>/dev/null || true
+
+if [ -d "/etc/logrotate.d" ]; then
+    cat << 'EOF_LOGROTATE' > /etc/logrotate.d/wpc
+/var/log/wpc.log {
+    daily
+    missingok
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    copytruncate
+}
+EOF_LOGROTATE
+fi
+
 # 11. Cài đặt Systemd Service
 echo "[+] Đăng ký dịch vụ systemd wpc..."
 if [ -f "$SRC_DIR/systemd/wpc.service" ]; then

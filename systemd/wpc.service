@@ -8,10 +8,12 @@ User=wpc
 Group=wpc
 WorkingDirectory=/opt/wpc
 Environment=PYTHONPATH=/opt/wpc
-ExecStart=/opt/wpc/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8888 --workers 2
+ExecStart=/bin/bash /opt/wpc/scripts/wpc-service.sh
 Restart=always
-RestartSec=5
+RestartSec=3
 LimitNOFILE=65535
+StandardOutput=append:/var/log/wpc.log
+StandardError=append:/var/log/wpc.log
 
 [Install]
 WantedBy=multi-user.target
