@@ -532,10 +532,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                                 title="Mở phpMyAdmin Port 888">
                                                 <span>🐬 phpMyAdmin</span>
                                             </button>
-                                            <button v-else-if="dbTypeTab === 'sqlserver'" @click="alert('Chuỗi kết nối SQL Server:
-Server=127.0.0.1,1433;Database=master;User Id=sa;Password=<mật khẩu>;Encrypt=True;TrustServerCertificate=True;
-
-Kết nối trực tiếp qua SSMS, Azure Data Studio hoặc DBeaver.')"
+                                            <button v-else-if="dbTypeTab === 'sqlserver'" @click="handleManageDb({ db_name: 'master', db_user: 'sa' })"
                                                 class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
                                                 title="Xem chuỗi kết nối MS SQL Server">
                                                 <span>📋 Chuỗi kết nối</span>
