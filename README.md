@@ -119,6 +119,7 @@ WPC được thiết kế với triết lý **Cách Ly Tuyệt Đối (Zero Conf
 3. **Cơ sở dữ liệu độc lập:** Sử dụng SQLite nhúng WAL (`/opt/wpc/data/panel.db`), không phụ thuộc vào MySQL hệ thống để vận hành panel.
 4. **Kernel Namespace & Cgroups v2 riêng:** Quản lý tài nguyên tại nhánh riêng `/sys/fs/cgroup/wpc`.
 5. **Tự động xử lý trùng cổng:** Khi cài đặt, nếu phát hiện cổng mặc định **`8888`** đang bị chiếm dụng, bộ cài sẽ tự động chuyển sang cổng tiếp theo (ví dụ: `8889`) và ghi nhận vào `wpc.conf`.
+6. **WPC MySQL Resource Controller:** Cơ chế kiểm soát tài nguyên MariaDB/MySQL per-user độc lập, chống tràn Buffer Pool (`innodb_old_blocks_pct=37`, `innodb_old_blocks_time=1000`), kích hoạt `userstat=1`, ngắt mạch tự động (Circuit Breaker siết 8 kết nối, 3s timeout) khi website bị cào dữ liệu và Active Slow-Query Sniper bắn tỉa các truy vấn nặng nghẽn hệ thống.
 
 ---
 

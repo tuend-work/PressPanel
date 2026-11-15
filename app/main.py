@@ -30,6 +30,7 @@ from app.api.v1.databases import router as databases_router
 import asyncio
 from app.api.v1.crons import router as crons_router
 from app.services.metrics_collector import start_metrics_collector
+from app.services.mysql_controller import start_mysql_controller_worker
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,9 +38,12 @@ async def lifespan(app: FastAPI):
     await init_database()
     # Khởi động tiến trình ngầm ghi nhận chỉ số tài nguyên mỗi phút vào SQLite DB
     metrics_task = asyncio.create_task(start_metrics_collector())
+    # Khởi động WPC MySQL Resource Controller Worker (chu kỳ 10s: Telemetry, Active Sniper, Circuit Breaker)
+    mysql_controller_task = asyncio.create_task(start_mysql_controller_worker())
     yield
     # Tắt dịch vụ: cleanup nếu cần
     metrics_task.cancel()
+    mysql_controller_task.cancel()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

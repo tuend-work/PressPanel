@@ -73,6 +73,35 @@ case "$ACTION" in
         systemctl enable mariadb 2>/dev/null || systemctl enable mysqld 2>/dev/null || systemctl enable mysql 2>/dev/null || true
         systemctl restart mariadb 2>/dev/null || systemctl restart mysqld 2>/dev/null || systemctl restart mysql 2>/dev/null || true
 
+        # Cấu hình WPC MySQL Resource Controller (Anti-Buffer Pool Pollution & userstat=1)
+        echo "[+] Đang thiết lập cấu hình WPC MySQL Resource Controller..."
+        if [ -d /etc/mysql/mariadb.conf.d ]; then
+            cat > /etc/mysql/mariadb.conf.d/99-wpc-mysql-controller.cnf <<'EOF'
+[mysqld]
+# Managed by WPC MySQL Resource Controller
+userstat = 1
+max_statement_time = 15
+innodb_old_blocks_pct = 37
+innodb_old_blocks_time = 1000
+tmp_table_size = 32M
+max_heap_table_size = 32M
+EOF
+            chmod 0644 /etc/mysql/mariadb.conf.d/99-wpc-mysql-controller.cnf
+        elif [ -d /etc/my.cnf.d ]; then
+            cat > /etc/my.cnf.d/99-wpc-mysql-controller.cnf <<'EOF'
+[mysqld]
+# Managed by WPC MySQL Resource Controller
+userstat = 1
+max_statement_time = 15
+innodb_old_blocks_pct = 37
+innodb_old_blocks_time = 1000
+tmp_table_size = 32M
+max_heap_table_size = 32M
+EOF
+            chmod 0644 /etc/my.cnf.d/99-wpc-mysql-controller.cnf
+        fi
+        mysql -u root -e "SET GLOBAL userstat = 1; SET GLOBAL innodb_old_blocks_pct = 37; SET GLOBAL innodb_old_blocks_time = 1000;" 2>/dev/null || true
+
         echo "[+] Cài đặt Database Server ($VERSION) thành công!"
         ;;
 

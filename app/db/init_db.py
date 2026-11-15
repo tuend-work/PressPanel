@@ -214,6 +214,17 @@ CREATE TABLE IF NOT EXISTS resource_metrics (
 
 CREATE INDEX IF NOT EXISTS idx_metrics_target_created ON resource_metrics(target_type, target_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_metrics_created_at ON resource_metrics(created_at);
+
+-- 15. Bảng Nhật Ký WPC MySQL Resource Controller
+CREATE TABLE IF NOT EXISTS mysql_controller_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,  -- 'snipe', 'shield_on', 'shield_off', 'limit_update'
+    db_user TEXT NOT NULL,
+    details TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_mysql_controller_logs_created ON mysql_controller_logs(created_at);
 """
 
 async def init_database():
@@ -227,9 +238,30 @@ async def init_database():
         try:
             await db.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('metrics_history_enabled', 'true')")
             await db.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('metrics_retention_days', '7')")
+            await db.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('mysql_controller_enabled', 'true')")
+            await db.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('mysql_controller_auto_snipe', 'true')")
+            await db.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('mysql_controller_circuit_breaker', 'true')")
             await db.commit()
         except Exception:
             pass
+        
+        # Migration: Bổ sung các cột giới hạn cho MySQL Resource Controller
+        mysql_lim_cols = [
+            ("mysql_max_queries_per_hour", "INTEGER NOT NULL DEFAULT 0"),
+            ("mysql_max_updates_per_hour", "INTEGER NOT NULL DEFAULT 0"),
+            ("mysql_max_connections_per_hour", "INTEGER NOT NULL DEFAULT 0"),
+            ("mysql_max_user_connections", "INTEGER NOT NULL DEFAULT 25"),
+            ("mysql_max_statement_time", "INTEGER NOT NULL DEFAULT 15"),
+        ]
+        for col_name, col_type in mysql_lim_cols:
+            try:
+                await db.execute(f"ALTER TABLE packages ADD COLUMN {col_name} {col_type}")
+            except Exception:
+                pass
+            try:
+                await db.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
+            except Exception:
+                pass
         
         # Migration: Tự động bổ sung cột allow_ssh, plan_type cho packages và domains nếu đã tạo từ trước
         try:

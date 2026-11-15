@@ -687,3 +687,186 @@ async def user_redis_apply_wp(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật wp-config.php: {str(e)}")
+
+# ==============================================================================
+# WPC MySQL Resource Controller Endpoints
+# ==============================================================================
+
+class MySQLControllerSnipeRequest(BaseModel):
+    max_time_sec: Optional[int] = 3
+    target_user: Optional[str] = None
+
+class MySQLControllerShieldRequest(BaseModel):
+    db_user: str
+    enabled: bool
+    reason: Optional[str] = ""
+
+class MySQLControllerLimitsRequest(BaseModel):
+    db_user: str
+    max_user_connections: int = 25
+    max_statement_time: int = 15
+    max_queries_per_hour: int = 0
+    max_updates_per_hour: int = 0
+    max_connections_per_hour: int = 0
+
+@router.get("/controller/status")
+async def get_mysql_controller_status_endpoint(current_user: dict = Depends(get_current_user)):
+    """Trả về trạng thái tổng quan của WPC MySQL Resource Controller"""
+    from app.services.mysql_controller import get_controller_status
+    return get_controller_status()
+
+@router.get("/controller/stats")
+async def get_mysql_controller_stats_endpoint(current_user: dict = Depends(get_current_user)):
+    """Trả về thống kê thời gian thực (QPS, Rows/s, CPU, Connections) per database user"""
+    from app.services.mysql_controller import get_all_user_stats
+    stats = get_all_user_stats()
+    
+    # Map DB user sang Domain / Owner nếu có trong bảng databases
+    db = await get_db_connection()
+    cur = await db.execute("""
+        SELECT db.db_name, db.db_user, u.username as owner_username, d.domain_name
+        FROM databases db
+        JOIN users u ON db.user_id = u.id
+        LEFT JOIN domains d ON db.domain_id = d.id
+    """)
+    db_rows = await cur.fetchall()
+    await db.close()
+
+    user_map = {}
+    for r in db_rows:
+        u_clean = (r["db_user"] or "").strip()
+        if u_clean:
+            user_map[u_clean] = {
+                "owner": r["owner_username"],
+                "domain": r["domain_name"] or "",
+                "db_name": r["db_name"]
+            }
+
+    enriched = []
+    for s in stats:
+        u = s.get("db_user", "")
+        info = user_map.get(u, {})
+        if current_user["role"] != "admin" and info.get("owner") != current_user["username"]:
+            continue
+        item = dict(s)
+        item["owner"] = info.get("owner", "system/unknown")
+        item["domain"] = info.get("domain", "")
+        item["db_name"] = info.get("db_name", "")
+        enriched.append(item)
+
+    return enriched
+
+@router.post("/controller/snipe")
+async def snipe_slow_queries_endpoint(
+    req: MySQLControllerSnipeRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Bắn tỉa thủ công (KILL) các câu truy vấn SELECT/WITH đang chạy chậm nghẽn hệ thống"""
+    from app.services.mysql_controller import snipe_slow_queries
+    
+    target_users = None
+    if req.target_user:
+        target_users = [req.target_user]
+    elif current_user["role"] != "admin":
+        db = await get_db_connection()
+        cur = await db.execute("SELECT db_user FROM databases WHERE user_id = ?", (current_user["id"],))
+        rows = await cur.fetchall()
+        await db.close()
+        target_users = [r["db_user"] for r in rows if r["db_user"]]
+
+    killed = snipe_slow_queries(target_users=target_users, max_time_sec=req.max_time_sec or 3)
+    
+    if killed:
+        try:
+            db = await get_db_connection()
+            for k in killed:
+                await db.execute(
+                    "INSERT INTO mysql_controller_logs (event_type, db_user, details) VALUES (?, ?, ?)",
+                    ("snipe", k.get("db_user", ""), json.dumps(k))
+                )
+            await db.commit()
+            await db.close()
+        except Exception:
+            pass
+
+    return {
+        "status": "ok",
+        "message": f"Đã bắn tỉa thành công {len(killed)} câu query chậm!",
+        "killed_queries": killed
+    }
+
+@router.post("/controller/shield")
+async def toggle_shield_endpoint(
+    req: MySQLControllerShieldRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Kích hoạt hoặc gỡ bỏ Anti-Scraping / Attack Shield cho Database User (Chỉ Admin)"""
+    if current_user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền thao tác Shield.")
+
+    from app.services.mysql_controller import set_user_shield_mode
+    res = set_user_shield_mode(req.db_user, req.enabled, reason=req.reason or "Thao tác thủ công từ Admin Dashboard")
+    
+    try:
+        db = await get_db_connection()
+        evt = "shield_on" if req.enabled else "shield_off"
+        await db.execute(
+            "INSERT INTO mysql_controller_logs (event_type, db_user, details) VALUES (?, ?, ?)",
+            (evt, req.db_user, json.dumps(res))
+        )
+        await db.commit()
+        await db.close()
+    except Exception:
+        pass
+
+    return {"status": "ok", "shield_state": res}
+
+@router.post("/controller/limits")
+async def update_limits_endpoint(
+    req: MySQLControllerLimitsRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Cập nhật giới hạn tài nguyên MySQL tĩnh cho Database User (Chỉ Admin)"""
+    if current_user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền đặt giới hạn tài nguyên.")
+
+    from app.services.mysql_controller import apply_db_user_limits
+    ok = apply_db_user_limits(
+        req.db_user,
+        max_user_connections=req.max_user_connections,
+        max_statement_time=req.max_statement_time,
+        max_queries_per_hour=req.max_queries_per_hour,
+        max_updates_per_hour=req.max_updates_per_hour,
+        max_connections_per_hour=req.max_connections_per_hour
+    )
+    if not ok:
+        raise HTTPException(status_code=500, detail="Không thể cập nhật giới hạn MariaDB/MySQL cho user.")
+
+    try:
+        db = await get_db_connection()
+        await db.execute(
+            "INSERT INTO mysql_controller_logs (event_type, db_user, details) VALUES (?, ?, ?)",
+            ("limit_update", req.db_user, json.dumps(req.dict()))
+        )
+        await db.commit()
+        await db.close()
+    except Exception:
+        pass
+
+    return {
+        "status": "ok",
+        "message": f"Đã áp dụng giới hạn tài nguyên MySQL cho người dùng {req.db_user} thành công!"
+    }
+
+@router.post("/controller/ensure")
+async def ensure_controller_endpoint(current_user: dict = Depends(get_current_user)):
+    """Kích hoạt và đảm bảo cấu hình tối ưu của MySQL Resource Controller (Chỉ Admin)"""
+    if current_user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền thao tác.")
+
+    from app.services.mysql_controller import ensure_mysql_controller_settings
+    ok = ensure_mysql_controller_settings()
+    return {
+        "status": "ok" if ok else "warning",
+        "message": "Đã đảm bảo và nạp cấu hình MySQL Resource Controller thành công!"
+    }

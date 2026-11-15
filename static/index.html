@@ -5624,6 +5624,31 @@ if ($host ~* ^www\\.(.*)$) {
                     max_connections: '150'
                 });
 
+                // WPC MySQL Resource Controller State
+                const showMySQLControllerModal = ref(false);
+                const showDbUserLimitsModal = ref(false);
+                const mysqlControllerLoading = ref(false);
+                const mysqlControllerActionLoading = ref(false);
+                const mysqlControllerStatus = ref({
+                    status: 'active',
+                    total_sniped_queries: 0,
+                    active_shields_count: 0,
+                    recent_sniped_queries: []
+                });
+                const mysqlControllerStats = ref([]);
+                const mysqlControllerShieldCount = computed(() => {
+                    return (mysqlControllerStats.value || []).filter(s => s.under_shield).length;
+                });
+                const selectedDbUserForLimits = ref('');
+                const dbUserLimitsForm = ref({
+                    db_user: '',
+                    max_user_connections: 25,
+                    max_statement_time: 15,
+                    max_queries_per_hour: 0,
+                    max_updates_per_hour: 0,
+                    max_connections_per_hour: 0
+                });
+
                 const showGetDbModal = ref(false);
                 const getDbForm = ref({
                     host: '',
@@ -5863,6 +5888,149 @@ if ($host ~* ^www\\.(.*)$) {
                         showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingRemoteDb.value = false;
+                    }
+                };
+
+                // ==========================================
+                // WPC MYSQL RESOURCE CONTROLLER METHODS
+                // ==========================================
+                const fetchMySQLControllerData = async () => {
+                    mysqlControllerLoading.value = true;
+                    try {
+                        const [resStatus, resStats] = await Promise.all([
+                            fetch('/api/v1/databases/controller/status', {
+                                headers: { 'Authorization': `Bearer ${token.value}` }
+                            }),
+                            fetch('/api/v1/databases/controller/stats', {
+                                headers: { 'Authorization': `Bearer ${token.value}` }
+                            })
+                        ]);
+                        if (resStatus.ok) {
+                            mysqlControllerStatus.value = await resStatus.json();
+                        }
+                        if (resStats.ok) {
+                            mysqlControllerStats.value = await resStats.json();
+                        }
+                    } catch (e) {
+                        console.error('Lỗi nạp MySQL Controller data:', e);
+                    } finally {
+                        mysqlControllerLoading.value = false;
+                    }
+                };
+
+                const openMySQLControllerModal = async () => {
+                    showMySQLControllerModal.value = true;
+                    await fetchMySQLControllerData();
+                };
+
+                const handleSnipeSlowQueries = async () => {
+                    mysqlControllerActionLoading.value = true;
+                    try {
+                        const res = await fetch('/api/v1/databases/controller/snipe', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ max_time_sec: 3 })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showAlert(data.message || 'Đã bắn tỉa các truy vấn chậm thành công!');
+                            await fetchMySQLControllerData();
+                        } else {
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể bắn tỉa query'));
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        mysqlControllerActionLoading.value = false;
+                    }
+                };
+
+                const handleToggleShield = async (dbUser, enable) => {
+                    const actionName = enable ? 'KÍCH HOẠT Shield (siết 8 kết nối & 3s timeout)' : 'GỠ BỎ Shield';
+                    if (!confirm(`Bạn có chắc muốn ${actionName} cho DB User "${dbUser}"?`)) return;
+
+                    try {
+                        const res = await fetch('/api/v1/databases/controller/shield', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                db_user: dbUser,
+                                enabled: enable,
+                                reason: enable ? 'Thao tác thủ công từ Admin' : ''
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showAlert(enable ? `Đã kích hoạt Shield bảo vệ cho ${dbUser}!` : `Đã gỡ bỏ Shield cho ${dbUser}!`);
+                            await fetchMySQLControllerData();
+                        } else {
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể thao tác Shield'));
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
+                const handleEnsureMySQLController = async () => {
+                    mysqlControllerActionLoading.value = true;
+                    try {
+                        const res = await fetch('/api/v1/databases/controller/ensure', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showAlert(data.message || 'Đã đảm bảo cấu hình tối ưu MySQL Resource Controller!');
+                            await fetchMySQLControllerData();
+                        } else {
+                            showAlert('Lỗi: ' + (data.detail || 'Lỗi áp dụng cấu hình'));
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        mysqlControllerActionLoading.value = false;
+                    }
+                };
+
+                const openDbUserLimitsModal = (dbUser) => {
+                    selectedDbUserForLimits.value = dbUser;
+                    dbUserLimitsForm.value = {
+                        db_user: dbUser,
+                        max_user_connections: 25,
+                        max_statement_time: 15,
+                        max_queries_per_hour: 0,
+                        max_updates_per_hour: 0,
+                        max_connections_per_hour: 0
+                    };
+                    showDbUserLimitsModal.value = true;
+                };
+
+                const handleSaveDbUserLimits = async () => {
+                    try {
+                        const res = await fetch('/api/v1/databases/controller/limits', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify(dbUserLimitsForm.value)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showAlert(data.message || 'Đã cập nhật giới hạn tài nguyên thành công!');
+                            showDbUserLimitsModal.value = false;
+                            await fetchMySQLControllerData();
+                        } else {
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể cập nhật limits'));
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
 
@@ -7750,6 +7918,11 @@ if ($host ~* ^www\\.(.*)$) {
                     showRootPasswordModal, updatingRootPassword, rootPasswordForm, handleUpdateRootPassword,
                     showRemoteDbModal, savingRemoteDb, remoteDbForm, handleSaveRemoteAccess,
                     showAdvDbModal, advDbForm, showGetDbModal, getDbForm, redisStats, handleFlushRedis,
+                    showMySQLControllerModal, showDbUserLimitsModal, mysqlControllerLoading, mysqlControllerActionLoading,
+                    mysqlControllerStatus, mysqlControllerStats, mysqlControllerShieldCount,
+                    selectedDbUserForLimits, dbUserLimitsForm,
+                    openMySQLControllerModal, fetchMySQLControllerData, handleSnipeSlowQueries,
+                    handleToggleShield, handleEnsureMySQLController, openDbUserLimitsModal, handleSaveDbUserLimits,
                     userRedis, selectedDomainForRedis, applyingRedisWp, fetchUserRedisStatus, handleUserRedisAction, handleUserRedisMemory, handleUserRedisApplyWp,
                     generateRandomPassword, copyToClipboard,
                     dbStoreApps, getCurrentDbApp, getCurrentDbPortAndStatus,
