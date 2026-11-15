@@ -58,6 +58,7 @@ if [ -f "$BACKUP_DIR/wpc.conf" ]; then
     chown wpc:wpc "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null || true
 fi
 # 5. Tự động kiểm tra và chuẩn hóa bảo mật toàn diện (CloudLinux Hardening)
+chmod 755 /lib64/ld-*.so /usr/lib64/ld-*.so /lib64/ld-linux*.so.* /usr/lib64/ld-linux*.so.* /lib/ld-*.so /usr/lib/ld-*.so 2>/dev/null || true
 if [ -f "$INSTALL_DIR/scripts/security_hardening.sh" ]; then
     echo "[+] Đang kích hoạt chế độ bảo mật toàn diện CloudLinux-Grade Hardening..."
     /bin/bash "$INSTALL_DIR/scripts/security_hardening.sh" fix || true

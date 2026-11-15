@@ -213,6 +213,9 @@ if [ -d "$INSTALL_DIR/bin" ]; then
     chmod 750 "$INSTALL_DIR/bin" 2>/dev/null || true
     chmod 4750 "$INSTALL_DIR"/bin/* 2>/dev/null || true
 fi
+
+# Đảm bảo Dynamic Linker (ld-linux.so, ld.so) có quyền 755 cho mọi tiến trình
+chmod 755 /lib64/ld-*.so /usr/lib64/ld-*.so /lib64/ld-linux*.so.* /usr/lib64/ld-linux*.so.* /lib/ld-*.so /usr/lib/ld-*.so 2>/dev/null || true
 echo "$PANEL_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wpc 2>/dev/null || true
 chmod 440 /etc/sudoers.d/wpc 2>/dev/null || true
 rm -f /etc/sudoers.d/presspanel 2>/dev/null || true

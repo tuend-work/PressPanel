@@ -70,17 +70,23 @@ apply_compiler_lockdown() {
         "/usr/bin/make"
         "/usr/bin/as"
         "/usr/bin/ld"
+        "/usr/bin/ld.bfd"
+        "/usr/bin/ld.gold"
         "/usr/bin/clang"
         "/usr/bin/clang++"
         "/usr/bin/gfortran"
     )
     for bin in "${compilers[@]}"; do
-        for match in ${bin}*; do
-            if [ -f "$match" ] && [ -x "$match" ]; then
-                chmod 700 "$match" 2>/dev/null || true
-            fi
-        done
+        if [ -f "$bin" ] && [ -x "$bin" ]; then
+            chmod 700 "$bin" 2>/dev/null || true
+        fi
     done
+
+    # ĐẶC BIỆT QUAN TRỌNG: Dynamic Linker (ld-linux / ld.so) bắt buộc phải có quyền 755
+    # để tất cả các tiến trình của mọi user (bao gồm user wpc, almalinux, nobody...)
+    # có thể nạp và thực thi các binary dynamic ELF (như /bin/bash, python, ls...).
+    chmod 755 /lib64/ld-*.so /usr/lib64/ld-*.so /lib64/ld-linux*.so.* /usr/lib64/ld-linux*.so.* /lib/ld-*.so /usr/lib/ld-*.so 2>/dev/null || true
+
     echo -e "${GREEN}[✔] Đã khóa toàn bộ gcc, g++, make, cc về quyền 700 (Chỉ root mới có quyền compile)${NC}"
 }
 
@@ -118,6 +124,9 @@ apply_panel_permissions() {
         # 6. Khóa cứng database SQLite và file cấu hình
         find "$PANEL_DIR/data" -name "*.db" -exec chmod 600 {} + 2>/dev/null || true
         [ -f "$PANEL_DIR/conf/wpc.conf" ] && chmod 600 "$PANEL_DIR/conf/wpc.conf" 2>/dev/null || true
+
+        # 7. Đảm bảo Dynamic Linker (ld-linux.so, ld.so) luôn có quyền 755 cho mọi user
+        chmod 755 /lib64/ld-*.so /usr/lib64/ld-*.so /lib64/ld-linux*.so.* /usr/lib64/ld-linux*.so.* /lib/ld-*.so /usr/lib/ld-*.so 2>/dev/null || true
         echo -e "${GREEN}[✔] Đã chuẩn hóa phân quyền an ninh tối đa /opt/wpc (wpc:wpc 750, data 700, db 600, SUID 4750)${NC}"
     fi
 }
@@ -184,7 +193,7 @@ audit_security() {
     echo -e "${BOLD}================================================================${NC}"
 
     local score=0
-    local max_score=7
+    local max_score=8
 
     # 1. Symlink protection
     local symlink_val
@@ -273,6 +282,16 @@ audit_security() {
         ((score++))
     else
         echo -e " [${RED}WARN${NC}] Lồng cách ly Mount & PID Namespace: ${RED}Chưa cài đặt script cage${NC}"
+    fi
+
+    # 8. Dynamic Linker ELF Interpreter integrity (Bắt buộc 755 để mọi user chạy được binary)
+    local ld_perm
+    ld_perm=$(stat -L -c "%a" /lib64/ld-linux-x86-64.so.2 2>/dev/null || stat -c "%a" /lib64/ld-*.so 2>/dev/null | head -n1 || echo "755")
+    if [ "$ld_perm" = "755" ]; then
+        echo -e " [${GREEN}PASS${NC}] Bộ nạp liên kết động (Dynamic Linker ld.so): ${GREEN}Quyền chuẩn (755)${NC}"
+        ((score++))
+    else
+        echo -e " [${RED}WARN${NC}] Bộ nạp liên kết động (Dynamic Linker ld.so): ${RED}Quyền $ld_perm bất thường (Cần 755, chạy 'wpc security fix')${NC}"
     fi
 
     echo -e "${BOLD}----------------------------------------------------------------${NC}"

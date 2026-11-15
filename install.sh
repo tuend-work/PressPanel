@@ -306,6 +306,9 @@ if [ -d "$INSTALL_DIR/bin" ]; then
     chmod 4750 "$INSTALL_DIR"/bin/* 2>/dev/null || true
 fi
 
+# Đảm bảo Dynamic Linker (ld-linux.so, ld.so) có quyền 755 cho mọi tiến trình
+chmod 755 /lib64/ld-*.so /usr/lib64/ld-*.so /lib64/ld-linux*.so.* /usr/lib64/ld-linux*.so.* /lib/ld-*.so /usr/lib/ld-*.so 2>/dev/null || true
+
 # Chuẩn bị file log /var/log/wpc.log và logrotate
 touch /var/log/wpc.log 2>/dev/null || true
 chown "$PANEL_USER":"$PANEL_GROUP" /var/log/wpc.log 2>/dev/null || true
