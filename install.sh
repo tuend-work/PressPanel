@@ -32,6 +32,17 @@ fi
 
 echo "[+] Phát hiện hệ điều hành: $OS_ID $OS_VERSION_ID"
 
+# Tự động chuyển SELinux sang Permissive để tránh systemd và PHP-FPM bị chặn quyền thực thi (chuẩn hosting cPanel, aaPanel)
+if command -v getenforce &>/dev/null; then
+    if [ "$(getenforce)" = "Enforcing" ]; then
+        echo "[+] Phát hiện SELinux đang ở chế độ Enforcing, chuyển sang Permissive để tránh xung đột quyền systemd..."
+        setenforce 0 2>/dev/null || true
+        if [ -f /etc/selinux/config ]; then
+            sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config 2>/dev/null || true
+        fi
+    fi
+fi
+
 # 2. Cài đặt các gói phụ thuộc cơ bản
 echo "[+] Đang kiểm tra và cập nhật các gói hệ điều hành..."
 if [[ "$OS_ID" =~ ^(debian|ubuntu)$ ]]; then

@@ -63,6 +63,15 @@ if [ ! -d "$INSTALL_DIR" ]; then
     exit 1
 fi
 
+# Tự động chuyển SELinux sang Permissive để tránh systemd bị chặn Permission denied (203/EXEC)
+if command -v getenforce &>/dev/null; then
+    if [ "$(getenforce)" = "Enforcing" ]; then
+        echo "[+] Phát hiện SELinux đang ở chế độ Enforcing, chuyển sang Permissive để tránh chặn systemd..."
+        setenforce 0 2>/dev/null || true
+        [ -f /etc/selinux/config ] && sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config 2>/dev/null || true
+    fi
+fi
+
 # 1. Tải phiên bản mới nhất từ GitHub
 echo "[+] Đang tải mã nguồn mới nhất từ $REPO_URL..."
 rm -rf "$TMP_DIR"
@@ -236,6 +245,8 @@ if [ -f "$TMP_DIR/systemd/wpc.service" ]; then
     if [ -n "$CURR_VER" ]; then
         sed -i "s/Description=.*/Description=WPCloud Control Panel Server v${CURR_VER} (FastAPI + Asyncio)/" /etc/systemd/system/wpc.service 2>/dev/null || true
     fi
+    sed -i 's/User=wpc/User=root/g' /etc/systemd/system/wpc.service 2>/dev/null || true
+    sed -i 's/Group=wpc/Group=root/g' /etc/systemd/system/wpc.service 2>/dev/null || true
 fi
 systemctl daemon-reload 2>/dev/null || true
 systemctl enable wpc 2>/dev/null || true

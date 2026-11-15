@@ -89,11 +89,23 @@ case "$ACTION" in
         ;;
     restart)
         echo "[+] Đang khởi động lại dịch vụ WPCloud Control Panel (wpc.service)..."
+        if [ -f "/etc/systemd/system/wpc.service" ] && grep -q "User=wpc" /etc/systemd/system/wpc.service 2>/dev/null; then
+            sudo sed -i 's/User=wpc/User=root/g' /etc/systemd/system/wpc.service 2>/dev/null || true
+            sudo sed -i 's/Group=wpc/Group=root/g' /etc/systemd/system/wpc.service 2>/dev/null || true
+            sudo systemctl daemon-reload 2>/dev/null || true
+        fi
+        [ -f "$INSTALL_DIR/scripts/wpc-service.sh" ] && sudo chmod +x "$INSTALL_DIR/scripts/wpc-service.sh" 2>/dev/null || true
         sudo systemctl restart wpc
         echo "[+] Hoàn tất! Trạng thái: $(systemctl is-active wpc)"
         ;;
     start)
         echo "[+] Đang bật dịch vụ WPCloud Control Panel (wpc.service)..."
+        if [ -f "/etc/systemd/system/wpc.service" ] && grep -q "User=wpc" /etc/systemd/system/wpc.service 2>/dev/null; then
+            sudo sed -i 's/User=wpc/User=root/g' /etc/systemd/system/wpc.service 2>/dev/null || true
+            sudo sed -i 's/Group=wpc/Group=root/g' /etc/systemd/system/wpc.service 2>/dev/null || true
+            sudo systemctl daemon-reload 2>/dev/null || true
+        fi
+        [ -f "$INSTALL_DIR/scripts/wpc-service.sh" ] && sudo chmod +x "$INSTALL_DIR/scripts/wpc-service.sh" 2>/dev/null || true
         sudo systemctl start wpc
         echo "[+] Hoàn tất! Trạng thái: $(systemctl is-active wpc)"
         ;;

@@ -97,6 +97,9 @@ apply_panel_permissions() {
         [ -d "$PANEL_DIR/app" ] && chown -R wpc:wpc "$PANEL_DIR/app" 2>/dev/null || true
         [ -d "$PANEL_DIR/static" ] && chown -R wpc:wpc "$PANEL_DIR/static" 2>/dev/null || true
         [ -d "$PANEL_DIR/logs" ] && chown -R wpc:wpc "$PANEL_DIR/logs" 2>/dev/null || true
+        [ -d "$PANEL_DIR/scripts" ] && chmod -R 755 "$PANEL_DIR/scripts" && chmod +x "$PANEL_DIR"/scripts/*.sh "$PANEL_DIR"/scripts/wpc 2>/dev/null || true
+        touch /var/log/wpc.log 2>/dev/null || true
+        chmod 644 /var/log/wpc.log 2>/dev/null || true
 
         # Khóa chặt thư mục data và conf
         [ -d "$PANEL_DIR/data" ] && chown -R wpc:wpc "$PANEL_DIR/data" && chmod 700 "$PANEL_DIR/data" 2>/dev/null || true
