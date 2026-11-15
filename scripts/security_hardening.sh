@@ -86,29 +86,39 @@ apply_compiler_lockdown() {
 
 # 3. PANEL PERMISSIONS HARDENING (Khóa cứng dữ liệu, cấu hình WPC Panel)
 apply_panel_permissions() {
-    echo -e "${CYAN}[*] Đang chuẩn hóa quyền bảo mật thư mục mã nguồn và CSDL WPC Panel...${NC}"
+    echo -e "${CYAN}[*] Đang chuẩn hóa quyền bảo mật thư mục mã nguồn và CSDL WPC Panel (Least Privilege: User wpc)...${NC}"
     if [ -d "$PANEL_DIR" ]; then
-        # Đảm bảo user hệ thống wpc sở hữu và có toàn quyền thực thi trên panel
-        chown wpc:wpc "$PANEL_DIR" 2>/dev/null || true
-        chmod 755 "$PANEL_DIR" 2>/dev/null || true
+        # 1. Toàn bộ thư mục /opt/wpc thuộc sở hữu wpc:wpc, phân quyền 750 (ngăn chặn 100% người dùng web khác xâm nhập)
+        chown -R wpc:wpc "$PANEL_DIR" 2>/dev/null || true
+        chmod 750 "$PANEL_DIR" 2>/dev/null || true
         
-        # Virtualenv và nhị phân phải thuộc quyền wpc để systemd User=wpc thực thi
-        [ -d "$PANEL_DIR/venv" ] && chown -R wpc:wpc "$PANEL_DIR/venv" && chmod -R 755 "$PANEL_DIR/venv" 2>/dev/null || true
-        [ -d "$PANEL_DIR/app" ] && chown -R wpc:wpc "$PANEL_DIR/app" 2>/dev/null || true
-        [ -d "$PANEL_DIR/static" ] && chown -R wpc:wpc "$PANEL_DIR/static" 2>/dev/null || true
-        [ -d "$PANEL_DIR/logs" ] && chown -R wpc:wpc "$PANEL_DIR/logs" 2>/dev/null || true
-        [ -d "$PANEL_DIR/scripts" ] && chmod -R 755 "$PANEL_DIR/scripts" && chmod +x "$PANEL_DIR"/scripts/*.sh "$PANEL_DIR"/scripts/wpc 2>/dev/null || true
+        # 2. Virtualenv, Scripts, Static, Logs: wpc:wpc 750
+        [ -d "$PANEL_DIR/venv" ] && chmod -R 750 "$PANEL_DIR/venv" 2>/dev/null || true
+        [ -d "$PANEL_DIR/app" ] && chmod -R 750 "$PANEL_DIR/app" 2>/dev/null || true
+        [ -d "$PANEL_DIR/static" ] && chmod -R 750 "$PANEL_DIR/static" 2>/dev/null || true
+        [ -d "$PANEL_DIR/logs" ] && chmod -R 750 "$PANEL_DIR/logs" 2>/dev/null || true
+        [ -d "$PANEL_DIR/scripts" ] && chmod -R 750 "$PANEL_DIR/scripts" && chmod +x "$PANEL_DIR"/scripts/*.sh "$PANEL_DIR"/scripts/wpc 2>/dev/null || true
+        
+        # 3. Binary Gatekeepers SUID root (chỉ nhóm wpc được thực thi): 4750 root:wpc
+        if [ -d "$PANEL_DIR/bin" ]; then
+            chown -R root:wpc "$PANEL_DIR/bin" 2>/dev/null || true
+            chmod 750 "$PANEL_DIR/bin" 2>/dev/null || true
+            chmod 4750 "$PANEL_DIR"/bin/* 2>/dev/null || true
+        fi
+
+        # 4. File log hệ thống
         touch /var/log/wpc.log 2>/dev/null || true
-        chmod 644 /var/log/wpc.log 2>/dev/null || true
+        chown wpc:wpc /var/log/wpc.log 2>/dev/null || true
+        chmod 640 /var/log/wpc.log 2>/dev/null || true
 
-        # Khóa chặt thư mục data và conf
-        [ -d "$PANEL_DIR/data" ] && chown -R wpc:wpc "$PANEL_DIR/data" && chmod 700 "$PANEL_DIR/data" 2>/dev/null || true
-        [ -d "$PANEL_DIR/conf" ] && chown -R wpc:wpc "$PANEL_DIR/conf" && chmod 750 "$PANEL_DIR/conf" 2>/dev/null || true
+        # 5. Khóa chặt thư mục data và conf
+        [ -d "$PANEL_DIR/data" ] && chmod 700 "$PANEL_DIR/data" 2>/dev/null || true
+        [ -d "$PANEL_DIR/conf" ] && chmod 750 "$PANEL_DIR/conf" 2>/dev/null || true
 
-        # Khóa cứng database SQLite và file cấu hình
+        # 6. Khóa cứng database SQLite và file cấu hình
         find "$PANEL_DIR/data" -name "*.db" -exec chmod 600 {} + 2>/dev/null || true
         [ -f "$PANEL_DIR/conf/wpc.conf" ] && chmod 600 "$PANEL_DIR/conf/wpc.conf" 2>/dev/null || true
-        echo -e "${GREEN}[✔] Đã chuẩn hóa phân quyền /opt/wpc (owner=wpc:wpc, venv=755, data=700, db=600)${NC}"
+        echo -e "${GREEN}[✔] Đã chuẩn hóa phân quyền an ninh tối đa /opt/wpc (wpc:wpc 750, data 700, db 600, SUID 4750)${NC}"
     fi
 }
 

@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
-Group=root
+User=wpc
+Group=wpc
 WorkingDirectory=/opt/wpc
 Environment=PYTHONPATH=/opt/wpc
 ExecStart=/bin/bash /opt/wpc/scripts/wpc-service.sh

@@ -54,8 +54,9 @@ fi
 if [ -f "$BACKUP_DIR/wpc.conf" ]; then
     echo "[+] Khôi phục lại cấu hình wpc.conf..."
     cp "$BACKUP_DIR/wpc.conf" "$INSTALL_DIR/conf/wpc.conf"
-    chmod 640 "$INSTALL_DIR/conf/wpc.conf"
+    chmod 600 "$INSTALL_DIR/conf/wpc.conf"
     chown wpc:wpc "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null || true
+fi
 # 5. Tự động kiểm tra và chuẩn hóa bảo mật toàn diện (CloudLinux Hardening)
 if [ -f "$INSTALL_DIR/scripts/security_hardening.sh" ]; then
     echo "[+] Đang kích hoạt chế độ bảo mật toàn diện CloudLinux-Grade Hardening..."

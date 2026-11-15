@@ -199,14 +199,20 @@ echo "[+] Kiểm tra và cập nhật cấu trúc cơ sở dữ liệu SQLite...
 cd "$INSTALL_DIR"
 "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/app/db/init_db.py"
 
-# 6. Đảm bảo phân quyền chính xác cho wpc
+# 6. Đảm bảo phân quyền chính xác cho wpc (Chuẩn Least-Privilege wpc:wpc 750)
 PANEL_USER="wpc"
-chown wpc:wpc "$INSTALL_DIR" 2>/dev/null || true
-chmod 755 "$INSTALL_DIR" 2>/dev/null || true
-chown -R "$PANEL_USER":"$PANEL_USER" "$INSTALL_DIR/venv" "$INSTALL_DIR/app" "$INSTALL_DIR/data" "$INSTALL_DIR/logs" "$INSTALL_DIR/static" "$INSTALL_DIR/conf" 2>/dev/null || true
-chmod -R 755 "$INSTALL_DIR/venv" 2>/dev/null || true
-chmod 775 "$INSTALL_DIR"/data 2>/dev/null || true
-chmod 664 "$INSTALL_DIR"/data/panel.db* 2>/dev/null || true
+chown -R "$PANEL_USER":"$PANEL_USER" "$INSTALL_DIR" 2>/dev/null || true
+chmod 750 "$INSTALL_DIR" 2>/dev/null || true
+chmod -R 750 "$INSTALL_DIR/venv" "$INSTALL_DIR/app" "$INSTALL_DIR/static" "$INSTALL_DIR/conf" 2>/dev/null || true
+chmod -R 750 "$INSTALL_DIR/scripts" && chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
+chmod 700 "$INSTALL_DIR"/data 2>/dev/null || true
+chmod 600 "$INSTALL_DIR"/data/panel.db* 2>/dev/null || true
+[ -f "$INSTALL_DIR/conf/wpc.conf" ] && chmod 600 "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null || true
+if [ -d "$INSTALL_DIR/bin" ]; then
+    chown -R root:"$PANEL_USER" "$INSTALL_DIR/bin" 2>/dev/null || true
+    chmod 750 "$INSTALL_DIR/bin" 2>/dev/null || true
+    chmod 4750 "$INSTALL_DIR"/bin/* 2>/dev/null || true
+fi
 echo "$PANEL_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wpc 2>/dev/null || true
 chmod 440 /etc/sudoers.d/wpc 2>/dev/null || true
 rm -f /etc/sudoers.d/presspanel 2>/dev/null || true
@@ -214,7 +220,7 @@ rm -f /etc/sudoers.d/presspanel 2>/dev/null || true
 # 6.1 Chuẩn bị file log /var/log/wpc.log và cấu hình logrotate
 touch /var/log/wpc.log 2>/dev/null || true
 chown "$PANEL_USER":"$PANEL_USER" /var/log/wpc.log 2>/dev/null || true
-chmod 644 /var/log/wpc.log 2>/dev/null || true
+chmod 640 /var/log/wpc.log 2>/dev/null || true
 
 if [ -d "/etc/logrotate.d" ]; then
     cat << 'EOF_LOGROTATE' > /etc/logrotate.d/wpc
@@ -245,8 +251,6 @@ if [ -f "$TMP_DIR/systemd/wpc.service" ]; then
     if [ -n "$CURR_VER" ]; then
         sed -i "s/Description=.*/Description=WPCloud Control Panel Server v${CURR_VER} (FastAPI + Asyncio)/" /etc/systemd/system/wpc.service 2>/dev/null || true
     fi
-    sed -i 's/User=wpc/User=root/g' /etc/systemd/system/wpc.service 2>/dev/null || true
-    sed -i 's/Group=wpc/Group=root/g' /etc/systemd/system/wpc.service 2>/dev/null || true
 fi
 systemctl daemon-reload 2>/dev/null || true
 systemctl enable wpc 2>/dev/null || true
