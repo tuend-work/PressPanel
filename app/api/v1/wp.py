@@ -1358,8 +1358,8 @@ async def cleanup_database(instance_id: int, current_user: dict = Depends(get_cu
 @router.get("/{instance_id}/logs")
 async def get_php_error_logs(
     instance_id: int,
-    period: str = Query("all", regex="^(15m|1h|24h|all)$"),
-    level: str = Query("all", regex="^(fatal|warning|notice|all)$"),
+    period: str = Query("all", pattern="^(15m|1h|24h|all)$"),
+    level: str = Query("all", pattern="^(fatal|warning|notice|all)$"),
     current_user: dict = Depends(get_current_user)
 ):
     """Đọc và lọc log lỗi PHP / debug.log của website theo thời gian và mức độ lỗi"""
