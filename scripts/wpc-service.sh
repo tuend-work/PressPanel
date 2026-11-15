@@ -47,5 +47,6 @@ fi
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] Khởi động WPCloud Server trên cổng $PANEL_PORT sử dụng $PY_BIN..."
 
 # 4. Thực thi Uvicorn với exec để systemd quản lý PID trực tiếp
+export PYTHONUNBUFFERED=1
 export PYTHONPATH="$INSTALL_DIR"
 exec "$PY_BIN" -m uvicorn app.main:app --host 0.0.0.0 --port "$PANEL_PORT" --workers 2
