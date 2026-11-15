@@ -7869,6 +7869,25 @@ if ($host ~* ^www\\.(.*)$) {
                 // ==========================================
                 // FIREWALL & SECURITY MANAGEMENT
                 // ==========================================
+                const api = async (endpoint, method = 'GET', body = null) => {
+                    const opts = {
+                        method,
+                        headers: {
+                            'Authorization': `Bearer ${token.value}`
+                        }
+                    };
+                    if (body) {
+                        opts.headers['Content-Type'] = 'application/json';
+                        opts.body = JSON.stringify(body);
+                    }
+                    const res = await fetch('/api/v1' + endpoint, opts);
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        throw new Error(data.detail || data.message || `Lỗi HTTP ${res.status}`);
+                    }
+                    return data;
+                };
+
                 const firewallSubTab = ref('rules');
                 const firewallData = ref({ firewall: { active: true, ping_enabled: true, ports_count: 0, ips_count: 0, type: 'iptables' }, rules: [] });
                 const loadingFirewall = ref(false);
