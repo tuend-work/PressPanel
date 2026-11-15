@@ -50,188 +50,64 @@
                             <!-- 2. NỘI DUNG BÊN TRONG CONTAINER -->
                             <div class="p-4 sm:p-5 space-y-3.5 bg-[#181d24]">
                                 
-                                <!-- A. BANNER: AUTO BACKUP DATABASE (Chỉ hiển thị cho Quản trị viên trên Tab MySQL) -->
-                                <div v-if="currentUser.role === 'admin' && dbTypeTab === 'mysql'" class="bg-[#1f2631] border border-[#2b3543] rounded-md px-3.5 py-2.5 text-slate-200 flex items-center space-x-3 text-xs sm:text-sm">
-                                    <div class="w-4 h-4 rounded-full bg-slate-500 text-white flex items-center justify-center text-[10px] font-serif font-bold italic shrink-0">i</div>
-                                    <span class="font-medium text-slate-200 shrink-0">Auto Backup Database</span>
-                                    <!-- Toggle Switch -->
-                                    <button type="button" @click="dbAutoBackup = !dbAutoBackup"
-                                        :class="dbAutoBackup ? 'bg-emerald-500' : 'bg-slate-600'"
-                                        class="relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none">
-                                        <span :class="dbAutoBackup ? 'translate-x-3.5' : 'translate-x-0'"
-                                            class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
-                                    </button>
-                                    <span class="text-slate-400 text-xs truncate sm:text-clip">After adding a database, you can turn on automatic backup to ensure data security.</span>
-                                </div>
-
-                                <!-- B. ACTION TOOLBAR (Chỉ hiển thị trên Tab MySQL, phân quyền nghiêm ngặt giữa Admin và Khách) -->
-                                <div v-if="dbTypeTab === 'mysql'" class="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <!-- Add DB Button - Cả Admin và Website User đều được tạo DB theo quota -->
-                                        <button @click="openAddDbModal"
-                                            class="px-3 py-1 rounded-md bg-[#10b981] hover:bg-[#059669] text-white font-medium text-xs transition shadow-sm">
-                                            <span>Add DB</span>
-                                        </button>
-
-                                        <!-- phpMyAdmin (Mở giao diện quản trị) - Cả Admin và Website User đều cần -->
-                                        <button @click="openPhpMyAdmin"
-                                            class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
-                                            title="Mở phpMyAdmin Port 888">
-                                            <span>phpMyAdmin</span>
-                                        </button>
-
-                                        <!-- CÁC NÚT QUẢN TRỊ CẤP SERVER: CHỈ DÀNH CHO ADMIN CẤP CAO -->
-                                        <template v-if="currentUser.role === 'admin'">
-                                            <!-- Root password -->
-                                            <button @click="showRootPasswordModal = true"
-                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
-                                                <span>Root password</span>
-                                            </button>
-
-                                            <!-- Remote DB -->
-                                            <button @click="showRemoteDbModal = true"
-                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
-                                                <span>Remote DB</span>
-                                            </button>
-
-                                            <!-- Advanced Setup -->
-                                            <button @click="showAdvDbModal = true"
-                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
-                                                <span>Advanced Setup</span>
-                                            </button>
-
-                                            <!-- MySQL Resource Controller -->
-                                            <button @click="openMySQLControllerModal"
-                                                class="px-3 py-1 rounded-md bg-gradient-to-r from-amber-600/90 to-emerald-600/90 hover:from-amber-500 hover:to-emerald-500 text-white font-medium text-xs transition shadow-sm flex items-center space-x-1.5 border border-emerald-500/30"
-                                                title="Kiểm soát tài nguyên MariaDB/MySQL, chống cào dữ liệu & bắn tỉa query chậm">
-                                                <span>🛡️</span>
-                                                <span>MySQL Resource Controller</span>
-                                                <span v-if="mysqlControllerShieldCount > 0" class="px-1.5 py-0.2 bg-red-500 text-white text-[10px] rounded-full font-bold animate-pulse">
-                                                    {{ mysqlControllerShieldCount }} Shield
-                                                </span>
-                                            </button>
-
-                                            <!-- Sync all -->
-                                            <button @click="fetchDatabasesList"
-                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
-                                                title="Đồng bộ danh sách CSDL">
-                                                <span>Sync all</span>
-                                            </button>
-
-                                            <!-- Get DB from server -->
-                                            <button @click="showGetDbModal = true"
-                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
-                                                <span>Get DB from server</span>
-                                            </button>
-                                        </template>
-                                    </div>
-
-                                    <!-- Feedback Link on Far Right -->
-                                    <button @click="alert('WPC Feedback: Vui lòng gửi phản hồi tại mục Hỗ trợ hoặc liên hệ quản trị viên.')"
-                                        class="text-slate-400 hover:text-emerald-400 text-xs font-normal flex items-center space-x-1 transition ml-auto">
-                                        <span>📝</span>
-                                        <span>Feedback</span>
-                                    </button>
-                                </div>
-
-                                <!-- C. FILTER & SEARCH BAR (Chỉ hiển thị cho Tab MySQL) -->
-                                <div v-if="dbTypeTab === 'mysql'" class="flex flex-wrap items-center justify-start gap-2.5 text-xs pt-1">
-                                    <div class="relative">
-                                        <select v-model="dbWebsiteFilter"
-                                            class="appearance-none pr-7 pl-3 py-1.5 rounded-md bg-[#1f2631] border border-[#313c4e] text-slate-200 text-xs font-medium focus:outline-none focus:border-emerald-500 cursor-pointer">
-                                            <option value="all">All</option>
-                                            <option v-for="d in domains" :key="'filter_dom_' + d.id" :value="d.id">
-                                                {{ d.domain_name }}
-                                            </option>
-                                        </select>
-                                        <span class="absolute right-2.5 top-2 pointer-events-none text-slate-400 text-[10px]">▼</span>
-                                    </div>
-
-                                    <!-- Search Input -->
-                                    <div class="relative w-56 sm:w-64">
-                                        <input type="text" v-model="dbSearchQuery" placeholder="Database search"
-                                            class="w-full pl-3 pr-7 py-1.5 rounded-md bg-[#1f2631] border border-[#313c4e] text-slate-200 placeholder-slate-400 focus:outline-none focus:border-emerald-500 text-xs">
-                                        <span class="absolute right-2.5 top-2 text-slate-400 text-xs pointer-events-none">🔍</span>
-                                    </div>
-                                </div>
-
-                                <!-- ======================================================== -->
-                                <!-- D. TAB CONTENT CHI TIẾT THEO LOẠI CSDL                     -->
-                                <!-- ======================================================== -->
-
                                 <!-- 1. TAB MYSQL / MARIADB -->
                                 <div v-if="dbTypeTab === 'mysql'" class="space-y-4">
-                                    <div class="bg-[#181d24] rounded-lg overflow-hidden border border-[#2b3543]">
-                                        <table class="w-full text-left text-xs text-slate-300">
-                                            <thead class="bg-[#1f2631] border-b border-[#2b3543] text-xs font-semibold text-slate-300">
-                                                <tr>
-                                                    <th class="py-3 px-4 w-10 text-center">
-                                                        <input type="checkbox" :checked="isAllDbsSelected" @change="toggleSelectAllDbs" class="rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-0">
-                                                    </th>
-                                                    <th class="py-3 px-4">Database Name</th>
-                                                    <th class="py-3 px-4">Backup Status</th>
-                                                    <th class="py-3 px-4">Database User</th>
-                                                    <th class="py-3 px-4">Website</th>
-                                                    <th class="py-3 px-4">Charset</th>
-                                                    <th class="py-3 px-4">Size</th>
-                                                    <th class="py-3 px-4 text-right">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody class="divide-y divide-[#26303d]">
-                                                <tr v-if="filteredDatabases.length === 0">
-                                                    <td colspan="8" class="py-12 text-center text-slate-400">
-                                                        <div class="text-2xl mb-2 text-slate-500">🗄️</div>
-                                                        <div class="font-semibold text-slate-300">Chưa có CSDL MySQL/MariaDB nào</div>
-                                                        <div class="text-[11px] text-slate-500 mt-1">Bấm nút "Add DB" ở thanh công cụ phía trên để khởi tạo CSDL MariaDB đầu tiên.</div>
-                                                    </td>
-                                                </tr>
-                                                <tr v-for="db in filteredDatabases" :key="'db_' + db.id" class="hover:bg-[#1f2631]/60 transition">
-                                                    <td class="py-3 px-4 text-center">
-                                                        <input type="checkbox" :value="db.id" v-model="selectedDbIds" class="rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-0">
-                                                    </td>
-                                                    <td class="py-3 px-4 font-mono font-bold text-white">
-                                                        <div class="flex items-center space-x-2">
-                                                            <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
-                                                            <span>{{ db.db_name }}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td class="py-3 px-4">
-                                                        <span v-if="db.backup_enabled" class="px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 text-[10px] font-semibold">
-                                                            Đã bật
-                                                        </span>
-                                                        <span v-else class="text-slate-400 text-xs">
-                                                            No backup set
-                                                        </span>
-                                                    </td>
-                                                    <td class="py-3 px-4 font-mono text-slate-300">
-                                                        {{ db.db_user }}
-                                                    </td>
-                                                    <td class="py-3 px-4 font-medium text-emerald-400">
-                                                        {{ db.domain_name }}
-                                                    </td>
-                                                    <td class="py-3 px-4 font-mono text-[11px] text-slate-400">
-                                                        {{ db.charset }}
-                                                    </td>
-                                                    <td class="py-3 px-4 font-mono text-[11px] text-slate-300">
-                                                        {{ db.size_mb }} MB
-                                                    </td>
-                                                    <td class="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
-                                                        <button @click="openPhpMyAdmin" class="px-2.5 py-1 rounded bg-[#242c38] hover:bg-[#2e3746] text-amber-300 text-xs font-medium border border-[#374357] transition" title="Mở phpMyAdmin">
-                                                            Quản lý
-                                                        </button>
-                                                        <button @click="handleBackupDatabase(db)" class="px-2.5 py-1 rounded bg-[#242c38] hover:bg-[#2e3746] text-slate-300 text-xs font-medium border border-[#374357] transition" title="Xuất file SQL sao lưu">
-                                                            Backup
-                                                        </button>
-                                                        <button @click="alert('Tối ưu hóa bảng và chỉ mục CSDL ' + db.db_name + ' thành công!')" class="px-2.5 py-1 rounded bg-[#242c38] hover:bg-[#2e3746] text-emerald-400 text-xs font-medium border border-[#374357] transition" title="Kiểm tra & Tối ưu bảng">
-                                                            Tối ưu
-                                                        </button>
-                                                        <button @click="handleDeleteDatabase(db)" class="px-2.5 py-1 rounded bg-[#242c38] hover:bg-rose-950/60 text-rose-400 text-xs font-medium border border-[#374357] transition" title="Xóa CSDL">
-                                                            Xóa
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
+                                    <!-- Service Controller Widget -->
+                                    <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-10 h-10 rounded-xl bg-emerald-950/80 border border-emerald-800/80 text-emerald-400 flex items-center justify-center text-xl font-bold">
+                                                🐬
+                                            </div>
+                                            <div>
+                                                <div class="font-bold text-white text-sm">MariaDB & MySQL Database Server</div>
+                                                <div class="text-slate-400 text-xs">Dịch vụ: mariadb.service • Port 3306 • User: root</div>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <button v-if="!getApp('mysql').installed" @click="handleAppAction('mysql', 'install')"
+                                                class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white shadow-sm transition flex items-center gap-1.5">
+                                                <span>⚡ Cài Đặt MariaDB (1-Click)</span>
+                                            </button>
+                                            <template v-else>
+                                                <button @click="openPhpMyAdmin" class="px-3 py-1.5 rounded-xl bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold" title="Mở phpMyAdmin Port 888">
+                                                    🐬 phpMyAdmin GUI
+                                                </button>
+                                                <button @click="handleAppAction('mysql', 'restart')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">Khởi động lại</button>
+                                                <button @click="handleAppAction('mysql', getApp('mysql').running ? 'stop' : 'start')"
+                                                    :class="getApp('mysql').running ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-emerald-950 text-emerald-300 border-emerald-800'"
+                                                    class="px-3 py-1.5 rounded-xl border font-semibold">
+                                                    {{ getApp('mysql').running ? 'Dừng' : 'Bật' }}
+                                                </button>
+                                                <button @click="handleAppAction('mysql', 'uninstall')" class="px-2.5 py-1.5 rounded-xl bg-rose-950 text-rose-300 border border-rose-800" title="Gỡ cài đặt">🗑️</button>
+                                            </template>
+                                            <button @click="openMySQLControllerModal"
+                                                class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600/90 to-emerald-600/90 hover:from-amber-500 hover:to-emerald-500 text-white font-bold transition flex items-center gap-1.5 border border-emerald-500/30"
+                                                title="Mở bảng điều khiển MySQL Resource Controller">
+                                                <span>🛡️ Controller</span>
+                                                <span v-if="mysqlControllerShieldCount > 0" class="px-1.5 py-0.2 bg-red-500 text-white text-[10px] rounded-full font-bold animate-pulse">
+                                                    {{ mysqlControllerShieldCount }}
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- 3 Status Cards -->
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
+                                        <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
+                                            <div class="text-slate-400 text-[11px]">Dịch vụ Hệ Thống</div>
+                                            <div class="text-sm font-bold text-slate-200 mt-1">mariadb.service</div>
+                                            <div class="text-emerald-400 font-semibold mt-0.5">● Port mặc định: 3306</div>
+                                        </div>
+                                        <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
+                                            <div class="text-slate-400 text-[11px]">Tài khoản Quản trị</div>
+                                            <div class="text-sm font-bold text-slate-200 mt-1">User: root</div>
+                                            <div class="text-blue-400 font-semibold mt-0.5">Xác thực: unix_socket / native</div>
+                                        </div>
+                                        <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
+                                            <div class="text-slate-400 text-[11px]">Định dạng Tệp dữ liệu</div>
+                                            <div class="text-sm font-bold text-slate-200 mt-1">InnoDB & Aria Engine</div>
+                                            <div class="text-slate-400 font-semibold mt-0.5">Path: /var/lib/mysql</div>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -619,6 +495,222 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                             <div class="text-sm font-bold text-slate-200 mt-1">Client Authentication</div>
                                             <div class="text-slate-400 font-semibold mt-0.5">Local Socket & IPv4 Loopback</div>
                                         </div>
+                                    </div>
+                                </div>
+
+                                <!-- ======================================================== -->
+                                <!-- BỘ KHỐI QUẢN TRỊ DỮ LIỆU ĐỒNG BỘ (MySQL, SQLServer, MongoDB, PgSQL) -->
+                                <!-- ======================================================== -->
+                                <div v-if="['mysql', 'sqlserver', 'mongodb', 'pgsql'].includes(dbTypeTab)" class="space-y-3.5 pt-1">
+                                    
+                                    <!-- A. BANNER: AUTO BACKUP DATABASE (Chỉ hiển thị cho Quản trị viên) -->
+                                    <div v-if="currentUser.role === 'admin'" class="bg-[#1f2631] border border-[#2b3543] rounded-md px-3.5 py-2.5 text-slate-200 flex items-center space-x-3 text-xs sm:text-sm">
+                                        <div class="w-4 h-4 rounded-full bg-slate-500 text-white flex items-center justify-center text-[10px] font-serif font-bold italic shrink-0">i</div>
+                                        <span class="font-medium text-slate-200 shrink-0">Auto Backup Database</span>
+                                        <!-- Toggle Switch -->
+                                        <button type="button" @click="dbAutoBackup = !dbAutoBackup"
+                                            :class="dbAutoBackup ? 'bg-emerald-500' : 'bg-slate-600'"
+                                            class="relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none">
+                                            <span :class="dbAutoBackup ? 'translate-x-3.5' : 'translate-x-0'"
+                                                class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+                                        </button>
+                                        <span class="text-slate-400 text-xs truncate sm:text-clip">After adding a database, you can turn on automatic backup to ensure data security.</span>
+                                    </div>
+
+                                    <!-- B. ACTION TOOLBAR -->
+                                    <div class="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <!-- Add DB Button -->
+                                            <button @click="openAddDbModal"
+                                                class="px-3 py-1 rounded-md bg-[#10b981] hover:bg-[#059669] text-white font-medium text-xs transition shadow-sm">
+                                                <span>Add DB</span>
+                                            </button>
+
+                                            <!-- Web GUI / Connection Button -->
+                                            <button v-if="dbTypeTab === 'mysql'" @click="openPhpMyAdmin"
+                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                title="Mở phpMyAdmin Port 888">
+                                                <span>🐬 phpMyAdmin</span>
+                                            </button>
+                                            <button v-else-if="dbTypeTab === 'sqlserver'" @click="alert('Chuỗi kết nối SQL Server:
+Server=127.0.0.1,1433;Database=master;User Id=sa;Password=<mật khẩu>;Encrypt=True;TrustServerCertificate=True;
+
+Kết nối trực tiếp qua SSMS, Azure Data Studio hoặc DBeaver.')"
+                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                title="Xem chuỗi kết nối MS SQL Server">
+                                                <span>📋 Chuỗi kết nối</span>
+                                            </button>
+                                            <button v-else-if="dbTypeTab === 'mongodb'" @click="openMongoExpress"
+                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                title="Mở Mongo Express Web GUI">
+                                                <span>🍃 Mongo Express</span>
+                                            </button>
+                                            <button v-else-if="dbTypeTab === 'pgsql'" @click="openPgAdmin"
+                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                title="Mở pgAdmin Web GUI">
+                                                <span>🐘 pgAdmin</span>
+                                            </button>
+
+                                            <!-- CÁC NÚT QUẢN TRỊ CẤP SERVER: CHỈ DÀNH CHO ADMIN CẤP CAO -->
+                                            <template v-if="currentUser.role === 'admin'">
+                                                <!-- Root / Admin Password -->
+                                                <button @click="showRootPasswordModal = true"
+                                                    class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
+                                                    <span>Root password</span>
+                                                </button>
+
+                                                <!-- Remote DB -->
+                                                <button @click="showRemoteDbModal = true"
+                                                    class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
+                                                    <span>Remote DB</span>
+                                                </button>
+
+                                                <!-- Advanced Setup -->
+                                                <button @click="showAdvDbModal = true"
+                                                    class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
+                                                    <span>Advanced Setup</span>
+                                                </button>
+
+                                                <!-- MySQL Resource Controller (Chỉ hiển thị cho Tab MySQL) -->
+                                                <button v-if="dbTypeTab === 'mysql'" @click="openMySQLControllerModal"
+                                                    class="px-3 py-1 rounded-md bg-gradient-to-r from-amber-600/90 to-emerald-600/90 hover:from-amber-500 hover:to-emerald-500 text-white font-medium text-xs transition shadow-sm flex items-center space-x-1.5 border border-emerald-500/30"
+                                                    title="Kiểm soát tài nguyên MariaDB/MySQL, chống cào dữ liệu & bắn tỉa query chậm">
+                                                    <span>🛡️</span>
+                                                    <span>MySQL Resource Controller</span>
+                                                    <span v-if="mysqlControllerShieldCount > 0" class="px-1.5 py-0.2 bg-red-500 text-white text-[10px] rounded-full font-bold animate-pulse">
+                                                        {{ mysqlControllerShieldCount }} Shield
+                                                    </span>
+                                                </button>
+
+                                                <!-- Sync all -->
+                                                <button @click="fetchDatabasesList"
+                                                    class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                    title="Đồng bộ danh sách CSDL">
+                                                    <span>Sync all</span>
+                                                </button>
+
+                                                <!-- Get DB from server -->
+                                                <button @click="showGetDbModal = true"
+                                                    class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
+                                                    <span>Get DB from server</span>
+                                                </button>
+                                            </template>
+                                        </div>
+
+                                        <!-- Feedback Link on Far Right -->
+                                        <button @click="alert('WPC Feedback: Vui lòng gửi phản hồi tại mục Hỗ trợ hoặc liên hệ quản trị viên.')"
+                                            class="text-slate-400 hover:text-emerald-400 text-xs font-normal flex items-center space-x-1 transition ml-auto">
+                                            <span>📝</span>
+                                            <span>Feedback</span>
+                                        </button>
+                                    </div>
+
+                                    <!-- C. FILTER & SEARCH BAR -->
+                                    <div class="flex flex-wrap items-center justify-start gap-2.5 text-xs pt-1">
+                                        <div class="relative">
+                                            <select v-model="dbWebsiteFilter"
+                                                class="appearance-none pr-7 pl-3 py-1.5 rounded-md bg-[#1f2631] border border-[#313c4e] text-slate-200 text-xs font-medium focus:outline-none focus:border-emerald-500 cursor-pointer">
+                                                <option value="all">All</option>
+                                                <option v-for="d in domains" :key="'filter_dom_' + d.id" :value="d.id">
+                                                    {{ d.domain_name }}
+                                                </option>
+                                            </select>
+                                            <span class="absolute right-2.5 top-2 pointer-events-none text-slate-400 text-[10px]">▼</span>
+                                        </div>
+
+                                        <!-- Search Input -->
+                                        <div class="relative w-56 sm:w-64">
+                                            <input type="text" v-model="dbSearchQuery" placeholder="Database search"
+                                                class="w-full pl-3 pr-7 py-1.5 rounded-md bg-[#1f2631] border border-[#313c4e] text-slate-200 placeholder-slate-400 focus:outline-none focus:border-emerald-500 text-xs">
+                                            <span class="absolute right-2.5 top-2 text-slate-400 text-xs pointer-events-none">🔍</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- D. UNIFIED DATABASE LIST TABLE -->
+                                    <div class="bg-[#181d24] rounded-lg overflow-hidden border border-[#2b3543]">
+                                        <table class="w-full text-left text-xs text-slate-300">
+                                            <thead class="bg-[#1f2631] border-b border-[#2b3543] text-xs font-semibold text-slate-300">
+                                                <tr>
+                                                    <th class="py-3 px-4 w-10 text-center">
+                                                        <input type="checkbox" :checked="isAllDbsSelected" @change="toggleSelectAllDbs" class="rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-0">
+                                                    </th>
+                                                    <th class="py-3 px-4">Database Name</th>
+                                                    <th class="py-3 px-4">Backup Status</th>
+                                                    <th class="py-3 px-4">Database User</th>
+                                                    <th class="py-3 px-4">Website</th>
+                                                    <th class="py-3 px-4">Charset / Engine</th>
+                                                    <th class="py-3 px-4">Size</th>
+                                                    <th class="py-3 px-4 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-[#26303d]">
+                                                <tr v-if="filteredDatabases.length === 0">
+                                                    <td colspan="8" class="py-12 text-center text-slate-400">
+                                                        <div class="text-2xl mb-2 text-slate-500">
+                                                            <span v-if="dbTypeTab === 'mysql'">🐬</span>
+                                                            <span v-else-if="dbTypeTab === 'sqlserver'">🗄️</span>
+                                                            <span v-else-if="dbTypeTab === 'mongodb'">🍃</span>
+                                                            <span v-else-if="dbTypeTab === 'pgsql'">🐘</span>
+                                                            <span v-else>🗄️</span>
+                                                        </div>
+                                                        <div class="font-semibold text-slate-300">
+                                                            <span v-if="dbTypeTab === 'mysql'">Chưa có CSDL MySQL/MariaDB nào</span>
+                                                            <span v-else-if="dbTypeTab === 'sqlserver'">Chưa có CSDL Microsoft SQL Server nào</span>
+                                                            <span v-else-if="dbTypeTab === 'mongodb'">Chưa có CSDL MongoDB nào</span>
+                                                            <span v-else-if="dbTypeTab === 'pgsql'">Chưa có CSDL PostgreSQL nào</span>
+                                                            <span v-else>Chưa có CSDL nào</span>
+                                                        </div>
+                                                        <div class="text-[11px] text-slate-500 mt-1">Bấm nút "Add DB" ở thanh công cụ phía trên để khởi tạo CSDL đầu tiên.</div>
+                                                    </td>
+                                                </tr>
+                                                <tr v-for="db in filteredDatabases" :key="'db_' + db.id" class="hover:bg-[#1f2631]/60 transition">
+                                                    <td class="py-3 px-4 text-center">
+                                                        <input type="checkbox" :value="db.id" v-model="selectedDbIds" class="rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-0">
+                                                    </td>
+                                                    <td class="py-3 px-4 font-mono font-bold text-white">
+                                                        <div class="flex items-center space-x-2">
+                                                            <span class="w-2 h-2 rounded-full shrink-0"
+                                                                :class="dbTypeTab === 'mysql' ? 'bg-emerald-400' : (dbTypeTab === 'sqlserver' ? 'bg-red-400' : (dbTypeTab === 'mongodb' ? 'bg-green-400' : 'bg-indigo-400'))"></span>
+                                                            <span>{{ db.db_name }}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td class="py-3 px-4">
+                                                        <span v-if="db.backup_enabled" class="px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 text-[10px] font-semibold">
+                                                            Đã bật
+                                                        </span>
+                                                        <span v-else class="text-slate-400 text-xs">
+                                                            No backup set
+                                                        </span>
+                                                    </td>
+                                                    <td class="py-3 px-4 font-mono text-slate-300">
+                                                        {{ db.db_user }}
+                                                    </td>
+                                                    <td class="py-3 px-4 font-medium text-emerald-400">
+                                                        {{ db.domain_name }}
+                                                    </td>
+                                                    <td class="py-3 px-4 font-mono text-[11px] text-slate-400">
+                                                        {{ db.charset || 'utf8mb4' }}
+                                                    </td>
+                                                    <td class="py-3 px-4 font-mono text-[11px] text-slate-300">
+                                                        {{ db.size_mb }} MB
+                                                    </td>
+                                                    <td class="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                                                        <button @click="handleManageDb(db)" class="px-2.5 py-1 rounded bg-[#242c38] hover:bg-[#2e3746] text-amber-300 text-xs font-medium border border-[#374357] transition" title="Quản lý CSDL">
+                                                            Quản lý
+                                                        </button>
+                                                        <button @click="handleBackupDatabase(db)" class="px-2.5 py-1 rounded bg-[#242c38] hover:bg-[#2e3746] text-slate-300 text-xs font-medium border border-[#374357] transition" title="Xuất file sao lưu">
+                                                            Backup
+                                                        </button>
+                                                        <button @click="alert('Tối ưu hóa bảng và chỉ mục CSDL ' + db.db_name + ' thành công!')" class="px-2.5 py-1 rounded bg-[#242c38] hover:bg-[#2e3746] text-emerald-400 text-xs font-medium border border-[#374357] transition" title="Kiểm tra & Tối ưu bảng">
+                                                            Tối ưu
+                                                        </button>
+                                                        <button @click="handleDeleteDatabase(db)" class="px-2.5 py-1 rounded bg-[#242c38] hover:bg-rose-950/60 text-rose-400 text-xs font-medium border border-[#374357] transition" title="Xóa CSDL">
+                                                            Xóa
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
 

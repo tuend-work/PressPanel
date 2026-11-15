@@ -1848,6 +1848,23 @@ function showAlert(message) {
                     window.open(`http://${host}:8082`, '_blank');
                 };
 
+                const handleManageDb = (db) => {
+                    const type = ((db && db.db_type) || dbTypeTab.value || 'mysql').toLowerCase();
+                    if (type === 'pgsql') {
+                        openPgAdmin();
+                    } else if (type === 'mongodb') {
+                        openMongoExpress();
+                    } else if (type === 'redis') {
+                        openRedisCommander();
+                    } else if (type === 'sqlserver') {
+                        const name = (db && db.db_name) || 'master';
+                        const user = (db && db.db_user) || 'sa';
+                        alert(`Chuỗi kết nối SQL Server:\nServer=127.0.0.1,1433;Database=${name};User Id=${user};Password=<mật khẩu>;Encrypt=True;TrustServerCertificate=True;\n\nBạn có thể kết nối trực tiếp qua SQL Server Management Studio (SSMS), Azure Data Studio hoặc DBeaver.`);
+                    } else {
+                        openPhpMyAdmin();
+                    }
+                };
+
                 const getCurrentDbApp = () => {
                     const idMap = {
                         mysql: 'mysql',
@@ -5751,12 +5768,28 @@ if ($host ~* ^www\\.(.*)$) {
                         ? domains.value[0].domain_name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) 
                         : 'site';
                     const randNum = Math.floor(100 + Math.random() * 900);
+                    const currentType = dbTypeTab.value || 'mysql';
+                    const prefixes = {
+                        mysql: 'wp_',
+                        sqlserver: 'mssql_',
+                        mongodb: 'mongo_',
+                        pgsql: 'pg_',
+                        redis: 'redis_'
+                    };
+                    const charsets = {
+                        mysql: 'utf8mb4_unicode_ci',
+                        sqlserver: 'SQL_Latin1_General_CP1_CI_AS',
+                        mongodb: 'WiredTiger',
+                        pgsql: 'UTF8',
+                        redis: 'Standard'
+                    };
                     newDb.value = {
-                        db_name: `wp_${defaultPrefix}_${randNum}`,
+                        db_name: `${prefixes[currentType] || 'db_'}${defaultPrefix}_${randNum}`,
                         db_user: `usr_${defaultPrefix}_${randNum}`,
                         password: generateRandomPassword(16),
+                        db_type: currentType,
                         domain_id: domains.value.length > 0 ? domains.value[0].id : null,
-                        charset: 'utf8mb4_unicode_ci'
+                        charset: charsets[currentType] || 'utf8mb4_unicode_ci'
                     };
                     showAddDbModal.value = true;
                     refreshLucideIcons();
@@ -7926,7 +7959,7 @@ if ($host ~* ^www\\.(.*)$) {
                     userRedis, selectedDomainForRedis, applyingRedisWp, fetchUserRedisStatus, handleUserRedisAction, handleUserRedisMemory, handleUserRedisApplyWp,
                     generateRandomPassword, copyToClipboard,
                     dbStoreApps, getCurrentDbApp, getCurrentDbPortAndStatus,
-                    openPgAdmin, openMongoExpress, openRedisCommander,
+                    openPgAdmin, openMongoExpress, openRedisCommander, handleManageDb,
                     isDarkMode, toggleTheme,
                     // WordPress Manager
                     wpInstances, filteredWpInstances, wpSearchQuery, scanningWp, selectedWpInstance, wpDetail, wpSubTab, wpMainTab,
