@@ -97,6 +97,7 @@ cp -r "$TMP_DIR/scripts"/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
 mkdir -p "$INSTALL_DIR/static"
 cp -r "$TMP_DIR/static"/* "$INSTALL_DIR/static/" 2>/dev/null || true
 cp "$TMP_DIR/VERSION" "$INSTALL_DIR/" 2>/dev/null || true
+cp "$TMP_DIR/requirements.txt" "$INSTALL_DIR/" 2>/dev/null || true
 
 # 3.1 Đồng bộ và chuẩn hoá cấu hình & cơ sở dữ liệu sang /opt/wpc
 mkdir -p "$INSTALL_DIR/data" "$INSTALL_DIR/conf" "$INSTALL_DIR/logs"
@@ -147,13 +148,42 @@ elif [ -f "$TMP_DIR/scripts/wpc" ]; then
 fi
 rm -f /usr/local/bin/presspanel /usr/bin/presspanel 2>/dev/null || true
 
+# 3.3 Tự động kiểm tra và phục hồi (Self-Healing) môi trường Python venv
+NEED_REBUILD_VENV=0
+if [ ! -f "$INSTALL_DIR/venv/bin/python" ] || [ ! -f "$INSTALL_DIR/venv/bin/uvicorn" ]; then
+    NEED_REBUILD_VENV=1
+elif ! "$INSTALL_DIR/venv/bin/python" -c "import uvicorn, fastapi" &>/dev/null; then
+    NEED_REBUILD_VENV=1
+fi
+
+if [ $NEED_REBUILD_VENV -eq 1 ]; then
+    echo "[+] Phát hiện Python venv chưa có hoặc hỏng shebang/interpreter, đang tạo lại venv sạch..."
+    PYTHON_BIN=""
+    for py in python3.12 python3.11 python3.10 python3.9 python3; do
+        if command -v "$py" &>/dev/null; then
+            PY_VER=$("$py" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "0.0")
+            PY_MAJOR=$(echo "$PY_VER" | cut -d. -f1)
+            PY_MINOR=$(echo "$PY_VER" | cut -d. -f2)
+            if [ "$PY_MAJOR" -ge 3 ] && [ "$PY_MINOR" -ge 9 ]; then
+                PYTHON_BIN=$(command -v "$py")
+                break
+            fi
+        fi
+    done
+    [ -z "$PYTHON_BIN" ] && PYTHON_BIN=$(command -v python3 || echo "python3")
+    rm -rf "$INSTALL_DIR/venv"
+    "$PYTHON_BIN" -m venv "$INSTALL_DIR/venv" || virtualenv -p "$PYTHON_BIN" "$INSTALL_DIR/venv"
+    "$INSTALL_DIR/venv/bin/pip" install --upgrade pip --quiet 2>/dev/null || true
+    "$INSTALL_DIR/venv/bin/pip" install -r "$TMP_DIR/requirements.txt" --quiet 2>/dev/null || true
+fi
+
 # Biên dịch trước mã nguồn Python sang bytecode (.pyc)
 "$INSTALL_DIR/venv/bin/python" -m compileall -q "$INSTALL_DIR/app" 2>/dev/null || true
 
 # 4. Nâng cấp các thư viện Python nếu có bổ sung
 echo "[+] Kiểm tra và cập nhật dependencies Python..."
-"$INSTALL_DIR/venv/bin/pip" install --upgrade pip
-"$INSTALL_DIR/venv/bin/pip" install -r "$TMP_DIR/requirements.txt"
+"$INSTALL_DIR/venv/bin/pip" install --upgrade pip --quiet 2>/dev/null || true
+"$INSTALL_DIR/venv/bin/pip" install -r "$TMP_DIR/requirements.txt" --quiet 2>/dev/null || true
 
 # 5. Chạy database migration (nếu có bảng/cột mới)
 echo "[+] Kiểm tra và cập nhật cấu trúc cơ sở dữ liệu SQLite..."
@@ -162,7 +192,10 @@ cd "$INSTALL_DIR"
 
 # 6. Đảm bảo phân quyền chính xác cho wpc
 PANEL_USER="wpc"
-chown -R "$PANEL_USER":"$PANEL_USER" "$INSTALL_DIR/app" "$INSTALL_DIR/data" "$INSTALL_DIR/logs" "$INSTALL_DIR/static" "$INSTALL_DIR/conf" 2>/dev/null || true
+chown wpc:wpc "$INSTALL_DIR" 2>/dev/null || true
+chmod 755 "$INSTALL_DIR" 2>/dev/null || true
+chown -R "$PANEL_USER":"$PANEL_USER" "$INSTALL_DIR/venv" "$INSTALL_DIR/app" "$INSTALL_DIR/data" "$INSTALL_DIR/logs" "$INSTALL_DIR/static" "$INSTALL_DIR/conf" 2>/dev/null || true
+chmod -R 755 "$INSTALL_DIR/venv" 2>/dev/null || true
 chmod 775 "$INSTALL_DIR"/data 2>/dev/null || true
 chmod 664 "$INSTALL_DIR"/data/panel.db* 2>/dev/null || true
 echo "$PANEL_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wpc 2>/dev/null || true

@@ -88,14 +88,24 @@ apply_compiler_lockdown() {
 apply_panel_permissions() {
     echo -e "${CYAN}[*] Đang chuẩn hóa quyền bảo mật thư mục mã nguồn và CSDL WPC Panel...${NC}"
     if [ -d "$PANEL_DIR" ]; then
-        chmod 750 "$PANEL_DIR" 2>/dev/null || true
-        [ -d "$PANEL_DIR/data" ] && chmod 700 "$PANEL_DIR/data" 2>/dev/null || true
-        [ -d "$PANEL_DIR/conf" ] && chmod 750 "$PANEL_DIR/conf" 2>/dev/null || true
+        # Đảm bảo user hệ thống wpc sở hữu và có toàn quyền thực thi trên panel
+        chown wpc:wpc "$PANEL_DIR" 2>/dev/null || true
+        chmod 755 "$PANEL_DIR" 2>/dev/null || true
+        
+        # Virtualenv và nhị phân phải thuộc quyền wpc để systemd User=wpc thực thi
+        [ -d "$PANEL_DIR/venv" ] && chown -R wpc:wpc "$PANEL_DIR/venv" && chmod -R 755 "$PANEL_DIR/venv" 2>/dev/null || true
+        [ -d "$PANEL_DIR/app" ] && chown -R wpc:wpc "$PANEL_DIR/app" 2>/dev/null || true
+        [ -d "$PANEL_DIR/static" ] && chown -R wpc:wpc "$PANEL_DIR/static" 2>/dev/null || true
+        [ -d "$PANEL_DIR/logs" ] && chown -R wpc:wpc "$PANEL_DIR/logs" 2>/dev/null || true
+
+        # Khóa chặt thư mục data và conf
+        [ -d "$PANEL_DIR/data" ] && chown -R wpc:wpc "$PANEL_DIR/data" && chmod 700 "$PANEL_DIR/data" 2>/dev/null || true
+        [ -d "$PANEL_DIR/conf" ] && chown -R wpc:wpc "$PANEL_DIR/conf" && chmod 750 "$PANEL_DIR/conf" 2>/dev/null || true
 
         # Khóa cứng database SQLite và file cấu hình
         find "$PANEL_DIR/data" -name "*.db" -exec chmod 600 {} + 2>/dev/null || true
         [ -f "$PANEL_DIR/conf/wpc.conf" ] && chmod 600 "$PANEL_DIR/conf/wpc.conf" 2>/dev/null || true
-        echo -e "${GREEN}[✔] Đã khóa phân quyền bảo vệ /opt/wpc (data=700, db=600, conf=600)${NC}"
+        echo -e "${GREEN}[✔] Đã chuẩn hóa phân quyền /opt/wpc (owner=wpc:wpc, venv=755, data=700, db=600)${NC}"
     fi
 }
 
