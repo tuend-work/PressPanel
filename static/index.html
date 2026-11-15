@@ -965,7 +965,9 @@ function showAlert(message) {
 
                 const filteredApps = computed(() => {
                     let list = appsList.value;
-                    if (appsCategory.value !== 'all') {
+                    if (appsCategory.value === 'installed') {
+                        list = list.filter(a => a.installed);
+                    } else if (appsCategory.value !== 'all') {
                         list = list.filter(a => a.category === appsCategory.value);
                     }
                     if (appsSearchQuery.value && appsSearchQuery.value.trim()) {

@@ -8,9 +8,11 @@
                                 <p class="text-[12px] text-slate-400 mt-0.5">Quản lý và triển khai các dịch vụ máy chủ, cơ sở dữ liệu, PHP runtimes và công cụ hệ thống</p>
                             </div>
                             <div class="flex items-center space-x-2 text-[12px]">
-                                <span class="px-3 py-1 rounded-lg bg-[#1a202c] border border-[#2a3446] text-slate-300 font-medium">
+                                <button @click="appsCategory = 'installed'"
+                                    class="px-3 py-1 rounded-lg bg-[#1a202c] hover:bg-[#242e40] border border-[#2a3446] text-slate-300 font-medium transition cursor-pointer"
+                                    title="Bấm để lọc nhanh ứng dụng đã cài đặt">
                                     Đã cài: <b class="text-emerald-400 font-bold">{{ installedAppsCount }}</b> / {{ appsList.length }} ứng dụng
-                                </span>
+                                </button>
                                 <button @click="fetchAppsList" class="p-1.5 rounded-lg bg-[#1a202c] hover:bg-[#242e40] text-slate-300 border border-[#2a3446] transition" title="Làm mới trạng thái">
                                     🔄
                                 </button>
@@ -23,6 +25,10 @@
                                 <button @click="appsCategory = 'all'"
                                     :class="appsCategory === 'all' ? 'px-3 py-1 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     Tất Cả ({{ appsList.length }})
+                                </button>
+                                <button @click="appsCategory = 'installed'"
+                                    :class="appsCategory === 'installed' ? 'px-3 py-1 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    <span>Đã Cài Đặt ({{ installedAppsCount }})</span>
                                 </button>
                                 <button @click="appsCategory = 'webserver'"
                                     :class="appsCategory === 'webserver' ? 'px-3 py-1 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
@@ -190,6 +196,16 @@
                                                     <span v-else>Install</span>
                                                 </button>
                                             </template>
+                                        </td>
+                                    </tr>
+                                    <!-- Empty State Row -->
+                                    <tr v-if="filteredApps.length === 0">
+                                        <td colspan="6" class="py-12 text-center text-slate-500">
+                                            <div class="text-3xl mb-2">📦</div>
+                                            <div class="font-medium text-slate-400">Không tìm thấy ứng dụng phù hợp</div>
+                                            <div class="text-[11px] text-slate-500 mt-1" v-if="appsCategory === 'installed'">
+                                                Hiện chưa có ứng dụng nào được cài đặt trong danh mục này.
+                                            </div>
                                         </td>
                                     </tr>
                                 </tbody>
