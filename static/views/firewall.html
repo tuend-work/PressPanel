@@ -1,0 +1,433 @@
+                    <!-- View: Firewall & Security -->
+                    <div v-if="currentTab === 'firewall'" class="space-y-4 max-w-7xl mx-auto">
+                        <!-- Top Header Bar -->
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-[#13171e] p-4 rounded-xl border border-[#222834]">
+                            <div>
+                                <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                                    <span class="text-emerald-400">🛡️</span>
+                                    <span>Tường Lửa & Bảo Mật (Firewall & Security)</span>
+                                </h2>
+                                <p class="text-[12px] text-slate-400 mt-0.5">Quản lý đóng/mở cổng, chặn IP độc hại, kiểm soát Ping ICMP và tối ưu an ninh hệ thống chuẩn CloudLinux</p>
+                            </div>
+                            <div class="flex items-center space-x-2 text-[12px]">
+                                <button @click="fetchFirewallData" class="px-3 py-1.5 rounded-lg bg-[#1a202c] hover:bg-[#242e40] text-slate-300 border border-[#2a3446] transition flex items-center gap-1.5 font-medium" title="Làm mới dữ liệu">
+                                    <span :class="{'animate-spin': loadingFirewall}">🔄</span>
+                                    <span>Làm mới</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Sub Navigation Tabs -->
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#222834] pb-2 text-[12px]">
+                            <div class="flex flex-wrap gap-1.5">
+                                <button @click="firewallSubTab = 'rules'"
+                                    :class="firewallSubTab === 'rules' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    <span>🧱 Tường Lửa & Quản Lý Cổng</span>
+                                    <span v-if="firewallData.rules" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-700/80">{{ firewallData.rules.length }}</span>
+                                </button>
+                                <button @click="firewallSubTab = 'audit'; runSecurityAudit();"
+                                    :class="firewallSubTab === 'audit' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    <span>🔍 Đánh Giá An Ninh CloudLinux</span>
+                                    <span v-if="securityAudit.score !== undefined" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px]" :class="securityAudit.score === securityAudit.max_score ? 'bg-emerald-500 text-slate-950 font-bold' : 'bg-amber-500 text-slate-950 font-bold'">
+                                        {{ securityAudit.score }}/{{ securityAudit.max_score }}
+                                    </span>
+                                </button>
+                                <button @click="firewallSubTab = 'logs'; fetchSecurityLogs();"
+                                    :class="firewallSubTab === 'logs' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    <span>📜 Nhật Ký Phòng Thủ & Đăng Nhập</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- ========================================== -->
+                        <!-- TAB 1: TƯỜNG LỬA & QUẢN LÝ CỔNG (FIREWALL)  -->
+                        <!-- ========================================== -->
+                        <div v-if="firewallSubTab === 'rules'" class="space-y-4">
+                            <!-- Status & Quick Stats Cards -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                                <!-- Card 1: Trạng thái tường lửa -->
+                                <div class="bg-[#12151c] p-3.5 rounded-xl border border-[#22262e] flex items-center justify-between">
+                                    <div>
+                                        <div class="text-slate-400 text-[11px] font-medium">Trạng Thái Tường Lửa</div>
+                                        <div class="text-sm font-bold mt-1 flex items-center gap-1.5">
+                                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                            <span class="text-emerald-400 font-semibold uppercase">{{ (firewallData.firewall && firewallData.firewall.active) ? 'Đang Hoạt Động' : 'Đang Tắt' }}</span>
+                                        </div>
+                                        <div class="text-[10px] text-slate-500 mt-0.5">Backend: {{ (firewallData.firewall && firewallData.firewall.type) || 'iptables' }}</div>
+                                    </div>
+                                    <div class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-base">
+                                        🛡️
+                                    </div>
+                                </div>
+
+                                <!-- Card 2: Phản hồi Ping ICMP -->
+                                <div class="bg-[#12151c] p-3.5 rounded-xl border border-[#22262e] flex items-center justify-between">
+                                    <div>
+                                        <div class="text-slate-400 text-[11px] font-medium">Phản Hồi Ping (ICMP)</div>
+                                        <div class="text-sm font-bold mt-1 text-slate-200">
+                                            {{ (firewallData.firewall && firewallData.firewall.ping_enabled) ? 'Cho Phép Ping' : 'Chặn Ping (Stealth)' }}
+                                        </div>
+                                        <div class="text-[10px] text-slate-500 mt-0.5">Chống dò quét cổng tự động</div>
+                                    </div>
+                                    <div>
+                                        <button @click="handleTogglePing"
+                                            :disabled="togglingPing"
+                                            class="px-2.5 py-1 rounded text-[11px] font-medium border transition"
+                                            :class="(firewallData.firewall && firewallData.firewall.ping_enabled) ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 hover:bg-amber-500/25' : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'">
+                                            <span>{{ (firewallData.firewall && firewallData.firewall.ping_enabled) ? 'Chặn Ping' : 'Bật Ping' }}</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Card 3: Cổng đang mở -->
+                                <div class="bg-[#12151c] p-3.5 rounded-xl border border-[#22262e] flex items-center justify-between">
+                                    <div>
+                                        <div class="text-slate-400 text-[11px] font-medium">Cổng Dịch Vụ Đang Mở</div>
+                                        <div class="text-lg font-bold mt-0.5 text-white">
+                                            {{ (firewallData.firewall && firewallData.firewall.ports_count) || 0 }} <span class="text-xs font-normal text-slate-400">cổng</span>
+                                        </div>
+                                        <div class="text-[10px] text-slate-500 mt-0.5">HTTP 80, HTTPS 443, 8888...</div>
+                                    </div>
+                                    <div class="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 text-base">
+                                        🚪
+                                    </div>
+                                </div>
+
+                                <!-- Card 4: IP bị chặn / cho phép -->
+                                <div class="bg-[#12151c] p-3.5 rounded-xl border border-[#22262e] flex items-center justify-between">
+                                    <div>
+                                        <div class="text-slate-400 text-[11px] font-medium">Quy Tắc Lọc IP</div>
+                                        <div class="text-lg font-bold mt-0.5 text-rose-400">
+                                            {{ (firewallData.firewall && firewallData.firewall.ips_count) || 0 }} <span class="text-xs font-normal text-slate-400">địa chỉ</span>
+                                        </div>
+                                        <div class="text-[10px] text-slate-500 mt-0.5">Blacklist & Whitelist</div>
+                                    </div>
+                                    <div class="w-9 h-9 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 text-base">
+                                        🚫
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Rules Action Bar -->
+                            <div class="flex flex-wrap items-center justify-between gap-3 bg-[#13171e] p-3 rounded-xl border border-[#222834] text-xs">
+                                <div class="flex items-center gap-2">
+                                    <button @click="openOpenPortModal"
+                                        class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm flex items-center gap-1.5">
+                                        <span>➕ Mở Cổng (Open Port)</span>
+                                    </button>
+                                    <button @click="openAddIpRuleModal"
+                                        class="px-3.5 py-1.5 rounded-lg bg-[#1f2633] hover:bg-[#283244] text-slate-200 border border-[#2f3b50] font-medium transition shadow-sm flex items-center gap-1.5">
+                                        <span>🚫 Chặn / Cho Phép IP</span>
+                                    </button>
+                                </div>
+                                <div class="relative w-full sm:w-64">
+                                    <input type="text" v-model="firewallSearchQuery" placeholder="Tìm cổng, IP, ghi chú..."
+                                        class="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#10131a] border border-[#222834] text-slate-200 placeholder-slate-500 text-xs focus:outline-none focus:border-emerald-500">
+                                    <span class="absolute left-2.5 top-2 text-slate-500 text-xs">🔍</span>
+                                </div>
+                            </div>
+
+                            <!-- Rules Table -->
+                            <div class="bg-[#12151c] rounded-xl border border-[#22262e] overflow-hidden shadow-xl w-full">
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left text-xs table-fixed min-w-[700px]">
+                                        <thead>
+                                            <tr class="border-b border-[#22262e] text-slate-400 font-medium text-[11.5px] bg-[#161a22]">
+                                                <th class="py-3 px-4 w-36">Đối Tượng</th>
+                                                <th class="py-3 px-3 w-28">Giao Thức</th>
+                                                <th class="py-3 px-3 w-28">Hành Động</th>
+                                                <th class="py-3 px-3 w-44">Địa Chỉ Nguồn</th>
+                                                <th class="py-3 px-4">Ghi Chú / Dịch Vụ</th>
+                                                <th class="py-3 px-3 w-36">Thời Gian</th>
+                                                <th class="py-3 px-4 w-20 text-right">Thao Tác</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-[#1e232d] text-[12px]">
+                                            <tr v-for="rule in filteredFirewallRules" :key="rule.id" class="hover:bg-[#161a24] transition">
+                                                <!-- Đối Tượng (Port hoặc IP) -->
+                                                <td class="py-3 px-4 font-mono font-bold text-slate-200">
+                                                    <span v-if="rule.port" class="flex items-center gap-1.5">
+                                                        <span class="px-2 py-0.5 rounded text-[11px] bg-slate-800 text-emerald-400 border border-slate-700">Port {{ rule.port }}</span>
+                                                    </span>
+                                                    <span v-else class="flex items-center gap-1.5 text-rose-400">
+                                                        <span class="px-2 py-0.5 rounded text-[11px] bg-rose-500/15 border border-rose-500/30">IP Filter</span>
+                                                    </span>
+                                                </td>
+
+                                                <!-- Giao Thức -->
+                                                <td class="py-3 px-3 uppercase font-medium text-slate-300">
+                                                    <span class="px-2 py-0.5 rounded text-[10.5px] bg-[#1c222e] border border-[#2c374a]">
+                                                        {{ rule.protocol }}
+                                                    </span>
+                                                </td>
+
+                                                <!-- Hành Động -->
+                                                <td class="py-3 px-3">
+                                                    <span v-if="rule.action === 'allow'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                                        <span>✔ Cho phép</span>
+                                                    </span>
+                                                    <span v-else class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                                                        <span>✖ Chặn (Drop)</span>
+                                                    </span>
+                                                </td>
+
+                                                <!-- Nguồn IP -->
+                                                <td class="py-3 px-3 font-mono text-[11px] text-slate-300">
+                                                    <span v-if="rule.ip_source === '0.0.0.0/0'" class="text-slate-400">Tất cả (0.0.0.0/0)</span>
+                                                    <span v-else class="text-amber-400 font-semibold">{{ rule.ip_source }}</span>
+                                                </td>
+
+                                                <!-- Ghi chú / Dịch vụ -->
+                                                <td class="py-3 px-4 text-slate-300 truncate" :title="rule.comment">
+                                                    {{ rule.comment || '-' }}
+                                                </td>
+
+                                                <!-- Thời gian -->
+                                                <td class="py-3 px-3 text-[11px] text-slate-500 whitespace-nowrap">
+                                                    {{ rule.created_at || 'Mặc định' }}
+                                                </td>
+
+                                                <!-- Thao tác -->
+                                                <td class="py-3 px-4 text-right">
+                                                    <button @click="handleDeleteFirewallRule(rule)"
+                                                        class="text-rose-400 hover:text-rose-300 transition text-xs hover:underline font-medium"
+                                                        title="Xóa quy tắc này khỏi tường lửa">
+                                                        Xóa
+                                                    </button>
+                                                </td>
+                                            </tr>
+
+                                            <!-- Empty State -->
+                                            <tr v-if="filteredFirewallRules.length === 0">
+                                                <td colspan="7" class="py-12 text-center text-slate-500">
+                                                    <div class="text-3xl mb-2">🛡️</div>
+                                                    <div class="font-medium text-slate-400">Không tìm thấy quy tắc tường lửa nào</div>
+                                                    <div class="text-[11px] text-slate-500 mt-1">Bấm "Mở Cổng" hoặc "Chặn IP" để thêm quy tắc mới.</div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========================================== -->
+                        <!-- TAB 2: ĐÁNH GIÁ AN NINH CLOUDLINUX (AUDIT) -->
+                        <!-- ========================================== -->
+                        <div v-if="firewallSubTab === 'audit'" class="space-y-4">
+                            <!-- Score Banner Card -->
+                            <div class="bg-gradient-to-r from-[#121620] via-[#151b27] to-[#121620] p-5 rounded-xl border border-[#252f42] shadow-xl flex flex-col md:flex-row items-center justify-between gap-5">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-2xl border shadow-inner"
+                                        :class="securityAudit.score === securityAudit.max_score ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-amber-500/20 text-amber-400 border-amber-500/40'">
+                                        <span>{{ securityAudit.score || 0 }}/{{ securityAudit.max_score || 8 }}</span>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-slate-400 uppercase font-semibold tracking-wider">Bảng Đánh Giá An Ninh Hệ Thống (CloudLinux Audit)</div>
+                                        <div class="text-base sm:text-lg font-bold text-white mt-0.5">
+                                            {{ securityAudit.rating || 'Đang quét hệ thống...' }}
+                                        </div>
+                                        <div class="text-xs text-slate-400 mt-1 flex items-center gap-2">
+                                            <span>Tiêu chuẩn bảo mật: Hardened Linux Kernel, VFS Isolation & Least-Privilege</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2.5 w-full md:w-auto">
+                                    <button @click="runSecurityAudit"
+                                        :disabled="runningAudit"
+                                        class="flex-1 md:flex-none px-4 py-2 rounded-lg bg-[#1a212e] hover:bg-[#232c3d] text-slate-200 border border-[#2b374d] text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm">
+                                        <span :class="{'animate-spin': runningAudit}">🔄</span>
+                                        <span>Quét Lại (Scan)</span>
+                                    </button>
+                                    <button @click="applySecurityFix"
+                                        :disabled="fixingSecurity"
+                                        class="flex-1 md:flex-none px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-900/30">
+                                        <span v-if="fixingSecurity" class="animate-spin">⚙️</span>
+                                        <span v-else>🛡️</span>
+                                        <span>{{ fixingSecurity ? 'Đang Tối Ưu...' : 'Tối Ưu Toàn Diện 1-Click' }}</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Checks List -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                <div v-for="chk in securityAudit.checks" :key="chk.id"
+                                    class="bg-[#12151c] p-4 rounded-xl border transition flex items-start gap-3.5"
+                                    :class="chk.status === 'pass' ? 'border-[#1e2634] hover:border-emerald-500/40' : 'border-amber-500/30 bg-amber-500/5'">
+                                    <!-- Status Icon -->
+                                    <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm shrink-0 border"
+                                        :class="chk.status === 'pass' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'">
+                                        <span v-if="chk.status === 'pass'">✔</span>
+                                        <span v-else>⚠</span>
+                                    </div>
+                                    <!-- Content -->
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <span class="font-bold text-slate-100 text-[12.5px] truncate">{{ chk.title }}</span>
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase shrink-0"
+                                                :class="chk.status === 'pass' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'">
+                                                {{ chk.status === 'pass' ? 'ĐẠT (PASS)' : 'CẦN FIX' }}
+                                            </span>
+                                        </div>
+                                        <p class="text-[11.5px] text-slate-400 mt-1 leading-relaxed">{{ chk.desc }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========================================== -->
+                        <!-- TAB 3: NHẬT KÝ AN NINH (SECURITY LOGS)     -->
+                        <!-- ========================================== -->
+                        <div v-if="firewallSubTab === 'logs'" class="space-y-4">
+                            <div class="bg-[#12151c] p-4 rounded-xl border border-[#22262e] shadow-xl">
+                                <div class="flex items-center justify-between mb-3 border-b border-[#1f2532] pb-2.5">
+                                    <div>
+                                        <h3 class="font-bold text-slate-100 text-xs flex items-center gap-1.5">
+                                            <span>🚨</span>
+                                            <span>Nhật Ký Cố Gắng Đăng Nhập SSH & Dò Quét Mật Khẩu (Brute-Force Monitor)</span>
+                                        </h3>
+                                        <p class="text-[11px] text-slate-400 mt-0.5">Trích xuất thời gian thực các sự kiện từ /var/log/secure</p>
+                                    </div>
+                                    <button @click="fetchSecurityLogs" class="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-medium">
+                                        <span>🔄 Làm mới log</span>
+                                    </button>
+                                </div>
+
+                                <div class="font-mono text-[11px] bg-[#0c0e14] p-3 rounded-lg border border-[#1b202c] max-h-96 overflow-y-auto space-y-1">
+                                    <div v-if="securityLogs.length === 0" class="text-slate-500 text-center py-6">
+                                        Không phát hiện nỗ lực đăng nhập bất thường nào gần đây.
+                                    </div>
+                                    <div v-for="(log, idx) in securityLogs" :key="idx"
+                                        class="py-0.5 px-1.5 rounded transition"
+                                        :class="log.is_danger ? 'text-rose-400 bg-rose-500/10' : 'text-slate-400'">
+                                        <span>{{ log.raw }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MODAL: MỞ CỔNG (OPEN PORT MODAL) -->
+                    <div v-if="showOpenPortModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+                        <div class="bg-[#141822] rounded-xl border border-[#252f40] w-full max-w-md p-5 shadow-2xl text-xs space-y-4">
+                            <div class="flex items-center justify-between border-b border-[#222a3a] pb-3">
+                                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                    <span>➕ Mở Cổng Tường Lửa (Open Port)</span>
+                                </h3>
+                                <button @click="showOpenPortModal = false" class="text-slate-400 hover:text-white text-base">✕</button>
+                            </div>
+
+                            <!-- Quick Preset Buttons -->
+                            <div>
+                                <label class="text-slate-400 text-[11px] font-medium mb-1.5 block">Chọn Cổng Phổ Biến Nhanh:</label>
+                                <div class="flex flex-wrap gap-1.5">
+                                    <button type="button" @click="applyPortPreset(80, 'Web HTTP')" class="px-2 py-1 rounded bg-[#1c2230] hover:bg-[#252e42] text-slate-300 border border-[#2b374d] text-[11px]">HTTP 80</button>
+                                    <button type="button" @click="applyPortPreset(443, 'Web HTTPS')" class="px-2 py-1 rounded bg-[#1c2230] hover:bg-[#252e42] text-slate-300 border border-[#2b374d] text-[11px]">HTTPS 443</button>
+                                    <button type="button" @click="applyPortPreset(22, 'SSH Remote Access')" class="px-2 py-1 rounded bg-[#1c2230] hover:bg-[#252e42] text-slate-300 border border-[#2b374d] text-[11px]">SSH 22</button>
+                                    <button type="button" @click="applyPortPreset(8888, 'WPCloud Control Panel')" class="px-2 py-1 rounded bg-[#1c2230] hover:bg-[#252e42] text-slate-300 border border-[#2b374d] text-[11px]">Panel 8888</button>
+                                    <button type="button" @click="applyPortPreset(3306, 'MySQL Remote')" class="px-2 py-1 rounded bg-[#1c2230] hover:bg-[#252e42] text-slate-300 border border-[#2b374d] text-[11px]">MySQL 3306</button>
+                                    <button type="button" @click="applyPortPreset(5432, 'PostgreSQL Remote')" class="px-2 py-1 rounded bg-[#1c2230] hover:bg-[#252e42] text-slate-300 border border-[#2b374d] text-[11px]">Postgres 5432</button>
+                                    <button type="button" @click="applyPortPreset(6379, 'Redis')" class="px-2 py-1 rounded bg-[#1c2230] hover:bg-[#252e42] text-slate-300 border border-[#2b374d] text-[11px]">Redis 6379</button>
+                                    <button type="button" @click="applyPortPreset(21, 'FTP Service')" class="px-2 py-1 rounded bg-[#1c2230] hover:bg-[#252e42] text-slate-300 border border-[#2b374d] text-[11px]">FTP 21</button>
+                                </div>
+                            </div>
+
+                            <!-- Port Input Form -->
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-slate-300 font-medium block mb-1">Số Cổng (Port):</label>
+                                    <input type="number" v-model.number="portForm.port" min="1" max="65535" placeholder="Ví dụ: 8080"
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="text-slate-300 font-medium block mb-1">Giao Thức:</label>
+                                        <select v-model="portForm.protocol" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                            <option value="tcp">TCP (Khuyên dùng)</option>
+                                            <option value="udp">UDP</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-slate-300 font-medium block mb-1">Hành Động:</label>
+                                        <select v-model="portForm.action" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                            <option value="allow">Cho phép (Allow)</option>
+                                            <option value="deny">Chặn (Drop)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="text-slate-300 font-medium block mb-1">Nguồn Truy Cập (Source IP):</label>
+                                    <input type="text" v-model="portForm.ip_source" placeholder="0.0.0.0/0 (Tất cả mọi nơi) hoặc IP cụ thể"
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                </div>
+
+                                <div>
+                                    <label class="text-slate-300 font-medium block mb-1">Ghi Chú Dịch Vụ:</label>
+                                    <input type="text" v-model="portForm.comment" placeholder="Ví dụ: Custom Web App, Jenkins, Node.js..."
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#222a3a]">
+                                <button type="button" @click="showOpenPortModal = false"
+                                    class="px-3.5 py-1.5 rounded-lg bg-[#1c2230] text-slate-300 hover:bg-[#252e42] transition font-medium">Hủy</button>
+                                <button type="button" @click="submitAddPortRule" :disabled="savingRule"
+                                    class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm">
+                                    <span>{{ savingRule ? 'Đang Lưu...' : 'Xác Nhận Mở Cổng' }}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MODAL: THÊM QUY TẮC IP (IP RULE MODAL) -->
+                    <div v-if="showAddIpModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+                        <div class="bg-[#141822] rounded-xl border border-[#252f40] w-full max-w-md p-5 shadow-2xl text-xs space-y-4">
+                            <div class="flex items-center justify-between border-b border-[#222a3a] pb-3">
+                                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                    <span>🚫 Chặn / Cho Phép Địa Chỉ IP</span>
+                                </h3>
+                                <button @click="showAddIpModal = false" class="text-slate-400 hover:text-white text-base">✕</button>
+                            </div>
+
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-slate-300 font-medium block mb-1">Địa Chỉ IP hoặc Dải Mạng CIDR:</label>
+                                    <input type="text" v-model="ipForm.ip_source" placeholder="Ví dụ: 192.168.1.15 hoặc 10.0.0.0/24"
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                </div>
+
+                                <div>
+                                    <label class="text-slate-300 font-medium block mb-1">Hành Động:</label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button type="button" @click="ipForm.action = 'deny'"
+                                            class="py-2 rounded-lg border font-semibold transition"
+                                            :class="ipForm.action === 'deny' ? 'bg-rose-500/20 text-rose-400 border-rose-500/40 shadow-sm' : 'bg-[#1c2230] text-slate-400 border-[#2a3446]'">
+                                            <span>✖ Chặn IP (Blacklist)</span>
+                                        </button>
+                                        <button type="button" @click="ipForm.action = 'allow'"
+                                            class="py-2 rounded-lg border font-semibold transition"
+                                            :class="ipForm.action === 'allow' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm' : 'bg-[#1c2230] text-slate-400 border-[#2a3446]'">
+                                            <span>✔ Cho Phép (Whitelist)</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="text-slate-300 font-medium block mb-1">Lý Do / Ghi Chú:</label>
+                                    <input type="text" v-model="ipForm.comment" placeholder="Ví dụ: IP tấn công brute force SSH, IP văn phòng tin cậy..."
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#222a3a]">
+                                <button type="button" @click="showAddIpModal = false"
+                                    class="px-3.5 py-1.5 rounded-lg bg-[#1c2230] text-slate-300 hover:bg-[#252e42] transition font-medium">Hủy</button>
+                                <button type="button" @click="submitAddIpRule" :disabled="savingRule"
+                                    class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm">
+                                    <span>{{ savingRule ? 'Đang Lưu...' : 'Xác Nhận Áp Dụng' }}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>

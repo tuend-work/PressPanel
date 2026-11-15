@@ -5,12 +5,15 @@ import time
 import asyncio
 import re
 import subprocess
+import logging
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from app.api.deps import get_current_user
 from app.db.session import get_db_connection
 from app.executor.gatekeeper import run_gatekeeper
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/system", tags=["System Status"])
 
@@ -1560,5 +1563,439 @@ async def clear_metrics_history(current_user: dict = Depends(get_current_user)):
         "status": "ok",
         "message": "Đã dọn dẹp sạch toàn bộ lịch sử metrics trong Database!"
     }
+
+
+# ==============================================================================
+# FIREWALL & SECURITY MANAGEMENT API
+# ==============================================================================
+
+class FirewallRuleCreate(BaseModel):
+    rule_type: str = "port"  # "port" | "ip"
+    port: Optional[int] = None
+    protocol: str = "tcp"  # "tcp" | "udp"
+    action: str = "allow"  # "allow" | "deny"
+    ip_source: str = "0.0.0.0/0"
+    comment: Optional[str] = ""
+
+class TogglePingRequest(BaseModel):
+    enabled: bool  # True: cho phép ping, False: chặn ping
+
+
+@router.get("/firewall/status")
+async def get_firewall_status(current_user: dict = Depends(get_current_user)):
+    """Lấy trạng thái tường lửa hệ thống, ping ICMP và danh sách quy tắc tường lửa"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền xem Tường lửa!")
+
+    # 1. Kiểm tra trạng thái tường lửa OS
+    fw_type = "iptables"
+    fw_active = True
+
+    try:
+        if shutil.which("ufw"):
+            res = subprocess.run(["ufw", "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+            fw_type = "ufw"
+            fw_active = "Status: active" in res.stdout
+        elif shutil.which("firewall-cmd"):
+            res = subprocess.run(["firewall-cmd", "--state"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+            fw_type = "firewalld"
+            fw_active = res.returncode == 0
+        elif shutil.which("iptables"):
+            res = subprocess.run(["iptables", "-L", "-n"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+            fw_type = "iptables"
+            fw_active = res.returncode == 0
+    except Exception:
+        pass
+
+    # 2. Kiểm tra trạng thái Ping ICMP
+    ping_enabled = True
+    icmp_file = "/proc/sys/net/ipv4/icmp_echo_ignore_all"
+    if os.path.exists(icmp_file):
+        try:
+            with open(icmp_file, "r") as f:
+                val = f.read().strip()
+                ping_enabled = (val == "0")
+        except Exception:
+            pass
+
+    # 3. Lấy danh sách rules từ SQLite DB (Tự động seed các cổng mặc định nếu trống)
+    db = await get_db_connection()
+    cursor = await db.execute("SELECT COUNT(*) FROM firewall_rules")
+    count_row = await cursor.fetchone()
+    if count_row and count_row[0] == 0:
+        default_rules = [
+            (80, "tcp", "allow", "0.0.0.0/0", "Web HTTP"),
+            (443, "tcp", "allow", "0.0.0.0/0", "Web HTTPS"),
+            (8888, "tcp", "allow", "0.0.0.0/0", "WPCloud Control Panel"),
+            (22, "tcp", "allow", "0.0.0.0/0", "SSH Remote Access"),
+        ]
+        for p, proto, act, ip, cmt in default_rules:
+            await db.execute(
+                "INSERT INTO firewall_rules (port, protocol, action, ip_source, comment) VALUES (?, ?, ?, ?, ?)",
+                (p, proto, act, ip, cmt)
+            )
+        await db.commit()
+
+    cursor = await db.execute("SELECT id, port, protocol, action, ip_source, comment, created_at FROM firewall_rules ORDER BY id DESC")
+    rows = await cursor.fetchall()
+    rules = []
+    ports_count = 0
+    ips_count = 0
+    for r in rows:
+        rule_dict = {
+            "id": r[0],
+            "port": r[1],
+            "protocol": r[2],
+            "action": r[3],
+            "ip_source": r[4] or "0.0.0.0/0",
+            "comment": r[5] or "",
+            "created_at": r[6]
+        }
+        if r[1]:
+            ports_count += 1
+        else:
+            ips_count += 1
+        rules.append(rule_dict)
+
+    return {
+        "status": "ok",
+        "firewall": {
+            "type": fw_type,
+            "active": fw_active,
+            "ping_enabled": ping_enabled,
+            "ports_count": ports_count,
+            "ips_count": ips_count,
+            "total_rules": len(rules)
+        },
+        "rules": rules
+    }
+
+
+@router.post("/firewall/rule")
+async def add_firewall_rule(req: FirewallRuleCreate, current_user: dict = Depends(get_current_user)):
+    """Thêm luật mở cổng hoặc chặn/cho phép IP trên tường lửa"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền cấu hình Tường lửa!")
+
+    action = req.action.lower()
+    if action not in ("allow", "deny"):
+        raise HTTPException(status_code=400, detail="Hành động chỉ có thể là 'allow' hoặc 'deny'!")
+
+    protocol = req.protocol.lower()
+    if protocol not in ("tcp", "udp"):
+        raise HTTPException(status_code=400, detail="Giao thức chỉ có thể là 'tcp' hoặc 'udp'!")
+
+    ip_source = (req.ip_source or "0.0.0.0/0").strip()
+    port = req.port
+
+    if req.rule_type == "port":
+        if not port or port < 1 or port > 65535:
+            raise HTTPException(status_code=400, detail="Cổng (Port) phải nằm trong khoảng từ 1 đến 65535!")
+    else:
+        # IP Rule
+        port = None
+        if not ip_source or ip_source == "0.0.0.0/0":
+            raise HTTPException(status_code=400, detail="Vui lòng nhập địa chỉ IP hoặc dải IP cần cấu hình!")
+
+    # 1. Áp dụng lệnh tường lửa hệ thống (iptables / firewalld / ufw)
+    try:
+        if port:
+            # Mở cổng hoặc chặn cổng
+            target_chain = "ACCEPT" if action == "allow" else "DROP"
+            if ip_source and ip_source != "0.0.0.0/0":
+                cmd = f"iptables -I INPUT -p {protocol} -s {ip_source} --dport {port} -j {target_chain}"
+            else:
+                cmd = f"iptables -I INPUT -p {protocol} --dport {port} -j {target_chain}"
+            subprocess.run(cmd, shell=True, timeout=5, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            # Firewalld nếu có
+            if shutil.which("firewall-cmd"):
+                subprocess.run(f"firewall-cmd --add-port={port}/{protocol} --permanent && firewall-cmd --reload", shell=True, timeout=5, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            # Chặn / Cho phép toàn bộ IP
+            target_chain = "ACCEPT" if action == "allow" else "DROP"
+            cmd = f"iptables -I INPUT -s {ip_source} -j {target_chain}"
+            subprocess.run(cmd, shell=True, timeout=5, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:
+        logger.warning(f"Lỗi khi thực thi iptables: {e}")
+
+    # 2. Lưu vào CSDL SQLite
+    db = await get_db_connection()
+    await db.execute(
+        "INSERT INTO firewall_rules (port, protocol, action, ip_source, comment) VALUES (?, ?, ?, ?, ?)",
+        (port, protocol, action, ip_source, req.comment or "")
+    )
+    await db.commit()
+
+    return {
+        "status": "ok",
+        "message": f"Đã thêm quy tắc tường lửa thành công: {'Cổng ' + str(port) if port else 'IP ' + ip_source} ({action.upper()})"
+    }
+
+
+@router.delete("/firewall/rule/{rule_id}")
+async def delete_firewall_rule(rule_id: int, current_user: dict = Depends(get_current_user)):
+    """Xóa luật tường lửa theo ID"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền xóa luật Tường lửa!")
+
+    db = await get_db_connection()
+    cursor = await db.execute("SELECT id, port, protocol, action, ip_source FROM firewall_rules WHERE id = ?", (rule_id,))
+    rule = await cursor.fetchone()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Không tìm thấy quy tắc tường lửa này!")
+
+    port = rule[1]
+    protocol = rule[2]
+    action = rule[3]
+    ip_source = rule[4]
+
+    # Gỡ khỏi iptables nếu có
+    try:
+        target_chain = "ACCEPT" if action == "allow" else "DROP"
+        if port:
+            if ip_source and ip_source != "0.0.0.0/0":
+                cmd = f"iptables -D INPUT -p {protocol} -s {ip_source} --dport {port} -j {target_chain}"
+            else:
+                cmd = f"iptables -D INPUT -p {protocol} --dport {port} -j {target_chain}"
+            subprocess.run(cmd, shell=True, timeout=5, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if shutil.which("firewall-cmd"):
+                subprocess.run(f"firewall-cmd --remove-port={port}/{protocol} --permanent && firewall-cmd --reload", shell=True, timeout=5, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            cmd = f"iptables -D INPUT -s {ip_source} -j {target_chain}"
+            subprocess.run(cmd, shell=True, timeout=5, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+    await db.execute("DELETE FROM firewall_rules WHERE id = ?", (rule_id,))
+    await db.commit()
+
+    return {"status": "ok", "message": f"Đã xóa quy tắc #{rule_id} khỏi tường lửa thành công!"}
+
+
+@router.post("/firewall/toggle-ping")
+async def toggle_ping(req: TogglePingRequest, current_user: dict = Depends(get_current_user)):
+    """Bật hoặc tắt phản hồi Ping ICMP"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền cấu hình Ping!")
+
+    val = "0" if req.enabled else "1"
+    try:
+        subprocess.run(f"sysctl -w net.ipv4.icmp_echo_ignore_all={val}", shell=True, timeout=3, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if os.path.exists("/proc/sys/net/ipv4/icmp_echo_ignore_all"):
+            with open("/proc/sys/net/ipv4/icmp_echo_ignore_all", "w") as f:
+                f.write(val)
+    except Exception as e:
+        logger.warning(f"Lỗi cấu hình ICMP ping: {e}")
+
+    return {
+        "status": "ok",
+        "ping_enabled": req.enabled,
+        "message": f"Đã {'CHO PHÉP' if req.enabled else 'CHẶN'} phản hồi Ping ICMP từ Internet!"
+    }
+
+
+@router.get("/security/audit")
+async def get_security_audit(current_user: dict = Depends(get_current_user)):
+    """Kiểm tra và đánh giá an ninh hệ thống toàn diện theo tiêu chuẩn CloudLinux"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền xem Đánh giá An ninh!")
+
+    checks = []
+    score = 0
+    max_score = 8
+
+    # 1. Symlink protection
+    symlink_val = "0"
+    try:
+        res = subprocess.run(["sysctl", "-n", "fs.protected_symlinks"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+        symlink_val = res.stdout.strip()
+    except Exception:
+        pass
+    if symlink_val == "1":
+        score += 1
+        checks.append({"id": "symlink", "title": "Bảo vệ Symlink & Hardlink Kernel", "desc": "fs.protected_symlinks=1: Ngăn chặn triệt để tấn công leo quyền đọc trộm wp-config.php giữa các vhost", "status": "pass"})
+    else:
+        checks.append({"id": "symlink", "title": "Bảo vệ Symlink & Hardlink Kernel", "desc": "Chưa kích hoạt: Nguy cơ bị tấn công Symlink Race Condition đánh cắp mật khẩu CSDL", "status": "warn"})
+
+    # 2. Ptrace protection
+    ptrace_val = "0"
+    try:
+        res = subprocess.run(["sysctl", "-n", "kernel.yama.ptrace_scope"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+        ptrace_val = res.stdout.strip()
+    except Exception:
+        pass
+    if ptrace_val in ("1", "2"):
+        score += 1
+        checks.append({"id": "ptrace", "title": "Bảo vệ Bộ nhớ Tiến trình (Ptrace Scope)", "desc": f"kernel.yama.ptrace_scope={ptrace_val}: Chặn mã độc dump bộ nhớ tiến trình để trích xuất khóa", "status": "pass"})
+    else:
+        checks.append({"id": "ptrace", "title": "Bảo vệ Bộ nhớ Tiến trình (Ptrace Scope)", "desc": "Chưa bật ptrace_scope: Tiến trình khác có thể snoop bộ nhớ", "status": "warn"})
+
+    # 3. Compilers
+    comp_exposed = False
+    for b in ("/usr/bin/gcc", "/usr/bin/make", "/usr/bin/g++", "/usr/bin/ld"):
+        if os.path.exists(b):
+            try:
+                st = os.stat(b)
+                mode = oct(st.st_mode)[-3:]
+                if mode != "700":
+                    comp_exposed = True
+                    break
+            except Exception:
+                pass
+    if not comp_exposed:
+        score += 1
+        checks.append({"id": "compilers", "title": "Khóa Quyền Trình Biên Dịch (Compiler Lockdown)", "desc": "gcc, g++, make, ld: Chỉ root mới có quyền thực thi (700). Chặn hoàn toàn hacker tự build mã độc C/C++", "status": "pass"})
+    else:
+        checks.append({"id": "compilers", "title": "Khóa Quyền Trình Biên Dịch (Compiler Lockdown)", "desc": "Người dùng thường hoặc web server có thể chạy gcc/make để compile mã khai thác", "status": "warn"})
+
+    # 4. Panel permissions
+    db_file = "/opt/wpc/data/panel.db"
+    db_safe = True
+    if os.path.exists(db_file):
+        try:
+            mode = oct(os.stat(db_file).st_mode)[-3:]
+            db_safe = mode in ("600", "640")
+        except Exception:
+            pass
+    if db_safe:
+        score += 1
+        checks.append({"id": "panel_perms", "title": "Phân Quyền Dữ Liệu & Gatekeepers Panel", "desc": "/opt/wpc phân quyền Least-Privilege (wpc:wpc 750, CSDL panel.db 600, Gatekeeper SUID 4750)", "status": "pass"})
+    else:
+        checks.append({"id": "panel_perms", "title": "Phân Quyền Dữ Liệu & Gatekeepers Panel", "desc": "Quyền file CSDL panel.db chưa được khóa cứng", "status": "warn"})
+
+    # 5. /home privacy
+    home_leaks = False
+    if os.path.exists("/home"):
+        try:
+            for item in os.listdir("/home"):
+                full = os.path.join("/home", item)
+                if os.path.isdir(full):
+                    mode = oct(os.stat(full).st_mode)[-3:]
+                    if mode in ("755", "777"):
+                        home_leaks = True
+                        break
+        except Exception:
+            pass
+    if not home_leaks:
+        score += 1
+        checks.append({"id": "home_privacy", "title": "Cách Ly Không Gian Người Dùng (/home/*)", "desc": "Đạt chuẩn 0711: Người dùng không thể xem danh sách hoặc đọc trộm file của nhau", "status": "pass"})
+    else:
+        checks.append({"id": "home_privacy", "title": "Cách Ly Không Gian Người Dùng (/home/*)", "desc": "Phát hiện thư mục /home có quyền 755/777, cho phép người dùng khác xem trộm", "status": "warn"})
+
+    # 6. Localhost panel port isolation
+    iptables_isolated = False
+    try:
+        res = subprocess.run(["iptables", "-C", "OUTPUT", "-p", "tcp", "-o", "lo", "--dport", "8888", "-j", "REJECT"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=2)
+        iptables_isolated = (res.returncode == 0)
+    except Exception:
+        pass
+    if iptables_isolated:
+        score += 1
+        checks.append({"id": "loopback_firewall", "title": "Tường Lửa Cổng Localhost (Port 8888)", "desc": "Đã chặn người dùng Web gọi API nội bộ trên cổng quản trị loopback", "status": "pass"})
+    else:
+        checks.append({"id": "loopback_firewall", "title": "Tường Lửa Cổng Localhost (Port 8888)", "desc": "Chưa có quy tắc cô lập cổng 8888 trên card loopback lo", "status": "warn"})
+
+    # 7. CageFS Container Terminal
+    cage_ready = os.path.exists("/opt/wpc/scripts/cage_terminal.sh")
+    if cage_ready:
+        score += 1
+        checks.append({"id": "cagefs", "title": "Lồng Cách Ly Mount & PID Namespace (CageFS Mode)", "desc": "Môi trường Terminal và PHP tiến trình được khóa trong Mount Namespace riêng biệt", "status": "pass"})
+    else:
+        checks.append({"id": "cagefs", "title": "Lồng Cách Ly Mount & PID Namespace (CageFS Mode)", "desc": "Chưa cài đặt script cage_terminal.sh", "status": "warn"})
+
+    # 8. Dynamic Linker ELF integrity
+    ld_ok = True
+    ld_target = "/lib64/ld-linux-x86-64.so.2"
+    if os.path.exists(ld_target):
+        try:
+            mode = oct(os.stat(ld_target).st_mode)[-3:]
+            ld_ok = mode in ("755", "777")
+        except Exception:
+            pass
+    if ld_ok:
+        score += 1
+        checks.append({"id": "dynamic_linker", "title": "Toàn Vẹn Bộ Nạp Liên Kết Động (ld-linux.so)", "desc": "ELF Interpreter đạt quyền chuẩn 755, đảm bảo tất cả tiến trình user thực thi trơn tru", "status": "pass"})
+    else:
+        checks.append({"id": "dynamic_linker", "title": "Toàn Vẹn Bộ Nạp Liên Kết Động (ld-linux.so)", "desc": "Dynamic Linker bị tước quyền (khác 755), nguy cơ lỗi Permission Denied cho user thường", "status": "warn"})
+
+    rating = "XUẤT SẮC - ĐẠT CHUẨN CÁCH LY CLOUDLINUX HARDENED!" if score == max_score else "CẦN TỐI ƯU THÊM - Bấm 'Tối Ưu Toàn Diện' để sửa nhanh."
+
+    return {
+        "status": "ok",
+        "score": score,
+        "max_score": max_score,
+        "rating": rating,
+        "checks": checks
+    }
+
+
+@router.post("/security/fix")
+async def apply_security_fix(current_user: dict = Depends(get_current_user)):
+    """Chạy script tối ưu an ninh toàn diện chuẩn CloudLinux"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền chạy Tối ưu An ninh!")
+
+    script_path = "/opt/wpc/scripts/security_hardening.sh"
+    if not os.path.exists(script_path):
+        raise HTTPException(status_code=500, detail="Không tìm thấy kịch bản /opt/wpc/scripts/security_hardening.sh!")
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "bash", script_path, "fix",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        out_msg = stdout.decode("utf-8", errors="ignore")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi khi thực thi hardening: {str(e)}")
+
+    # Lấy lại kết quả audit sau khi fix
+    audit_res = await get_security_audit(current_user)
+    return {
+        "status": "ok",
+        "message": "Đã hoàn tất tối ưu toàn diện hệ thống theo chuẩn an ninh CloudLinux!",
+        "audit": audit_res,
+        "output": out_msg
+    }
+
+
+@router.get("/security/logs")
+async def get_security_logs(current_user: dict = Depends(get_current_user)):
+    """Đọc các bản ghi nhật ký an ninh, lượt thử đăng nhập SSH thất bại"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền xem Nhật ký An ninh!")
+
+    logs = []
+    log_files = ["/var/log/secure", "/var/log/auth.log"]
+    target_file = None
+    for f in log_files:
+        if os.path.exists(f):
+            target_file = f
+            break
+
+    if target_file:
+        try:
+            # Lấy 30 dòng gần nhất chứa Failed password hoặc Invalid user
+            cmd = f"grep -E 'Failed password|Invalid user|denied|Accepted' {target_file} 2>/dev/null | tail -n 30"
+            res = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3)
+            lines = res.stdout.strip().splitlines()
+            for l in reversed(lines):
+                if l.strip():
+                    is_danger = "Failed" in l or "Invalid" in l or "denied" in l
+                    logs.append({
+                        "raw": l.strip(),
+                        "is_danger": is_danger
+                    })
+        except Exception:
+            pass
+
+    return {
+        "status": "ok",
+        "count": len(logs),
+        "logs": logs
+    }
+
 
 

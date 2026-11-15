@@ -354,11 +354,11 @@ function showAlert(message) {
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
                             </button>
 
-                            <!-- 10. Bảo mật (Chỉ Admin) -->
-                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'firewall'" :class="navClass('firewall')">
+                            <!-- 10. Firewall & Security (Chỉ Admin) -->
+                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'firewall'; fetchFirewallData();" :class="navClass('firewall')">
                                 <div class="flex items-center space-x-3">
-                                    <i data-lucide="shield-check" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Bảo mật</span>
+                                    <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+                                    <span>Firewall & Security</span>
                                 </div>
                             </button>
 
@@ -626,7 +626,8 @@ function showAlert(message) {
             const viewFiles = [
                 'dashboard.html', 'domains.html', 'wp.html', 'apps.html',
                 'customers.html', 'service_plans.html', 'databases.html',
-                'files.html', 'others.html', 'profile.html', 'crons.html', 'monitoring.html'
+                'files.html', 'others.html', 'profile.html', 'crons.html', 'monitoring.html',
+                'firewall.html'
             ];
             try {
                 const cacheBuster = Date.now();
@@ -7859,7 +7860,236 @@ if ($host ~* ^www\\.(.*)$) {
                             fetchTasks();
                         }
                     }, 3000);
+
+                    if (currentTab.value === 'firewall') {
+                        fetchFirewallData();
+                    }
                 });
+
+                // ==========================================
+                // FIREWALL & SECURITY MANAGEMENT
+                // ==========================================
+                const firewallSubTab = ref('rules');
+                const firewallData = ref({ firewall: { active: true, ping_enabled: true, ports_count: 0, ips_count: 0, type: 'iptables' }, rules: [] });
+                const loadingFirewall = ref(false);
+                const firewallSearchQuery = ref('');
+                const togglingPing = ref(false);
+                const showOpenPortModal = ref(false);
+                const showAddIpModal = ref(false);
+                const savingRule = ref(false);
+
+                const portForm = ref({
+                    port: 8080,
+                    protocol: 'tcp',
+                    action: 'allow',
+                    ip_source: '0.0.0.0/0',
+                    comment: ''
+                });
+
+                const ipForm = ref({
+                    ip_source: '',
+                    action: 'deny',
+                    comment: ''
+                });
+
+                const securityAudit = ref({
+                    score: 0,
+                    max_score: 8,
+                    rating: '',
+                    checks: []
+                });
+                const runningAudit = ref(false);
+                const fixingSecurity = ref(false);
+                const securityLogs = ref([]);
+
+                const filteredFirewallRules = computed(() => {
+                    let rules = firewallData.value.rules || [];
+                    if (firewallSearchQuery.value && firewallSearchQuery.value.trim()) {
+                        const q = firewallSearchQuery.value.toLowerCase().trim();
+                        rules = rules.filter(r =>
+                            (r.port && String(r.port).includes(q)) ||
+                            (r.ip_source && r.ip_source.toLowerCase().includes(q)) ||
+                            (r.comment && r.comment.toLowerCase().includes(q)) ||
+                            (r.protocol && r.protocol.toLowerCase().includes(q)) ||
+                            (r.action && r.action.toLowerCase().includes(q))
+                        );
+                    }
+                    return rules;
+                });
+
+                const fetchFirewallData = async () => {
+                    loadingFirewall.value = true;
+                    try {
+                        const res = await api('/system/firewall/status');
+                        if (res && res.status === 'ok') {
+                            firewallData.value = res;
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải dữ liệu tường lửa:', e);
+                    } finally {
+                        loadingFirewall.value = false;
+                    }
+                };
+
+                const handleTogglePing = async () => {
+                    const currentPing = firewallData.value.firewall ? firewallData.value.firewall.ping_enabled : true;
+                    const nextPing = !currentPing;
+                    togglingPing.value = true;
+                    try {
+                        const res = await api('/system/firewall/toggle-ping', 'POST', { enabled: nextPing });
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            if (firewallData.value.firewall) {
+                                firewallData.value.firewall.ping_enabled = nextPing;
+                            }
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi khi cấu hình Ping: ' + (e.message || e));
+                    } finally {
+                        togglingPing.value = false;
+                    }
+                };
+
+                const openOpenPortModal = () => {
+                    portForm.value = {
+                        port: 8080,
+                        protocol: 'tcp',
+                        action: 'allow',
+                        ip_source: '0.0.0.0/0',
+                        comment: ''
+                    };
+                    showOpenPortModal.value = true;
+                };
+
+                const applyPortPreset = (port, comment) => {
+                    portForm.value.port = port;
+                    portForm.value.comment = comment;
+                    portForm.value.action = 'allow';
+                    portForm.value.protocol = 'tcp';
+                };
+
+                const submitAddPortRule = async () => {
+                    if (!portForm.value.port || portForm.value.port < 1 || portForm.value.port > 65535) {
+                        showAlert('Vui lòng nhập số cổng hợp lệ từ 1 đến 65535!');
+                        return;
+                    }
+                    savingRule.value = true;
+                    try {
+                        const res = await api('/system/firewall/rule', 'POST', {
+                            rule_type: 'port',
+                            port: portForm.value.port,
+                            protocol: portForm.value.protocol,
+                            action: portForm.value.action,
+                            ip_source: portForm.value.ip_source || '0.0.0.0/0',
+                            comment: portForm.value.comment || ''
+                        });
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            showOpenPortModal.value = false;
+                            await fetchFirewallData();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi khi mở cổng: ' + (e.message || e));
+                    } finally {
+                        savingRule.value = false;
+                    }
+                };
+
+                const openAddIpRuleModal = () => {
+                    ipForm.value = {
+                        ip_source: '',
+                        action: 'deny',
+                        comment: ''
+                    };
+                    showAddIpModal.value = true;
+                };
+
+                const submitAddIpRule = async () => {
+                    if (!ipForm.value.ip_source || !ipForm.value.ip_source.trim()) {
+                        showAlert('Vui lòng nhập địa chỉ IP hoặc dải mạng CIDR cần áp dụng!');
+                        return;
+                    }
+                    savingRule.value = true;
+                    try {
+                        const res = await api('/system/firewall/rule', 'POST', {
+                            rule_type: 'ip',
+                            protocol: 'tcp',
+                            action: ipForm.value.action,
+                            ip_source: ipForm.value.ip_source.trim(),
+                            comment: ipForm.value.comment || ''
+                        });
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            showAddIpModal.value = false;
+                            await fetchFirewallData();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi khi thêm luật IP: ' + (e.message || e));
+                    } finally {
+                        savingRule.value = false;
+                    }
+                };
+
+                const handleDeleteFirewallRule = async (rule) => {
+                    const targetName = rule.port ? `cổng ${rule.port}` : `IP ${rule.ip_source}`;
+                    if (!confirm(`Bạn có chắc chắn muốn xóa quy tắc cho ${targetName} khỏi tường lửa không?`)) {
+                        return;
+                    }
+                    try {
+                        const res = await api(`/system/firewall/rule/${rule.id}`, 'DELETE');
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            await fetchFirewallData();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi khi xóa quy tắc tường lửa: ' + (e.message || e));
+                    }
+                };
+
+                const runSecurityAudit = async () => {
+                    runningAudit.value = true;
+                    try {
+                        const res = await api('/system/security/audit');
+                        if (res && res.status === 'ok') {
+                            securityAudit.value = res;
+                        }
+                    } catch (e) {
+                        console.error('Lỗi khi quét an ninh:', e);
+                    } finally {
+                        runningAudit.value = false;
+                    }
+                };
+
+                const applySecurityFix = async () => {
+                    if (!confirm('Hệ thống sẽ tiến hành kích hoạt bảo vệ Kernel, khóa trình biên dịch, chuẩn hóa 0711 cho thư mục người dùng và cách ly tường lửa. Bạn có muốn tiếp tục?')) {
+                        return;
+                    }
+                    fixingSecurity.value = true;
+                    try {
+                        const res = await api('/system/security/fix', 'POST');
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            if (res.audit) {
+                                securityAudit.value = res.audit;
+                            }
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi khi tối ưu an ninh: ' + (e.message || e));
+                    } finally {
+                        fixingSecurity.value = false;
+                    }
+                };
+
+                const fetchSecurityLogs = async () => {
+                    try {
+                        const res = await api('/system/security/logs');
+                        if (res && res.status === 'ok') {
+                            securityLogs.value = res.logs || [];
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải nhật ký an ninh:', e);
+                    }
+                };
 
                 onUnmounted(() => {
                     window.removeEventListener('hashchange', onHashChange);
@@ -8005,7 +8235,13 @@ if ($host ~* ^www\\.(.*)$) {
                     chartHover, getSvgPointY, getCpuMaxVal, getRamMaxMb, getDiskMaxGb, getBwMaxVal, getPpsMaxVal, onChartMouseMove, onChartMouseLeave,
                     // Metrics History DB Retention Settings
                     showMetricsSettingsModal, savingMetricsSettings, clearingMetricsHistory, metricsConfig,
-                    fetchMetricsSettings, openMetricsSettingsModal, handleSaveMetricsSettings, handleClearMetricsHistory
+                    fetchMetricsSettings, openMetricsSettingsModal, handleSaveMetricsSettings, handleClearMetricsHistory,
+                    // Firewall & Security
+                    firewallSubTab, firewallData, loadingFirewall, firewallSearchQuery, filteredFirewallRules,
+                    togglingPing, handleTogglePing, showOpenPortModal, portForm, openOpenPortModal,
+                    applyPortPreset, submitAddPortRule, showAddIpModal, ipForm, openAddIpRuleModal,
+                    submitAddIpRule, savingRule, handleDeleteFirewallRule, securityAudit, runningAudit,
+                    runSecurityAudit, fixingSecurity, applySecurityFix, securityLogs, fetchSecurityLogs, fetchFirewallData
                 };
             }
         }).mount('#app');
