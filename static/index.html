@@ -145,26 +145,247 @@ function showAlert(message) {
             transform: scale(0.985);
         }
 
-        /* Light Mode Specific Styles */
-        body.light .wp-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04); }
-        body.light .glass { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08); }
-        body.light .glass-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; color: #1e293b; }
-        body.light .WPC-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; color: #1e293b; }
+        /* ========================================================================== */
+        /* COMPREHENSIVE ENTERPRISE LIGHT THEME (Vercel / Stripe Style)               */
+        /* ========================================================================== */
+        html.light, body.light {
+            background-color: #f8fafc !important;
+            color: #0f172a !important;
+        }
 
-        body.light main h2.text-white, body.light main h3.text-white, body.light main h4.text-white { color: #1e293b !important; }
-        body.light main p.text-slate-400 { color: #64748b !important; }
-        body.light .glass-card h3.text-white, body.light .WPC-card h3.text-white, body.light .glass-card h4.text-white, body.light .WPC-card h4.text-white { color: #1e293b !important; }
-        body.light .glass-card .text-slate-300, body.light .WPC-card .text-slate-300 { color: #334155 !important; }
-        body.light .glass-card .text-slate-400, body.light .WPC-card .text-slate-400 { color: #64748b !important; }
-        body.light .glass-card .bg-slate-900, body.light .WPC-card .bg-slate-900, body.light .glass-card .bg-\[\#141921\], body.light .WPC-card .bg-\[\#141921\], body.light .glass-card .bg-\[\#151a22\], body.light .WPC-card .bg-\[\#151a22\] { background-color: #f8fafc !important; }
-        body.light .glass-card .border-slate-800, body.light .WPC-card .border-slate-800, body.light .glass-card .border-\[\#232b36\], body.light .WPC-card .border-\[\#232b36\] { border-color: #e2e8f0 !important; }
-        
-        body.light main .bg-slate-900\/80 { background-color: #ffffff !important; border-color: #e2e8f0 !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04); }
-        body.light main .bg-\[\#141921\] { background-color: #f8fafc !important; color: #475569 !important; border-color: #e2e8f0 !important; }
-        body.light main .border-\[\#232b36\] { border-color: #e2e8f0 !important; }
-        body.light main .divide-\[\#232b36\] > :not([hidden]) ~ :not([hidden]) { border-color: #f1f5f9 !important; }
-        body.light main table tbody tr:hover { background-color: #f8fafc !important; }
-        body.light main input[type="checkbox"] { background-color: #ffffff !important; border-color: #cbd5e1 !important; }
+        body.light #app,
+        body.light main {
+            background-color: #f8fafc !important;
+            color: #0f172a !important;
+        }
+
+        body.light header {
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+
+        /* 1. Surfaces & Primary Cards */
+        body.light .wp-card,
+        body.light .glass-card,
+        body.light .WPC-card,
+        body.light main .bg-\[\#181d24\],
+        body.light main .bg-\[\#161a22\],
+        body.light main .bg-\[\#13171e\],
+        body.light main .bg-\[\#12151c\],
+        body.light main .bg-\[\#111827\],
+        body.light main .bg-\[\#101623\] {
+            background-color: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            color: #0f172a !important;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04) !important;
+        }
+
+        /* 2. Sub-cards, inner items & table containers */
+        body.light main .bg-slate-900\/60,
+        body.light main .bg-slate-900\/80,
+        body.light main .bg-slate-900\/40,
+        body.light main .bg-slate-900,
+        body.light main .bg-slate-800\/80,
+        body.light main .bg-slate-800\/60,
+        body.light main .bg-slate-800\/50,
+        body.light main .bg-slate-800\/40,
+        body.light main .bg-\[\#1a1f29\],
+        body.light main .bg-\[\#141926\],
+        body.light main .bg-\[\#161a24\] {
+            background-color: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important;
+            color: #1e293b !important;
+        }
+
+        /* Hover on tables & items */
+        body.light main tr:hover,
+        body.light main tr.hover\:bg-slate-800\/40:hover,
+        body.light main tr.hover\:bg-\[\#161a24\]:hover,
+        body.light main .hover\:bg-slate-800\/40:hover {
+            background-color: #f1f5f9 !important;
+        }
+
+        /* 3. Borders & Dividers */
+        body.light main .border-slate-800,
+        body.light main .border-slate-800\/80,
+        body.light main .border-slate-800\/60,
+        body.light main .border-slate-700,
+        body.light main .border-slate-700\/80,
+        body.light main .border-slate-700\/60,
+        body.light main .border-slate-700\/50,
+        body.light main .border-\[\#262f3c\],
+        body.light main .border-\[\#222834\],
+        body.light main .border-\[\#22262e\],
+        body.light main .border-\[\#1e232d\],
+        body.light main .border-\[\#1d2433\],
+        body.light main .border-\[\#1e2736\],
+        body.light main .border-\[\#1f293d\] {
+            border-color: #e2e8f0 !important;
+        }
+
+        body.light main .divide-slate-800 > :not([hidden]) ~ :not([hidden]),
+        body.light main .divide-\[\#1e232d\] > :not([hidden]) ~ :not([hidden]),
+        body.light main .divide-\[\#22262e\] > :not([hidden]) ~ :not([hidden]) {
+            border-color: #f1f5f9 !important;
+        }
+
+        /* 4. Typography Hierarchy (High Contrast, WCAG AAA) */
+        body.light main .text-white,
+        body.light main .text-slate-100,
+        body.light main .text-slate-200 {
+            color: #0f172a !important;
+        }
+
+        body.light main .text-slate-300,
+        body.light main .text-slate-400 {
+            color: #475569 !important;
+        }
+
+        body.light main .text-slate-500 {
+            color: #64748b !important;
+        }
+
+        /* Global attribute selectors to capture all variations */
+        body.light main div[class*="bg-slate-900"],
+        body.light main div[class*="bg-slate-800"],
+        body.light main section[class*="bg-slate-900"],
+        body.light main section[class*="bg-slate-800"] {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+            color: #1e293b !important;
+        }
+
+        body.light main div[class*="bg-[#1"],
+        body.light main div[class*="bg-[#2"],
+        body.light main section[class*="bg-[#1"],
+        body.light main section[class*="bg-[#2"] {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+            color: #1e293b !important;
+        }
+
+        /* Topbar server badges in Light Mode */
+        body.light header div[class*="bg-slate-900"],
+        body.light header div[class*="bg-slate-800"] {
+            background-color: #f1f5f9 !important;
+            border-color: #e2e8f0 !important;
+            color: #1e293b !important;
+        }
+
+        /* Table headers in Light Mode */
+        body.light main thead,
+        body.light main thead tr,
+        body.light main thead th,
+        body.light main thead[class*="bg-"],
+        body.light main tr[class*="bg-[#1"],
+        body.light main tr[class*="bg-[#2"] {
+            background-color: #f1f5f9 !important;
+            border-color: #e2e8f0 !important;
+            color: #475569 !important;
+        }
+
+        /* Typography headings */
+        body.light main h1, body.light main h2, body.light main h3, body.light main h4, body.light main h5 {
+            color: #0f172a !important;
+        }
+
+        /* 5. Gauges & Charts in Light Mode */
+        body.light circle[stroke="#1e293b"] {
+            stroke: #e2e8f0 !important;
+        }
+
+        body.light .relative.w-full.h-44.bg-slate-900\/60 {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+        }
+
+        body.light .border-dashed.border-slate-800\/80 {
+            border-color: #e2e8f0 !important;
+        }
+
+        /* 6. Buttons & Badges in Light Mode */
+        /* Secondary action buttons & sub-tab filters */
+        body.light main button.bg-slate-800\/80,
+        body.light main button.bg-slate-800,
+        body.light main button[class*="bg-slate-900"],
+        body.light main button[class*="bg-slate-800"],
+        body.light main button[class*="bg-[#1"],
+        body.light main button[class*="bg-[#2"] {
+            background-color: #f1f5f9 !important;
+            color: #1e293b !important;
+            border: 1px solid #cbd5e1 !important;
+        }
+
+        body.light main button.bg-slate-800\/80:hover,
+        body.light main button.bg-slate-800:hover,
+        body.light main button[class*="bg-slate-900"]:hover,
+        body.light main button[class*="bg-slate-800"]:hover,
+        body.light main button[class*="bg-[#1"]:hover,
+        body.light main button[class*="bg-[#2"]:hover {
+            background-color: #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+
+        /* Primary action button stays vibrant blue with white text */
+        body.light main button.bg-blue-600,
+        body.light main button[class*="bg-blue-600"],
+        body.light main button.bg-blue-600:hover,
+        body.light main button[class*="bg-blue-600"]:hover {
+            background-color: #2563eb !important;
+            color: #ffffff !important;
+            border-color: #2563eb !important;
+        }
+
+        /* Inputs, Selects & Search */
+        body.light main input,
+        body.light main select {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+
+        body.light main input::placeholder {
+            color: #94a3b8 !important;
+        }
+
+        /* Status Badges */
+        body.light main .bg-slate-800\/80 {
+            background-color: #f1f5f9 !important;
+            border-color: #e2e8f0 !important;
+            color: #334155 !important;
+        }
+
+        body.light main .bg-emerald-950\/40 {
+            background-color: #ecfdf5 !important;
+            border-color: #a7f3d0 !important;
+            color: #059669 !important;
+        }
+
+        body.light main .bg-blue-950\/40 {
+            background-color: #eff6ff !important;
+            border-color: #bfdbfe !important;
+            color: #2563eb !important;
+        }
+
+        body.light main .bg-amber-950\/40 {
+            background-color: #fffbeb !important;
+            border-color: #fde68a !important;
+            color: #d97706 !important;
+        }
+
+        body.light main .bg-rose-950\/40 {
+            background-color: #fff1f2 !important;
+            border-color: #fecdd3 !important;
+            color: #e11d48 !important;
+        }
+
+        /* Active Category Tabs in Light Mode */
+        body.light main .bg-blue-600\/10 {
+            background-color: #eff6ff !important;
+            border-color: #bfdbfe !important;
+            color: #2563eb !important;
+        }
         
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
