@@ -503,47 +503,57 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                 <!-- ======================================================== -->
                                 <div v-if="['mysql', 'sqlserver', 'mongodb', 'pgsql'].includes(dbTypeTab)" class="space-y-3.5 pt-1">
                                     
-                                    <!-- A. BANNER: AUTO BACKUP DATABASE (Chỉ hiển thị cho Quản trị viên) -->
-                                    <div v-if="currentUser.role === 'admin'" class="bg-[#1f2631] border border-[#2b3543] rounded-md px-3.5 py-2.5 text-slate-200 flex items-center space-x-3 text-xs sm:text-sm">
-                                        <div class="w-4 h-4 rounded-full bg-slate-500 text-white flex items-center justify-center text-[10px] font-serif font-bold italic shrink-0">i</div>
-                                        <span class="font-medium text-slate-200 shrink-0">Auto Backup Database</span>
-                                        <!-- Toggle Switch -->
-                                        <button type="button" @click="dbAutoBackup = !dbAutoBackup"
-                                            :class="dbAutoBackup ? 'bg-emerald-500' : 'bg-slate-600'"
-                                            class="relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none">
-                                            <span :class="dbAutoBackup ? 'translate-x-3.5' : 'translate-x-0'"
-                                                class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
-                                        </button>
-                                        <span class="text-slate-400 text-xs truncate sm:text-clip">After adding a database, you can turn on automatic backup to ensure data security.</span>
+                                                                        <!-- A. BANNER: TỰ ĐỘNG SAO LƯU CƠ SỞ DỮ LIỆU -->
+                                    <div v-if="currentUser.role === 'admin'" class="bg-[#1b222d] border border-[#2b3543] rounded-lg px-4 py-2.5 text-slate-200 flex items-center justify-between text-xs shadow-sm">
+                                        <div class="flex items-center space-x-2.5">
+                                            <div class="w-6 h-6 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold shrink-0">
+                                                💾
+                                            </div>
+                                            <div>
+                                                <span class="font-semibold text-slate-200">Tự Động Sao Lưu Cơ Sở Dữ Liệu: </span>
+                                                <span class="text-slate-400">Tự động xuất tệp SQL nén `.sql.gz` theo lịch để bảo toàn an toàn dữ liệu.</span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center space-x-3 shrink-0">
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" v-model="dbAutoBackup" class="sr-only peer">
+                                                <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-600"></div>
+                                            </label>
+                                            <button @click="currentTab = 'backups'; backupSubTab = 'schedules'; fetchBackupSchedules();"
+                                                class="text-xs text-sky-400 hover:text-sky-300 hover:underline font-medium">
+                                                Quản lý Lịch Sao Lưu →
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <!-- B. ACTION TOOLBAR -->
-                                    <div class="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
+                                    <div class="flex flex-wrap items-center justify-between gap-2.5 text-xs pt-0.5">
                                         <div class="flex flex-wrap items-center gap-2">
-                                            <!-- Add DB Button -->
+                                            <!-- Add DB Button (Primary Action) -->
                                             <button @click="openAddDbModal"
-                                                class="px-3 py-1 rounded-md bg-[#10b981] hover:bg-[#059669] text-white font-medium text-xs transition shadow-sm">
-                                                <span>Add DB</span>
+                                                class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition shadow-sm flex items-center gap-1.5">
+                                                <span>➕</span>
+                                                <span>Thêm Cơ Sở Dữ Liệu</span>
                                             </button>
 
                                             <!-- Web GUI / Connection Button -->
                                             <button v-if="dbTypeTab === 'mysql'" @click="openPhpMyAdmin"
-                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
                                                 title="Mở phpMyAdmin Port 888">
                                                 <span>🐬 phpMyAdmin</span>
                                             </button>
                                             <button v-else-if="dbTypeTab === 'sqlserver'" @click="handleManageDb({ db_name: 'master', db_user: 'sa' })"
-                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
                                                 title="Xem chuỗi kết nối MS SQL Server">
                                                 <span>📋 Chuỗi kết nối</span>
                                             </button>
                                             <button v-else-if="dbTypeTab === 'mongodb'" @click="openMongoExpress"
-                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
                                                 title="Mở Mongo Express Web GUI">
                                                 <span>🍃 Mongo Express</span>
                                             </button>
                                             <button v-else-if="dbTypeTab === 'pgsql'" @click="openPgAdmin"
-                                                class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
                                                 title="Mở pgAdmin Web GUI">
                                                 <span>🐘 pgAdmin</span>
                                             </button>
@@ -552,28 +562,27 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                             <template v-if="currentUser.role === 'admin'">
                                                 <!-- Root / Admin Password -->
                                                 <button @click="showRootPasswordModal = true"
-                                                    class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
-                                                    <span>Root password</span>
+                                                    class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
+                                                    <span>🔑 Đổi Mật Khẩu Root</span>
                                                 </button>
 
                                                 <!-- Remote DB -->
                                                 <button @click="showRemoteDbModal = true"
-                                                    class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
-                                                    <span>Remote DB</span>
+                                                    class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
+                                                    <span>🌐 Remote DB</span>
                                                 </button>
 
                                                 <!-- Advanced Setup -->
                                                 <button @click="showAdvDbModal = true"
-                                                    class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
-                                                    <span>Advanced Setup</span>
+                                                    class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
+                                                    <span>⚙️ Cấu Hình Nâng Cao</span>
                                                 </button>
 
                                                 <!-- MySQL Resource Controller (Chỉ hiển thị cho Tab MySQL) -->
                                                 <button v-if="dbTypeTab === 'mysql'" @click="openMySQLControllerModal"
-                                                    class="px-3 py-1 rounded-md bg-gradient-to-r from-amber-600/90 to-emerald-600/90 hover:from-amber-500 hover:to-emerald-500 text-white font-medium text-xs transition shadow-sm flex items-center space-x-1.5 border border-emerald-500/30"
+                                                    class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-600/90 to-emerald-600/90 hover:from-amber-500 hover:to-emerald-500 text-white font-semibold text-xs transition shadow-sm flex items-center space-x-1.5 border border-emerald-500/30"
                                                     title="Kiểm soát tài nguyên MariaDB/MySQL, chống cào dữ liệu & bắn tỉa query chậm">
-                                                    <span>🛡️</span>
-                                                    <span>MySQL Resource Controller</span>
+                                                    <span>🛡️ MySQL Controller</span>
                                                     <span v-if="mysqlControllerShieldCount > 0" class="px-1.5 py-0.2 bg-red-500 text-white text-[10px] rounded-full font-bold animate-pulse">
                                                         {{ mysqlControllerShieldCount }} Shield
                                                     </span>
@@ -581,25 +590,18 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
 
                                                 <!-- Sync all -->
                                                 <button @click="fetchDatabasesList"
-                                                    class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                    class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
                                                     title="Đồng bộ danh sách CSDL">
-                                                    <span>Sync all</span>
+                                                    <span>🔄 Đồng bộ</span>
                                                 </button>
 
                                                 <!-- Get DB from server -->
                                                 <button @click="showGetDbModal = true"
-                                                    class="px-3 py-1 rounded-md bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
-                                                    <span>Get DB from server</span>
+                                                    class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
+                                                    <span>📥 Nạp CSDL Từ Máy Chủ</span>
                                                 </button>
                                             </template>
                                         </div>
-
-                                        <!-- Feedback Link on Far Right -->
-                                        <button @click="alert('WPC Feedback: Vui lòng gửi phản hồi tại mục Hỗ trợ hoặc liên hệ quản trị viên.')"
-                                            class="text-slate-400 hover:text-emerald-400 text-xs font-normal flex items-center space-x-1 transition ml-auto">
-                                            <span>📝</span>
-                                            <span>Feedback</span>
-                                        </button>
                                     </div>
 
                                     <!-- C. FILTER & SEARCH BAR -->
@@ -617,7 +619,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
 
                                         <!-- Search Input -->
                                         <div class="relative w-56 sm:w-64">
-                                            <input type="text" v-model="dbSearchQuery" placeholder="Database search"
+                                            <input type="text" v-model="dbSearchQuery" placeholder="Tìm kiếm cơ sở dữ liệu..."
                                                 class="w-full pl-3 pr-7 py-1.5 rounded-md bg-[#1f2631] border border-[#313c4e] text-slate-200 placeholder-slate-400 focus:outline-none focus:border-emerald-500 text-xs">
                                             <span class="absolute right-2.5 top-2 text-slate-400 text-xs pointer-events-none">🔍</span>
                                         </div>
@@ -631,13 +633,13 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                                     <th class="py-3 px-4 w-10 text-center">
                                                         <input type="checkbox" :checked="isAllDbsSelected" @change="toggleSelectAllDbs" class="rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-0">
                                                     </th>
-                                                    <th class="py-3 px-4">Database Name</th>
-                                                    <th class="py-3 px-4">Backup Status</th>
-                                                    <th class="py-3 px-4">Database User</th>
+                                                    <th class="py-3 px-4">Tên Cơ Sở Dữ Liệu</th>
+                                                    <th class="py-3 px-4">Sao Lưu</th>
+                                                    <th class="py-3 px-4">Người Dùng DB</th>
                                                     <th class="py-3 px-4">Website</th>
-                                                    <th class="py-3 px-4">Charset / Engine</th>
-                                                    <th class="py-3 px-4">Size</th>
-                                                    <th class="py-3 px-4 text-right">Actions</th>
+                                                    <th class="py-3 px-4">Bảng Mã / Engine</th>
+                                                    <th class="py-3 px-4">Dung Lượng</th>
+                                                    <th class="py-3 px-4 text-right">Thao Tác</th>
                                                 </tr>
                                             </thead>
                                             <tbody class="divide-y divide-[#26303d]">
@@ -657,7 +659,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                                             <span v-else-if="dbTypeTab === 'pgsql'">Chưa có CSDL PostgreSQL nào</span>
                                                             <span v-else>Chưa có CSDL nào</span>
                                                         </div>
-                                                        <div class="text-[11px] text-slate-500 mt-1">Bấm nút "Add DB" ở thanh công cụ phía trên để khởi tạo CSDL đầu tiên.</div>
+                                                        <div class="text-[11px] text-slate-500 mt-1">Bấm nút "Thêm Cơ Sở Dữ Liệu" ở thanh công cụ phía trên để khởi tạo CSDL đầu tiên.</div>
                                                     </td>
                                                 </tr>
                                                 <tr v-for="db in filteredDatabases" :key="'db_' + db.id" class="hover:bg-[#1f2631]/60 transition">

@@ -75,12 +75,12 @@
                                 <table class="w-full text-left text-xs table-fixed min-w-[760px]">
                                     <thead>
                                         <tr class="border-b border-[#22262e] text-slate-400 font-medium text-[12px] bg-[#161a22]">
-                                            <th class="py-3 px-4 w-52">Software name</th>
-                                            <th class="py-3 px-3">Instructions</th>
-                                            <th class="py-3 px-2 w-14 text-center">Location</th>
-                                            <th class="py-3 px-2 w-14 text-center">Status</th>
-                                            <th class="py-3 px-2 w-28 text-center">Display on Home</th>
-                                            <th class="py-3 px-4 w-80 text-right">Operate</th>
+                                            <th class="py-3 px-4 w-56">Ứng Dụng & Dịch Vụ</th>
+                                            <th class="py-3 px-3">Mô Tả Chức Năng</th>
+                                            <th class="py-3 px-2 w-14 text-center">Thư Mục</th>
+                                            <th class="py-3 px-2 w-20 text-center">Trạng Thái</th>
+                                            <th class="py-3 px-2 w-28 text-center">Ghim Trang Chủ</th>
+                                            <th class="py-3 px-4 w-80 text-right">Thao Tác</th>
                                         </tr>
                                     </thead>
                                 <tbody class="divide-y divide-[#1e232d] text-[12px]">
@@ -122,16 +122,18 @@
                                             </button>
                                         </td>
 
-                                        <!-- 4. Status (Play / Pause / --) -->
+                                        <!-- 4. Status Badge -->
                                         <td class="py-3 px-2 text-center">
-                                            <span v-if="app.running" class="inline-flex items-center justify-center text-emerald-400 text-xs font-bold" title="Running (Đang chạy)">
-                                                ▶
+                                            <span v-if="app.running" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" title="Running (Đang chạy)">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                                <span>Chạy</span>
                                             </span>
-                                            <span v-else-if="app.installed" class="inline-flex items-center justify-center text-rose-400 text-xs font-bold" title="Stopped (Đã dừng)">
-                                                ⏸
+                                            <span v-else-if="app.installed" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30" title="Stopped (Đã dừng)">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                                                <span>Dừng</span>
                                             </span>
-                                            <span v-else class="text-slate-600 font-mono text-xs">
-                                                --
+                                            <span v-else class="inline-flex items-center px-2 py-0.5 rounded text-[10.5px] text-slate-500 font-mono">
+                                                Chưa cài
                                             </span>
                                         </td>
 
@@ -146,54 +148,50 @@
                                         <!-- 6. Operate -->
                                         <td class="py-3 px-4 text-right whitespace-nowrap">
                                             <template v-if="app.installed">
-                                                <span class="inline-flex items-center space-x-1.5 font-medium text-[11.5px]">
+                                                <div class="inline-flex items-center gap-1.5 font-medium text-[11.5px]">
                                                     <!-- Webserver Primary Activate Switcher (Chỉ hiển thị cho webserver phụ để chuyển đổi) -->
                                                     <template v-if="app.category === 'webserver' && !app.running">
                                                         <button @click="handleSwitchPrimaryWebserver(app.id)"
                                                             :disabled="switchingWebserver"
-                                                            class="text-amber-400 hover:text-amber-300 transition hover:underline font-bold flex items-center gap-0.5"
+                                                            class="px-2 py-1 rounded-md bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border border-amber-500/30 transition font-semibold flex items-center gap-1 shadow-sm"
                                                             title="Kích hoạt Webserver này làm máy chủ chính chiếm giữ Port 80 & 443">
                                                             <span>⚡ Kích hoạt</span>
                                                         </button>
-                                                        <span class="text-slate-600">|</span>
                                                     </template>
                                                     <!-- Update -->
                                                     <button @click="app.category === 'php' ? handleCheckPhpUpdate(app) : handleAppAction(app.id, 'update')"
-                                                        class="text-emerald-400 hover:text-emerald-300 transition hover:underline"
+                                                        class="px-2 py-1 rounded-md bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/25 transition font-medium"
                                                         title="Cập nhật phiên bản mới nhất kèm module tăng tốc WordPress">
-                                                        Update
+                                                        Cập nhật
                                                     </button>
-                                                    <span class="text-slate-600">|</span>
                                                     <!-- Reinstall (cho Webserver) -->
                                                     <template v-if="app.category === 'webserver'">
                                                         <button @click="handleAppAction(app.id, 'reinstall')"
-                                                            class="text-cyan-400 hover:text-cyan-300 transition hover:underline font-semibold"
-                                                            title="Cài đặt lại kèm trọn bộ modules tăng tốc WordPress tối đa (Brotli, FastCGI Cache, OPcache JIT)">
-                                                            Reinstall
+                                                            class="px-2 py-1 rounded-md bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/25 transition font-medium"
+                                                            title="Cài đặt lại kèm trọn bộ modules tăng tốc WordPress tối đa">
+                                                            Cài lại
                                                         </button>
-                                                        <span class="text-slate-600">|</span>
                                                     </template>
                                                     <!-- Setting -->
                                                     <button @click="openAppSettings(app)"
-                                                        class="text-emerald-400 hover:text-emerald-300 transition hover:underline font-bold"
+                                                        class="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/25 transition font-semibold"
                                                         title="Cài đặt & Cấu hình dịch vụ (Setting / Config)">
-                                                        Setting
+                                                        Cấu hình
                                                     </button>
-                                                    <span class="text-slate-600">|</span>
                                                     <!-- Uninstall -->
                                                     <button @click="handleAppAction(app.id, 'uninstall')"
-                                                        class="text-emerald-400 hover:text-rose-400 transition hover:underline"
+                                                        class="px-2 py-1 rounded-md bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/25 transition font-medium"
                                                         title="Gỡ cài đặt">
-                                                        Uninstall
+                                                        Gỡ bỏ
                                                     </button>
-                                                </span>
+                                                </div>
                                             </template>
                                             <template v-else>
                                                 <button @click="openInstallAppModal(app)"
                                                     :disabled="installingAppId === app.id"
-                                                    class="text-emerald-400 hover:text-emerald-300 transition hover:underline font-semibold text-[11.5px]">
-                                                    <span v-if="installingAppId === app.id">Installing...</span>
-                                                    <span v-else>Install</span>
+                                                    class="px-3 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11.5px] transition shadow-sm flex items-center gap-1.5 ml-auto">
+                                                    <span v-if="installingAppId === app.id">Đang cài...</span>
+                                                    <span v-else>➕ Cài Đặt</span>
                                                 </button>
                                             </template>
                                         </td>

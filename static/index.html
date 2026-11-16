@@ -63,71 +63,87 @@ function showAlert(message) {
         })();
     </script>
     <style>
-        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -0.01em; }
         code, pre { font-family: 'JetBrains Mono', monospace; }
+
+        /* Typography Smoothing */
+        * {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
 
         /* Dark Mode (Default) Theme Styles */
         html.dark, body.dark {
-            background-color: #0c1017 !important;
-            color: #e2e8f0 !important;
+            background-color: #0b0f17 !important;
+            color: #f1f5f9 !important;
         }
 
         html.light, body.light {
-            background-color: #f3f6fa !important;
-            color: #1e293b !important;
+            background-color: #f8fafc !important;
+            color: #0f172a !important;
         }
 
         /* Harmonious Dark Mode Background & Layout Overrides */
         body.dark #app,
         body.dark .bg-\[\#f3f6fa\],
         html.dark body {
-            background-color: #0c1017 !important;
+            background-color: #0b0f17 !important;
         }
 
         body.dark header.bg-white,
         body.dark header {
-            background-color: #111722 !important;
-            border-color: #1e2736 !important;
-            color: #f1f5f9 !important;
+            background-color: #0f1522 !important;
+            border-color: #1a2333 !important;
+            color: #f8fafc !important;
         }
 
         body.dark header input {
-            background-color: #0b1017 !important;
-            border-color: #222d3d !important;
-            color: #f1f5f9 !important;
+            background-color: #080c14 !important;
+            border-color: #1e283a !important;
+            color: #f8fafc !important;
         }
 
         body.dark .wp-card, body.dark .glass-card, body.dark .WPC-card {
-            background: #141c28 !important;
-            border-color: #222d3d !important;
-            color: #e2e8f0 !important;
-            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4) !important;
+            background: #111827 !important;
+            border-color: #1f293d !important;
+            color: #f1f5f9 !important;
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.45) !important;
         }
 
         body.dark .glass {
-            background: #131a24 !important;
-            border-color: #1f2837 !important;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+            background: #101623 !important;
+            border-color: #1d273a !important;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.55) !important;
         }
 
         body.dark .bg-white {
-            background-color: #141c28 !important;
-            border-color: #222d3d !important;
-            color: #e2e8f0 !important;
+            background-color: #111827 !important;
+            border-color: #1f293d !important;
+            color: #f1f5f9 !important;
         }
 
-        body.dark .text-slate-800 { color: #f1f5f9 !important; }
+        body.dark .text-slate-800 { color: #f8fafc !important; }
         body.dark .text-slate-700 { color: #e2e8f0 !important; }
         body.dark .text-slate-600 { color: #cbd5e1 !important; }
-        body.dark .border-slate-200, body.dark .border-slate-200\/80 { border-color: #1f2937 !important; }
-        body.dark .bg-slate-50 { background-color: #0e141e !important; border-color: #222d3d !important; }
-        body.dark .bg-slate-100 { background-color: #182230 !important; }
-        body.dark .hover\:bg-slate-100:hover { background-color: #1a2536 !important; }
-        body.dark .hover\:bg-slate-50:hover { background-color: #151e2b !important; }
-        body.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: #1f2937 !important; }
+        body.dark .border-slate-200, body.dark .border-slate-200\/80 { border-color: #1e293b !important; }
+        body.dark .bg-slate-50 { background-color: #0d131f !important; border-color: #1e293b !important; }
+        body.dark .bg-slate-100 { background-color: #141c2b !important; }
+        body.dark .hover\:bg-slate-100:hover { background-color: #182234 !important; }
+        body.dark .hover\:bg-slate-50:hover { background-color: #131a28 !important; }
+        body.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: #1e293b !important; }
 
-        body.dark .custom-scrollbar::-webkit-scrollbar-track { background: #0c1017; }
-        body.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e2837; border-radius: 3px; }
+        body.dark .custom-scrollbar::-webkit-scrollbar-track { background: #0b0f17; }
+        body.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #1c2638; border-radius: 4px; }
+        body.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #28374f; }
+
+        /* Smooth Button & Card Transitions */
+        button, a, input, select {
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        button:active {
+            transform: scale(0.985);
+        }
 
         /* Light Mode Specific Styles */
         body.light .wp-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04); }
@@ -154,8 +170,8 @@ function showAlert(message) {
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .sidebar-scrollbar::-webkit-scrollbar { width: 4px; }
-        .sidebar-scrollbar::-webkit-scrollbar-track { background: #0d1624; }
-        .sidebar-scrollbar::-webkit-scrollbar-thumb { background: #1e2e48; border-radius: 2px; }
+        .sidebar-scrollbar::-webkit-scrollbar-track { background: #0b111a; }
+        .sidebar-scrollbar::-webkit-scrollbar-thumb { background: #1c2b42; border-radius: 2px; }
         [v-cloak] { display: none !important; }
     </style>
 </head>
@@ -254,16 +270,16 @@ function showAlert(message) {
                                     <i data-lucide="globe" class="w-4 h-4 text-slate-400"></i>
                                     <span>Web Application</span>
                                 </div>
-                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                                <span v-if="domains.length > 0" class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">{{ domains.length }}</span>
                             </button>
 
-                            <!-- 3. Mail (Ẩn khi ở chế độ Hosting User) -->
-                            <button v-if="!isHostingUser" @click="currentTab = 'mail'" :class="navClass('mail')">
+                            <!-- WordPress Manager Tab Direct -->
+                            <button @click="currentTab = 'wp'; fetchWpInstances();" :class="navClass('wp')">
                                 <div class="flex items-center space-x-3">
-                                    <i data-lucide="mail" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Mail</span>
+                                    <i data-lucide="layers" class="w-4 h-4 text-blue-400"></i>
+                                    <span>WordPress Manager</span>
                                 </div>
-                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                                <span v-if="wpInstances.length > 0" class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-blue-900/60 text-blue-300 font-semibold">{{ wpInstances.length }}</span>
                             </button>
 
                             <!-- 4. Files / File Manager (Ẩn khi ở chế độ Hosting User) -->
@@ -370,13 +386,7 @@ function showAlert(message) {
                                 </div>
                             </button>
 
-                            <!-- 11. Báo cáo (Chỉ Admin) -->
-                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'monitoring'" :class="navClass('monitoring')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="line-chart" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Báo cáo</span>
-                                </div>
-                            </button>
+
 
                             <!-- 12. Cài đặt (Admin) -->
                             <button v-if="currentUser.role === 'admin'" @click="currentTab = 'tools_settings'" :class="navClass('tools_settings')">
@@ -714,7 +724,7 @@ function showAlert(message) {
                     const validTabs = [
                         'dashboard', 'domains', 'mail', 'files', 'databases',
                         'monitoring', 'wp', 'service_plans', 'customers',
-                        'apps', 'firewall', 'tools_settings', 'profile', 'crons'
+                        'apps', 'firewall', 'backups', 'tools_settings', 'profile', 'crons'
                     ];
                     let chosen = validTabs.includes(hash) ? hash : (isWebUser.value ? 'domains' : 'dashboard');
                     if (isWebUser.value && (chosen === 'dashboard' || chosen === 'service_plans' || chosen === 'customers' || chosen === 'apps' || chosen === 'firewall' || chosen === 'tools_settings')) {
@@ -2364,6 +2374,7 @@ function showAlert(message) {
                         apps: 'Kho ứng dụng (App Store)',
                         crons: 'Lịch trình Cron',
                         firewall: 'Bảo mật máy chủ',
+                        backups: 'Trung Tâm Sao Lưu & Đám Mây',
                         profile: 'Hồ sơ cá nhân & Bảo mật'
                     };
                     return titles[currentTab.value] || 'Tổng quan';
@@ -2371,8 +2382,8 @@ function showAlert(message) {
 
                 const navClass = (tab) => {
                     return currentTab.value === tab
-                        ? 'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium bg-[#2b66ff] text-white shadow-md shadow-blue-600/25 transition'
-                        : 'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-[#142338] transition';
+                        ? 'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400/30 transition-all duration-200'
+                        : 'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-slate-100 hover:bg-[#131f33] transition-all duration-150';
                 };
 
                 // Hàm tính đường cong SVG Spline mềm mại (Bézier Curve)
@@ -7757,7 +7768,16 @@ if ($host ~* ^www\\.(.*)$) {
                     if (newTab === 'monitoring') {
                         fetchResourceMonitorData();
                     }
-                    refreshLucideIcons();
+                    if (newTab === 'backups') {
+                        fetchBackups();
+                    }
+                    setTimeout(refreshLucideIcons, 50);
+                    setTimeout(refreshLucideIcons, 250);
+                });
+
+                watch(domainCategoryFilter, () => {
+                    setTimeout(refreshLucideIcons, 50);
+                    setTimeout(refreshLucideIcons, 200);
                 });
 
                 watch(showCronModal, () => { refreshLucideIcons(); });

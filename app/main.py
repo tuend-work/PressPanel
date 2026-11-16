@@ -93,6 +93,16 @@ def get_index_html_path() -> str:
         return local_index
     return ""
 
+@app.middleware("http")
+async def add_no_cache_headers(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.endswith(".html"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 # Mount Static UI nếu thư mục static tồn tại
 if os.path.exists(settings.STATIC_DIR):
     app.mount("/static", StaticFiles(directory=settings.STATIC_DIR), name="static")
