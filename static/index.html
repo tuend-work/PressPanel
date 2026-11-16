@@ -248,162 +248,186 @@ function showAlert(message) {
                             </div>
                             <div class="flex flex-col">
                                 <span class="text-base font-bold text-white tracking-tight leading-tight flex items-center gap-1.5 group-hover:text-blue-400 transition-colors">
-                                    WPCloud
+                                    PressPanel
+                                    <span class="text-[9px] px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-white font-extrabold tracking-wide uppercase shadow-sm">PRO MAX</span>
                                 </span>
-                                <span class="text-[11px] text-slate-400 font-medium">Control Panel</span>
+                                <span class="text-[11px] text-slate-400 font-medium">Enterprise Cloud Panel</span>
                             </div>
                         </div>
 
-                        <!-- Menu Items -->
-                        <div class="p-3 space-y-1 text-xs">
-                            <!-- 1. Tổng quan (Chỉ Admin & Hosting User) -->
-                            <button v-if="currentUser.role === 'admin' || isHostingUser" @click="currentTab = 'dashboard'" :class="navClass('dashboard')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="layout-dashboard" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Tổng quan</span>
-                                </div>
-                            </button>
+                        <!-- Menu Items Phân Nhóm Pro Max -->
+                        <div class="p-3 space-y-3 text-xs">
+                            
+                            <!-- Nhóm 1: TỔNG QUAN & GIÁM SÁT -->
+                            <div>
+                                <div class="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 select-none">Tổng Quan</div>
+                                <div class="space-y-0.5">
+                                    <!-- 1. Tổng quan -->
+                                    <button v-if="currentUser.role === 'admin' || isHostingUser" @click="currentTab = 'dashboard'" :class="navClass('dashboard')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="layout-dashboard" class="w-4 h-4 text-blue-400"></i>
+                                            <span>Tổng quan</span>
+                                        </div>
+                                    </button>
 
-                            <!-- 2. Web Application (Tất cả vai trò) -->
-                            <button @click="currentTab = 'domains'" :class="navClass('domains')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="globe" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Web Application</span>
+                                    <!-- 2. Resource Monitor -->
+                                    <button @click="currentTab = 'monitoring'; fetchResourceMonitorData();" :class="navClass('monitoring')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i>
+                                            <span>Resource Monitor</span>
+                                        </div>
+                                        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                                    </button>
                                 </div>
-                                <span v-if="domains.length > 0" class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">{{ domains.length }}</span>
-                            </button>
+                            </div>
 
-                            <!-- WordPress Manager Tab Direct -->
-                            <button @click="currentTab = 'wp'; fetchWpInstances();" :class="navClass('wp')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="layers" class="w-4 h-4 text-blue-400"></i>
-                                    <span>WordPress Manager</span>
+                            <!-- Nhóm 2: WEBSITE & DỮ LIỆU -->
+                            <div>
+                                <div class="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 select-none">Website & Dữ Liệu</div>
+                                <div class="space-y-0.5">
+                                    <!-- Web Application -->
+                                    <button @click="currentTab = 'domains'" :class="navClass('domains')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="globe" class="w-4 h-4 text-emerald-400"></i>
+                                            <span>Web Application</span>
+                                        </div>
+                                        <span v-if="domains.length > 0" class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">{{ domains.length }}</span>
+                                    </button>
+
+                                    <!-- WordPress Manager -->
+                                    <button @click="currentTab = 'wp'; fetchWpInstances();" :class="navClass('wp')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="layers" class="w-4 h-4 text-indigo-400"></i>
+                                            <span>WordPress Manager</span>
+                                        </div>
+                                        <span v-if="wpInstances.length > 0" class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-blue-900/60 text-blue-300 font-semibold">{{ wpInstances.length }}</span>
+                                    </button>
+
+                                    <!-- File Manager -->
+                                    <button v-if="!isHostingUser" @click="openFileManager()" :class="navClass('files')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="folder" class="w-4 h-4 text-amber-400"></i>
+                                            <span>Files Manager</span>
+                                        </div>
+                                        <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                                    </button>
+
+                                    <!-- Databases -->
+                                    <button v-if="!isHostingUser" @click="currentTab = 'databases'" :class="navClass('databases')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="database" class="w-4 h-4 text-rose-400"></i>
+                                            <span>Databases</span>
+                                        </div>
+                                        <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                                    </button>
                                 </div>
-                                <span v-if="wpInstances.length > 0" class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-blue-900/60 text-blue-300 font-semibold">{{ wpInstances.length }}</span>
-                            </button>
+                            </div>
 
-                            <!-- 4. Files / File Manager (Ẩn khi ở chế độ Hosting User) -->
-                            <button v-if="!isHostingUser" @click="openFileManager()" :class="navClass('files')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="folder" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Files</span>
+                            <!-- Nhóm 3: AN NINH & SAO LƯU -->
+                            <div>
+                                <div class="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 select-none">Bảo Mật & Vận Hành</div>
+                                <div class="space-y-0.5">
+                                    <!-- Firewall & Security -->
+                                    <button v-if="currentUser.role === 'admin'" @click="currentTab = 'firewall'; fetchFirewallData();" :class="navClass('firewall')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+                                            <span>Firewall & Security</span>
+                                        </div>
+                                    </button>
+
+                                    <!-- Sao Lưu & Cloud -->
+                                    <button v-if="currentUser.role === 'admin' || isHostingUser" @click="currentTab = 'backups'; fetchBackups();" :class="navClass('backups')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="archive" class="w-4 h-4 text-sky-400"></i>
+                                            <span>Sao Lưu & Cloud</span>
+                                        </div>
+                                    </button>
+
+                                    <!-- Terminal SSH -->
+                                    <button v-if="currentUser.role === 'admin' || currentUser.web_domain_id" @click="openWebTerminal()" :class="navClass('terminal')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="terminal" class="w-4 h-4 text-teal-400"></i>
+                                            <span>Terminal SSH</span>
+                                        </div>
+                                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono border border-emerald-800">
+                                            {{ currentUser.role === 'admin' ? 'root' : 'caged' }}
+                                        </span>
+                                    </button>
+
+                                    <!-- Cronjobs -->
+                                    <button @click="currentTab = 'crons'; fetchCronJobs();" :class="navClass('crons')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="clock" class="w-4 h-4 text-violet-400"></i>
+                                            <span>Cronjobs</span>
+                                        </div>
+                                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-400 font-mono border border-amber-800">
+                                            {{ cronJobs.length }}
+                                        </span>
+                                    </button>
                                 </div>
-                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
-                            </button>
+                            </div>
 
-                            <!-- 5. Databases & Users (Ẩn khi ở chế độ Hosting User) -->
-                            <button v-if="!isHostingUser" @click="currentTab = 'databases'" :class="navClass('databases')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="database" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Databases</span>
+                            <!-- Nhóm 4: HỆ THỐNG & TIỆN ÍCH -->
+                            <div>
+                                <div class="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 select-none">Hệ Thống & Tiện Ích</div>
+                                <div class="space-y-0.5">
+                                    <!-- App Store -->
+                                    <button v-if="currentUser.role === 'admin'" @click="currentTab = 'apps'" :class="navClass('apps')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="store" class="w-4 h-4 text-fuchsia-400"></i>
+                                            <span>Kho Ứng Dụng</span>
+                                        </div>
+                                        <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                                    </button>
+
+                                    <!-- Website Plans (Hosting User) -->
+                                    <button v-if="isHostingUser && !isWebUser" @click="currentTab = 'service_plans'" :class="navClass('service_plans')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="cpu" class="w-4 h-4 text-slate-400"></i>
+                                            <span>Website Plan</span>
+                                        </div>
+                                        <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                                    </button>
+
+                                    <!-- Users / Customers -->
+                                    <button v-if="currentUser.role === 'admin'" @click="currentTab = 'customers'" :class="navClass('customers')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="users" class="w-4 h-4 text-blue-400"></i>
+                                            <span>Quản Lý Users</span>
+                                        </div>
+                                        <span class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">{{ customers.length }}</span>
+                                    </button>
+
+                                    <!-- Tiến trình & Hỗ trợ -->
+                                    <button v-if="!isHostingUser" @click="openMessageBox('tasks')" :class="msgBoxTab === 'tasks' && showMessagesBox ? navClass('support') : 'w-full flex items-center justify-between px-3.5 py-2 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-[#142338] transition'">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="activity" class="w-4 h-4 text-slate-400"></i>
+                                            <span>Tiến trình & Hỗ trợ</span>
+                                        </div>
+                                        <div class="flex items-center">
+                                            <span v-if="runningTasks.length > 0" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                            <span v-else class="text-slate-500 text-xs">›</span>
+                                        </div>
+                                    </button>
+
+                                    <!-- Cài đặt hệ thống -->
+                                    <button v-if="currentUser.role === 'admin'" @click="currentTab = 'tools_settings'" :class="navClass('tools_settings')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="settings" class="w-4 h-4 text-slate-400"></i>
+                                            <span>Cài đặt hệ thống</span>
+                                        </div>
+                                    </button>
+
+                                    <!-- Hồ sơ cá nhân -->
+                                    <button @click="currentTab = 'profile'" :class="navClass('profile')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="user-cog" class="w-4 h-4 text-slate-400"></i>
+                                            <span>Hồ sơ & Bảo mật</span>
+                                        </div>
+                                        <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                                    </button>
                                 </div>
-                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
-                            </button>
-
-                            <!-- 6. Resource Monitor (Hiển thị cho tất cả Quản Trị Viên, Hosting User & Website User) -->
-                            <button @click="currentTab = 'monitoring'; fetchResourceMonitorData();" :class="navClass('monitoring')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i>
-                                    <span>Resource Monitor</span>
-                                </div>
-                                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-                            </button>
-
-                            <!-- Terminal SSH: Hiển thị cho Admin (root) và Website User (caged), Tắt hoàn toàn cho Hosting User -->
-                            <button v-if="currentUser.role === 'admin' || currentUser.web_domain_id" @click="openWebTerminal()" :class="navClass('terminal')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
-                                    <span>Terminal SSH</span>
-                                </div>
-                                <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono border border-emerald-800">
-                                    {{ currentUser.role === 'admin' ? 'root' : 'caged' }}
-                                </span>
-                            </button>
-
-                            <!-- Cronjobs (Tất cả vai trò) -->
-                            <button @click="currentTab = 'crons'; fetchCronJobs();" :class="navClass('crons')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="clock" class="w-4 h-4 text-amber-400"></i>
-                                    <span>Cronjobs</span>
-                                </div>
-                                <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-400 font-mono border border-amber-800">
-                                    {{ cronJobs.length }}
-                                </span>
-                            </button>
-
-                            <!-- Website Plans (Chỉ dành riêng cho Hosting User quản lý các gói website lẻ của mình) -->
-                            <button v-if="isHostingUser && !isWebUser" @click="currentTab = 'service_plans'" :class="navClass('service_plans')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="cpu" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Website Plan</span>
-                                </div>
-                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
-                            </button>
-
-                            <!-- 9. Quản Lý Users / Khách Hàng (Chỉ Admin) -->
-                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'customers'" :class="navClass('customers')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Users</span>
-                                </div>
-                                <span class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">{{ customers.length }}</span>
-                            </button>
-
-                            <!-- 8. Tiến trình & Hỗ trợ (Ẩn khi ở chế độ Hosting User) -->
-                            <button v-if="!isHostingUser" @click="openMessageBox('tasks')" :class="msgBoxTab === 'tasks' && showMessagesBox ? navClass('support') : 'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-[#142338] transition'">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="activity" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Tiến trình & Hỗ trợ</span>
-                                </div>
-                                <div class="flex items-center">
-                                    <span v-if="runningTasks.length > 0" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    <span v-else class="text-slate-500 text-xs">›</span>
-                                </div>
-                            </button>
-
-                            <!-- 9. Công cụ / App Store (Chỉ Admin mới cài đặt và quản trị server app) -->
-                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'apps'" :class="navClass('apps')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="store" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Công cụ & App Store</span>
-                                </div>
-                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
-                            </button>
-
-                            <!-- 10. Firewall & Security (Chỉ Admin) -->
-                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'firewall'; fetchFirewallData();" :class="navClass('firewall')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
-                                    <span>Firewall & Security</span>
-                                </div>
-                            </button>
-
-                            <!-- 11. Sao Lưu & Cloud (Admin & Hosting User) -->
-                            <button v-if="currentUser.role === 'admin' || isHostingUser" @click="currentTab = 'backups'; fetchBackups();" :class="navClass('backups')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="archive" class="w-4 h-4 text-sky-400"></i>
-                                    <span>Sao Lưu & Cloud</span>
-                                </div>
-                            </button>
-
-
-
-                            <!-- 12. Cài đặt (Admin) -->
-                            <button v-if="currentUser.role === 'admin'" @click="currentTab = 'tools_settings'" :class="navClass('tools_settings')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="settings" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Cài đặt hệ thống</span>
-                                </div>
-                            </button>
-
-                            <!-- Hồ sơ cá nhân (All Roles) -->
-                            <button @click="currentTab = 'profile'" :class="navClass('profile')">
-                                <div class="flex items-center space-x-3">
-                                    <i data-lucide="user-cog" class="w-4 h-4 text-slate-400"></i>
-                                    <span>Hồ sơ cá nhân</span>
-                                </div>
-                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
-                            </button>
+                            </div>
                         </div>
                     </div>
 
