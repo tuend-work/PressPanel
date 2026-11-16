@@ -21,17 +21,17 @@
                         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[#222834] pb-2 text-[12px]">
                             <div class="flex flex-wrap gap-1.5">
                                 <button @click="backupSubTab = 'list'"
-                                    :class="backupSubTab === 'list' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="backupSubTab === 'list' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     <i data-lucide="archive" class="w-3.5 h-3.5 mr-1"></i><span>Bản Sao Lưu Đã Tạo</span>
                                     <span v-if="backupsList.length > 0" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-700/80">{{ backupsList.length }}</span>
                                 </button>
                                 <button @click="backupSubTab = 'destinations'; fetchBackupDestinations();"
-                                    :class="backupSubTab === 'destinations' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="backupSubTab === 'destinations' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     <i data-lucide="cloud" class="w-3.5 h-3.5 mr-1"></i><span>Kho Lưu Trữ Đám Mây (S3 / R2 / SFTP)</span>
                                     <span v-if="backupDestinations.length > 0" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-sky-500/20 text-sky-400 font-bold border border-sky-500/30">{{ backupDestinations.length }}</span>
                                 </button>
                                 <button @click="backupSubTab = 'schedules'; fetchBackupSchedules();"
-                                    :class="backupSubTab === 'schedules' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="backupSubTab === 'schedules' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     <i data-lucide="clock" class="w-3.5 h-3.5 mr-1"></i><span>Lịch Sao Lưu Tự Động (Retention)</span>
                                     <span v-if="backupSchedules.length > 0" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">{{ backupSchedules.length }}</span>
                                 </button>
@@ -45,7 +45,7 @@
                             <!-- Action Bar -->
                             <div class="flex flex-wrap items-center justify-between gap-3 bg-[#13171e] p-3 rounded-xl border border-[#222834] text-xs">
                                 <button @click="openCreateBackupModal"
-                                    class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm flex items-center gap-1.5">
+                                    class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition shadow-sm flex items-center gap-1.5">
                                     <i data-lucide="plus" class="w-4 h-4 mr-1"></i><span>Tạo Bản Sao Lưu Mới</span>
                                 </button>
                                 <div class="text-slate-400 text-[11.5px]">
@@ -122,7 +122,7 @@
                                     <p class="text-[11px] text-slate-400 mt-0.5">Tự động đẩy bản sao lưu lên AWS S3, Cloudflare R2, Wasabi, MinIO hoặc máy chủ SFTP để phòng ngừa sự cố máy chủ</p>
                                 </div>
                                 <button @click="showAddDestModal = true"
-                                    class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm flex items-center gap-1.5">
+                                    class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition shadow-sm flex items-center gap-1.5">
                                     <span>➕ Thêm Điểm Lưu Trữ</span>
                                 </button>
                             </div>
@@ -174,7 +174,7 @@
                                     <p class="text-[11px] text-slate-400 mt-0.5">Tự động sao lưu định kỳ vào ban đêm và giữ lại N bản mới nhất để tiết kiệm dung lượng ổ cứng</p>
                                 </div>
                                 <button @click="showAddScheduleModal = true"
-                                    class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm flex items-center gap-1.5">
+                                    class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition shadow-sm flex items-center gap-1.5">
                                     <span>➕ Tạo Lịch Tự Động</span>
                                 </button>
                             </div>
@@ -230,13 +230,13 @@
                             <div class="space-y-3">
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Chọn Website Cần Sao Lưu:</label>
-                                    <select v-model="newBackupForm.domain_id" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                    <select v-model="newBackupForm.domain_id" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500">
                                         <option v-for="d in domains" :key="d.id" :value="d.id">{{ d.domain_name }}</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Nơi Lưu Trữ:</label>
-                                    <select v-model="newBackupForm.destination_id" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                    <select v-model="newBackupForm.destination_id" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500">
                                         <option :value="0">💾 Lưu cục bộ trên máy chủ (Local Storage)</option>
                                         <option v-for="dest in backupDestinations" :key="dest.id" :value="dest.id">
                                             ☁️ {{ dest.name }} ({{ dest.storage_type.toUpperCase() }})
@@ -247,7 +247,7 @@
                             <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#222a3a]">
                                 <button type="button" @click="showCreateBackupModal = false" class="px-3.5 py-1.5 rounded-lg bg-[#1c2230] text-slate-300 hover:bg-[#252e42] transition font-medium">Hủy</button>
                                 <button type="button" @click="submitCreateBackup" :disabled="creatingBackup"
-                                    class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm">
+                                    class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition shadow-sm">
                                     <span>{{ creatingBackup ? 'Đang Nén & Sao Lưu...' : 'Bắt Đầu Sao Lưu' }}</span>
                                 </button>
                             </div>
@@ -268,11 +268,11 @@
                                     <div>
                                         <label class="text-slate-300 font-medium block mb-1">Tên Điểm Lưu Trữ:</label>
                                         <input type="text" v-model="destForm.name" placeholder="Ví dụ: Cloudflare R2 Backups"
-                                            class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500">
                                     </div>
                                     <div>
                                         <label class="text-slate-300 font-medium block mb-1">Loại Lưu Trữ:</label>
-                                        <select v-model="destForm.storage_type" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                        <select v-model="destForm.storage_type" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500">
                                             <option value="s3">S3-Compatible (AWS / R2 / Wasabi / MinIO)</option>
                                             <option value="sftp">SFTP / SSH Server</option>
                                         </select>
@@ -283,30 +283,30 @@
                                     <div>
                                         <label class="text-slate-300 font-medium block mb-1">S3 Custom Endpoint (Để trống nếu dùng AWS Standard):</label>
                                         <input type="text" v-model="destForm.endpoint" placeholder="https://<account_id>.r2.cloudflarestorage.com"
-                                            class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                     </div>
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
                                             <label class="text-slate-300 font-medium block mb-1">S3 Bucket Name:</label>
                                             <input type="text" v-model="destForm.bucket" placeholder="wpc-backups"
-                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                         </div>
                                         <div>
                                             <label class="text-slate-300 font-medium block mb-1">Region:</label>
                                             <input type="text" v-model="destForm.region" placeholder="auto hoặc us-east-1"
-                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                         </div>
                                     </div>
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
                                             <label class="text-slate-300 font-medium block mb-1">Access Key ID:</label>
                                             <input type="text" v-model="destForm.access_key" placeholder="AKIAIOSFODNN7EXAMPLE"
-                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                         </div>
                                         <div>
                                             <label class="text-slate-300 font-medium block mb-1">Secret Access Key:</label>
                                             <input type="password" v-model="destForm.secret_key" placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                         </div>
                                     </div>
                                 </template>
@@ -316,37 +316,37 @@
                                         <div class="col-span-2">
                                             <label class="text-slate-300 font-medium block mb-1">SFTP Host / IP:</label>
                                             <input type="text" v-model="destForm.sftp_host" placeholder="backup.server.com"
-                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                         </div>
                                         <div>
                                             <label class="text-slate-300 font-medium block mb-1">Port:</label>
                                             <input type="number" v-model.number="destForm.sftp_port" placeholder="22"
-                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                         </div>
                                     </div>
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
                                             <label class="text-slate-300 font-medium block mb-1">SFTP Username:</label>
                                             <input type="text" v-model="destForm.sftp_user" placeholder="root hoặc backupuser"
-                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                         </div>
                                         <div>
                                             <label class="text-slate-300 font-medium block mb-1">SFTP Password:</label>
                                             <input type="password" v-model="destForm.sftp_pass" placeholder="Mật khẩu SFTP"
-                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                                class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                         </div>
                                     </div>
                                     <div>
                                         <label class="text-slate-300 font-medium block mb-1">Thư Mục Đích Trên Máy Chủ SFTP:</label>
                                         <input type="text" v-model="destForm.sftp_path" placeholder="/backups"
-                                            class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                     </div>
                                 </template>
                             </div>
                             <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#222a3a]">
                                 <button type="button" @click="showAddDestModal = false" class="px-3.5 py-1.5 rounded-lg bg-[#1c2230] text-slate-300 hover:bg-[#252e42] transition font-medium">Hủy</button>
                                 <button type="button" @click="submitAddDestination" :disabled="savingDest"
-                                    class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm">
+                                    class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition shadow-sm">
                                     <span>{{ savingDest ? 'Đang Lưu...' : 'Lưu Điểm Lưu Trữ' }}</span>
                                 </button>
                             </div>
@@ -366,12 +366,12 @@
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Tên Lịch Sao Lưu:</label>
                                     <input type="text" v-model="scheduleForm.name" placeholder="Ví dụ: Sao lưu hàng ngày sang R2"
-                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500">
                                 </div>
                                 <div class="grid grid-cols-2 gap-3">
                                     <div>
                                         <label class="text-slate-300 font-medium block mb-1">Tần Suất Chạy:</label>
-                                        <select v-model="scheduleForm.frequency" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                        <select v-model="scheduleForm.frequency" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500">
                                             <option value="daily">Hàng ngày (Daily)</option>
                                             <option value="weekly">Hàng tuần (Weekly)</option>
                                             <option value="monthly">Hàng tháng (Monthly)</option>
@@ -380,12 +380,12 @@
                                     <div>
                                         <label class="text-slate-300 font-medium block mb-1">Giờ Chạy (0-23h):</label>
                                         <input type="number" v-model.number="scheduleForm.time_hour" min="0" max="23" placeholder="2"
-                                            class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                     </div>
                                 </div>
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Nơi Lưu Trữ Đích:</label>
-                                    <select v-model="scheduleForm.destination_id" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                    <select v-model="scheduleForm.destination_id" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500">
                                         <option :value="0">💾 Lưu cục bộ trên máy chủ (Local Storage)</option>
                                         <option v-for="dest in backupDestinations" :key="dest.id" :value="dest.id">
                                             ☁️ {{ dest.name }} ({{ dest.storage_type.toUpperCase() }})
@@ -395,14 +395,14 @@
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Số Bản Giữ Lại (Retention Count):</label>
                                     <input type="number" v-model.number="scheduleForm.retention_count" min="1" max="100" placeholder="7"
-                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                     <p class="text-[10.5px] text-slate-500 mt-1">Hệ thống sẽ tự động xóa các bản cũ hơn số lượng này để tiết kiệm dung lượng.</p>
                                 </div>
                             </div>
                             <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#222a3a]">
                                 <button type="button" @click="showAddScheduleModal = false" class="px-3.5 py-1.5 rounded-lg bg-[#1c2230] text-slate-300 hover:bg-[#252e42] transition font-medium">Hủy</button>
                                 <button type="button" @click="submitAddSchedule" :disabled="savingSchedule"
-                                    class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm">
+                                    class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition shadow-sm">
                                     <span>{{ savingSchedule ? 'Đang Lưu...' : 'Lưu Lịch Sao Lưu' }}</span>
                                 </button>
                             </div>

@@ -379,7 +379,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                                     </select>
                                                     <button type="button" @click="handleUserRedisApplyWp(selectedDomainForRedis || (domains && domains.length ? domains[0].domain_name : ''))" 
                                                             :disabled="applyingRedisWp"
-                                                            class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/40 flex items-center gap-1.5 transition">
+                                                            class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-lg shadow-emerald-900/40 flex items-center gap-1.5 transition">
                                                         <i v-if="applyingRedisWp" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
                                                         <span>{{ applyingRedisWp ? 'Đang áp dụng...' : 'Áp Dụng Ngay' }}</span>
                                                     </button>
@@ -517,7 +517,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                         <div class="flex items-center space-x-3 shrink-0">
                                             <label class="relative inline-flex items-center cursor-pointer">
                                                 <input type="checkbox" v-model="dbAutoBackup" class="sr-only peer">
-                                                <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-600"></div>
+                                                <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
                                             </label>
                                             <button @click="currentTab = 'backups'; backupSubTab = 'schedules'; fetchBackupSchedules();"
                                                 class="text-xs text-sky-400 hover:text-sky-300 hover:underline font-medium">
@@ -766,7 +766,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                                 <div v-if="!app.installed" class="w-full">
                                                     <button @click="handleAppAction(app.id, 'install')"
                                                         :disabled="installingAppId === app.id"
-                                                        class="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white shadow-sm transition flex items-center justify-center space-x-1.5">
+                                                        class="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-medium text-white shadow-sm transition flex items-center justify-center space-x-1.5">
                                                         <span v-if="installingAppId === app.id" class="animate-spin">⏳</span>
                                                         <span v-else>⚡</span>
                                                         <span>{{ installingAppId === app.id ? 'Đang gửi lệnh cài đặt...' : 'Cài Đặt (1-Click)' }}</span>
@@ -821,7 +821,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                             <div class="bg-[#141b26] rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-800 text-slate-200 animate-fadeIn">
                                 <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
                                     <div class="flex items-center space-x-3">
-                                        <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-xl shadow-md">
+                                        <div class="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-xl shadow-md">
                                             ➕
                                         </div>
                                         <div>
@@ -889,7 +889,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                             Hủy
                                         </button>
                                         <button type="submit" :disabled="creatingDb"
-                                            class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md shadow-emerald-600/20 transition flex items-center space-x-1.5">
+                                            class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-md shadow-emerald-600/20 transition flex items-center space-x-1.5">
                                             <span v-if="creatingDb">Đang khởi tạo...</span>
                                             <span v-else>Khởi Tạo Database</span>
                                         </button>
@@ -1110,7 +1110,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                         <div class="flex items-center space-x-2">
                                             <span class="text-slate-300 font-semibold text-xs">Thao tác nhanh:</span>
                                             <button @click="handleSnipeSlowQueries" :disabled="mysqlControllerActionLoading"
-                                                class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold transition flex items-center space-x-1 shadow-sm disabled:opacity-50">
+                                                class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition flex items-center space-x-1 shadow-sm disabled:opacity-50">
                                                 <span>🎯</span>
                                                 <span>Snipe Slow Queries (>3s)</span>
                                             </button>
@@ -1294,7 +1294,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                         <button type="button" @click="showDbUserLimitsModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-medium hover:bg-slate-700 transition">
                                             Hủy
                                         </button>
-                                        <button type="submit" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition shadow-md">
+                                        <button type="submit" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium transition shadow-md">
                                             Lưu Giới Hạn
                                         </button>
                                     </div>

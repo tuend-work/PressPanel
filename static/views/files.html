@@ -16,19 +16,19 @@
                                 <!-- Breadcrumb Folders -->
                                 <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#202126] border border-[#33353a] flex-1 overflow-x-auto min-w-0 font-mono text-[11px] text-zinc-300">
                                     <span class="text-amber-400 select-none">📁</span>
-                                    <button type="button" @click="fetchFilesList('')" class="hover:text-emerald-400 transition hover:underline">
+                                    <button type="button" @click="fetchFilesList('')" class="hover:text-blue-400 transition hover:underline">
                                         &lt; server
                                     </button>
                                     <template v-for="(part, idx) in pathParts" :key="idx">
                                         <span class="text-zinc-600 select-none">&gt;</span>
-                                        <button type="button" @click="navigateBreadcrumb(idx)" class="hover:text-emerald-400 transition hover:underline truncate max-w-[120px]">
+                                        <button type="button" @click="navigateBreadcrumb(idx)" class="hover:text-blue-400 transition hover:underline truncate max-w-[120px]">
                                             {{ part }}
                                         </button>
                                     </template>
                                     <span class="text-zinc-600 select-none">&gt;</span>
                                     
                                     <button type="button" @click="fetchFilesList(fileCurrentPath)" class="ml-auto text-zinc-400 hover:text-white transition p-0.5" title="Tải lại thư mục">
-                                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5" :class="loadingFiles ? 'animate-spin text-emerald-400' : ''"></i>
+                                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5" :class="loadingFiles ? 'animate-spin text-blue-400' : ''"></i>
                                     </button>
                                 </div>
                             </div>
@@ -37,13 +37,13 @@
                             <div class="flex items-center gap-2 shrink-0">
                                 <div class="relative">
                                     <input type="text" v-model="fileSearchQuery" @keyup.enter="handleFileSearch" placeholder="Search Files" 
-                                           class="w-40 sm:w-48 px-3 py-1.5 rounded-lg bg-[#202126] border border-[#33353a] text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 text-xs">
+                                           class="w-40 sm:w-48 px-3 py-1.5 rounded-lg bg-[#202126] border border-[#33353a] text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500 text-xs">
                                 </div>
                                 <label class="flex items-center gap-1.5 cursor-pointer text-zinc-400 hover:text-zinc-300 select-none text-[11px] whitespace-nowrap">
                                     <input type="checkbox" v-model="fileSearchSubdir" @change="handleFileSearch" class="w-3.5 h-3.5 rounded bg-zinc-900 border-zinc-700 text-emerald-500 focus:ring-emerald-500 accent-emerald-500">
                                     <span>Include subdir</span>
                                 </label>
-                                <button type="button" @click="handleFileSearch" class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center justify-center shadow-sm">
+                                <button type="button" @click="handleFileSearch" class="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-950/40 text-blue-400 border border-blue-800/600 text-white transition flex items-center justify-center shadow-sm">
                                     <i data-lucide="search" class="w-3.5 h-3.5"></i>
                                 </button>
                             </div>
@@ -58,7 +58,7 @@
                                 <!-- Nút Upload -->
                                 <div class="relative">
                                     <label class="px-3 py-1.5 rounded-lg bg-[#202126] hover:bg-[#2a2b32] text-zinc-200 border border-[#33353a] font-medium text-xs transition cursor-pointer flex items-center gap-1.5">
-                                        <i data-lucide="upload" class="w-3.5 h-3.5 text-emerald-400"></i>
+                                        <i data-lucide="upload" class="w-3.5 h-3.5 text-blue-400"></i>
                                         <span>Upload &gt;</span>
                                         <input type="file" multiple @change="handleFileUpload" class="hidden">
                                     </label>
@@ -78,10 +78,10 @@
                                         <span>New &gt;</span>
                                     </button>
                                     <div class="absolute left-0 mt-1 w-36 bg-[#202126] border border-[#33353a] rounded-lg shadow-2xl py-1 hidden group-hover:block z-30">
-                                        <button type="button" @click="openCreateItemModal('file')" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-emerald-400 flex items-center gap-2">
+                                        <button type="button" @click="openCreateItemModal('file')" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-blue-400 flex items-center gap-2">
                                             <i data-lucide="file-plus" class="w-4 h-4 mr-1 text-slate-300"></i><span>Tạo Tệp Tin</span>
                                         </button>
-                                        <button type="button" @click="openCreateItemModal('folder')" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-emerald-400 flex items-center gap-2">
+                                        <button type="button" @click="openCreateItemModal('folder')" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-blue-400 flex items-center gap-2">
                                             <i data-lucide="folder-plus" class="w-4 h-4 mr-1 text-amber-400"></i><span>Tạo Thư Mục</span>
                                         </button>
                                     </div>
@@ -101,13 +101,13 @@
                                         <span>File Operations &gt;</span>
                                     </button>
                                     <div class="absolute left-0 mt-1 w-44 bg-[#202126] border border-[#33353a] rounded-lg shadow-2xl py-1 hidden group-hover:block z-30">
-                                        <button type="button" @click="openCompressModal" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-emerald-400">
+                                        <button type="button" @click="openCompressModal" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-blue-400">
                                             <span>📦 Nén Tệp Tin (Zip)</span>
                                         </button>
-                                        <button type="button" @click="handleBatchChmod" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-emerald-400">
+                                        <button type="button" @click="handleBatchChmod" class="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-emerald-600/20 hover:text-blue-400">
                                             <span>🔒 Phân Quyền (Chmod)</span>
                                         </button>
-                                        <button type="button" v-if="clipboardItems.length > 0" @click="handlePasteClipboard" class="w-full px-3 py-1.5 text-left text-emerald-400 hover:bg-emerald-600/20 font-medium">
+                                        <button type="button" v-if="clipboardItems.length > 0" @click="handlePasteClipboard" class="w-full px-3 py-1.5 text-left text-blue-400 hover:bg-emerald-600/20 font-medium">
                                             <span>📋 Dán {{ clipboardItems.length }} mục vào đây</span>
                                         </button>
                                     </div>
@@ -147,7 +147,7 @@
                                         <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-400"></i>
                                         <span>Delete ({{ selectedFileNames.length }})</span>
                                     </button>
-                                    <button type="button" @click="openCompressModal" class="px-2.5 py-1 rounded bg-[#2a2b32] hover:bg-[#34353d] text-emerald-400 font-medium text-[11px] flex items-center gap-1" title="Nén Zip các mục đã chọn">
+                                    <button type="button" @click="openCompressModal" class="px-2.5 py-1 rounded bg-[#2a2b32] hover:bg-[#34353d] text-blue-400 font-medium text-[11px] flex items-center gap-1" title="Nén Zip các mục đã chọn">
                                         <span>📦 Zip</span>
                                     </button>
                                 </div>
@@ -221,7 +221,7 @@
                                         <!-- Hàng Đang Tải -->
                                         <tr v-if="loadingFiles">
                                             <td colspan="8" class="py-10 text-center text-zinc-400">
-                                                <i data-lucide="loader" class="w-6 h-6 mx-auto animate-spin text-emerald-400 mb-2"></i>
+                                                <i data-lucide="loader" class="w-6 h-6 mx-auto animate-spin text-blue-400 mb-2"></i>
                                                 <span>Đang tải danh sách tệp tin máy chủ...</span>
                                             </td>
                                         </tr>
@@ -252,7 +252,7 @@
                                                         <template v-else-if="['.jpg', '.png', '.svg', '.webp'].some(ext => item.name.endsWith(ext))">🖼️</template>
                                                         <template v-else>📄</template>
                                                     </span>
-                                                    <span class="text-zinc-200 group-hover:text-emerald-400 transition truncate max-w-xs sm:max-w-md font-mono" :title="item.name">
+                                                    <span class="text-zinc-200 group-hover:text-blue-400 transition truncate max-w-xs sm:max-w-md font-mono" :title="item.name">
                                                         {{ item.name }}
                                                     </span>
                                                     <span v-if="item.is_symlink" class="text-[10px] text-zinc-500 font-mono italic" :title="item.link_target">
@@ -278,7 +278,7 @@
                                             <td class="py-2.5 px-3 font-mono text-[11px] whitespace-nowrap">
                                                 <template v-if="item.is_dir">
                                                     <button type="button" @click.stop="calculateFolderSize(item.name)" 
-                                                            class="text-emerald-400 hover:text-emerald-300 hover:underline font-medium cursor-pointer">
+                                                            class="text-blue-400 hover:text-emerald-300 hover:underline font-medium cursor-pointer">
                                                         {{ folderSizes[item.name] || 'Calculate' }}
                                                     </button>
                                                 </template>
@@ -332,7 +332,7 @@
                                 <div class="flex items-center gap-2">
                                     <span>Total <strong class="text-white">{{ directoryCount }}</strong> directories, <strong class="text-white">{{ fileCount }}</strong> files,</span>
                                     <span>File size: </span>
-                                    <button type="button" @click="calculateTotalDirectorySize" class="text-emerald-400 hover:text-emerald-300 hover:underline font-medium">
+                                    <button type="button" @click="calculateTotalDirectorySize" class="text-blue-400 hover:text-emerald-300 hover:underline font-medium">
                                         {{ totalCalculatedSize || 'Calculate' }}
                                     </button>
                                 </div>
@@ -358,7 +358,7 @@
                                     </div>
 
                                     <!-- Dropdown số lượng mục mỗi trang -->
-                                    <select v-model="filePageSize" class="px-2 py-1 rounded bg-[#202126] border border-[#33353a] text-zinc-300 focus:outline-none focus:border-emerald-500 text-xs">
+                                    <select v-model="filePageSize" class="px-2 py-1 rounded bg-[#202126] border border-[#33353a] text-zinc-300 focus:outline-none focus:border-blue-500 text-xs">
                                         <option :value="20">20 / page</option>
                                         <option :value="50">50 / page</option>
                                         <option :value="100">100 / page</option>
@@ -370,7 +370,7 @@
                                         <span>Goto</span>
                                         <input type="number" v-model.number="fileGotoInput" @keyup.enter="fileCurrentPage = Math.max(1, Math.min(maxFilePages, fileGotoInput))"
                                                min="1" :max="maxFilePages" 
-                                               class="w-12 px-2 py-0.5 rounded bg-[#202126] border border-[#33353a] text-white text-center font-mono text-xs focus:outline-none focus:border-emerald-500">
+                                               class="w-12 px-2 py-0.5 rounded bg-[#202126] border border-[#33353a] text-white text-center font-mono text-xs focus:outline-none focus:border-blue-500">
                                     </div>
 
                                     <!-- Total count -->

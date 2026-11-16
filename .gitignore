@@ -41,3 +41,5 @@ web/dist/
 .DS_Store
 Thumbs.db
 /tmp
+
+scratch/

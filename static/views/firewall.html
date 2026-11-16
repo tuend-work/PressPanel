@@ -21,36 +21,36 @@
                         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[#222834] pb-2 text-[12px]">
                             <div class="flex flex-wrap gap-1.5">
                                 <button @click="firewallSubTab = 'rules'"
-                                    :class="firewallSubTab === 'rules' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="firewallSubTab === 'rules' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     <i data-lucide="server" class="w-3.5 h-3.5 mr-1"></i><span>Cổng Dịch Vụ (Ports)</span>
                                     <span v-if="firewallData.rules" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-700/80">{{ firewallData.rules.length }}</span>
                                 </button>
                                 <button @click="firewallSubTab = 'blocklists'; fetchBlocklists();"
-                                    :class="firewallSubTab === 'blocklists' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="firewallSubTab === 'blocklists' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     <i data-lucide="slash" class="w-3.5 h-3.5 mr-1"></i><span>IP Blocklist (ipset)</span>
                                     <span v-if="blocklistData.stats && blocklistData.stats.total_blocked_ips" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">
                                         {{ blocklistData.stats.total_blocked_ips.toLocaleString() }} IP
                                     </span>
                                 </button>
                                 <button @click="firewallSubTab = 'fail2ban'; fetchFail2ban();"
-                                    :class="firewallSubTab === 'fail2ban' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="firewallSubTab === 'fail2ban' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     <i data-lucide="shield-alert" class="w-3.5 h-3.5 mr-1"></i><span>Fail2ban Shield</span>
                                     <span v-if="fail2banData.running" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">Active</span>
                                 </button>
                                 <button @click="firewallSubTab = 'telegram'; fetchTelegramConfig();"
-                                    :class="firewallSubTab === 'telegram' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="firewallSubTab === 'telegram' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     <i data-lucide="bell" class="w-3.5 h-3.5 mr-1"></i><span>Cảnh Báo Telegram</span>
                                     <span v-if="telegramConfig.enabled" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-sky-500/20 text-sky-400 font-bold border border-sky-500/30">ON</span>
                                 </button>
                                 <button @click="firewallSubTab = 'audit'; runSecurityAudit();"
-                                    :class="firewallSubTab === 'audit' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="firewallSubTab === 'audit' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     <i data-lucide="check-circle" class="w-3.5 h-3.5 mr-1"></i><span>Đánh Giá An Ninh</span>
                                     <span v-if="securityAudit.score !== undefined" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px]" :class="securityAudit.score === securityAudit.max_score ? 'bg-emerald-500 text-slate-950 font-bold' : 'bg-amber-500 text-slate-950 font-bold'">
                                         {{ securityAudit.score }}/{{ securityAudit.max_score }}
                                     </span>
                                 </button>
                                 <button @click="firewallSubTab = 'logs'; fetchSecurityLogs();"
-                                    :class="firewallSubTab === 'logs' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="firewallSubTab === 'logs' ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     <i data-lucide="file-text" class="w-3.5 h-3.5 mr-1"></i><span>Nhật Ký Đăng Nhập</span>
                                 </button>
                             </div>
@@ -118,7 +118,7 @@
                             <div class="flex flex-wrap items-center justify-between gap-3 bg-[#13171e] p-3 rounded-xl border border-[#222834] text-xs">
                                 <div class="flex items-center gap-2">
                                     <button @click="openOpenPortModal"
-                                        class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm flex items-center gap-1.5">
+                                        class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition shadow-sm flex items-center gap-1.5">
                                         <span>➕ Mở Cổng (Open Port)</span>
                                     </button>
                                     <button @click="openAddIpRuleModal"
@@ -128,7 +128,7 @@
                                 </div>
                                 <div class="relative w-full sm:w-64">
                                     <input type="text" v-model="firewallSearchQuery" placeholder="Tìm cổng, IP, ghi chú..."
-                                        class="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#10131a] border border-[#222834] text-slate-200 placeholder-slate-500 text-xs focus:outline-none focus:border-emerald-500">
+                                        class="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#10131a] border border-[#222834] text-slate-200 placeholder-slate-500 text-xs focus:outline-none focus:border-blue-500">
                                     <span class="absolute left-2.5 top-2 text-slate-500 text-xs">🔍</span>
                                 </div>
                             </div>
@@ -217,7 +217,7 @@
                                     </button>
                                     <button @click="handleSyncBlocklists"
                                         :disabled="syncingBlocklists"
-                                        class="flex-1 md:flex-none px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-900/30">
+                                        class="flex-1 md:flex-none px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium font-semibold transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-900/30">
                                         <span :class="{'animate-spin': syncingBlocklists}">🔄</span>
                                         <span>{{ syncingBlocklists ? 'Đang Nạp...' : 'Đồng Bộ ipset Ngay' }}</span>
                                     </button>
@@ -287,7 +287,7 @@
                                         <div class="text-[10px] text-slate-500 mt-0.5">Tự động ban IP dò pass SSH & Panel</div>
                                     </div>
                                     <div class="flex items-center gap-1.5">
-                                        <button v-if="!fail2banData.running" @click="handleFail2banService('start')" class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-[11px]">Bật</button>
+                                        <button v-if="!fail2banData.running" @click="handleFail2banService('start')" class="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-[11px]">Bật</button>
                                         <button v-if="fail2banData.running" @click="handleFail2banService('restart')" class="px-2.5 py-1 rounded bg-[#1e2634] hover:bg-[#283244] text-slate-300 border border-[#2c384c] font-medium text-[11px]">Restart</button>
                                         <button v-if="fail2banData.running" @click="handleFail2banService('stop')" class="px-2.5 py-1 rounded bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 font-medium text-[11px]">Tắt</button>
                                     </div>
@@ -363,14 +363,14 @@
                                     <div>
                                         <label class="text-slate-300 font-medium block mb-1">Telegram Bot Token:</label>
                                         <input type="text" v-model="telegramConfig.bot_token" placeholder="Ví dụ: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
-                                            class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                         <p class="text-[10.5px] text-slate-500 mt-1">Lấy từ <a href="https://t.me/BotFather" target="_blank" class="text-emerald-400 underline">@BotFather</a> trên Telegram</p>
                                     </div>
 
                                     <div>
                                         <label class="text-slate-300 font-medium block mb-1">Telegram Chat ID (ID Cá nhân hoặc Group):</label>
                                         <input type="text" v-model="telegramConfig.chat_id" placeholder="Ví dụ: 987654321 hoặc -100123456789"
-                                            class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                         <p class="text-[10.5px] text-slate-500 mt-1">Lấy từ bot <a href="https://t.me/userinfobot" target="_blank" class="text-emerald-400 underline">@userinfobot</a> hoặc chat riêng với Bot của bạn</p>
                                     </div>
                                 </div>
@@ -405,7 +405,7 @@
                                     </button>
                                     <button type="button" @click="handleSaveTelegram"
                                         :disabled="savingTelegram"
-                                        class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm">
+                                        class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition shadow-sm">
                                         <span>{{ savingTelegram ? 'Đang Lưu...' : 'Lưu Cấu Hình' }}</span>
                                     </button>
                                 </div>
@@ -442,7 +442,7 @@
                                     </button>
                                     <button @click="applySecurityFix"
                                         :disabled="fixingSecurity"
-                                        class="flex-1 md:flex-none px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-900/30">
+                                        class="flex-1 md:flex-none px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium font-semibold transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-900/30">
                                         <span v-if="fixingSecurity" class="animate-spin">⚙️</span>
                                         <span v-else>🛡️</span>
                                         <span>{{ fixingSecurity ? 'Đang Tối Ưu...' : 'Tối Ưu Toàn Diện 1-Click' }}</span>
@@ -532,19 +532,19 @@
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Số Cổng (Port):</label>
                                     <input type="number" v-model.number="portForm.port" min="1" max="65535" placeholder="Ví dụ: 8080"
-                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                 </div>
                                 <div class="grid grid-cols-2 gap-3">
                                     <div>
                                         <label class="text-slate-300 font-medium block mb-1">Giao Thức:</label>
-                                        <select v-model="portForm.protocol" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                        <select v-model="portForm.protocol" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500">
                                             <option value="tcp">TCP (Khuyên dùng)</option>
                                             <option value="udp">UDP</option>
                                         </select>
                                     </div>
                                     <div>
                                         <label class="text-slate-300 font-medium block mb-1">Hành Động:</label>
-                                        <select v-model="portForm.action" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                        <select v-model="portForm.action" class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500">
                                             <option value="allow">Cho phép (Allow)</option>
                                             <option value="deny">Chặn (Drop)</option>
                                         </select>
@@ -553,18 +553,18 @@
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Nguồn Truy Cập (Source IP):</label>
                                     <input type="text" v-model="portForm.ip_source" placeholder="0.0.0.0/0 (Tất cả mọi nơi) hoặc IP cụ thể"
-                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                 </div>
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Ghi Chú Dịch Vụ:</label>
                                     <input type="text" v-model="portForm.comment" placeholder="Ví dụ: Custom Web App, Jenkins, Node.js..."
-                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500">
                                 </div>
                             </div>
                             <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#222a3a]">
                                 <button type="button" @click="showOpenPortModal = false" class="px-3.5 py-1.5 rounded-lg bg-[#1c2230] text-slate-300 hover:bg-[#252e42] transition font-medium">Hủy</button>
                                 <button type="button" @click="submitAddPortRule" :disabled="savingRule"
-                                    class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm">
+                                    class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition shadow-sm">
                                     <span>{{ savingRule ? 'Đang Lưu...' : 'Xác Nhận Mở Cổng' }}</span>
                                 </button>
                             </div>
@@ -584,7 +584,7 @@
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Địa Chỉ IP hoặc Dải Mạng CIDR:</label>
                                     <input type="text" v-model="ipForm.ip_source" placeholder="Ví dụ: 192.168.1.15 hoặc 10.0.0.0/24"
-                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                 </div>
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Hành Động:</label>
@@ -604,13 +604,13 @@
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Lý Do / Ghi Chú:</label>
                                     <input type="text" v-model="ipForm.comment" placeholder="Ví dụ: IP brute force SSH, IP văn phòng tin cậy..."
-                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500">
                                 </div>
                             </div>
                             <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#222a3a]">
                                 <button type="button" @click="showAddIpModal = false" class="px-3.5 py-1.5 rounded-lg bg-[#1c2230] text-slate-300 hover:bg-[#252e42] transition font-medium">Hủy</button>
                                 <button type="button" @click="submitAddIpRule" :disabled="savingRule"
-                                    class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm">
+                                    class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition shadow-sm">
                                     <span>{{ savingRule ? 'Đang Lưu...' : 'Xác Nhận Áp Dụng' }}</span>
                                 </button>
                             </div>
@@ -630,19 +630,19 @@
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Tên Nguồn / Mô Tả:</label>
                                     <input type="text" v-model="newBlocklistForm.name" placeholder="Ví dụ: AbuseIPDB Blacklist, Emerging Threats..."
-                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500">
                                 </div>
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Đường Dẫn URL (File text/netset):</label>
                                     <input type="url" v-model="newBlocklistForm.url" placeholder="https://example.com/blocklist.txt"
-                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono">
                                     <p class="text-[10.5px] text-slate-500 mt-1">Hỗ trợ các file văn bản chứa danh sách IP/CIDR ngăn cách bởi dấu xuống dòng.</p>
                                 </div>
                             </div>
                             <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#222a3a]">
                                 <button type="button" @click="showAddBlocklistModal = false" class="px-3.5 py-1.5 rounded-lg bg-[#1c2230] text-slate-300 hover:bg-[#252e42] transition font-medium">Hủy</button>
                                 <button type="button" @click="submitAddBlocklist" :disabled="savingBlocklist"
-                                    class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm">
+                                    class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition shadow-sm">
                                     <span>{{ savingBlocklist ? 'Đang Lưu...' : 'Thêm Nguồn' }}</span>
                                 </button>
                             </div>

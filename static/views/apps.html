@@ -23,33 +23,33 @@
                         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#222834] pb-3 text-[12px]">
                             <div class="flex flex-wrap gap-1.5">
                                 <button @click="appsCategory = 'all'"
-                                    :class="appsCategory === 'all' ? 'px-3 py-1 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="appsCategory === 'all' ? 'px-3 py-1 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     Tất Cả ({{ appsList.length }})
                                 </button>
                                 <button @click="appsCategory = 'installed'"
-                                    :class="appsCategory === 'installed' ? 'px-3 py-1 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="appsCategory === 'installed' ? 'px-3 py-1 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     <span>Đã Cài Đặt ({{ installedAppsCount }})</span>
                                 </button>
                                 <button @click="appsCategory = 'webserver'"
-                                    :class="appsCategory === 'webserver' ? 'px-3 py-1 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="appsCategory === 'webserver' ? 'px-3 py-1 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     Web server
                                 </button>
                                 <button @click="appsCategory = 'database'"
-                                    :class="appsCategory === 'database' ? 'px-3 py-1 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="appsCategory === 'database' ? 'px-3 py-1 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     Database
                                 </button>
                                 <button @click="appsCategory = 'php'"
-                                    :class="appsCategory === 'php' ? 'px-3 py-1 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="appsCategory === 'php' ? 'px-3 py-1 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     PHP
                                 </button>
                                 <button @click="appsCategory = 'tools'"
-                                    :class="appsCategory === 'tools' ? 'px-3 py-1 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    :class="appsCategory === 'tools' ? 'px-3 py-1 rounded-lg bg-blue-600 text-white font-medium shadow-sm' : 'px-3 py-1 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
                                     Tools
                                 </button>
                             </div>
                             <div class="relative w-full sm:w-64">
                                 <input type="text" v-model="appsSearchQuery" placeholder="Tìm ứng dụng, phiên bản..."
-                                    class="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#13171e] border border-[#222834] text-slate-200 placeholder-slate-500 text-xs focus:outline-none focus:border-emerald-500">
+                                    class="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#13171e] border border-[#222834] text-slate-200 placeholder-slate-500 text-xs focus:outline-none focus:border-blue-500">
                                 <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500"></i>
                             </div>
                         </div>
@@ -116,7 +116,7 @@
                                         <!-- 3. Location -->
                                         <td class="py-3 px-2 text-center">
                                             <button @click="showAppLocation(app)"
-                                                class="text-amber-400 hover:text-amber-300 transition text-sm"
+                                                class="text-slate-400 hover:text-slate-200 transition text-sm"
                                                 :title="app.location_path ? 'Thư mục: ' + app.location_path : 'Xem đường dẫn cài đặt'">
                                                 📁
                                             </button>
@@ -141,7 +141,7 @@
                                         <td class="py-3 px-2 text-center">
                                             <label class="relative inline-flex items-center cursor-pointer">
                                                 <input type="checkbox" :checked="isAppOnHome(app.id)" @change="toggleDisplayOnHome(app)" class="sr-only peer">
-                                                <div class="w-8 h-4 bg-[#252b36] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                                                <div class="w-8 h-4 bg-[#252b36] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
                                             </label>
                                         </td>
 
@@ -160,27 +160,27 @@
                                                     </template>
                                                     <!-- Update -->
                                                     <button @click="app.category === 'php' ? handleCheckPhpUpdate(app) : handleAppAction(app.id, 'update')"
-                                                        class="px-2 py-1 rounded-md bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/25 transition font-medium"
+                                                        class="px-2 py-1 rounded-md bg-slate-800/80 text-slate-300 hover:bg-slate-700 border border-slate-700/80 transition font-medium"
                                                         title="Cập nhật phiên bản mới nhất kèm module tăng tốc WordPress">
                                                         Cập nhật
                                                     </button>
                                                     <!-- Reinstall (cho Webserver) -->
                                                     <template v-if="app.category === 'webserver'">
                                                         <button @click="handleAppAction(app.id, 'reinstall')"
-                                                            class="px-2 py-1 rounded-md bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/25 transition font-medium"
+                                                            class="px-2 py-1 rounded-md bg-slate-800/80 text-slate-300 hover:bg-slate-700 border border-slate-700/80 transition font-medium"
                                                             title="Cài đặt lại kèm trọn bộ modules tăng tốc WordPress tối đa">
                                                             Cài lại
                                                         </button>
                                                     </template>
                                                     <!-- Setting -->
                                                     <button @click="openAppSettings(app)"
-                                                        class="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/25 transition font-semibold"
+                                                        class="px-2 py-1 rounded-md bg-slate-800/80 text-slate-300 hover:bg-slate-700 border border-slate-700/80 transition font-semibold"
                                                         title="Cài đặt & Cấu hình dịch vụ (Setting / Config)">
                                                         Cấu hình
                                                     </button>
                                                     <!-- Uninstall -->
                                                     <button @click="handleAppAction(app.id, 'uninstall')"
-                                                        class="px-2 py-1 rounded-md bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/25 transition font-medium"
+                                                        class="px-2 py-1 rounded-md bg-rose-950/40 text-rose-300 hover:bg-rose-900/60 border border-rose-800/60 transition font-medium"
                                                         title="Gỡ cài đặt">
                                                         Gỡ bỏ
                                                     </button>
@@ -189,7 +189,7 @@
                                             <template v-else>
                                                 <button @click="openInstallAppModal(app)"
                                                     :disabled="installingAppId === app.id"
-                                                    class="px-3 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11.5px] transition shadow-sm flex items-center gap-1.5 ml-auto">
+                                                    class="px-3 py-1 rounded-md bg-blue-600 hover:bg-blue-500 text-white font-medium text-[11.5px] transition shadow-sm flex items-center gap-1.5 ml-auto">
                                                     <span v-if="installingAppId === app.id">Đang cài...</span>
                                                     <span v-else>➕ Cài Đặt</span>
                                                 </button>

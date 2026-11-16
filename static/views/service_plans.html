@@ -2,7 +2,7 @@
                         <!-- Action Bar -->
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                             <div>
-                                <h2 class="text-base sm:text-lg font-bold text-slate-800 dark:text-white tracking-tight flex items-center gap-2">
+                                <h2 class="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
                                     <i v-if="currentUser.role === 'admin'" data-lucide="package" class="w-5 h-5 text-blue-400 mr-1"></i>
                                     <i v-else data-lucide="globe" class="w-5 h-5 text-emerald-400 mr-1"></i>
                                     <span v-if="currentUser.role === 'admin'">Quản Lý User Packages</span>
@@ -13,7 +13,7 @@
                                     <span v-else>Tạo và quản lý các gói tài nguyên Website Plan để phân bổ cho từng website của bạn (mỗi gói áp dụng 1 website).</span>
                                 </p>
                             </div>
-                            <button @click="showAddPlanModal = true" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-medium text-xs text-white shadow-sm transition flex items-center space-x-1.5">
+                            <button @click="showAddPlanModal = true" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-950/40 text-blue-400 border border-blue-800/600 font-medium text-xs text-white shadow-sm transition flex items-center space-x-1.5">
                                 <span v-if="currentUser.role === 'admin'">➕ Thêm User Package</span>
                                 <span v-else>➕ Tạo Website Plan Mới</span>
                             </button>
@@ -22,21 +22,21 @@
                         <!-- Grid các gói Hosting Mẫu chuẩn WPC -->
                         <div v-if="servicePlans.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                             <div v-for="plan in servicePlans" :key="plan.id"
-                                class="bg-white dark:bg-slate-900/90 rounded-2xl p-5 flex flex-col justify-between border border-slate-200/90 dark:border-slate-800 hover:border-blue-500/80 dark:hover:border-blue-500/80 transition shadow-sm hover:shadow-lg space-y-4">
+                                class="bg-slate-900/60/90 rounded-2xl p-5 flex flex-col justify-between border border-slate-800/80 hover:border-blue-500/80 dark:hover:border-blue-500/80 transition shadow-sm hover:shadow-lg space-y-4">
                                 <div>
                                     <div class="flex justify-between items-start mb-3">
-                                        <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-base shadow-inner">
+                                        <div class="w-10 h-10 rounded-xl bg-blue-950/40 text-blue-400 border border-blue-800/60 dark:border-blue-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-base shadow-inner">
                                             {{ plan.plan_type === 'website' ? '🌐' : '📦' }}
                                         </div>
                                         <div class="flex items-center gap-1.5">
                                             <span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full font-bold uppercase"
-                                                :class="plan.plan_type === 'website' ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60' : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60'">
+                                                :class="plan.plan_type === 'website' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60' : 'bg-blue-950/40 text-blue-400 border border-blue-800/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60'">
                                                 {{ plan.plan_type === 'website' ? 'Website Plan' : 'User Package' }}
                                             </span>
                                         </div>
                                     </div>
 
-                                    <h3 class="font-bold text-slate-800 dark:text-white text-base">{{ plan.name }}</h3>
+                                    <h3 class="font-bold text-white text-base">{{ plan.name }}</h3>
                                     <div class="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">Plan ID: #{{ plan.id }}</div>
 
                                     <!-- Thông số kỹ thuật của gói -->
@@ -47,19 +47,19 @@
                                         </div>
                                         <div class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
                                             <span class="text-slate-500 dark:text-slate-400">Giới hạn Inodes:</span>
-                                            <span class="font-bold text-slate-700 dark:text-slate-200 font-mono">{{ (plan.max_inodes || 250000).toLocaleString() }}</span>
+                                            <span class="font-bold text-slate-300 dark:text-slate-200 font-mono">{{ (plan.max_inodes || 250000).toLocaleString() }}</span>
                                         </div>
                                         <div class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
                                             <span class="text-slate-500 dark:text-slate-400">⚡ Bộ nhớ RAM:</span>
-                                            <span class="font-bold text-slate-700 dark:text-slate-200 font-mono">{{ plan.mem_mb }} MB</span>
+                                            <span class="font-bold text-slate-300 dark:text-slate-200 font-mono">{{ plan.mem_mb }} MB</span>
                                         </div>
                                         <div class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
                                             <span class="text-slate-500 dark:text-slate-400">🖥️ Hạn mức CPU:</span>
-                                            <span class="font-bold text-slate-700 dark:text-slate-200 font-mono">{{ plan.cpu_pct }}% Core</span>
+                                            <span class="font-bold text-slate-300 dark:text-slate-200 font-mono">{{ plan.cpu_pct }}% Core</span>
                                         </div>
                                         <div v-if="plan.plan_type !== 'website'" class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
                                             <span class="text-slate-500 dark:text-slate-400">🌐 Số tên miền tối đa:</span>
-                                            <span class="font-bold text-slate-700 dark:text-slate-200 font-mono">{{ plan.max_domains }}</span>
+                                            <span class="font-bold text-slate-300 dark:text-slate-200 font-mono">{{ plan.max_domains }}</span>
                                         </div>
                                         <div v-else class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
                                             <span class="text-slate-500 dark:text-slate-400">🌐 Quy mô áp dụng:</span>
@@ -69,7 +69,7 @@
                                         <!-- Hạn mức chuyên sâu cho User Package -->
                                         <div v-if="plan.plan_type !== 'website'" class="pt-2 text-slate-600 dark:text-slate-300 space-y-1">
                                             <div class="text-[11px] text-slate-400 dark:text-slate-500 font-semibold uppercase">Giới hạn theo loại App:</div>
-                                            <div class="grid grid-cols-2 gap-1 text-[11px] font-mono bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl">
+                                            <div class="grid grid-cols-2 gap-1 text-[11px] font-mono bg-slate-800/50/50 p-2 rounded-xl">
                                                 <span>WP: <b class="text-blue-500">{{ plan.max_wp_sites ?? 5 }}</b></span>
                                                 <span>PHP: <b class="text-indigo-400">{{ plan.max_php_sites ?? 10 }}</b></span>
                                                 <span>Node: <b class="text-emerald-400">{{ plan.max_nodejs_sites ?? 2 }}</b></span>
@@ -79,11 +79,11 @@
 
                                         <div class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
                                             <span class="text-slate-500 dark:text-slate-400">🗄️ MySQL / MongoDB:</span>
-                                            <span class="font-bold text-slate-700 dark:text-slate-200 font-mono">{{ plan.max_mysql_dbs ?? plan.max_databases ?? 10 }} / {{ plan.max_mongo_dbs ?? 2 }}</span>
+                                            <span class="font-bold text-slate-300 dark:text-slate-200 font-mono">{{ plan.max_mysql_dbs ?? plan.max_databases ?? 10 }} / {{ plan.max_mongo_dbs ?? 2 }}</span>
                                         </div>
                                         <div class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
                                             <span class="text-slate-500 dark:text-slate-400">📶 Băng thông / FTP:</span>
-                                            <span class="font-bold text-slate-700 dark:text-slate-200 font-mono">{{ plan.bandwidth_mb > 0 ? (plan.bandwidth_mb/1024).toFixed(0)+'GB' : '∞' }} / {{ plan.max_ftp_accounts ?? 5 }} FTP</span>
+                                            <span class="font-bold text-slate-300 dark:text-slate-200 font-mono">{{ plan.bandwidth_mb > 0 ? (plan.bandwidth_mb/1024).toFixed(0)+'GB' : '∞' }} / {{ plan.max_ftp_accounts ?? 5 }} FTP</span>
                                         </div>
                                         <div v-if="currentUser.role === 'admin'" class="flex justify-between items-center pt-2 text-slate-600 dark:text-slate-300">
                                             <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1">
@@ -91,7 +91,7 @@
                                                 <span>Quyền SSH Terminal:</span>
                                             </span>
                                             <button @click="handleTogglePlanSsh(plan)"
-                                                :class="plan.allow_ssh ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'"
+                                                :class="plan.allow_ssh ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-700/60'"
                                                 class="px-2 py-0.5 rounded text-[11px] font-semibold border transition hover:opacity-80">
                                                 {{ plan.allow_ssh ? '✓ Cho Phép' : '✗ Đã Chặn' }}
                                             </button>
@@ -99,17 +99,17 @@
                                     </div>
                                 </div>
 
-                                <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                                <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
                                     <div class="flex items-center gap-1.5">
                                         <span class="text-slate-500 dark:text-slate-400">Dùng:</span>
-                                        <span class="px-2 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-blue-600 dark:text-blue-400 font-bold">
+                                        <span class="px-2 py-0.5 rounded-full bg-slate-800/50 border border-slate-700/60 font-mono text-blue-600 dark:text-blue-400 font-bold">
                                             {{ plan.subscriber_count || 0 }} {{ plan.plan_type === 'website' ? 'Web' : 'User' }}
                                         </span>
                                     </div>
                                     <div class="flex items-center space-x-1.5">
                                         <button @click="openEditPlanModal(plan)"
                                             title="Sửa thông tin gói"
-                                            class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 dark:bg-slate-800 dark:hover:bg-blue-900/40 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 border border-slate-200 dark:border-slate-700 transition flex items-center gap-1 text-[11px] font-semibold">
+                                            class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-950/40 text-blue-400 border border-blue-800/60 dark:bg-slate-800 dark:hover:bg-blue-900/40 text-slate-300 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 border border-slate-700/60 transition flex items-center gap-1 text-[11px] font-semibold">
                                             <i data-lucide="edit-3" class="w-3.5 h-3.5 mr-1"></i><span>Sửa</span>
                                         </button>
                                         <button @click="handleDeletePlan(plan)"
@@ -125,17 +125,17 @@
                         </div>
 
                         <!-- Empty State khi chưa có gói nào -->
-                        <div v-else class="bg-white dark:bg-slate-900 rounded-2xl p-12 text-center border border-slate-200/90 dark:border-slate-800 shadow-sm space-y-3">
-                            <div class="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-3xl mx-auto shadow-inner">
+                        <div v-else class="bg-slate-900/60 rounded-2xl p-12 text-center border border-slate-800/80 shadow-sm space-y-3">
+                            <div class="w-16 h-16 rounded-2xl bg-blue-950/40 text-blue-400 border border-blue-800/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-3xl mx-auto shadow-inner">
                                 {{ currentUser.role === 'admin' ? '📦' : '🌐' }}
                             </div>
-                            <h3 class="text-base font-bold text-slate-800 dark:text-white">
+                            <h3 class="text-base font-bold text-white">
                                 {{ currentUser.role === 'admin' ? 'Chưa có User Package nào' : 'Chưa có Website Plan nào' }}
                             </h3>
                             <p class="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                                 {{ currentUser.role === 'admin' ? 'Hãy tạo gói User Package đầu tiên để cấp phát tài nguyên cho người dùng.' : 'Bạn chưa tạo gói Website Plan nào để phân bổ tài nguyên cho từng website của mình.' }}
                             </p>
-                            <button @click="showAddPlanModal = true" class="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition inline-flex items-center space-x-1.5">
+                            <button @click="showAddPlanModal = true" class="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-950/40 text-blue-400 border border-blue-800/600 text-white text-xs font-semibold shadow transition inline-flex items-center space-x-1.5">
                                 <span>➕ {{ currentUser.role === 'admin' ? 'Thêm User Package' : 'Tạo Website Plan Mới' }}</span>
                             </button>
                         </div>

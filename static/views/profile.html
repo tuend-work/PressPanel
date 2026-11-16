@@ -1,25 +1,25 @@
 <div v-if="currentTab === 'profile'" class="space-y-6 max-w-7xl mx-auto animate-fadeIn">
     <!-- Header Page -->
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/60 p-6 rounded-2xl border border-slate-800/80/80 shadow-sm">
         <div class="flex items-center space-x-4">
             <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/30 ring-4 ring-blue-50">
                 <span>{{ (profileData.full_name || profileData.username || 'U').slice(0, 2).toUpperCase() }}</span>
             </div>
             <div>
                 <div class="flex items-center gap-2.5">
-                    <h2 class="text-base sm:text-lg font-bold text-slate-800 dark:text-white tracking-tight">
+                    <h2 class="text-base sm:text-lg font-bold text-white tracking-tight">
                         {{ profileData.full_name || profileData.username }}
                     </h2>
                     <span class="text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider"
                         :class="{
                             'bg-purple-50 text-purple-700 border border-purple-200': profileData.role === 'admin',
-                            'bg-blue-50 text-blue-700 border border-blue-200': profileData.role === 'reseller',
-                            'bg-emerald-50 text-emerald-700 border border-emerald-200': profileData.role === 'user'
+                            'bg-blue-950/40 text-blue-400 border border-blue-800/60 text-blue-700 border border-blue-200': profileData.role === 'reseller',
+                            'bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-emerald-700 border border-emerald-200': profileData.role === 'user'
                         }">
                         {{ profileData.role === 'admin' ? 'Super Admin' : (profileData.role === 'reseller' ? 'Hosting Reseller' : (profileData.is_web_user ? 'Website User (Isolated)' : 'Website Owner')) }}
                     </span>
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/40 text-emerald-400 border border-emerald-800/60">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-950/40 text-emerald-400 border border-emerald-800/600 animate-pulse"></span>
                         Đang hoạt động
                     </span>
                 </div>
@@ -50,7 +50,7 @@
             </div>
         </div>
         <div class="flex items-center space-x-2.5">
-            <button @click="fetchUserProfile" :disabled="loadingProfile" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition flex items-center space-x-1.5">
+            <button @click="fetchUserProfile" :disabled="loadingProfile" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-300 font-semibold text-xs transition flex items-center space-x-1.5">
                 <i data-lucide="rotate-cw" :class="{'animate-spin': loadingProfile}" class="w-3.5 h-3.5"></i>
                 <span>Làm mới</span>
             </button>
@@ -66,13 +66,13 @@
         <!-- Left Column: Resource Quota & Account Specs -->
         <div class="space-y-6 lg:col-span-1">
             <!-- Card 1: Hạn mức tài nguyên được cấp phát -->
-            <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm space-y-4">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+            <div class="bg-slate-900/60 rounded-2xl p-5 border border-slate-800/80/80 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800/80 pb-3">
+                    <h3 class="font-bold text-slate-100 text-sm flex items-center gap-2">
                         <i data-lucide="pie-chart" class="w-4 h-4 text-blue-600"></i>
                         <span>Tài Nguyên Được Cấp Phát</span>
                     </h3>
-                    <span class="text-[11px] font-mono text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">
+                    <span class="text-[11px] font-mono text-blue-600 font-bold bg-blue-950/40 text-blue-400 border border-blue-800/60 px-2 py-0.5 rounded-lg border border-blue-100">
                         {{ profileData.package_name || 'Standard Plan' }}
                     </span>
                 </div>
@@ -84,7 +84,7 @@
                             <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-blue-500"></i>
                             <span>Dung lượng ổ cứng:</span>
                         </span>
-                        <span class="font-mono font-bold text-slate-800">
+                        <span class="font-mono font-bold text-slate-100">
                             {{ profileData.disk_used_mb ? (profileData.disk_used_mb >= 1024 ? (profileData.disk_used_mb/1024).toFixed(2) + ' GB' : profileData.disk_used_mb + ' MB') : '0 MB' }}
                             /
                             {{ (profileData.disk_mb / 1024).toFixed(1) }} GB
@@ -94,7 +94,7 @@
                         <div class="h-full rounded-full transition-all duration-500"
                             :class="{
                                 'bg-blue-600': diskPercent < 75,
-                                'bg-amber-500': diskPercent >= 75 && diskPercent < 90,
+                                'bg-amber-950/40 text-amber-400 border border-amber-800/600': diskPercent >= 75 && diskPercent < 90,
                                 'bg-rose-500': diskPercent >= 90
                             }"
                             :style="{ width: Math.min(100, Math.max(2, diskPercent)) + '%' }"></div>
@@ -107,22 +107,22 @@
 
                 <!-- 2. CPU & RAM -->
                 <div class="grid grid-cols-2 gap-3 pt-2">
-                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <div class="p-3 rounded-xl bg-slate-800/50 border border-slate-800/80">
                         <div class="text-[11px] text-slate-500 flex items-center gap-1 mb-1 font-medium">
                             <i data-lucide="cpu" class="w-3.5 h-3.5 text-purple-500"></i>
                             <span>Hạn mức CPU</span>
                         </div>
-                        <div class="text-base font-extrabold text-slate-800 font-mono">
+                        <div class="text-base font-extrabold text-slate-100 font-mono">
                             {{ profileData.cpu_pct }}%
                             <span class="text-[10px] font-normal text-slate-400">Core</span>
                         </div>
                     </div>
-                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <div class="p-3 rounded-xl bg-slate-800/50 border border-slate-800/80">
                         <div class="text-[11px] text-slate-500 flex items-center gap-1 mb-1 font-medium">
                             <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-500"></i>
                             <span>Bộ nhớ RAM</span>
                         </div>
-                        <div class="text-base font-extrabold text-slate-800 font-mono">
+                        <div class="text-base font-extrabold text-slate-100 font-mono">
                             {{ profileData.mem_mb >= 1024 ? (profileData.mem_mb/1024).toFixed(1) + ' GB' : profileData.mem_mb + ' MB' }}
                         </div>
                     </div>
@@ -135,7 +135,7 @@
                             <i data-lucide="globe" class="w-3.5 h-3.5 text-emerald-500"></i>
                             <span>Website đang chạy:</span>
                         </span>
-                        <span class="font-mono font-bold text-slate-800">
+                        <span class="font-mono font-bold text-slate-100">
                             {{ profileData.domains_count || 0 }} / {{ profileData.max_domains || 'Không giới hạn' }}
                         </span>
                     </div>
@@ -144,7 +144,7 @@
                             <i data-lucide="database" class="w-3.5 h-3.5 text-indigo-500"></i>
                             <span>Cơ sở dữ liệu MariaDB:</span>
                         </span>
-                        <span class="font-mono font-bold text-slate-800">
+                        <span class="font-mono font-bold text-slate-100">
                             {{ profileData.databases_count || 0 }} / {{ profileData.max_databases || 'Không giới hạn' }}
                         </span>
                     </div>
@@ -153,10 +153,10 @@
                             <i data-lucide="terminal" class="w-3.5 h-3.5 text-emerald-500"></i>
                             <span>Quyền SSH Terminal:</span>
                         </span>
-                        <span v-if="profileData.role === 'admin'" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span v-if="profileData.role === 'admin'" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-emerald-700 border border-emerald-200">
                             ✓ Toàn quyền root
                         </span>
-                        <span v-else class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                        <span v-else class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-800/80">
                             ✗ Đã tắt (Chỉ dành cho Admin)
                         </span>
                     </div>
@@ -200,9 +200,9 @@
         <!-- Right Column: Edit Forms (Profile Info & Password Change) -->
         <div class="space-y-6 lg:col-span-2">
             <!-- Form 1: Cập Nhật Thông Tin Cá Nhân -->
-            <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-5">
-                <div class="border-b border-slate-100 pb-4">
-                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <div class="bg-slate-900/60 rounded-2xl p-6 border border-slate-800/80/80 shadow-sm space-y-5">
+                <div class="border-b border-slate-800/80 pb-4">
+                    <h3 class="text-lg font-bold text-slate-100 flex items-center gap-2">
                         <i data-lucide="user-check" class="w-5 h-5 text-blue-600"></i>
                         <span>Thông Tin Cá Nhân</span>
                     </h3>
@@ -212,7 +212,7 @@
                 </div>
 
                 <!-- Alert Messages -->
-                <div v-if="profileSuccessMsg" class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-fadeIn font-medium">
+                <div v-if="profileSuccessMsg" class="p-3.5 rounded-xl bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-emerald-800 text-xs flex items-center gap-2 animate-fadeIn font-medium">
                     <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600 shrink-0"></i>
                     <span>{{ profileSuccessMsg }}</span>
                 </div>
@@ -225,25 +225,25 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <!-- Tên đăng nhập (Readonly) -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1">
+                            <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1">
                                 <span>Tên đăng nhập hệ thống:</span>
                                 <i data-lucide="lock" class="w-3 h-3 text-slate-400"></i>
                             </label>
                             <input type="text" :value="profileData.username" disabled
-                                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-500 font-mono cursor-not-allowed">
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 border border-slate-800/80 text-xs text-slate-500 font-mono cursor-not-allowed">
                             <span class="text-[10px] text-slate-400 mt-1 block">Tên Linux user cố định không thể thay đổi</span>
                         </div>
 
                         <!-- Vai trò (Readonly) -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Vai trò tài khoản:</label>
+                            <label class="block text-xs font-bold text-slate-300 mb-1.5">Vai trò tài khoản:</label>
                             <input type="text" :value="profileData.role === 'admin' ? 'Quản trị viên cấp cao (Admin)' : (profileData.role === 'reseller' ? 'Hosting Reseller' : (profileData.is_web_user ? 'Khách hàng Website (Website User)' : 'Website Owner'))" disabled
-                                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-500 font-semibold cursor-not-allowed">
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 border border-slate-800/80 text-xs text-slate-500 font-semibold cursor-not-allowed">
                         </div>
                     </div>
 
                     <!-- Hiển thị cấu hình tên miền nếu là Website User -->
-                    <div v-if="profileData.is_web_user" class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 rounded-xl bg-blue-50/60 border border-blue-100 text-xs">
+                    <div v-if="profileData.is_web_user" class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 rounded-xl bg-blue-950/40 text-blue-400 border border-blue-800/60/60 border border-blue-100 text-xs">
                         <div>
                             <span class="text-slate-500 font-semibold block mb-1">Tên miền quản trị:</span>
                             <span class="font-bold text-blue-700 font-mono text-sm flex items-center gap-1.5">
@@ -253,7 +253,7 @@
                         </div>
                         <div>
                             <span class="text-slate-500 font-semibold block mb-1">Máy chủ web & PHP:</span>
-                            <span class="font-bold text-slate-800 font-mono text-xs flex items-center gap-1.5 mt-0.5">
+                            <span class="font-bold text-slate-100 font-mono text-xs flex items-center gap-1.5 mt-0.5">
                                 <i data-lucide="server" class="w-4 h-4 text-purple-500"></i>
                                 <span>{{ (profileData.webserver || 'ols').toUpperCase() }} • PHP {{ profileData.php_version || '8.2' }}</span>
                             </span>
@@ -263,38 +263,38 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <!-- Họ và Tên -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ profileData.is_web_user ? 'Tiêu đề Website / Tên hiển thị:' : 'Họ và Tên hiển thị:' }}</label>
+                            <label class="block text-xs font-bold text-slate-300 mb-1.5">{{ profileData.is_web_user ? 'Tiêu đề Website / Tên hiển thị:' : 'Họ và Tên hiển thị:' }}</label>
                             <div class="relative">
                                 <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                                     <i data-lucide="badge-check" class="w-4 h-4"></i>
                                 </span>
                                 <input type="text" v-model="profileForm.full_name" :placeholder="profileData.is_web_user ? 'Ví dụ: Website Của Tôi' : 'Ví dụ: Nguyễn Văn A'"
-                                    class="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
+                                    class="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-800/80 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
                             </div>
                         </div>
 
                         <!-- Số điện thoại -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Số điện thoại:</label>
+                            <label class="block text-xs font-bold text-slate-300 mb-1.5">Số điện thoại:</label>
                             <div class="relative">
                                 <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                                     <i data-lucide="phone" class="w-4 h-4"></i>
                                 </span>
                                 <input type="tel" v-model="profileForm.phone" placeholder="Ví dụ: 0912345678"
-                                    class="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
+                                    class="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-800/80 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
                             </div>
                         </div>
                     </div>
 
                     <!-- Email -->
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1.5">Địa chỉ Email:</label>
+                        <label class="block text-xs font-bold text-slate-300 mb-1.5">Địa chỉ Email:</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                                 <i data-lucide="mail" class="w-4 h-4"></i>
                             </span>
                             <input type="email" v-model="profileForm.email" required placeholder="name@domain.com"
-                                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
+                                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-800/80 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
                         </div>
                         <span class="text-[10px] text-slate-400 mt-1 block">Email được sử dụng để nhận thông báo khẩn cấp về máy chủ, chứng chỉ SSL và thông báo quản trị</span>
                     </div>
@@ -302,7 +302,7 @@
                     <!-- Submit Button -->
                     <div class="pt-2 flex justify-end">
                         <button type="submit" :disabled="savingProfile"
-                            class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition flex items-center space-x-2 disabled:opacity-50">
+                            class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-950/40 text-blue-400 border border-blue-800/600 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition flex items-center space-x-2 disabled:opacity-50">
                             <i data-lucide="save" v-if="!savingProfile" class="w-4 h-4"></i>
                             <i data-lucide="rotate-cw" v-else class="w-4 h-4 animate-spin"></i>
                             <span>{{ savingProfile ? 'Đang lưu...' : 'Lưu Thay Đổi Thông Tin' }}</span>
@@ -312,9 +312,9 @@
             </div>
 
             <!-- Form 2: Đổi Mật Khẩu & Bảo Mật Đăng Nhập -->
-            <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-5">
-                <div class="border-b border-slate-100 pb-4">
-                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <div class="bg-slate-900/60 rounded-2xl p-6 border border-slate-800/80/80 shadow-sm space-y-5">
+                <div class="border-b border-slate-800/80 pb-4">
+                    <h3 class="text-lg font-bold text-slate-100 flex items-center gap-2">
                         <i data-lucide="shield-check" class="w-5 h-5 text-emerald-600"></i>
                         <span>Bảo Mật & Mật Khẩu Đăng Nhập</span>
                     </h3>
@@ -325,7 +325,7 @@
 
                 <!-- Nếu là Website User (Isolated Session) -->
                 <div v-if="profileData.is_web_user" class="space-y-4">
-                    <div class="p-4 rounded-xl bg-blue-50/60 border border-blue-200/80 space-y-2">
+                    <div class="p-4 rounded-xl bg-blue-950/40 text-blue-400 border border-blue-800/60/60 border border-blue-200/80 space-y-2">
                         <div class="flex items-center gap-2 text-blue-900 font-bold text-xs">
                             <i data-lucide="shield-alert" class="w-4 h-4 text-blue-600"></i>
                             <span>Tài Khoản Web User Độc Lập</span>
@@ -336,21 +336,21 @@
                         </p>
                     </div>
 
-                    <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div class="p-4 rounded-xl bg-slate-800/50 border border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                         <div>
-                            <h4 class="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                            <h4 class="font-bold text-slate-100 text-xs flex items-center gap-1.5">
                                 <i data-lucide="layers" class="w-4 h-4 text-blue-600"></i>
                                 <span>Đăng nhập Quản Trị WordPress 1-Click</span>
                             </h4>
                             <p class="text-[11px] text-slate-500 mt-0.5">Truy cập thẳng vào trang quản trị WP-Admin của {{ profileData.domain_name }} không cần nhập mật khẩu</p>
                         </div>
-                        <button @click="currentTab = 'domains'; domainCategoryFilter = 'wordpress'; fetchWpInstances();" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition flex items-center gap-1.5 shrink-0">
+                        <button @click="currentTab = 'domains'; domainCategoryFilter = 'wordpress'; fetchWpInstances();" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-950/40 text-blue-400 border border-blue-800/600 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition flex items-center gap-1.5 shrink-0">
                             <i data-lucide="layers" class="w-3.5 h-3.5"></i>
                             <span>WordPress Toolkit</span>
                         </button>
                     </div>
 
-                    <div v-if="isImpersonating" class="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center justify-between">
+                    <div v-if="isImpersonating" class="p-3.5 rounded-xl bg-amber-950/40 text-amber-400 border border-amber-800/60 text-amber-800 text-xs flex items-center justify-between">
                         <div class="flex items-center gap-2">
                             <span>⚠️</span>
                             <span>Đang ở chế độ xem dưới quyền Website User.</span>
@@ -368,7 +368,7 @@
                 <!-- Nếu là Hosting User hoặc Super Admin bình thường -->
                 <div v-else class="space-y-4">
                     <!-- Alert Messages -->
-                    <div v-if="passwordSuccessMsg" class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-fadeIn font-medium">
+                    <div v-if="passwordSuccessMsg" class="p-3.5 rounded-xl bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-emerald-800 text-xs flex items-center gap-2 animate-fadeIn font-medium">
                         <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600 shrink-0"></i>
                         <span>{{ passwordSuccessMsg }}</span>
                     </div>
@@ -380,13 +380,13 @@
                     <form @submit.prevent="handleChangePassword" class="space-y-4">
                         <!-- Mật khẩu hiện tại -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Mật khẩu hiện tại:</label>
+                            <label class="block text-xs font-bold text-slate-300 mb-1.5">Mật khẩu hiện tại:</label>
                             <div class="relative">
                                 <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                                     <i data-lucide="shield" class="w-4 h-4"></i>
                                 </span>
                                 <input :type="showCurPass ? 'text' : 'password'" v-model="passwordForm.current_password" required placeholder="Nhập mật khẩu đang sử dụng..."
-                                    class="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
+                                    class="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-800/80 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
                                 <button type="button" @click="showCurPass = !showCurPass" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
                                     <i :data-lucide="showCurPass ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
                                 </button>
@@ -396,13 +396,13 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <!-- Mật khẩu mới -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Mật khẩu mới:</label>
+                                <label class="block text-xs font-bold text-slate-300 mb-1.5">Mật khẩu mới:</label>
                                 <div class="relative">
                                     <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                                         <i data-lucide="lock" class="w-4 h-4"></i>
                                     </span>
                                     <input :type="showNewPass ? 'text' : 'password'" v-model="passwordForm.new_password" required placeholder="Tối thiểu 6 ký tự..."
-                                        class="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
+                                        class="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-800/80 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
                                     <button type="button" @click="showNewPass = !showNewPass" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
                                         <i :data-lucide="showNewPass ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
                                     </button>
@@ -411,19 +411,19 @@
 
                             <!-- Xác nhận mật khẩu mới -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Xác nhận mật khẩu mới:</label>
+                                <label class="block text-xs font-bold text-slate-300 mb-1.5">Xác nhận mật khẩu mới:</label>
                                 <div class="relative">
                                     <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                                         <i data-lucide="check" class="w-4 h-4"></i>
                                     </span>
                                     <input :type="showNewPass ? 'text' : 'password'" v-model="passwordForm.confirm_password" required placeholder="Nhập lại mật khẩu mới..."
-                                        class="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
+                                        class="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-800/80 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition">
                                 </div>
                             </div>
                         </div>
 
                         <!-- Mẹo bảo mật -->
-                        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-600 flex items-start gap-2.5 leading-relaxed">
+                        <div class="p-3.5 rounded-xl bg-slate-800/50 border border-slate-800/80 text-[11px] text-slate-600 flex items-start gap-2.5 leading-relaxed">
                             <i data-lucide="info" class="w-4 h-4 text-blue-500 shrink-0 mt-0.5"></i>
                             <span>
                                 <b>Khuyến nghị an toàn:</b> Mật khẩu mạnh nên chứa ít nhất 8 ký tự, bao gồm chữ cái viết hoa, viết thường, chữ số và ký tự đặc biệt (ví dụ: <code>@, #, $, %</code>). Tuyệt đối không chia sẻ mật khẩu cho người khác.
@@ -433,7 +433,7 @@
                         <!-- Submit Button -->
                         <div class="pt-2 flex justify-end">
                             <button type="submit" :disabled="savingPassword"
-                                class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-500/20 transition flex items-center space-x-2 disabled:opacity-50">
+                                class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-950/40 text-blue-400 border border-blue-800/600 text-white font-bold text-xs shadow-md shadow-emerald-500/20 transition flex items-center space-x-2 disabled:opacity-50">
                                 <i data-lucide="shield-check" v-if="!savingPassword" class="w-4 h-4"></i>
                                 <i data-lucide="rotate-cw" v-else class="w-4 h-4 animate-spin"></i>
                                 <span>{{ savingPassword ? 'Đang cập nhật...' : 'Cập Nhật Mật Khẩu Mới' }}</span>
