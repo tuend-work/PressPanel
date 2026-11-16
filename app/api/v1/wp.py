@@ -250,6 +250,8 @@ class WPSecurityToggleRequest(BaseModel):
 class WPCloneRequest(BaseModel):
     src_domain_id: int
     dest_domain_name: str
+    is_staging: bool = False
+    disallow_indexing: bool = True
 
 # ==============================================================================
 # Endpoints: Instances Management & Overview
@@ -724,12 +726,39 @@ async def clone_wordpress(req: WPCloneRequest, current_user: dict = Depends(get_
 
     # Chạy gatekeeper clone: wp clone <username> <src_domain> <dest_domain>
     res = await run_gatekeeper("wp", "clone", username, src_domain, dest_domain)
-    await db.close()
 
     if res.get("status") == "error":
+        await db.close()
         raise HTTPException(status_code=400, detail=res.get("message", "Clone website thất bại"))
 
-    return {"status": "ok", "message": f"Website đã được nhân bản thành công sang {dest_domain}!"}
+    # Nếu là Staging hoặc bật chế độ chống index, tắt search engine indexing (blog_public = 0)
+    if req.disallow_indexing or req.is_staging:
+        try:
+            await run_gatekeeper("wp", "run_cli", username, dest_domain, "option", "update", "blog_public", "0")
+        except Exception:
+            pass
+
+    # Đánh dấu is_staging trong DB nếu là môi trường thử nghiệm
+    if req.is_staging:
+        try:
+            dest_cursor = await db.execute("SELECT id FROM domains WHERE domain_name = ?", (dest_domain,))
+            dest_d = await dest_cursor.fetchone()
+            if dest_d:
+                await db.execute("""
+                    UPDATE wp_instances 
+                    SET is_staging = 1, staging_source_id = ?
+                    WHERE domain_id = ?
+                """, (req.src_domain_id, dest_d["id"]))
+                await db.commit()
+        except Exception:
+            pass
+
+    await db.close()
+
+    msg = f"Website đã được nhân bản thành công sang {dest_domain}!"
+    if req.is_staging:
+        msg = f"Môi trường thử nghiệm Staging ({dest_domain}) đã sẵn sàng và được bảo vệ chống Google Bot index!"
+    return {"status": "ok", "message": msg}
 
 @router.get("/{instance_id}/sso")
 async def get_magic_login_sso(instance_id: int, current_user: dict = Depends(get_current_user)):

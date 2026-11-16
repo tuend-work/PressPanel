@@ -5,12 +5,12 @@
                             <div>
                                 <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                                     <span class="text-emerald-400">🛡️</span>
-                                    <span>Tường Lửa & Bảo Mật (Firewall & Security)</span>
+                                    <span>Tường Lửa & Trung Tâm An Ninh (Firewall & Security Center)</span>
                                 </h2>
-                                <p class="text-[12px] text-slate-400 mt-0.5">Quản lý đóng/mở cổng, chặn IP độc hại, kiểm soát Ping ICMP và tối ưu an ninh hệ thống chuẩn CloudLinux</p>
+                                <p class="text-[12px] text-slate-400 mt-0.5">Tường lửa Linux kernel (iptables & ipset), Fail2ban Brute-force Shield, Cảnh báo Telegram Bot và CloudLinux Hardening</p>
                             </div>
                             <div class="flex items-center space-x-2 text-[12px]">
-                                <button @click="fetchFirewallData" class="px-3 py-1.5 rounded-lg bg-[#1a202c] hover:bg-[#242e40] text-slate-300 border border-[#2a3446] transition flex items-center gap-1.5 font-medium" title="Làm mới dữ liệu">
+                                <button @click="refreshCurrentFirewallTab" class="px-3 py-1.5 rounded-lg bg-[#1a202c] hover:bg-[#242e40] text-slate-300 border border-[#2a3446] transition flex items-center gap-1.5 font-medium" title="Làm mới dữ liệu">
                                     <span :class="{'animate-spin': loadingFirewall}">🔄</span>
                                     <span>Làm mới</span>
                                 </button>
@@ -18,23 +18,40 @@
                         </div>
 
                         <!-- Sub Navigation Tabs -->
-                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#222834] pb-2 text-[12px]">
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[#222834] pb-2 text-[12px]">
                             <div class="flex flex-wrap gap-1.5">
                                 <button @click="firewallSubTab = 'rules'"
                                     :class="firewallSubTab === 'rules' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
-                                    <span>🧱 Tường Lửa & Quản Lý Cổng</span>
+                                    <span>🧱 Cổng Dịch Vụ (Ports)</span>
                                     <span v-if="firewallData.rules" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-700/80">{{ firewallData.rules.length }}</span>
+                                </button>
+                                <button @click="firewallSubTab = 'blocklists'; fetchBlocklists();"
+                                    :class="firewallSubTab === 'blocklists' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    <span>🚫 IP Blocklist (ipset O(1))</span>
+                                    <span v-if="blocklistData.stats && blocklistData.stats.total_blocked_ips" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">
+                                        {{ blocklistData.stats.total_blocked_ips.toLocaleString() }} IP
+                                    </span>
+                                </button>
+                                <button @click="firewallSubTab = 'fail2ban'; fetchFail2ban();"
+                                    :class="firewallSubTab === 'fail2ban' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    <span>🛡️ Fail2ban Shield</span>
+                                    <span v-if="fail2banData.running" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">Active</span>
+                                </button>
+                                <button @click="firewallSubTab = 'telegram'; fetchTelegramConfig();"
+                                    :class="firewallSubTab === 'telegram' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
+                                    <span>🔔 Cảnh Báo Telegram</span>
+                                    <span v-if="telegramConfig.enabled" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-sky-500/20 text-sky-400 font-bold border border-sky-500/30">ON</span>
                                 </button>
                                 <button @click="firewallSubTab = 'audit'; runSecurityAudit();"
                                     :class="firewallSubTab === 'audit' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
-                                    <span>🔍 Đánh Giá An Ninh CloudLinux</span>
+                                    <span>🔍 Đánh Giá An Ninh</span>
                                     <span v-if="securityAudit.score !== undefined" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px]" :class="securityAudit.score === securityAudit.max_score ? 'bg-emerald-500 text-slate-950 font-bold' : 'bg-amber-500 text-slate-950 font-bold'">
                                         {{ securityAudit.score }}/{{ securityAudit.max_score }}
                                     </span>
                                 </button>
                                 <button @click="firewallSubTab = 'logs'; fetchSecurityLogs();"
                                     :class="firewallSubTab === 'logs' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
-                                    <span>📜 Nhật Ký Phòng Thủ & Đăng Nhập</span>
+                                    <span>📜 Nhật Ký Đăng Nhập</span>
                                 </button>
                             </div>
                         </div>
@@ -43,9 +60,8 @@
                         <!-- TAB 1: TƯỜNG LỬA & QUẢN LÝ CỔNG (FIREWALL)  -->
                         <!-- ========================================== -->
                         <div v-if="firewallSubTab === 'rules'" class="space-y-4">
-                            <!-- Status & Quick Stats Cards -->
+                            <!-- Status Cards -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-                                <!-- Card 1: Trạng thái tường lửa -->
                                 <div class="bg-[#12151c] p-3.5 rounded-xl border border-[#22262e] flex items-center justify-between">
                                     <div>
                                         <div class="text-slate-400 text-[11px] font-medium">Trạng Thái Tường Lửa</div>
@@ -55,12 +71,9 @@
                                         </div>
                                         <div class="text-[10px] text-slate-500 mt-0.5">Backend: {{ (firewallData.firewall && firewallData.firewall.type) || 'iptables' }}</div>
                                     </div>
-                                    <div class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-base">
-                                        🛡️
-                                    </div>
+                                    <div class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-base">🛡️</div>
                                 </div>
 
-                                <!-- Card 2: Phản hồi Ping ICMP -->
                                 <div class="bg-[#12151c] p-3.5 rounded-xl border border-[#22262e] flex items-center justify-between">
                                     <div>
                                         <div class="text-slate-400 text-[11px] font-medium">Phản Hồi Ping (ICMP)</div>
@@ -70,8 +83,7 @@
                                         <div class="text-[10px] text-slate-500 mt-0.5">Chống dò quét cổng tự động</div>
                                     </div>
                                     <div>
-                                        <button @click="handleTogglePing"
-                                            :disabled="togglingPing"
+                                        <button @click="handleTogglePing" :disabled="togglingPing"
                                             class="px-2.5 py-1 rounded text-[11px] font-medium border transition"
                                             :class="(firewallData.firewall && firewallData.firewall.ping_enabled) ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 hover:bg-amber-500/25' : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'">
                                             <span>{{ (firewallData.firewall && firewallData.firewall.ping_enabled) ? 'Chặn Ping' : 'Bật Ping' }}</span>
@@ -79,7 +91,6 @@
                                     </div>
                                 </div>
 
-                                <!-- Card 3: Cổng đang mở -->
                                 <div class="bg-[#12151c] p-3.5 rounded-xl border border-[#22262e] flex items-center justify-between">
                                     <div>
                                         <div class="text-slate-400 text-[11px] font-medium">Cổng Dịch Vụ Đang Mở</div>
@@ -88,23 +99,18 @@
                                         </div>
                                         <div class="text-[10px] text-slate-500 mt-0.5">HTTP 80, HTTPS 443, 8888...</div>
                                     </div>
-                                    <div class="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 text-base">
-                                        🚪
-                                    </div>
+                                    <div class="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 text-base">🚪</div>
                                 </div>
 
-                                <!-- Card 4: IP bị chặn / cho phép -->
                                 <div class="bg-[#12151c] p-3.5 rounded-xl border border-[#22262e] flex items-center justify-between">
                                     <div>
-                                        <div class="text-slate-400 text-[11px] font-medium">Quy Tắc Lọc IP</div>
+                                        <div class="text-slate-400 text-[11px] font-medium">Quy Tắc Lọc IP Cục Bộ</div>
                                         <div class="text-lg font-bold mt-0.5 text-rose-400">
                                             {{ (firewallData.firewall && firewallData.firewall.ips_count) || 0 }} <span class="text-xs font-normal text-slate-400">địa chỉ</span>
                                         </div>
                                         <div class="text-[10px] text-slate-500 mt-0.5">Blacklist & Whitelist</div>
                                     </div>
-                                    <div class="w-9 h-9 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 text-base">
-                                        🚫
-                                    </div>
+                                    <div class="w-9 h-9 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 text-base">🚫</div>
                                 </div>
                             </div>
 
@@ -144,7 +150,6 @@
                                         </thead>
                                         <tbody class="divide-y divide-[#1e232d] text-[12px]">
                                             <tr v-for="rule in filteredFirewallRules" :key="rule.id" class="hover:bg-[#161a24] transition">
-                                                <!-- Đối Tượng (Port hoặc IP) -->
                                                 <td class="py-3 px-4 font-mono font-bold text-slate-200">
                                                     <span v-if="rule.port" class="flex items-center gap-1.5">
                                                         <span class="px-2 py-0.5 rounded text-[11px] bg-slate-800 text-emerald-400 border border-slate-700">Port {{ rule.port }}</span>
@@ -153,15 +158,9 @@
                                                         <span class="px-2 py-0.5 rounded text-[11px] bg-rose-500/15 border border-rose-500/30">IP Filter</span>
                                                     </span>
                                                 </td>
-
-                                                <!-- Giao Thức -->
                                                 <td class="py-3 px-3 uppercase font-medium text-slate-300">
-                                                    <span class="px-2 py-0.5 rounded text-[10.5px] bg-[#1c222e] border border-[#2c374a]">
-                                                        {{ rule.protocol }}
-                                                    </span>
+                                                    <span class="px-2 py-0.5 rounded text-[10.5px] bg-[#1c222e] border border-[#2c374a]">{{ rule.protocol }}</span>
                                                 </td>
-
-                                                <!-- Hành Động -->
                                                 <td class="py-3 px-3">
                                                     <span v-if="rule.action === 'allow'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                                                         <span>✔ Cho phép</span>
@@ -170,39 +169,22 @@
                                                         <span>✖ Chặn (Drop)</span>
                                                     </span>
                                                 </td>
-
-                                                <!-- Nguồn IP -->
                                                 <td class="py-3 px-3 font-mono text-[11px] text-slate-300">
                                                     <span v-if="rule.ip_source === '0.0.0.0/0'" class="text-slate-400">Tất cả (0.0.0.0/0)</span>
                                                     <span v-else class="text-amber-400 font-semibold">{{ rule.ip_source }}</span>
                                                 </td>
-
-                                                <!-- Ghi chú / Dịch vụ -->
-                                                <td class="py-3 px-4 text-slate-300 truncate" :title="rule.comment">
-                                                    {{ rule.comment || '-' }}
-                                                </td>
-
-                                                <!-- Thời gian -->
-                                                <td class="py-3 px-3 text-[11px] text-slate-500 whitespace-nowrap">
-                                                    {{ rule.created_at || 'Mặc định' }}
-                                                </td>
-
-                                                <!-- Thao tác -->
+                                                <td class="py-3 px-4 text-slate-300 truncate" :title="rule.comment">{{ rule.comment || '-' }}</td>
+                                                <td class="py-3 px-3 text-[11px] text-slate-500 whitespace-nowrap">{{ rule.created_at || 'Mặc định' }}</td>
                                                 <td class="py-3 px-4 text-right">
                                                     <button @click="handleDeleteFirewallRule(rule)"
                                                         class="text-rose-400 hover:text-rose-300 transition text-xs hover:underline font-medium"
-                                                        title="Xóa quy tắc này khỏi tường lửa">
-                                                        Xóa
-                                                    </button>
+                                                        title="Xóa quy tắc này">Xóa</button>
                                                 </td>
                                             </tr>
-
-                                            <!-- Empty State -->
                                             <tr v-if="filteredFirewallRules.length === 0">
                                                 <td colspan="7" class="py-12 text-center text-slate-500">
                                                     <div class="text-3xl mb-2">🛡️</div>
-                                                    <div class="font-medium text-slate-400">Không tìm thấy quy tắc tường lửa nào</div>
-                                                    <div class="text-[11px] text-slate-500 mt-1">Bấm "Mở Cổng" hoặc "Chặn IP" để thêm quy tắc mới.</div>
+                                                    <div class="font-medium text-slate-400">Không tìm thấy quy tắc nào</div>
                                                 </td>
                                             </tr>
                                         </tbody>
@@ -212,7 +194,226 @@
                         </div>
 
                         <!-- ========================================== -->
-                        <!-- TAB 2: ĐÁNH GIÁ AN NINH CLOUDLINUX (AUDIT) -->
+                        <!-- TAB 2: IP BLOCKLISTS DIỆN RỘNG (IPSET)    -->
+                        <!-- ========================================== -->
+                        <div v-if="firewallSubTab === 'blocklists'" class="space-y-4">
+                            <!-- IPset Overview Banner -->
+                            <div class="bg-gradient-to-r from-[#121620] via-[#161c28] to-[#121620] p-5 rounded-xl border border-[#252f42] shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Linux Kernel IPset Shield</span>
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">O(1) Ultra-Fast</span>
+                                    </div>
+                                    <div class="text-lg sm:text-xl font-bold text-white mt-1 flex items-center gap-2">
+                                        <span>{{ (blocklistData.stats && blocklistData.stats.total_blocked_ips) ? blocklistData.stats.total_blocked_ips.toLocaleString() : '0' }}</span>
+                                        <span class="text-xs font-normal text-slate-400">địa chỉ IP / mạng con độc hại đang bị phong tỏa</span>
+                                    </div>
+                                    <p class="text-xs text-slate-400 mt-1">Sử dụng bảng băm trong nhân Linux để lọc hàng triệu gói tin tấn công botnet, brute-force mà không làm chậm mạng hay tốn CPU</p>
+                                </div>
+                                <div class="flex items-center gap-2 w-full md:w-auto">
+                                    <button @click="showAddBlocklistModal = true"
+                                        class="flex-1 md:flex-none px-3.5 py-2 rounded-lg bg-[#1f2633] hover:bg-[#283244] text-slate-200 border border-[#2f3b50] text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm">
+                                        <span>➕ Thêm Nguồn URL</span>
+                                    </button>
+                                    <button @click="handleSyncBlocklists"
+                                        :disabled="syncingBlocklists"
+                                        class="flex-1 md:flex-none px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-900/30">
+                                        <span :class="{'animate-spin': syncingBlocklists}">🔄</span>
+                                        <span>{{ syncingBlocklists ? 'Đang Nạp...' : 'Đồng Bộ ipset Ngay' }}</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Blocklist Sources Table -->
+                            <div class="bg-[#12151c] rounded-xl border border-[#22262e] overflow-hidden shadow-xl w-full">
+                                <div class="p-3 bg-[#161a22] border-b border-[#22262e] flex items-center justify-between text-xs">
+                                    <span class="font-bold text-slate-200">Danh Sách Nguồn Blacklist Tự Động</span>
+                                    <span class="text-slate-400 text-[11px]">Định dạng: Raw IP List hoặc Netset (.netset / .txt)</span>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left text-xs table-fixed min-w-[700px]">
+                                        <thead>
+                                            <tr class="border-b border-[#22262e] text-slate-400 font-medium text-[11.5px] bg-[#141820]">
+                                                <th class="py-3 px-4 w-60">Tên Nguồn</th>
+                                                <th class="py-3 px-3">Đường Dẫn URL</th>
+                                                <th class="py-3 px-3 w-28 text-center">Trạng Thái</th>
+                                                <th class="py-3 px-3 w-28 text-right">Số IP Đã Nạp</th>
+                                                <th class="py-3 px-3 w-36">Lần Đồng Bộ Cuối</th>
+                                                <th class="py-3 px-4 w-20 text-right">Thao Tác</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-[#1e232d] text-[12px]">
+                                            <tr v-for="src in blocklistData.sources" :key="src.id" class="hover:bg-[#161a24] transition">
+                                                <td class="py-3 px-4 font-semibold text-slate-200 truncate" :title="src.name">{{ src.name }}</td>
+                                                <td class="py-3 px-3 font-mono text-[11px] text-slate-400 truncate" :title="src.url">
+                                                    <a :href="src.url" target="_blank" class="hover:text-emerald-400 underline">{{ src.url }}</a>
+                                                </td>
+                                                <td class="py-3 px-3 text-center">
+                                                    <button @click="handleToggleBlocklist(src)"
+                                                        class="px-2 py-0.5 rounded text-[10.5px] font-bold uppercase transition"
+                                                        :class="src.enabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'">
+                                                        {{ src.enabled ? 'Đang Bật' : 'Tắt' }}
+                                                    </button>
+                                                </td>
+                                                <td class="py-3 px-3 text-right font-mono font-bold" :class="src.ip_count > 0 ? 'text-rose-400' : 'text-slate-500'">
+                                                    {{ src.ip_count ? src.ip_count.toLocaleString() : '0' }}
+                                                </td>
+                                                <td class="py-3 px-3 text-[11px] text-slate-500 whitespace-nowrap">{{ src.last_sync || 'Chưa đồng bộ' }}</td>
+                                                <td class="py-3 px-4 text-right">
+                                                    <button @click="handleDeleteBlocklist(src)" class="text-rose-400 hover:text-rose-300 transition text-xs hover:underline font-medium">Xóa</button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========================================== -->
+                        <!-- TAB 3: FAIL2BAN BRUTE-FORCE SHIELD        -->
+                        <!-- ========================================== -->
+                        <div v-if="firewallSubTab === 'fail2ban'" class="space-y-4">
+                            <!-- Fail2ban Overview Card -->
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                                <div class="bg-[#12151c] p-4 rounded-xl border border-[#22262e] flex items-center justify-between">
+                                    <div>
+                                        <div class="text-slate-400 text-[11px] font-medium">Dịch Vụ Fail2ban</div>
+                                        <div class="text-sm font-bold mt-1 flex items-center gap-1.5">
+                                            <span class="w-2 h-2 rounded-full" :class="fail2banData.running ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'"></span>
+                                            <span :class="fail2banData.running ? 'text-emerald-400' : 'text-rose-400'" class="font-semibold uppercase">
+                                                {{ fail2banData.running ? 'Đang Hoạt Động' : 'Chưa Khởi Động' }}
+                                            </span>
+                                        </div>
+                                        <div class="text-[10px] text-slate-500 mt-0.5">Tự động ban IP dò pass SSH & Panel</div>
+                                    </div>
+                                    <div class="flex items-center gap-1.5">
+                                        <button v-if="!fail2banData.running" @click="handleFail2banService('start')" class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-[11px]">Bật</button>
+                                        <button v-if="fail2banData.running" @click="handleFail2banService('restart')" class="px-2.5 py-1 rounded bg-[#1e2634] hover:bg-[#283244] text-slate-300 border border-[#2c384c] font-medium text-[11px]">Restart</button>
+                                        <button v-if="fail2banData.running" @click="handleFail2banService('stop')" class="px-2.5 py-1 rounded bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 font-medium text-[11px]">Tắt</button>
+                                    </div>
+                                </div>
+
+                                <div class="bg-[#12151c] p-4 rounded-xl border border-[#22262e] flex items-center justify-between">
+                                    <div>
+                                        <div class="text-slate-400 text-[11px] font-medium">Tổng Số Jails Giám Sát</div>
+                                        <div class="text-lg font-bold mt-0.5 text-white">{{ fail2banData.total_jails || 0 }} <span class="text-xs font-normal text-slate-400">jails</span></div>
+                                        <div class="text-[10px] text-slate-500 mt-0.5">sshd, sshd-ddos...</div>
+                                    </div>
+                                    <div class="w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-base">🔒</div>
+                                </div>
+
+                                <div class="bg-[#12151c] p-4 rounded-xl border border-[#22262e] flex items-center justify-between">
+                                    <div>
+                                        <div class="text-slate-400 text-[11px] font-medium">Số IP Đang Bị Khóa</div>
+                                        <div class="text-lg font-bold mt-0.5 text-rose-400">{{ fail2banData.total_banned || 0 }} <span class="text-xs font-normal text-slate-400">IP</span></div>
+                                        <div class="text-[10px] text-slate-500 mt-0.5">Bị cách ly tạm thời</div>
+                                    </div>
+                                    <div class="w-9 h-9 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 text-base">🚫</div>
+                                </div>
+                            </div>
+
+                            <!-- Jails and Banned IP List -->
+                            <div class="space-y-3">
+                                <div v-for="j in fail2banData.jails" :key="j.jail" class="bg-[#12151c] p-4 rounded-xl border border-[#22262e] shadow-xl text-xs">
+                                    <div class="flex items-center justify-between border-b border-[#1f2532] pb-2.5 mb-3">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                            <span class="font-bold text-slate-100 text-[13px]">Jail: {{ j.jail }}</span>
+                                            <span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700">Đang thử sai: {{ j.currently_failed }}</span>
+                                        </div>
+                                        <div class="text-[11px] text-slate-400 font-medium">
+                                            Đã khóa: <b class="text-rose-400">{{ j.banned_count }}</b> IP
+                                        </div>
+                                    </div>
+
+                                    <div v-if="j.banned_ips.length === 0" class="text-slate-500 py-3 text-center">
+                                        Không có địa chỉ IP nào đang bị khóa trong jail này.
+                                    </div>
+                                    <div v-else class="flex flex-wrap gap-2">
+                                        <div v-for="ip in j.banned_ips" :key="ip"
+                                            class="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#181d26] border border-[#293344] font-mono text-[11px] text-rose-300">
+                                            <span>{{ ip }}</span>
+                                            <button @click="handleUnbanIp(j.jail, ip)"
+                                                class="text-slate-400 hover:text-white transition font-sans text-xs" title="Mở khóa IP này">✕</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========================================== -->
+                        <!-- TAB 4: CẢNH BÁO TELEGRAM BOT (NOTIFICATIONS)-->
+                        <!-- ========================================== -->
+                        <div v-if="firewallSubTab === 'telegram'" class="space-y-4">
+                            <div class="bg-[#12151c] p-5 rounded-xl border border-[#22262e] shadow-xl text-xs space-y-4 max-w-3xl">
+                                <div class="border-b border-[#222834] pb-3 flex items-center justify-between">
+                                    <div>
+                                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                            <span>🔔 Cấu Hình Cảnh Báo Telegram Bot</span>
+                                        </h3>
+                                        <p class="text-[11.5px] text-slate-400 mt-0.5">Nhận thông báo tức thì về điện thoại khi máy chủ quá tải CPU/RAM, dịch vụ dừng hoặc có tấn công dò mật khẩu</p>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-slate-400 text-xs">Kích hoạt:</span>
+                                        <input type="checkbox" v-model="telegramConfig.enabled" class="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-400 bg-slate-900 border-slate-700">
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="text-slate-300 font-medium block mb-1">Telegram Bot Token:</label>
+                                        <input type="text" v-model="telegramConfig.bot_token" placeholder="Ví dụ: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                        <p class="text-[10.5px] text-slate-500 mt-1">Lấy từ <a href="https://t.me/BotFather" target="_blank" class="text-emerald-400 underline">@BotFather</a> trên Telegram</p>
+                                    </div>
+
+                                    <div>
+                                        <label class="text-slate-300 font-medium block mb-1">Telegram Chat ID (ID Cá nhân hoặc Group):</label>
+                                        <input type="text" v-model="telegramConfig.chat_id" placeholder="Ví dụ: 987654321 hoặc -100123456789"
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                        <p class="text-[10.5px] text-slate-500 mt-1">Lấy từ bot <a href="https://t.me/userinfobot" target="_blank" class="text-emerald-400 underline">@userinfobot</a> hoặc chat riêng với Bot của bạn</p>
+                                    </div>
+                                </div>
+
+                                <!-- Events checkboxes -->
+                                <div class="bg-[#0e1118] p-4 rounded-xl border border-[#202736] space-y-2.5">
+                                    <div class="text-slate-300 font-bold mb-2">Các Sự Kiện Cần Gửi Cảnh Báo:</div>
+                                    <label class="flex items-center gap-2.5 cursor-pointer">
+                                        <input type="checkbox" v-model="telegramConfig.events.cpu_ram" class="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700">
+                                        <span class="text-slate-200">🔥 <b>Quá tải phần cứng:</b> Gửi cảnh báo khi Server CPU hoặc RAM vượt quá 90%</span>
+                                    </label>
+                                    <label class="flex items-center gap-2.5 cursor-pointer">
+                                        <input type="checkbox" v-model="telegramConfig.events.service_down" class="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700">
+                                        <span class="text-slate-200">⚠️ <b>Dịch vụ cốt lõi dừng:</b> Gửi cảnh báo khi MySQL, OpenLiteSpeed hoặc Nginx bị crash</span>
+                                    </label>
+                                    <label class="flex items-center gap-2.5 cursor-pointer">
+                                        <input type="checkbox" v-model="telegramConfig.events.bruteforce" class="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700">
+                                        <span class="text-slate-200">🚨 <b>Tấn công Brute-force:</b> Gửi thông báo khi Fail2ban ban IP hoặc nạp IPset Blocklist mới</span>
+                                    </label>
+                                    <label class="flex items-center gap-2.5 cursor-pointer">
+                                        <input type="checkbox" v-model="telegramConfig.events.backup" class="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700">
+                                        <span class="text-slate-200">📦 <b>Sao lưu & Khôi phục:</b> Gửi báo cáo kết quả sao lưu tự động định kỳ</span>
+                                    </label>
+                                </div>
+
+                                <div class="flex items-center justify-between pt-2">
+                                    <button type="button" @click="handleTestTelegram"
+                                        :disabled="testingTelegram"
+                                        class="px-3.5 py-2 rounded-lg bg-[#1f2633] hover:bg-[#283244] text-slate-200 border border-[#2f3b50] font-medium transition flex items-center gap-1.5 shadow-sm">
+                                        <span :class="{'animate-spin': testingTelegram}">✈️</span>
+                                        <span>{{ testingTelegram ? 'Đang Gửi...' : 'Gửi Thử Nghiệm (Test)' }}</span>
+                                    </button>
+                                    <button type="button" @click="handleSaveTelegram"
+                                        :disabled="savingTelegram"
+                                        class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm">
+                                        <span>{{ savingTelegram ? 'Đang Lưu...' : 'Lưu Cấu Hình' }}</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========================================== -->
+                        <!-- TAB 5: ĐÁNH GIÁ AN NINH CLOUDLINUX (AUDIT) -->
                         <!-- ========================================== -->
                         <div v-if="firewallSubTab === 'audit'" class="space-y-4">
                             <!-- Score Banner Card -->
@@ -254,13 +455,11 @@
                                 <div v-for="chk in securityAudit.checks" :key="chk.id"
                                     class="bg-[#12151c] p-4 rounded-xl border transition flex items-start gap-3.5"
                                     :class="chk.status === 'pass' ? 'border-[#1e2634] hover:border-emerald-500/40' : 'border-amber-500/30 bg-amber-500/5'">
-                                    <!-- Status Icon -->
                                     <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm shrink-0 border"
                                         :class="chk.status === 'pass' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'">
                                         <span v-if="chk.status === 'pass'">✔</span>
                                         <span v-else>⚠</span>
                                     </div>
-                                    <!-- Content -->
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center justify-between gap-2">
                                             <span class="font-bold text-slate-100 text-[12.5px] truncate">{{ chk.title }}</span>
@@ -276,7 +475,7 @@
                         </div>
 
                         <!-- ========================================== -->
-                        <!-- TAB 3: NHẬT KÝ AN NINH (SECURITY LOGS)     -->
+                        <!-- TAB 6: NHẬT KÝ ĐĂNG NHẬP (SECURITY LOGS)  -->
                         <!-- ========================================== -->
                         <div v-if="firewallSubTab === 'logs'" class="space-y-4">
                             <div class="bg-[#12151c] p-4 rounded-xl border border-[#22262e] shadow-xl">
@@ -316,8 +515,6 @@
                                 </h3>
                                 <button @click="showOpenPortModal = false" class="text-slate-400 hover:text-white text-base">✕</button>
                             </div>
-
-                            <!-- Quick Preset Buttons -->
                             <div>
                                 <label class="text-slate-400 text-[11px] font-medium mb-1.5 block">Chọn Cổng Phổ Biến Nhanh:</label>
                                 <div class="flex flex-wrap gap-1.5">
@@ -331,15 +528,12 @@
                                     <button type="button" @click="applyPortPreset(21, 'FTP Service')" class="px-2 py-1 rounded bg-[#1c2230] hover:bg-[#252e42] text-slate-300 border border-[#2b374d] text-[11px]">FTP 21</button>
                                 </div>
                             </div>
-
-                            <!-- Port Input Form -->
                             <div class="space-y-3">
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Số Cổng (Port):</label>
                                     <input type="number" v-model.number="portForm.port" min="1" max="65535" placeholder="Ví dụ: 8080"
                                         class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
                                 </div>
-
                                 <div class="grid grid-cols-2 gap-3">
                                     <div>
                                         <label class="text-slate-300 font-medium block mb-1">Giao Thức:</label>
@@ -356,23 +550,19 @@
                                         </select>
                                     </div>
                                 </div>
-
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Nguồn Truy Cập (Source IP):</label>
                                     <input type="text" v-model="portForm.ip_source" placeholder="0.0.0.0/0 (Tất cả mọi nơi) hoặc IP cụ thể"
                                         class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
                                 </div>
-
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Ghi Chú Dịch Vụ:</label>
                                     <input type="text" v-model="portForm.comment" placeholder="Ví dụ: Custom Web App, Jenkins, Node.js..."
                                         class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
                                 </div>
                             </div>
-
                             <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#222a3a]">
-                                <button type="button" @click="showOpenPortModal = false"
-                                    class="px-3.5 py-1.5 rounded-lg bg-[#1c2230] text-slate-300 hover:bg-[#252e42] transition font-medium">Hủy</button>
+                                <button type="button" @click="showOpenPortModal = false" class="px-3.5 py-1.5 rounded-lg bg-[#1c2230] text-slate-300 hover:bg-[#252e42] transition font-medium">Hủy</button>
                                 <button type="button" @click="submitAddPortRule" :disabled="savingRule"
                                     class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm">
                                     <span>{{ savingRule ? 'Đang Lưu...' : 'Xác Nhận Mở Cổng' }}</span>
@@ -390,14 +580,12 @@
                                 </h3>
                                 <button @click="showAddIpModal = false" class="text-slate-400 hover:text-white text-base">✕</button>
                             </div>
-
                             <div class="space-y-3">
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Địa Chỉ IP hoặc Dải Mạng CIDR:</label>
                                     <input type="text" v-model="ipForm.ip_source" placeholder="Ví dụ: 192.168.1.15 hoặc 10.0.0.0/24"
                                         class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
                                 </div>
-
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Hành Động:</label>
                                     <div class="grid grid-cols-2 gap-2">
@@ -413,20 +601,49 @@
                                         </button>
                                     </div>
                                 </div>
-
                                 <div>
                                     <label class="text-slate-300 font-medium block mb-1">Lý Do / Ghi Chú:</label>
-                                    <input type="text" v-model="ipForm.comment" placeholder="Ví dụ: IP tấn công brute force SSH, IP văn phòng tin cậy..."
+                                    <input type="text" v-model="ipForm.comment" placeholder="Ví dụ: IP brute force SSH, IP văn phòng tin cậy..."
                                         class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
                                 </div>
                             </div>
-
                             <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#222a3a]">
-                                <button type="button" @click="showAddIpModal = false"
-                                    class="px-3.5 py-1.5 rounded-lg bg-[#1c2230] text-slate-300 hover:bg-[#252e42] transition font-medium">Hủy</button>
+                                <button type="button" @click="showAddIpModal = false" class="px-3.5 py-1.5 rounded-lg bg-[#1c2230] text-slate-300 hover:bg-[#252e42] transition font-medium">Hủy</button>
                                 <button type="button" @click="submitAddIpRule" :disabled="savingRule"
                                     class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm">
                                     <span>{{ savingRule ? 'Đang Lưu...' : 'Xác Nhận Áp Dụng' }}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MODAL: THÊM NGUỒN BLOCKLIST (ADD BLOCKLIST MODAL) -->
+                    <div v-if="showAddBlocklistModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+                        <div class="bg-[#141822] rounded-xl border border-[#252f40] w-full max-w-md p-5 shadow-2xl text-xs space-y-4">
+                            <div class="flex items-center justify-between border-b border-[#222a3a] pb-3">
+                                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                    <span>➕ Thêm Nguồn Danh Sách Đen (IP Blocklist)</span>
+                                </h3>
+                                <button @click="showAddBlocklistModal = false" class="text-slate-400 hover:text-white text-base">✕</button>
+                            </div>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-slate-300 font-medium block mb-1">Tên Nguồn / Mô Tả:</label>
+                                    <input type="text" v-model="newBlocklistForm.name" placeholder="Ví dụ: AbuseIPDB Blacklist, Emerging Threats..."
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                                </div>
+                                <div>
+                                    <label class="text-slate-300 font-medium block mb-1">Đường Dẫn URL (File text/netset):</label>
+                                    <input type="url" v-model="newBlocklistForm.url" placeholder="https://example.com/blocklist.txt"
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0e1118] border border-[#222a3a] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                                    <p class="text-[10.5px] text-slate-500 mt-1">Hỗ trợ các file văn bản chứa danh sách IP/CIDR ngăn cách bởi dấu xuống dòng.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#222a3a]">
+                                <button type="button" @click="showAddBlocklistModal = false" class="px-3.5 py-1.5 rounded-lg bg-[#1c2230] text-slate-300 hover:bg-[#252e42] transition font-medium">Hủy</button>
+                                <button type="button" @click="submitAddBlocklist" :disabled="savingBlocklist"
+                                    class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm">
+                                    <span>{{ savingBlocklist ? 'Đang Lưu...' : 'Thêm Nguồn' }}</span>
                                 </button>
                             </div>
                         </div>

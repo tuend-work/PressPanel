@@ -1998,4 +1998,246 @@ async def get_security_logs(current_user: dict = Depends(get_current_user)):
     }
 
 
+# ==============================================================================
+# IPSET BLOCKLISTS & FAIL2BAN SHIELD API
+# ==============================================================================
+
+class BlocklistCreate(BaseModel):
+    name: str
+    url: str
+
+class Fail2banUnbanReq(BaseModel):
+    jail: str
+    ip: str
+
+class Fail2banServiceReq(BaseModel):
+    action: str  # start, stop, restart
+
+class TelegramConfigReq(BaseModel):
+    bot_token: str
+    chat_id: str
+    enabled: bool
+    events: Dict[str, bool]
+
+
+@router.get("/firewall/blocklists")
+async def get_firewall_blocklists(current_user: dict = Depends(get_current_user)):
+    """Lấy danh sách nguồn IP Blocklists và trạng thái kernel ipset"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền xem Blocklists!")
+
+    from app.services.ipset_manager import get_ipset_stats
+    stats = get_ipset_stats()
+
+    db = await get_db_connection()
+    cursor = await db.execute("SELECT id, name, url, enabled, ip_count, last_sync, created_at FROM firewall_blocklists ORDER BY id ASC")
+    rows = await cursor.fetchall()
+    sources = []
+    for r in rows:
+        sources.append({
+            "id": r[0],
+            "name": r[1],
+            "url": r[2],
+            "enabled": bool(r[3]),
+            "ip_count": r[4],
+            "last_sync": r[5],
+            "created_at": r[6]
+        })
+
+    return {
+        "status": "ok",
+        "stats": stats,
+        "sources": sources
+    }
+
+
+@router.post("/firewall/blocklists")
+async def add_firewall_blocklist(req: BlocklistCreate, current_user: dict = Depends(get_current_user)):
+    """Thêm một nguồn URL danh sách đen IP mới"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền thêm Blocklist!")
+
+    name = req.name.strip()
+    url = req.url.strip()
+    if not name or not url:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập tên và đường dẫn URL danh sách đen!")
+
+    if not url.startswith("http://") and not url.startswith("https://"):
+        raise HTTPException(status_code=400, detail="Đường dẫn URL phải bắt đầu bằng http:// hoặc https://")
+
+    db = await get_db_connection()
+    try:
+        await db.execute("INSERT INTO firewall_blocklists (name, url, enabled) VALUES (?, ?, 1)", (name, url))
+        await db.commit()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Nguồn blocklist này đã tồn tại hoặc bị lỗi: {str(e)}")
+
+    return {"status": "ok", "message": f"Đã thêm nguồn IP Blocklist '{name}' thành công! Bấm 'Đồng Bộ ipset' để nạp IP."}
+
+
+@router.put("/firewall/blocklists/{source_id}/toggle")
+async def toggle_firewall_blocklist(source_id: int, current_user: dict = Depends(get_current_user)):
+    """Bật hoặc tắt một nguồn blocklist"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền thao tác!")
+
+    db = await get_db_connection()
+    cursor = await db.execute("SELECT enabled FROM firewall_blocklists WHERE id = ?", (source_id,))
+    row = await cursor.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Không tìm thấy nguồn blocklist!")
+
+    new_val = 0 if row[0] == 1 else 1
+    await db.execute("UPDATE firewall_blocklists SET enabled = ? WHERE id = ?", (new_val, source_id))
+    await db.commit()
+
+    return {"status": "ok", "enabled": bool(new_val), "message": f"Đã {'BẬT' if new_val else 'TẮT'} nguồn danh sách đen!"}
+
+
+@router.delete("/firewall/blocklists/{source_id}")
+async def delete_firewall_blocklist(source_id: int, current_user: dict = Depends(get_current_user)):
+    """Xóa một nguồn blocklist"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền xóa Blocklist!")
+
+    db = await get_db_connection()
+    await db.execute("DELETE FROM firewall_blocklists WHERE id = ?", (source_id,))
+    await db.commit()
+
+    return {"status": "ok", "message": "Đã xóa nguồn danh sách đen thành công!"}
+
+
+@router.post("/firewall/blocklists/sync")
+async def sync_firewall_blocklists(current_user: dict = Depends(get_current_user)):
+    """Tải và nạp danh sách IP vào nhân Linux ipset (Atomic Swap O(1))"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền đồng bộ ipset!")
+
+    from app.services.ipset_manager import sync_all_blocklists
+    res = await sync_all_blocklists()
+    if res.get("status") == "error":
+        raise HTTPException(status_code=500, detail=res.get("message", "Lỗi nạp ipset"))
+
+    # Gửi thông báo Telegram nếu có bật
+    from app.services.telegram_notifier import send_telegram_alert
+    asyncio.create_task(send_telegram_alert(
+        f"🛡️ <b>[WPC Firewall ipset]</b> Đã nạp thành công <b>{res.get('total_ips', 0):,}</b> địa chỉ IP độc hại vào nhân Linux!",
+        event_type="system"
+    ))
+
+    return res
+
+
+# ==============================================================================
+# FAIL2BAN SHIELD API
+# ==============================================================================
+
+@router.get("/fail2ban/status")
+async def get_fail2ban(current_user: dict = Depends(get_current_user)):
+    """Lấy trạng thái Fail2ban và danh sách IP đang bị khóa"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền xem Fail2ban!")
+
+    from app.services.fail2ban_manager import get_fail2ban_status
+    return {
+        "status": "ok",
+        "data": get_fail2ban_status()
+    }
+
+
+@router.post("/fail2ban/unban")
+async def unban_fail2ban_ip(req: Fail2banUnbanReq, current_user: dict = Depends(get_current_user)):
+    """Mở khóa một IP khỏi jail Fail2ban"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền gỡ chặn Fail2ban!")
+
+    from app.services.fail2ban_manager import unban_ip
+    res = unban_ip(req.jail, req.ip)
+    if res.get("status") == "error":
+        raise HTTPException(status_code=400, detail=res.get("message"))
+    return res
+
+
+@router.post("/fail2ban/service")
+async def service_fail2ban(req: Fail2banServiceReq, current_user: dict = Depends(get_current_user)):
+    """Quản lý dịch vụ Fail2ban (start, stop, restart)"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền điều khiển dịch vụ!")
+
+    from app.services.fail2ban_manager import toggle_fail2ban_service
+    res = toggle_fail2ban_service(req.action)
+    if res.get("status") == "error":
+        raise HTTPException(status_code=400, detail=res.get("message"))
+    return res
+
+
+# ==============================================================================
+# TELEGRAM BOT ALERT CONFIGURATION API
+# ==============================================================================
+
+@router.get("/notifications/telegram")
+async def get_telegram_settings(current_user: dict = Depends(get_current_user)):
+    """Lấy cấu hình cảnh báo Telegram Bot"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền cấu hình Telegram!")
+
+    from app.services.telegram_notifier import get_telegram_config
+    cfg = await get_telegram_config()
+    return {
+        "status": "ok",
+        "config": cfg
+    }
+
+
+@router.post("/notifications/telegram")
+async def save_telegram_settings(req: TelegramConfigReq, current_user: dict = Depends(get_current_user)):
+    """Lưu cấu hình cảnh báo Telegram Bot"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền cấu hình Telegram!")
+
+    db = await get_db_connection()
+    await db.execute("INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('telegram_bot_token', ?, CURRENT_TIMESTAMP)", (req.bot_token.strip(),))
+    await db.execute("INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('telegram_chat_id', ?, CURRENT_TIMESTAMP)", (req.chat_id.strip(),))
+    await db.execute("INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('telegram_alerts_enabled', ?, CURRENT_TIMESTAMP)", ("true" if req.enabled else "false",))
+    await db.execute("INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('telegram_events', ?, CURRENT_TIMESTAMP)", (json.dumps(req.events),))
+    await db.commit()
+
+    return {
+        "status": "ok",
+        "message": "Đã lưu cấu hình cảnh báo Telegram Bot thành công!"
+    }
+
+
+@router.post("/notifications/telegram/test")
+async def test_telegram_message(current_user: dict = Depends(get_current_user)):
+    """Gửi một tin nhắn kiểm tra kết nối tới Telegram Bot"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền gửi tin thử nghiệm!")
+
+    from app.services.telegram_notifier import get_telegram_config, send_telegram_message_sync
+    cfg = await get_telegram_config()
+    if not cfg["bot_token"] or not cfg["chat_id"]:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập Bot Token và Chat ID trước khi gửi thử nghiệm!")
+
+    import socket
+    hostname = socket.gethostname() or "wpc-server"
+    test_msg = (
+        f"🔔 <b>[WPCloud Panel - Test Notification]</b>\n\n"
+        f"✅ Kết nối Telegram Bot thành công!\n"
+        f"🖥️ <b>Máy chủ:</b> <code>{hostname}</code>\n"
+        f"⚡ <b>Hệ thống:</b> Sẵn sàng nhận cảnh báo CPU, RAM, Dịch vụ & Tấn công Brute-force."
+    )
+
+    loop = asyncio.get_event_loop()
+    ok = await loop.run_in_executor(None, send_telegram_message_sync, cfg["bot_token"], cfg["chat_id"], test_msg)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Không thể gửi tin nhắn Telegram! Vui lòng kiểm tra lại Bot Token, Chat ID hoặc chat riêng với Bot để kích hoạt (/start).")
+
+    return {
+        "status": "ok",
+        "message": "Tin nhắn thử nghiệm đã được gửi thành công tới Telegram của bạn!"
+    }
+
+
+
 

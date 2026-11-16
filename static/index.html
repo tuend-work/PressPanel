@@ -362,6 +362,14 @@ function showAlert(message) {
                                 </div>
                             </button>
 
+                            <!-- 11. Sao Lưu & Cloud (Admin & Hosting User) -->
+                            <button v-if="currentUser.role === 'admin' || isHostingUser" @click="currentTab = 'backups'; fetchBackups();" :class="navClass('backups')">
+                                <div class="flex items-center space-x-3">
+                                    <i data-lucide="archive" class="w-4 h-4 text-sky-400"></i>
+                                    <span>Sao Lưu & Cloud</span>
+                                </div>
+                            </button>
+
                             <!-- 11. Báo cáo (Chỉ Admin) -->
                             <button v-if="currentUser.role === 'admin'" @click="currentTab = 'monitoring'" :class="navClass('monitoring')">
                                 <div class="flex items-center space-x-3">
@@ -627,7 +635,7 @@ function showAlert(message) {
                 'dashboard.html', 'domains.html', 'wp.html', 'apps.html',
                 'customers.html', 'service_plans.html', 'databases.html',
                 'files.html', 'others.html', 'profile.html', 'crons.html', 'monitoring.html',
-                'firewall.html'
+                'firewall.html', 'backups.html'
             ];
             try {
                 const cacheBuster = Date.now();
@@ -6392,6 +6400,18 @@ if ($host ~* ^www\\.(.*)$) {
                 const wpCloning = ref(false);
                 const wpCloneSource = ref(null);
                 const wpCloneDestDomain = ref('');
+                const wpCloneIsStaging = ref(true);
+                const wpCloneDisallowIndexing = ref(true);
+
+                const handleToggleStagingMode = () => {
+                    if (wpCloneSource.value) {
+                        if (wpCloneIsStaging.value) {
+                            wpCloneDestDomain.value = 'staging.' + wpCloneSource.value.domain_name;
+                        } else {
+                            wpCloneDestDomain.value = 'clone.' + wpCloneSource.value.domain_name;
+                        }
+                    }
+                };
 
                 const showWpAddPluginModal = ref(false);
                 const installingPlugin = ref(false);
@@ -7004,6 +7024,8 @@ if ($host ~* ^www\\.(.*)$) {
 
                 const openWpCloneModal = (inst) => {
                     wpCloneSource.value = inst;
+                    wpCloneIsStaging.value = true;
+                    wpCloneDisallowIndexing.value = true;
                     wpCloneDestDomain.value = 'staging.' + inst.domain_name;
                     showWpCloneModal.value = true;
                 };
@@ -7017,7 +7039,9 @@ if ($host ~* ^www\\.(.*)$) {
                             headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 src_domain_id: wpCloneSource.value.domain_id,
-                                dest_domain_name: wpCloneDestDomain.value
+                                dest_domain_name: wpCloneDestDomain.value,
+                                is_staging: wpCloneIsStaging.value,
+                                disallow_indexing: wpCloneDisallowIndexing.value
                             })
                         });
                         const d = await res.json();
@@ -8110,6 +8134,431 @@ if ($host ~* ^www\\.(.*)$) {
                     }
                 };
 
+                // --- IPSET BLOCKLISTS ---
+                const blocklistData = ref({ stats: { total_blocked_ips: 0 }, sources: [] });
+                const syncingBlocklists = ref(false);
+                const showAddBlocklistModal = ref(false);
+                const savingBlocklist = ref(false);
+                const newBlocklistForm = ref({ name: '', url: '' });
+
+                const fetchBlocklists = async () => {
+                    try {
+                        const res = await api('/system/firewall/blocklists');
+                        if (res && res.status === 'ok') {
+                            blocklistData.value = res;
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải danh sách blocklists:', e);
+                    }
+                };
+
+                const submitAddBlocklist = async () => {
+                    if (!newBlocklistForm.value.name || !newBlocklistForm.value.url) {
+                        showAlert('Vui lòng nhập tên và URL danh sách đen!');
+                        return;
+                    }
+                    savingBlocklist.value = true;
+                    try {
+                        const res = await api('/system/firewall/blocklists', 'POST', newBlocklistForm.value);
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            showAddBlocklistModal.value = false;
+                            newBlocklistForm.value = { name: '', url: '' };
+                            await fetchBlocklists();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi: ' + (e.message || e));
+                    } finally {
+                        savingBlocklist.value = false;
+                    }
+                };
+
+                const handleToggleBlocklist = async (src) => {
+                    try {
+                        const res = await api(`/system/firewall/blocklists/${src.id}/toggle`, 'PUT');
+                        if (res && res.status === 'ok') {
+                            src.enabled = res.enabled;
+                            showAlert(res.message);
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi: ' + (e.message || e));
+                    }
+                };
+
+                const handleDeleteBlocklist = async (src) => {
+                    if (!confirm(`Bạn có chắc muốn xóa nguồn '${src.name}' khỏi danh sách?`)) return;
+                    try {
+                        const res = await api(`/system/firewall/blocklists/${src.id}`, 'DELETE');
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            await fetchBlocklists();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi: ' + (e.message || e));
+                    }
+                };
+
+                const handleSyncBlocklists = async () => {
+                    syncingBlocklists.value = true;
+                    showAlert('Đang tải và nạp danh sách IP vào nhân Linux ipset (Atomic Swap)...');
+                    try {
+                        const res = await api('/system/firewall/blocklists/sync', 'POST');
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            await fetchBlocklists();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi khi nạp ipset: ' + (e.message || e));
+                    } finally {
+                        syncingBlocklists.value = false;
+                    }
+                };
+
+                // --- FAIL2BAN SHIELD ---
+                const fail2banData = ref({ installed: false, running: false, total_jails: 0, total_banned: 0, jails: [] });
+                const fetchFail2ban = async () => {
+                    try {
+                        const res = await api('/system/fail2ban/status');
+                        if (res && res.status === 'ok') {
+                            fail2banData.value = res.data;
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải fail2ban:', e);
+                    }
+                };
+
+                const handleUnbanIp = async (jail, ip) => {
+                    if (!confirm(`Bạn có chắc muốn mở khóa IP '${ip}' trong jail '${jail}' không?`)) return;
+                    try {
+                        const res = await api('/system/fail2ban/unban', 'POST', { jail, ip });
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            await fetchFail2ban();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi mở khóa: ' + (e.message || e));
+                    }
+                };
+
+                const handleFail2banService = async (action) => {
+                    try {
+                        const res = await api('/system/fail2ban/service', 'POST', { action });
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            await fetchFail2ban();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi điều khiển dịch vụ Fail2ban: ' + (e.message || e));
+                    }
+                };
+
+                // --- TELEGRAM NOTIFICATIONS ---
+                const telegramConfig = ref({
+                    bot_token: '',
+                    chat_id: '',
+                    enabled: false,
+                    events: { cpu_ram: true, service_down: true, bruteforce: true, backup: true }
+                });
+                const savingTelegram = ref(false);
+                const testingTelegram = ref(false);
+
+                const fetchTelegramConfig = async () => {
+                    try {
+                        const res = await api('/system/notifications/telegram');
+                        if (res && res.status === 'ok') {
+                            telegramConfig.value = res.config;
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải cấu hình Telegram:', e);
+                    }
+                };
+
+                const handleSaveTelegram = async () => {
+                    savingTelegram.value = true;
+                    try {
+                        const res = await api('/system/notifications/telegram', 'POST', telegramConfig.value);
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi lưu cấu hình: ' + (e.message || e));
+                    } finally {
+                        savingTelegram.value = false;
+                    }
+                };
+
+                const handleTestTelegram = async () => {
+                    testingTelegram.value = true;
+                    try {
+                        const res = await api('/system/notifications/telegram/test', 'POST');
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi: ' + (e.message || e));
+                    } finally {
+                        testingTelegram.value = false;
+                    }
+                };
+
+                const refreshCurrentFirewallTab = () => {
+                    if (firewallSubTab.value === 'rules') fetchFirewallData();
+                    else if (firewallSubTab.value === 'blocklists') fetchBlocklists();
+                    else if (firewallSubTab.value === 'fail2ban') fetchFail2ban();
+                    else if (firewallSubTab.value === 'telegram') fetchTelegramConfig();
+                    else if (firewallSubTab.value === 'audit') runSecurityAudit();
+                    else if (firewallSubTab.value === 'logs') fetchSecurityLogs();
+                };
+
+                // ==========================================
+                // BACKUPS & CLOUD STORAGE MANAGEMENT
+                // ==========================================
+                const backupSubTab = ref('list');
+                const backupsList = ref([]);
+                const loadingBackups = ref(false);
+                const backupDestinations = ref([]);
+                const loadingDestinations = ref(false);
+                const backupSchedules = ref([]);
+                const loadingSchedules = ref(false);
+
+                const totalBackupSizeMb = computed(() => {
+                    if (!backupsList.value || backupsList.value.length === 0) return '0.00';
+                    const totalBytes = backupsList.value.reduce((sum, b) => sum + (b.file_size || 0), 0);
+                    return (totalBytes / (1024 * 1024)).toFixed(2);
+                });
+
+                const showCreateBackupModal = ref(false);
+                const creatingBackup = ref(false);
+                const newBackupForm = ref({
+                    domain_id: '',
+                    backup_type: 'full',
+                    destination_id: ''
+                });
+
+                const openCreateBackupModal = () => {
+                    newBackupForm.value = {
+                        domain_id: domains.value.length > 0 ? domains.value[0].id : '',
+                        backup_type: 'full',
+                        destination_id: ''
+                    };
+                    showCreateBackupModal.value = true;
+                };
+
+                const fetchBackups = async () => {
+                    loadingBackups.value = true;
+                    try {
+                        const res = await api('/backups');
+                        if (res && res.status === 'ok') {
+                            backupsList.value = res.data || [];
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải danh sách backups:', e);
+                    } finally {
+                        loadingBackups.value = false;
+                    }
+                };
+
+                const submitCreateBackup = async () => {
+                    if (!newBackupForm.value.domain_id) {
+                        showAlert('Vui lòng chọn website cần sao lưu!');
+                        return;
+                    }
+                    creatingBackup.value = true;
+                    try {
+                        const res = await api('/backups/create', 'POST', {
+                            domain_id: parseInt(newBackupForm.value.domain_id),
+                            backup_type: newBackupForm.value.backup_type,
+                            destination_id: newBackupForm.value.destination_id ? parseInt(newBackupForm.value.destination_id) : null
+                        });
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            showCreateBackupModal.value = false;
+                            await fetchBackups();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi tạo bản sao lưu: ' + (e.message || e));
+                    } finally {
+                        creatingBackup.value = false;
+                    }
+                };
+
+                const handleDeleteBackup = async (backupId) => {
+                    if (!confirm('Bạn có chắc chắn muốn xóa vĩnh viễn bản sao lưu này không?')) return;
+                    try {
+                        const res = await api('/backups/' + backupId, 'DELETE');
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            await fetchBackups();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi xóa bản sao lưu: ' + (e.message || e));
+                    }
+                };
+
+                const handleRestoreBackup = async (backupId) => {
+                    if (!confirm('CẢNH BÁO: Phục hồi sẽ ghi đè toàn bộ mã nguồn website và cơ sở dữ liệu hiện tại! Bạn có chắc muốn tiếp tục?')) return;
+                    try {
+                        const res = await api('/backups/restore/' + backupId, 'POST');
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            await fetchBackups();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi khôi phục: ' + (e.message || e));
+                    }
+                };
+
+                const fetchBackupDestinations = async () => {
+                    loadingDestinations.value = true;
+                    try {
+                        const res = await api('/backups/destinations');
+                        if (res && res.status === 'ok') {
+                            backupDestinations.value = res.data || [];
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải kho lưu trữ cloud:', e);
+                    } finally {
+                        loadingDestinations.value = false;
+                    }
+                };
+
+                const showAddDestModal = ref(false);
+                const savingDest = ref(false);
+                const destForm = ref({
+                    name: '',
+                    type: 's3',
+                    endpoint_url: '',
+                    bucket_name: '',
+                    region: 'us-east-1',
+                    access_key: '',
+                    secret_key: '',
+                    remote_path: '/presspanel_backups'
+                });
+
+                const openAddDestModal = () => {
+                    destForm.value = {
+                        name: '',
+                        type: 's3',
+                        endpoint_url: '',
+                        bucket_name: '',
+                        region: 'us-east-1',
+                        access_key: '',
+                        secret_key: '',
+                        remote_path: '/presspanel_backups'
+                    };
+                    showAddDestModal.value = true;
+                };
+
+                const submitAddDestination = async () => {
+                    if (!destForm.value.name) {
+                        showAlert('Vui lòng nhập tên nhận diện kho lưu trữ!');
+                        return;
+                    }
+                    savingDest.value = true;
+                    try {
+                        const res = await api('/backups/destinations', 'POST', destForm.value);
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            showAddDestModal.value = false;
+                            await fetchBackupDestinations();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi lưu điểm lưu trữ: ' + (e.message || e));
+                    } finally {
+                        savingDest.value = false;
+                    }
+                };
+
+                const handleDeleteDestination = async (destId) => {
+                    if (!confirm('Bạn có chắc muốn xóa điểm lưu trữ Cloud này?')) return;
+                    try {
+                        const res = await api('/backups/destinations/' + destId, 'DELETE');
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            await fetchBackupDestinations();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi xóa kho lưu trữ: ' + (e.message || e));
+                    }
+                };
+
+                const fetchBackupSchedules = async () => {
+                    loadingSchedules.value = true;
+                    try {
+                        const res = await api('/backups/schedules');
+                        if (res && res.status === 'ok') {
+                            backupSchedules.value = res.data || [];
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải lịch sao lưu:', e);
+                    } finally {
+                        loadingSchedules.value = false;
+                    }
+                };
+
+                const showAddScheduleModal = ref(false);
+                const savingSchedule = ref(false);
+                const scheduleForm = ref({
+                    domain_id: '',
+                    frequency: 'daily',
+                    retention_count: 7,
+                    destination_id: ''
+                });
+
+                const openAddScheduleModal = () => {
+                    scheduleForm.value = {
+                        domain_id: domains.value.length > 0 ? domains.value[0].id : '',
+                        frequency: 'daily',
+                        retention_count: 7,
+                        destination_id: ''
+                    };
+                    showAddScheduleModal.value = true;
+                };
+
+                const submitAddSchedule = async () => {
+                    if (!scheduleForm.value.domain_id) {
+                        showAlert('Vui lòng chọn website cần lập lịch!');
+                        return;
+                    }
+                    savingSchedule.value = true;
+                    try {
+                        const res = await api('/backups/schedules', 'POST', {
+                            domain_id: parseInt(scheduleForm.value.domain_id),
+                            frequency: scheduleForm.value.frequency,
+                            retention_count: parseInt(scheduleForm.value.retention_count) || 7,
+                            destination_id: scheduleForm.value.destination_id ? parseInt(scheduleForm.value.destination_id) : null
+                        });
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            showAddScheduleModal.value = false;
+                            await fetchBackupSchedules();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi tạo lịch: ' + (e.message || e));
+                    } finally {
+                        savingSchedule.value = false;
+                    }
+                };
+
+                const handleDeleteSchedule = async (scheduleId) => {
+                    if (!confirm('Bạn có chắc muốn xóa lịch sao lưu tự động này?')) return;
+                    try {
+                        const res = await api('/backups/schedules/' + scheduleId, 'DELETE');
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            await fetchBackupSchedules();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi xóa lịch: ' + (e.message || e));
+                    }
+                };
+
+                const refreshCurrentBackupTab = () => {
+                    if (backupSubTab.value === 'list') fetchBackups();
+                    else if (backupSubTab.value === 'destinations') fetchBackupDestinations();
+                    else if (backupSubTab.value === 'schedules') fetchBackupSchedules();
+                };
+
                 onUnmounted(() => {
                     window.removeEventListener('hashchange', onHashChange);
                     if (timer) clearInterval(timer);
@@ -8216,7 +8665,7 @@ if ($host ~* ^www\\.(.*)$) {
                     wpInstances, filteredWpInstances, wpSearchQuery, scanningWp, selectedWpInstance, wpDetail, wpSubTab, wpMainTab,
                     wpPlugins, wpThemes, wpUsers, wpLogs, wpLogPeriod, wpLogLevel, wpGlobalPlugins,
                     showWpInstallModal, wpInstalling, wpInstallForm, wpInstallTab,
-                    showWpCloneModal, wpCloning, wpCloneSource, wpCloneDestDomain,
+                    showWpCloneModal, wpCloning, wpCloneSource, wpCloneDestDomain, wpCloneIsStaging, wpCloneDisallowIndexing, handleToggleStagingMode,
                     showWpAddPluginModal, installingPlugin, newPluginSlug, newPluginZipUrl,
                     showWpAddThemeModal, installingTheme, newThemeSlug, newThemeZipUrl,
                     showWpEditUserModal, savingWpUser, editingWpUser, editWpUserForm,
@@ -8260,7 +8709,23 @@ if ($host ~* ^www\\.(.*)$) {
                     togglingPing, handleTogglePing, showOpenPortModal, portForm, openOpenPortModal,
                     applyPortPreset, submitAddPortRule, showAddIpModal, ipForm, openAddIpRuleModal,
                     submitAddIpRule, savingRule, handleDeleteFirewallRule, securityAudit, runningAudit,
-                    runSecurityAudit, fixingSecurity, applySecurityFix, securityLogs, fetchSecurityLogs, fetchFirewallData
+                    runSecurityAudit, fixingSecurity, applySecurityFix, securityLogs, fetchSecurityLogs, fetchFirewallData,
+                    refreshCurrentFirewallTab,
+                    // IPset Blocklists
+                    blocklistData, syncingBlocklists, showAddBlocklistModal, savingBlocklist, newBlocklistForm,
+                    fetchBlocklists, submitAddBlocklist, handleToggleBlocklist, handleDeleteBlocklist, handleSyncBlocklists,
+                    // Fail2ban Shield
+                    fail2banData, fetchFail2ban, handleUnbanIp, handleFail2banService,
+                    // Telegram Notifications
+                    telegramConfig, savingTelegram, testingTelegram, fetchTelegramConfig, handleSaveTelegram, handleTestTelegram,
+                    // Backups & Cloud Storage
+                    backupSubTab, backupsList, loadingBackups, backupDestinations, loadingDestinations,
+                    backupSchedules, loadingSchedules, totalBackupSizeMb, showCreateBackupModal, creatingBackup,
+                    newBackupForm, openCreateBackupModal, fetchBackups, submitCreateBackup, handleDeleteBackup,
+                    handleRestoreBackup, fetchBackupDestinations, showAddDestModal, savingDest, destForm,
+                    openAddDestModal, submitAddDestination, handleDeleteDestination, fetchBackupSchedules,
+                    showAddScheduleModal, savingSchedule, scheduleForm, openAddScheduleModal, submitAddSchedule,
+                    handleDeleteSchedule, refreshCurrentBackupTab
                 };
             }
         }).mount('#app');

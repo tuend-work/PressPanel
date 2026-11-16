@@ -171,12 +171,49 @@ CREATE TABLE IF NOT EXISTS backups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     domain_id INTEGER DEFAULT NULL,
-    backup_type TEXT NOT NULL CHECK(backup_type IN ('full', 'files', 'db')),
-    storage_type TEXT NOT NULL DEFAULT 'local' CHECK(storage_type IN ('local', 's3', 'ftp')),
+    backup_type TEXT NOT NULL CHECK(backup_type IN ('full', 'files', 'db', 'panel')),
+    storage_type TEXT NOT NULL DEFAULT 'local' CHECK(storage_type IN ('local', 's3', 'sftp', 'ftp')),
     file_path TEXT NOT NULL,
     file_size_bytes INTEGER DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'success' CHECK(status IN ('success', 'running', 'failed')),
+    destination_id INTEGER DEFAULT NULL,
+    error_msg TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 11.1. Bảng Điểm Lưu Trữ Đám Mây Từ Xa (Remote Backup Destinations: S3, Cloudflare R2, SFTP)
+CREATE TABLE IF NOT EXISTS backup_destinations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    storage_type TEXT NOT NULL CHECK(storage_type IN ('s3', 'sftp', 'local')),
+    endpoint TEXT,              -- S3 Custom Endpoint (VD: https://s3.wasabisys.com hoặc Cloudflare R2)
+    bucket TEXT,                -- S3 Bucket Name
+    access_key TEXT,            -- S3 Access Key ID
+    secret_key TEXT,            -- S3 Secret Access Key
+    region TEXT DEFAULT 'us-east-1',
+    sftp_host TEXT,             -- SFTP Host / IP
+    sftp_port INTEGER DEFAULT 22,
+    sftp_user TEXT,             -- SFTP Username
+    sftp_pass TEXT,             -- SFTP Password hoặc Private Key
+    sftp_path TEXT DEFAULT '/backups',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 11.2. Bảng Lập Lịch Sao Lưu Tự Động Định Kỳ (Backup Schedules)
+CREATE TABLE IF NOT EXISTS backup_schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    target_type TEXT NOT NULL CHECK(target_type IN ('all', 'website', 'db', 'panel')),
+    target_id INTEGER DEFAULT 0,
+    destination_id INTEGER DEFAULT 0, -- 0 là Local, >0 là Remote Destination
+    frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly')),
+    time_hour INTEGER DEFAULT 2,     -- Giờ chạy (0-23, mặc định 2h sáng)
+    time_min INTEGER DEFAULT 0,
+    retention_count INTEGER DEFAULT 7, -- Số bản sao lưu giữ lại
+    enabled INTEGER NOT NULL DEFAULT 1,
+    last_run DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 12. Bảng Luật Tường Lửa & Chặn IP (Firewall Rules)
@@ -225,6 +262,17 @@ CREATE TABLE IF NOT EXISTS mysql_controller_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_mysql_controller_logs_created ON mysql_controller_logs(created_at);
+
+-- 15. Bảng Danh Sách Nguồn IP Blocklists Nạp Tầng Nhân qua ipset
+CREATE TABLE IF NOT EXISTS firewall_blocklists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL UNIQUE,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    ip_count INTEGER NOT NULL DEFAULT 0,
+    last_sync DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 async def init_database():
@@ -233,6 +281,21 @@ async def init_database():
     async with aiosqlite.connect(settings.DB_PATH) as db:
         await db.execute("PRAGMA journal_mode = WAL;")
         await db.executescript(SCHEMA_SQL)
+
+        # Seed các nguồn IP Blocklists mặc định nếu bảng trống
+        try:
+            cursor = await db.execute("SELECT COUNT(*) FROM firewall_blocklists")
+            bl_count = await cursor.fetchone()
+            if bl_count and bl_count[0] == 0:
+                default_bls = [
+                    ("FireHOL Level 1 (Tấn công mạng & Botnet)", "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset"),
+                    ("Blocklist.de (Kẻ tấn công SSH Brute-force)", "https://lists.blocklist.de/lists/ssh.txt"),
+                    ("Spamhaus DROP (Danh sách mạng nguy hiểm cấp quốc tế)", "https://www.spamhaus.org/drop/drop.txt"),
+                ]
+                for name, url in default_bls:
+                    await db.execute("INSERT OR IGNORE INTO firewall_blocklists (name, url, enabled) VALUES (?, ?, 1)", (name, url))
+        except Exception:
+            pass
 
         # Seed system_settings mặc định cho tính năng lưu trữ lịch sử metrics
         try:
@@ -260,6 +323,13 @@ async def init_database():
                 pass
             try:
                 await db.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
+            except Exception:
+                pass
+        
+        # Migration: Bổ sung các cột mới cho bảng backups (status, destination_id, error_msg)
+        for b_col, b_type in [("status", "TEXT NOT NULL DEFAULT 'success'"), ("destination_id", "INTEGER DEFAULT NULL"), ("error_msg", "TEXT")]:
+            try:
+                await db.execute(f"ALTER TABLE backups ADD COLUMN {b_col} {b_type}")
             except Exception:
                 pass
         

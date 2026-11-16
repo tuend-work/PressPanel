@@ -84,6 +84,18 @@ if [ -z "${WPC_UPDATE_STAGE2:-}" ] && [ -f "$TMP_DIR/scripts/update.sh" ]; then
     exec bash "$TMP_DIR/scripts/update.sh" "$@"
 fi
 
+# 1.5 Kiểm tra và cài đặt tiện ích bảo mật bổ sung nếu thiếu (ipset, fail2ban)
+if ! command -v ipset &>/dev/null || ! command -v fail2ban-client &>/dev/null; then
+    echo "[+] Phát hiện thiếu ipset hoặc fail2ban, tự động cài đặt gói bảo mật hệ thống..."
+    if command -v dnf &>/dev/null; then
+        dnf install -y epel-release 2>/dev/null || true
+        dnf install -y ipset fail2ban 2>/dev/null || true
+    elif command -v apt-get &>/dev/null; then
+        apt-get update -y 2>/dev/null || true
+        apt-get install -y ipset fail2ban 2>/dev/null || true
+    fi
+fi
+
 # 2. Biên dịch lại các module C Gatekeeper
 echo "[+] Biên dịch lại các binary C Gatekeeper..."
 cd "$TMP_DIR/gatekeepers"

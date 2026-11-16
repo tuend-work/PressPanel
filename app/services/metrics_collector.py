@@ -8,6 +8,35 @@ from typing import List, Tuple, Any
 from app.db.session import get_db_connection
 from app.api.v1.system import get_system_stats
 
+_last_alert_time = {"cpu": 0.0, "ram": 0.0}
+
+async def _check_and_send_resource_alert(cpu_pct: float, ram_pct: float, hostname: str):
+    """Gửi cảnh báo Telegram nếu CPU hoặc RAM vượt ngưỡng 90% (debounce 15 phút)"""
+    global _last_alert_time
+    now = time.time()
+    try:
+        from app.services.telegram_notifier import send_telegram_alert
+        if cpu_pct >= 90.0 and (now - _last_alert_time["cpu"] > 900):
+            _last_alert_time["cpu"] = now
+            await send_telegram_alert(
+                f"🔥 <b>[CẢNH BÁO QUÁ TẢI CPU]</b>\n\n"
+                f"🖥️ <b>Máy chủ:</b> <code>{hostname}</code>\n"
+                f"⚠️ <b>Mức sử dụng CPU:</b> <code>{cpu_pct:.1f}%</code> (Ngưỡng cảnh báo: 90%)\n"
+                f"⚡ Hãy kiểm tra danh sách tiến trình trong tab <i>Giám sát Tài nguyên</i>.",
+                event_type="cpu_ram"
+            )
+        if ram_pct >= 90.0 and (now - _last_alert_time["ram"] > 900):
+            _last_alert_time["ram"] = now
+            await send_telegram_alert(
+                f"⚠️ <b>[CẢNH BÁO TRÀN BỘ NHỚ RAM]</b>\n\n"
+                f"🖥️ <b>Máy chủ:</b> <code>{hostname}</code>\n"
+                f"⚠️ <b>Mức sử dụng RAM:</b> <code>{ram_pct:.1f}%</code> (Ngưỡng cảnh báo: 90%)\n"
+                f"⚡ Hãy kiểm tra lại các dịch vụ hoặc khởi động lại PHP-FPM / MySQL.",
+                event_type="cpu_ram"
+            )
+    except Exception:
+        pass
+
 async def prune_old_metrics(retention_days: int = 7):
     """
     Xóa các bản ghi metrics cũ hơn số ngày retention_days quy định.
@@ -68,6 +97,11 @@ async def start_metrics_collector():
             srv_bw_out = round(float(sys_stats["network"]["up_speed_kb"]), 1)
             srv_pps_in = int(sys_stats["network"]["in_pps"])
             srv_pps_out = int(sys_stats["network"]["out_pps"])
+
+            # Tự động gửi cảnh báo Telegram nếu Server CPU / RAM vượt 90%
+            srv_ram_pct = float(sys_stats.get("ram", {}).get("percent", 0.0))
+            srv_hostname = sys_stats.get("hostname") or platform.node() or "wpc-server"
+            asyncio.create_task(_check_and_send_resource_alert(raw_srv_cpu, srv_ram_pct, srv_hostname))
 
             batch_records.append((
                 "server", 0, srv_cpu, srv_ram, srv_disk,

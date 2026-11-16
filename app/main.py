@@ -29,6 +29,7 @@ from app.api.v1.terminal import router as terminal_router
 from app.api.v1.databases import router as databases_router
 import asyncio
 from app.api.v1.crons import router as crons_router
+from app.api.v1.backups import router as backups_router
 from app.services.metrics_collector import start_metrics_collector
 from app.services.mysql_controller import start_mysql_controller_worker
 
@@ -75,6 +76,7 @@ app.include_router(users_router, prefix=settings.API_V1_STR)
 app.include_router(terminal_router, prefix=settings.API_V1_STR)
 app.include_router(databases_router, prefix=settings.API_V1_STR)
 app.include_router(crons_router, prefix=settings.API_V1_STR)
+app.include_router(backups_router, prefix=settings.API_V1_STR)
 
 @app.get("/health", tags=["System"])
 async def health_check():

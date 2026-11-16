@@ -52,10 +52,10 @@ if [[ "$OS_ID" =~ ^(debian|ubuntu)$ ]]; then
     apt-get upgrade -y || true
     echo "[+] Đang cài đặt các gói công cụ nền tảng..."
     apt-get install -y build-essential gcc make python3 python3-venv python3-pip \
-                       sqlite3 libsqlite3-dev curl wget git quota certbot \
+                       sqlite3 libsqlite3-dev curl wget git quota certbot ipset fail2ban \
                        software-properties-common lsb-release ca-certificates apt-transport-https || \
     apt-get install -y build-essential gcc make python3 python3-venv python3-pip \
-                       sqlite3 libsqlite3-dev curl wget git quota software-properties-common
+                       sqlite3 libsqlite3-dev curl wget git quota ipset fail2ban software-properties-common
 
     # Cấu hình Ondřej PPA cho Ubuntu hoặc Sury cho Debian để sẵn sàng cài đặt mọi phiên bản PHP
     if [ "$OS_ID" = "ubuntu" ]; then
@@ -94,7 +94,7 @@ elif [[ "$OS_ID" =~ ^(almalinux|rocky|rhel|centos)$ ]]; then
 
     # 3. Cài đặt Development Tools và các công cụ biên dịch
     dnf groupinstall -y "Development Tools" || dnf install -y gcc gcc-c++ make || true
-    dnf install -y gcc make sqlite-devel curl wget git quota tar || true
+    dnf install -y gcc make sqlite-devel curl wget git quota tar ipset fail2ban || true
 
     # 4. Cài đặt Python (ưu tiên Python 3.11 hoặc 3.9 nếu trên EL8 mặc định là Python 3.6)
     dnf install -y python3.11 python3.11-pip python3.11-devel 2>/dev/null || \

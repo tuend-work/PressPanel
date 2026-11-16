@@ -5017,7 +5017,7 @@
                     <div class="flex justify-between items-center mb-4">
                         <div class="flex items-center space-x-2">
                             <i data-lucide="copy" class="w-5 h-5 text-blue-400"></i>
-                            <h3 class="text-base font-bold text-white">Nhân Bản Website (Clone)</h3>
+                            <h3 class="text-base font-bold text-white">Nhân Bản Website & Tạo Staging 1-Click</h3>
                         </div>
                         <button @click="showWpCloneModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
                     </div>
@@ -5026,6 +5026,27 @@
                         <div>
                             <label class="block font-semibold text-slate-300 mb-1">Website Nguồn</label>
                             <input type="text" :value="wpCloneSource ? wpCloneSource.domain_name : ''" disabled class="w-full px-3 py-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 font-mono">
+                        </div>
+
+                        <!-- Chế độ Staging Mode Toggle -->
+                        <div class="p-3 rounded-xl bg-[#151d2a] border border-[#233247] space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold text-slate-200 flex items-center gap-1.5">
+                                    <span>🧪 Chế Độ Thử Nghiệm (Staging)</span>
+                                </span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" v-model="wpCloneIsStaging" @change="handleToggleStagingMode" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                </label>
+                            </div>
+                            <p class="text-[11px] text-slate-400">Tự động cấu hình môi trường test an toàn độc lập với web chính để bạn thử nghiệm plugin, code, theme.</p>
+                            
+                            <div v-if="wpCloneIsStaging" class="pt-2 border-t border-[#233247]/60">
+                                <label class="flex items-center space-x-2 cursor-pointer">
+                                    <input type="checkbox" v-model="wpCloneDisallowIndexing" class="rounded border-slate-700 text-indigo-600 focus:ring-0">
+                                    <span class="text-[11px] text-amber-300 font-medium">Bảo vệ SEO: Chống Google / Bot index web test (noindex)</span>
+                                </label>
+                            </div>
                         </div>
 
                         <div>
@@ -5043,7 +5064,7 @@
                             <button type="button" @click="showWpCloneModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
                             <button type="submit" :disabled="wpCloning" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-indigo-500/20">
                                 <i v-if="wpCloning" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
-                                <span>{{ wpCloning ? 'Đang nhân bản...' : 'Tiến Hành Clone' }}</span>
+                                <span>{{ wpCloning ? 'Đang tạo...' : (wpCloneIsStaging ? 'Tạo Staging Test' : 'Tiến Hành Clone') }}</span>
                             </button>
                         </div>
                     </form>
