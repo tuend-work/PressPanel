@@ -7,42 +7,42 @@
                                 <div class="flex items-center space-x-2 sm:space-x-6 overflow-x-auto no-scrollbar">
                                     <!-- 1. Tab MySQL (Active) -->
                                     <button @click="dbTypeTab = 'mysql'"
-                                        :class="dbTypeTab === 'mysql' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
+                                        :class="dbTypeTab === 'mysql' ? 'text-blue-400 font-semibold' : 'text-slate-400 hover:text-slate-200 font-medium'"
                                         class="pb-2 text-xs transition relative tracking-wide">
                                         <span>MySQL</span>
-                                        <div v-if="dbTypeTab === 'mysql'" class="w-5 h-[2px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
+                                        <div v-if="dbTypeTab === 'mysql'" class="w-5 h-[2px] bg-blue-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
                                     </button>
 
                                     <!-- 2. Tab SQLServer (Chỉ Admin) -->
                                     <button v-if="currentUser.role === 'admin'" @click="dbTypeTab = 'sqlserver'"
-                                        :class="dbTypeTab === 'sqlserver' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
+                                        :class="dbTypeTab === 'sqlserver' ? 'text-blue-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
                                         class="pb-2 text-xs transition relative tracking-wide">
                                         <span>SQLServer</span>
-                                        <div v-if="dbTypeTab === 'sqlserver'" class="w-5 h-[2px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
+                                        <div v-if="dbTypeTab === 'sqlserver'" class="w-5 h-[2px] bg-blue-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
                                     </button>
 
                                     <!-- 3. Tab MongoDB (Chỉ Admin) -->
                                     <button v-if="currentUser.role === 'admin'" @click="dbTypeTab = 'mongodb'"
-                                        :class="dbTypeTab === 'mongodb' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
+                                        :class="dbTypeTab === 'mongodb' ? 'text-blue-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
                                         class="pb-2 text-xs transition relative tracking-wide">
                                         <span>MongoDB</span>
-                                        <div v-if="dbTypeTab === 'mongodb'" class="w-5 h-[2px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
+                                        <div v-if="dbTypeTab === 'mongodb'" class="w-5 h-[2px] bg-blue-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
                                     </button>
 
                                     <!-- 4. Tab Redis (Admin & Website User) -->
                                     <button @click="dbTypeTab = 'redis'"
-                                        :class="dbTypeTab === 'redis' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
+                                        :class="dbTypeTab === 'redis' ? 'text-blue-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
                                         class="pb-2 text-xs transition relative tracking-wide">
                                         <span>Redis</span>
-                                        <div v-if="dbTypeTab === 'redis'" class="w-5 h-[2px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
+                                        <div v-if="dbTypeTab === 'redis'" class="w-5 h-[2px] bg-blue-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
                                     </button>
 
                                     <!-- 5. Tab PgSQL (Chỉ Admin) -->
                                     <button v-if="currentUser.role === 'admin'" @click="dbTypeTab = 'pgsql'"
-                                        :class="dbTypeTab === 'pgsql' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
+                                        :class="dbTypeTab === 'pgsql' ? 'text-blue-400 font-semibold' : 'text-slate-300 hover:text-white font-medium'"
                                         class="pb-2 text-xs transition relative tracking-wide">
                                         <span>PgSQL</span>
-                                        <div v-if="dbTypeTab === 'pgsql'" class="w-5 h-[2px] bg-emerald-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
+                                        <div v-if="dbTypeTab === 'pgsql'" class="w-5 h-[2px] bg-blue-500 rounded-full mx-auto mt-1 absolute bottom-0 inset-x-0"></div>
                                     </button>
                                 </div>
                             </div>
@@ -55,7 +55,7 @@
                                     <!-- Service Controller Widget -->
                                     <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
                                         <div class="flex items-center space-x-3">
-                                            <div class="w-10 h-10 rounded-xl bg-emerald-950/80 border border-emerald-800/80 text-emerald-400 flex items-center justify-center text-xl font-bold">
+                                            <div class="w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-700/80 text-blue-400 flex items-center justify-center text-xl font-bold">
                                                 🐬
                                             </div>
                                             <div>
@@ -65,7 +65,7 @@
                                         </div>
                                         <div class="flex items-center space-x-2">
                                             <button v-if="!getApp('mysql').installed" @click="handleAppAction('mysql', 'install')"
-                                                class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white shadow-sm transition flex items-center gap-1.5">
+                                                class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-medium text-white shadow-sm transition flex items-center gap-1.5">
                                                 <span>⚡ Cài Đặt MariaDB (1-Click)</span>
                                             </button>
                                             <template v-else>
@@ -81,7 +81,7 @@
                                                 <button @click="handleAppAction('mysql', 'uninstall')" class="px-2.5 py-1.5 rounded-xl bg-rose-950 text-rose-300 border border-rose-800" title="Gỡ cài đặt"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                             </template>
                                             <button @click="openMySQLControllerModal"
-                                                class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600/90 to-emerald-600/90 hover:from-amber-500 hover:to-emerald-500 text-white font-bold transition flex items-center gap-1.5 border border-emerald-500/30"
+                                                class="px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-700"
                                                 title="Mở bảng điều khiển MySQL Resource Controller">
                                                 <i data-lucide="shield" class="w-3.5 h-3.5 mr-1"></i><span>Controller</span>
                                                 <span v-if="mysqlControllerShieldCount > 0" class="px-1.5 py-0.2 bg-red-500 text-white text-[10px] rounded-full font-bold animate-pulse">
@@ -96,12 +96,12 @@
                                         <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
                                             <div class="text-slate-400 text-[11px]">Dịch vụ Hệ Thống</div>
                                             <div class="text-sm font-bold text-slate-200 mt-1">mariadb.service</div>
-                                            <div class="text-emerald-400 font-semibold mt-0.5">● Port mặc định: 3306</div>
+                                            <div class="text-blue-400 font-semibold mt-0.5">● Port mặc định: 3306</div>
                                         </div>
                                         <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
                                             <div class="text-slate-400 text-[11px]">Tài khoản Quản trị</div>
                                             <div class="text-sm font-bold text-slate-200 mt-1">User: root</div>
-                                            <div class="text-blue-400 font-semibold mt-0.5">Xác thực: unix_socket / native</div>
+                                            <div class="text-slate-400 font-mono mt-0.5">Xác thực: <span class="text-slate-200 font-semibold">unix_socket</span></div>
                                         </div>
                                         <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
                                             <div class="text-slate-400 text-[11px]">Định dạng Tệp dữ liệu</div>
@@ -126,7 +126,7 @@
                                         </div>
                                         <div class="flex items-center space-x-2">
                                             <button v-if="!getApp('sqlserver').installed" @click="handleAppAction('sqlserver', 'install')"
-                                                class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white shadow-sm transition flex items-center gap-1.5">
+                                                class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-medium text-white shadow-sm transition flex items-center gap-1.5">
                                                 <span>⚡ Cài Đặt MS SQL (1-Click)</span>
                                             </button>
                                             <template v-else>
@@ -149,7 +149,7 @@
                                         <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
                                             <div class="text-slate-400 text-[11px]">Dịch vụ hệ thống</div>
                                             <div class="text-sm font-bold text-slate-200 mt-1">mssql-server.service</div>
-                                            <div class="text-emerald-400 font-semibold mt-0.5">● Port mặc định: 1433</div>
+                                            <div class="text-blue-400 font-semibold mt-0.5">● Port mặc định: 1433</div>
                                         </div>
                                         <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
                                             <div class="text-slate-400 text-[11px]">Tài khoản Quản trị</div>
@@ -169,7 +169,7 @@
                                     <!-- Service Controller Widget -->
                                     <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
                                         <div class="flex items-center space-x-3">
-                                            <div class="w-10 h-10 rounded-xl bg-emerald-950/80 border border-emerald-800/80 text-emerald-400 flex items-center justify-center text-xl font-bold">
+                                            <div class="w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-700/80 text-blue-400 flex items-center justify-center text-xl font-bold">
                                                 🍃
                                             </div>
                                             <div>
@@ -179,7 +179,7 @@
                                         </div>
                                         <div class="flex items-center space-x-2">
                                             <button v-if="!getApp('mongodb').installed" @click="handleAppAction('mongodb', 'install')"
-                                                class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white shadow-sm transition flex items-center gap-1.5">
+                                                class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-medium text-white shadow-sm transition flex items-center gap-1.5">
                                                 <span>⚡ Cài Đặt MongoDB 7.0 (1-Click)</span>
                                             </button>
                                             <template v-else>
@@ -203,7 +203,7 @@
                                         <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
                                             <div class="text-slate-400 text-[11px]">Dịch vụ Daemon</div>
                                             <div class="text-sm font-bold text-slate-200 mt-1">mongod.service</div>
-                                            <div class="text-emerald-400 font-semibold mt-0.5">● Port 27017 (Localhost)</div>
+                                            <div class="text-blue-400 font-semibold mt-0.5">● Port 27017 (Localhost)</div>
                                         </div>
                                         <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
                                             <div class="text-slate-400 text-[11px]">Engine Lưu trữ</div>
@@ -307,7 +307,7 @@
                                                 <div class="text-[11px] text-zinc-500 mt-0.5">DB 0: Isolated Cache</div>
                                             </div>
                                             <div class="p-4 rounded-xl bg-[#18181b] border border-[#27272a] shadow-lg">
-                                                <div class="text-[11px] text-emerald-400 font-semibold uppercase tracking-wider">Tỷ Lệ Trúng (Hit Rate)</div>
+                                                <div class="text-[11px] text-blue-400 font-semibold uppercase tracking-wider">Tỷ Lệ Trúng (Hit Rate)</div>
                                                 <div class="text-2xl font-black font-mono text-emerald-400 mt-1">{{ userRedis.hit_rate || '100%' }}</div>
                                                 <div class="text-[11px] text-zinc-500 mt-0.5">Unix Socket Không Độ Trễ</div>
                                             </div>
@@ -432,7 +432,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                                 <div class="text-[11px] text-slate-500 mt-0.5">DB 0: Active Cache</div>
                                             </div>
                                             <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-200">
-                                                <div class="text-xs text-emerald-400 font-semibold">Tỷ Lệ Trúng Cache (Hit Rate)</div>
+                                                <div class="text-xs text-blue-400 font-semibold">Tỷ Lệ Trúng Cache (Hit Rate)</div>
                                                 <div class="text-2xl font-black font-mono text-emerald-400 mt-1">{{ redisStats.hit_rate }}</div>
                                                 <div class="text-[11px] text-slate-500 mt-0.5">Tối ưu tốc độ tối đa</div>
                                             </div>
@@ -460,7 +460,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                         </div>
                                         <div class="flex items-center space-x-2">
                                             <button v-if="!getApp('pgsql').installed" @click="handleAppAction('pgsql', 'install')"
-                                                class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white shadow-sm transition flex items-center gap-1.5">
+                                                class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-medium text-white shadow-sm transition flex items-center gap-1.5">
                                                 <span>⚡ Cài Đặt PostgreSQL 16 (1-Click)</span>
                                             </button>
                                             <template v-else>
@@ -483,7 +483,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                         <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
                                             <div class="text-slate-400 text-[11px]">Dịch vụ Hệ Thống</div>
                                             <div class="text-sm font-bold text-slate-200 mt-1">postgresql.service</div>
-                                            <div class="text-emerald-400 font-semibold mt-0.5">● Port 5432 (Localhost)</div>
+                                            <div class="text-blue-400 font-semibold mt-0.5">● Port 5432 (Localhost)</div>
                                         </div>
                                         <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
                                             <div class="text-slate-400 text-[11px]">Superuser Mặc Định</div>
@@ -531,29 +531,29 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                         <div class="flex flex-wrap items-center gap-2">
                                             <!-- Add DB Button (Primary Action) -->
                                             <button @click="openAddDbModal"
-                                                class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition shadow-sm flex items-center gap-1.5">
+                                                class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs transition shadow-sm flex items-center gap-1.5">
                                                 <span>➕</span>
                                                 <span>Thêm Cơ Sở Dữ Liệu</span>
                                             </button>
 
                                             <!-- Web GUI / Connection Button -->
                                             <button v-if="dbTypeTab === 'mysql'" @click="openPhpMyAdmin"
-                                                class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 font-medium text-xs transition shadow-sm"
                                                 title="Mở phpMyAdmin Port 888">
                                                 <span>🐬 phpMyAdmin</span>
                                             </button>
                                             <button v-else-if="dbTypeTab === 'sqlserver'" @click="handleManageDb({ db_name: 'master', db_user: 'sa' })"
-                                                class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 font-medium text-xs transition shadow-sm"
                                                 title="Xem chuỗi kết nối MS SQL Server">
                                                 <i data-lucide="clipboard" class="w-3.5 h-3.5 mr-1"></i><span>Chuỗi kết nối</span>
                                             </button>
                                             <button v-else-if="dbTypeTab === 'mongodb'" @click="openMongoExpress"
-                                                class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 font-medium text-xs transition shadow-sm"
                                                 title="Mở Mongo Express Web GUI">
                                                 <span>🍃 Mongo Express</span>
                                             </button>
                                             <button v-else-if="dbTypeTab === 'pgsql'" @click="openPgAdmin"
-                                                class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 font-medium text-xs transition shadow-sm"
                                                 title="Mở pgAdmin Web GUI">
                                                 <span>🐘 pgAdmin</span>
                                             </button>
@@ -562,25 +562,25 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                             <template v-if="currentUser.role === 'admin'">
                                                 <!-- Root / Admin Password -->
                                                 <button @click="showRootPasswordModal = true"
-                                                    class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
+                                                    class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 font-medium text-xs transition shadow-sm">
                                                     <i data-lucide="key" class="w-3.5 h-3.5 mr-1"></i><span>Đổi Mật Khẩu Root</span>
                                                 </button>
 
                                                 <!-- Remote DB -->
                                                 <button @click="showRemoteDbModal = true"
-                                                    class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
+                                                    class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 font-medium text-xs transition shadow-sm">
                                                     <i data-lucide="globe" class="w-3.5 h-3.5 mr-1"></i><span>Remote DB</span>
                                                 </button>
 
                                                 <!-- Advanced Setup -->
                                                 <button @click="showAdvDbModal = true"
-                                                    class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
+                                                    class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 font-medium text-xs transition shadow-sm">
                                                     <i data-lucide="settings" class="w-3.5 h-3.5 mr-1"></i><span>Cấu Hình Nâng Cao</span>
                                                 </button>
 
                                                 <!-- MySQL Resource Controller (Chỉ hiển thị cho Tab MySQL) -->
                                                 <button v-if="dbTypeTab === 'mysql'" @click="openMySQLControllerModal"
-                                                    class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-600/90 to-emerald-600/90 hover:from-amber-500 hover:to-emerald-500 text-white font-semibold text-xs transition shadow-sm flex items-center space-x-1.5 border border-emerald-500/30"
+                                                    class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 font-medium text-xs transition shadow-sm flex items-center gap-1.5"
                                                     title="Kiểm soát tài nguyên MariaDB/MySQL, chống cào dữ liệu & bắn tỉa query chậm">
                                                     <span>🛡️ MySQL Controller</span>
                                                     <span v-if="mysqlControllerShieldCount > 0" class="px-1.5 py-0.2 bg-red-500 text-white text-[10px] rounded-full font-bold animate-pulse">
@@ -590,14 +590,14 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
 
                                                 <!-- Sync all -->
                                                 <button @click="fetchDatabasesList"
-                                                    class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
+                                                    class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 font-medium text-xs transition shadow-sm"
                                                     title="Đồng bộ danh sách CSDL">
                                                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5 mr-1"></i><span>Đồng bộ</span>
                                                 </button>
 
                                                 <!-- Get DB from server -->
                                                 <button @click="showGetDbModal = true"
-                                                    class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
+                                                    class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 font-medium text-xs transition shadow-sm">
                                                     <i data-lucide="download" class="w-3.5 h-3.5 mr-1"></i><span>Nạp CSDL Từ Máy Chủ</span>
                                                 </button>
                                             </template>

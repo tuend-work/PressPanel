@@ -249,7 +249,7 @@ function showAlert(message) {
                             <div class="flex flex-col">
                                 <span class="text-base font-bold text-white tracking-tight leading-tight flex items-center gap-1.5 group-hover:text-blue-400 transition-colors">
                                     PressPanel
-                                    <span class="text-[9px] px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-white font-extrabold tracking-wide uppercase shadow-sm">PRO MAX</span>
+                                    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/25 font-bold uppercase tracking-wider">PRO</span>
                                 </span>
                                 <span class="text-[11px] text-slate-400 font-medium">Enterprise Cloud Panel</span>
                             </div>
@@ -265,7 +265,7 @@ function showAlert(message) {
                                     <!-- 1. Tổng quan -->
                                     <button v-if="currentUser.role === 'admin' || isHostingUser" @click="currentTab = 'dashboard'" :class="navClass('dashboard')">
                                         <div class="flex items-center space-x-3">
-                                            <i data-lucide="layout-dashboard" class="w-4 h-4 text-blue-400"></i>
+                                            <i data-lucide="layout-dashboard" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
                                             <span>Tổng quan</span>
                                         </div>
                                     </button>
@@ -273,7 +273,7 @@ function showAlert(message) {
                                     <!-- 2. Resource Monitor -->
                                     <button @click="currentTab = 'monitoring'; fetchResourceMonitorData();" :class="navClass('monitoring')">
                                         <div class="flex items-center space-x-3">
-                                            <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i>
+                                            <i data-lucide="activity" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
                                             <span>Resource Monitor</span>
                                         </div>
                                         <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
@@ -288,7 +288,7 @@ function showAlert(message) {
                                     <!-- Web Application -->
                                     <button @click="currentTab = 'domains'" :class="navClass('domains')">
                                         <div class="flex items-center space-x-3">
-                                            <i data-lucide="globe" class="w-4 h-4 text-emerald-400"></i>
+                                            <i data-lucide="globe" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
                                             <span>Web Application</span>
                                         </div>
                                         <span v-if="domains.length > 0" class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">{{ domains.length }}</span>
@@ -297,7 +297,7 @@ function showAlert(message) {
                                     <!-- WordPress Manager -->
                                     <button @click="currentTab = 'wp'; fetchWpInstances();" :class="navClass('wp')">
                                         <div class="flex items-center space-x-3">
-                                            <i data-lucide="layers" class="w-4 h-4 text-indigo-400"></i>
+                                            <i data-lucide="layers" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
                                             <span>WordPress Manager</span>
                                         </div>
                                         <span v-if="wpInstances.length > 0" class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-blue-900/60 text-blue-300 font-semibold">{{ wpInstances.length }}</span>
@@ -306,7 +306,7 @@ function showAlert(message) {
                                     <!-- File Manager -->
                                     <button v-if="!isHostingUser" @click="openFileManager()" :class="navClass('files')">
                                         <div class="flex items-center space-x-3">
-                                            <i data-lucide="folder" class="w-4 h-4 text-amber-400"></i>
+                                            <i data-lucide="folder" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
                                             <span>Files Manager</span>
                                         </div>
                                         <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
@@ -315,7 +315,7 @@ function showAlert(message) {
                                     <!-- Databases -->
                                     <button v-if="!isHostingUser" @click="currentTab = 'databases'" :class="navClass('databases')">
                                         <div class="flex items-center space-x-3">
-                                            <i data-lucide="database" class="w-4 h-4 text-rose-400"></i>
+                                            <i data-lucide="database" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
                                             <span>Databases</span>
                                         </div>
                                         <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
@@ -330,7 +330,7 @@ function showAlert(message) {
                                     <!-- Firewall & Security -->
                                     <button v-if="currentUser.role === 'admin'" @click="currentTab = 'firewall'; fetchFirewallData();" :class="navClass('firewall')">
                                         <div class="flex items-center space-x-3">
-                                            <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+                                            <i data-lucide="shield-check" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
                                             <span>Firewall & Security</span>
                                         </div>
                                     </button>
@@ -346,7 +346,7 @@ function showAlert(message) {
                                     <!-- Terminal SSH -->
                                     <button v-if="currentUser.role === 'admin' || currentUser.web_domain_id" @click="openWebTerminal()" :class="navClass('terminal')">
                                         <div class="flex items-center space-x-3">
-                                            <i data-lucide="terminal" class="w-4 h-4 text-teal-400"></i>
+                                            <i data-lucide="terminal" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
                                             <span>Terminal SSH</span>
                                         </div>
                                         <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono border border-emerald-800">
@@ -357,7 +357,7 @@ function showAlert(message) {
                                     <!-- Cronjobs -->
                                     <button @click="currentTab = 'crons'; fetchCronJobs();" :class="navClass('crons')">
                                         <div class="flex items-center space-x-3">
-                                            <i data-lucide="clock" class="w-4 h-4 text-violet-400"></i>
+                                            <i data-lucide="clock" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
                                             <span>Cronjobs</span>
                                         </div>
                                         <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-400 font-mono border border-amber-800">
@@ -374,7 +374,7 @@ function showAlert(message) {
                                     <!-- App Store -->
                                     <button v-if="currentUser.role === 'admin'" @click="currentTab = 'apps'" :class="navClass('apps')">
                                         <div class="flex items-center space-x-3">
-                                            <i data-lucide="store" class="w-4 h-4 text-fuchsia-400"></i>
+                                            <i data-lucide="store" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
                                             <span>Kho Ứng Dụng</span>
                                         </div>
                                         <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
@@ -392,7 +392,7 @@ function showAlert(message) {
                                     <!-- Users / Customers -->
                                     <button v-if="currentUser.role === 'admin'" @click="currentTab = 'customers'" :class="navClass('customers')">
                                         <div class="flex items-center space-x-3">
-                                            <i data-lucide="users" class="w-4 h-4 text-blue-400"></i>
+                                            <i data-lucide="users" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
                                             <span>Quản Lý Users</span>
                                         </div>
                                         <span class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">{{ customers.length }}</span>
@@ -431,22 +431,14 @@ function showAlert(message) {
                         </div>
                     </div>
 
-                    <!-- Bottom Card "Nâng cấp ngay" phong cách WPCloud (Chỉ hiển thị cho Quản Trị Viên cấp cao và không hiển thị khi login as user) -->
-                    <div v-if="currentUser.role === 'admin' && !isImpersonating" class="p-3">
-                        <div class="bg-gradient-to-b from-[#142338] to-[#0f1a2c] border border-blue-900/40 rounded-2xl p-4 text-center relative overflow-hidden shadow-lg">
-                            <div class="w-10 h-10 mx-auto rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center mb-2">
-                                <i data-lucide="rocket" class="w-5 h-5"></i>
-                            </div>
-                            <h4 class="font-bold text-white text-xs">Nâng cấp ngay</h4>
-                            <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                                Tận hưởng hiệu năng cao hơn, nhiều tính năng hơn!
-                            </p>
-                            <button @click="showUpdateModal = true" class="mt-3 w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-md shadow-blue-500/25 transition">
-                                Nâng cấp
-                            </button>
-                        </div>
-                        <div class="mt-3 text-center text-[10px] text-slate-500 font-mono">
-                            PressPanel Pro Max v{{ panelVersion }}
+                    <!-- Sidebar Minimal Footer -->
+                    <div class="p-3 border-t border-slate-800/60 text-center">
+                        <div class="flex items-center justify-between text-[11px] text-slate-400 font-mono px-2">
+                            <span class="flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                <span>Online</span>
+                            </span>
+                            <span>v{{ panelVersion }}</span>
                         </div>
                     </div>
                 </div>
@@ -464,114 +456,53 @@ function showAlert(message) {
                             <i data-lucide="menu" class="w-5 h-5"></i>
                         </button>
                         
-                        <!-- System Identity Info Badges -->
+                        <!-- System Identity Info Badges (Sleek Monochromatic) -->
                         <div class="hidden sm:flex items-center gap-2 text-xs font-mono select-none">
-                            <!-- Hostname -->
-                            <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border transition shadow-sm"
-                                :class="isDarkMode ? 'bg-slate-900/90 border-slate-800 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'"
-                                :title="'Hostname máy chủ: ' + (sysStats?.hostname || 'wpc-server')">
-                                <i data-lucide="server" class="w-3.5 h-3.5 text-blue-400 shrink-0"></i>
-                                <span class="font-semibold truncate max-w-[110px] lg:max-w-[160px]">{{ sysStats?.hostname || currentHostName || 'localhost' }}</span>
-                            </div>
-
-                            <!-- IP Address -->
-                            <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border transition shadow-sm"
-                                :class="isDarkMode ? 'bg-slate-900/90 border-slate-800 text-cyan-400' : 'bg-cyan-50 border-cyan-200 text-cyan-800'"
-                                :title="'Địa chỉ IP máy chủ: ' + (sysStats?.server_ip || currentHostName)">
-                                <i data-lucide="globe" class="w-3.5 h-3.5 text-cyan-400 shrink-0"></i>
-                                <span class="font-bold">{{ sysStats?.server_ip || currentHostName || '127.0.0.1' }}</span>
-                            </div>
-
-                            <!-- OS Badge -->
-                            <div class="hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border transition shadow-sm"
-                                :class="isDarkMode ? 'bg-slate-900/90 border-slate-800 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-800'"
-                                :title="'Hệ điều hành: ' + (sysStats?.os_name || 'Linux')">
-                                <i data-lucide="cpu" class="w-3.5 h-3.5 text-amber-400 shrink-0"></i>
-                                <span class="font-medium truncate max-w-[120px] lg:max-w-[180px]">{{ sysStats?.os_name || 'Linux' }}</span>
+                            <div class="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-slate-300 shadow-sm">
+                                <i data-lucide="server" class="w-3.5 h-3.5 text-slate-400"></i>
+                                <span class="font-semibold">{{ sysStats?.hostname || currentHostName || 'localhost' }}</span>
+                                <span class="text-slate-600">•</span>
+                                <span class="text-slate-400">{{ sysStats?.server_ip || currentHostName || '127.0.0.1' }}</span>
+                                <span class="text-slate-600">•</span>
+                                <span class="text-slate-400">{{ (sysStats?.os_name || 'Linux').split(' ')[0] }}</span>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Center: CỤM WIDGET TÀI NGUYÊN (CPU, RAM, DISK) - BỐ CỤC HÀNG NGANG CÂN ĐỐI -->
-                    <div class="hidden md:flex items-center space-x-4 lg:space-x-6 px-3.5 py-1.5 rounded-2xl transition border cursor-default select-none shadow-sm"
-                         :class="isDarkMode ? 'bg-[#0a0f18]/80 border-slate-800/80' : 'bg-slate-50 border-slate-200/80'"
-                         :title="headerResourceStats.roleTitle">
-                        
-                        <!-- 1. CPU Gauge (Bố cục hàng ngang) -->
+                    <!-- Center:<!-- Center: CỤM WIDGET TÀI NGUYÊN (Sleek Mini Bars) -->
+                    <div class="hidden md:flex items-center space-x-5 px-4 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs font-mono select-none">
+                        <!-- CPU -->
                         <div class="flex items-center space-x-2">
-                            <div class="relative w-8 h-8 flex items-center justify-center shrink-0">
-                                <svg class="w-8 h-8 -rotate-90 transform" viewBox="0 0 36 36">
-                                    <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#1d2636]" stroke-width="4" />
-                                    <circle cx="18" cy="18" r="15.9155" fill="none"
-                                        class="transition-all duration-700"
-                                        :class="headerResourceStats.cpu.percent >= 85 ? 'stroke-rose-400' : 'stroke-amber-400'"
-                                        stroke-width="4" stroke-linecap="round"
-                                        :stroke-dasharray="Math.min(100, Math.max(0, headerResourceStats.cpu.percent)) + ', 100'" />
-                                </svg>
-                                <span class="absolute text-[8.5px] font-extrabold font-mono leading-none"
-                                    :class="headerResourceStats.cpu.percent >= 85 ? 'text-rose-400' : 'text-amber-400'">
-                                    {{ headerResourceStats.cpu.label }}
-                                </span>
+                            <span class="text-slate-400 text-[11px] font-bold">CPU</span>
+                            <div class="w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                                <div class="h-full bg-blue-500 rounded-full transition-all duration-500" :style="{ width: Math.min(100, Math.max(0, headerResourceStats.cpu.percent)) + '%' }"></div>
                             </div>
-                            <div class="flex flex-col text-left">
-                                <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400 leading-none">CPU</span>
-                                <span class="text-[11px] font-mono font-semibold text-sky-400 dark:text-sky-300 leading-tight mt-1 whitespace-nowrap">
-                                    {{ headerResourceStats.cpu.sub }}
-                                </span>
-                            </div>
+                            <span class="text-slate-200 font-semibold">{{ headerResourceStats.cpu.label }}</span>
                         </div>
 
-                        <div class="h-5 w-px" :class="isDarkMode ? 'bg-slate-800' : 'bg-slate-200'"></div>
+                        <div class="h-3 w-px bg-slate-800"></div>
 
-                        <!-- 2. RAM Gauge (Bố cục hàng ngang) -->
+                        <!-- RAM -->
                         <div class="flex items-center space-x-2">
-                            <div class="relative w-8 h-8 flex items-center justify-center shrink-0">
-                                <svg class="w-8 h-8 -rotate-90 transform" viewBox="0 0 36 36">
-                                    <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#1d2636]" stroke-width="4" />
-                                    <circle cx="18" cy="18" r="15.9155" fill="none"
-                                        class="stroke-violet-400 transition-all duration-700"
-                                        stroke-width="4" stroke-linecap="round"
-                                        :stroke-dasharray="Math.min(100, Math.max(0, headerResourceStats.ram.percent)) + ', 100'" />
-                                </svg>
-                                <span class="absolute text-[8.5px] font-extrabold font-mono leading-none text-violet-400">
-                                    {{ headerResourceStats.ram.label }}
-                                </span>
+                            <span class="text-slate-400 text-[11px] font-bold">RAM</span>
+                            <div class="w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                                <div class="h-full bg-emerald-500 rounded-full transition-all duration-500" :style="{ width: Math.min(100, Math.max(0, headerResourceStats.ram.percent)) + '%' }"></div>
                             </div>
-                            <div class="flex flex-col text-left">
-                                <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400 leading-none">RAM</span>
-                                <span class="text-[11px] font-mono font-semibold text-sky-400 dark:text-sky-300 leading-tight mt-1 whitespace-nowrap">
-                                    {{ headerResourceStats.ram.sub }}
-                                </span>
-                            </div>
+                            <span class="text-slate-200 font-semibold">{{ headerResourceStats.ram.label }}</span>
                         </div>
 
-                        <div class="h-5 w-px" :class="isDarkMode ? 'bg-slate-800' : 'bg-slate-200'"></div>
+                        <div class="h-3 w-px bg-slate-800"></div>
 
-                        <!-- 3. Disk Gauge (Bố cục hàng ngang) -->
+                        <!-- DISK -->
                         <div class="flex items-center space-x-2">
-                            <div class="relative w-8 h-8 flex items-center justify-center shrink-0">
-                                <svg class="w-8 h-8 -rotate-90 transform" viewBox="0 0 36 36">
-                                    <circle cx="18" cy="18" r="15.9155" fill="none" class="stroke-slate-200 dark:stroke-[#1d2636]" stroke-width="4" />
-                                    <circle cx="18" cy="18" r="15.9155" fill="none"
-                                        class="stroke-emerald-400 transition-all duration-700"
-                                        stroke-width="4" stroke-linecap="round"
-                                        :stroke-dasharray="Math.min(100, Math.max(0, headerResourceStats.disk.percent)) + ', 100'" />
-                                </svg>
-                                <span class="absolute text-[8.5px] font-extrabold font-mono leading-none text-emerald-400">
-                                    {{ headerResourceStats.disk.label }}
-                                </span>
+                            <span class="text-slate-400 text-[11px] font-bold">DISK</span>
+                            <div class="w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                                <div class="h-full bg-sky-500 rounded-full transition-all duration-500" :style="{ width: Math.min(100, Math.max(0, headerResourceStats.disk.percent)) + '%' }"></div>
                             </div>
-                            <div class="flex flex-col text-left">
-                                <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400 leading-none">DISK</span>
-                                <span class="text-[11px] font-mono font-semibold text-sky-400 dark:text-sky-300 leading-tight mt-1 whitespace-nowrap">
-                                    {{ headerResourceStats.disk.sub }}
-                                </span>
-                            </div>
+                            <span class="text-slate-200 font-semibold">{{ headerResourceStats.disk.label }}</span>
                         </div>
-
                     </div>
 
-                    <!-- Right Controls (Notification Bell, Theme Switcher, Avatar & Username) -->
+                    <!-- Right Controls<!-- Right Controls (Notification Bell, Theme Switcher, Avatar & Username) -->
                     <div class="flex items-center space-x-2 sm:space-x-3 shrink-0">
                         <!-- Tasks Box Button (Chuông thông báo) -->
                         <button @click="openMessageBox('tasks')" title="Tiến trình đang chạy & Thông báo"
@@ -2406,8 +2337,8 @@ function showAlert(message) {
 
                 const navClass = (tab) => {
                     return currentTab.value === tab
-                        ? 'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400/30 transition-all duration-200'
-                        : 'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-slate-100 hover:bg-[#131f33] transition-all duration-150';
+                        ? 'w-full flex items-center justify-between px-3 py-2 rounded-lg font-semibold bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-sm transition-all duration-150'
+                        : 'w-full flex items-center justify-between px-3 py-2 rounded-lg font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all duration-150';
                 };
 
                 // Hàm tính đường cong SVG Spline mềm mại (Bézier Curve)
