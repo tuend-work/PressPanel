@@ -13,8 +13,8 @@
                                     title="Bấm để lọc nhanh ứng dụng đã cài đặt">
                                     Đã cài: <b class="text-emerald-400 font-bold">{{ installedAppsCount }}</b> / {{ appsList.length }} ứng dụng
                                 </button>
-                                <button @click="fetchAppsList" class="p-1.5 rounded-lg bg-[#1a202c] hover:bg-[#242e40] text-slate-300 border border-[#2a3446] transition" title="Làm mới trạng thái">
-                                    🔄
+                                <button @click="fetchAppsList" class="p-1.5 rounded-lg bg-[#1a202c] hover:bg-[#242e40] text-slate-300 border border-[#2a3446] transition cursor-pointer" title="Làm mới trạng thái">
+                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                                 </button>
                             </div>
                         </div>
@@ -50,7 +50,7 @@
                             <div class="relative w-full sm:w-64">
                                 <input type="text" v-model="appsSearchQuery" placeholder="Tìm ứng dụng, phiên bản..."
                                     class="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#13171e] border border-[#222834] text-slate-200 placeholder-slate-500 text-xs focus:outline-none focus:border-emerald-500">
-                                <span class="absolute left-2.5 top-2 text-slate-500 text-xs">🔍</span>
+                                <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500"></i>
                             </div>
                         </div>
 
@@ -60,12 +60,12 @@
                                 <span class="text-slate-400">Máy chủ Web chính (Port 80/443):</span>
                                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold border"
                                     :class="primaryWebserver === 'nginx' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'">
-                                    <span>{{ primaryWebserver === 'nginx' ? '🌐 Nginx Web Server' : '⚡ OpenLiteSpeed (LSWS)' }}</span>
+                                    <span>{{ primaryWebserver === 'nginx' ? 'Nginx Web Server' : 'OpenLiteSpeed (LSWS)' }}</span>
                                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                                 </span>
                             </div>
                             <div class="text-[11px] text-slate-400">
-                                💡 Cổng 80 & 443 do 1 Webserver duy nhất chiếm giữ. Bấm <span class="text-amber-300 font-semibold">"Kích hoạt (80/443)"</span> ở Webserver còn lại để đổi máy chủ phục vụ.
+                                <i data-lucide="info" class="w-3 h-3 inline text-amber-400 mr-1"></i> Cổng 80 & 443 do 1 Webserver duy nhất chiếm giữ. Bấm <span class="text-amber-300 font-semibold">"Kích hoạt (80/443)"</span> ở Webserver còn lại để đổi máy chủ phục vụ.
                             </div>
                         </div>
 
@@ -91,11 +91,11 @@
                                                 <div class="w-7 h-7 rounded-lg bg-[#1a1f29] border border-[#2a3242] flex items-center justify-center text-sm shrink-0 shadow-inner">
                                                     <span v-if="app.id === 'nginx'" class="text-emerald-400 font-bold font-mono">N</span>
                                                     <span v-else-if="app.category === 'php'" class="text-indigo-400 font-bold font-mono text-[10px]">php</span>
-                                                    <span v-else-if="['mysql', 'mariadb'].includes(app.id)" class="text-sky-400">🐬</span>
-                                                    <span v-else-if="app.id === 'redis'" class="text-rose-500">🔴</span>
-                                                    <span v-else-if="app.id === 'ols'" class="text-amber-400">⚡</span>
-                                                    <span v-else-if="app.id === 'apache'" class="text-rose-400">🪶</span>
-                                                    <span v-else>{{ app.icon || '📦' }}</span>
+                                                    <span v-else-if="['mysql', 'mariadb'].includes(app.id)" class="text-sky-400"><i data-lucide="database" class="w-3.5 h-3.5"></i></span>
+                                                    <span v-else-if="app.id === 'redis'" class="text-rose-500"><i data-lucide="layers" class="w-3.5 h-3.5"></i></span>
+                                                    <span v-else-if="app.id === 'ols'" class="text-amber-400"><i data-lucide="zap" class="w-3.5 h-3.5"></i></span>
+                                                    <span v-else-if="app.id === 'apache'" class="text-rose-400"><i data-lucide="server" class="w-3.5 h-3.5"></i></span>
+                                                    <span v-else><i data-lucide="box" class="w-3.5 h-3.5 text-slate-400"></i></span>
                                                 </div>
                                                 <div class="min-w-0 flex-1">
                                                     <div class="font-medium text-slate-100 truncate text-[12px] flex items-center gap-1.5" :title="app.detailed_version || app.name">

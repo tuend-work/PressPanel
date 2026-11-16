@@ -4,14 +4,14 @@
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-[#13171e] p-4 rounded-xl border border-[#222834]">
                             <div>
                                 <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                                    <span class="text-emerald-400">🛡️</span>
+                                    <i data-lucide="shield" class="w-5 h-5 text-emerald-400"></i>
                                     <span>Tường Lửa & Trung Tâm An Ninh (Firewall & Security Center)</span>
                                 </h2>
                                 <p class="text-[12px] text-slate-400 mt-0.5">Tường lửa Linux kernel (iptables & ipset), Fail2ban Brute-force Shield, Cảnh báo Telegram Bot và CloudLinux Hardening</p>
                             </div>
                             <div class="flex items-center space-x-2 text-[12px]">
                                 <button @click="refreshCurrentFirewallTab" class="px-3 py-1.5 rounded-lg bg-[#1a202c] hover:bg-[#242e40] text-slate-300 border border-[#2a3446] transition flex items-center gap-1.5 font-medium" title="Làm mới dữ liệu">
-                                    <span :class="{'animate-spin': loadingFirewall}">🔄</span>
+                                    <i data-lucide="refresh-cw" :class="{'animate-spin': loadingFirewall}" class="w-3.5 h-3.5"></i>
                                     <span>Làm mới</span>
                                 </button>
                             </div>
@@ -22,36 +22,36 @@
                             <div class="flex flex-wrap gap-1.5">
                                 <button @click="firewallSubTab = 'rules'"
                                     :class="firewallSubTab === 'rules' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
-                                    <span>🧱 Cổng Dịch Vụ (Ports)</span>
+                                    <i data-lucide="server" class="w-3.5 h-3.5 mr-1"></i><span>Cổng Dịch Vụ (Ports)</span>
                                     <span v-if="firewallData.rules" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-700/80">{{ firewallData.rules.length }}</span>
                                 </button>
                                 <button @click="firewallSubTab = 'blocklists'; fetchBlocklists();"
                                     :class="firewallSubTab === 'blocklists' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
-                                    <span>🚫 IP Blocklist (ipset O(1))</span>
+                                    <i data-lucide="slash" class="w-3.5 h-3.5 mr-1"></i><span>IP Blocklist (ipset)</span>
                                     <span v-if="blocklistData.stats && blocklistData.stats.total_blocked_ips" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">
                                         {{ blocklistData.stats.total_blocked_ips.toLocaleString() }} IP
                                     </span>
                                 </button>
                                 <button @click="firewallSubTab = 'fail2ban'; fetchFail2ban();"
                                     :class="firewallSubTab === 'fail2ban' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
-                                    <span>🛡️ Fail2ban Shield</span>
+                                    <i data-lucide="shield-alert" class="w-3.5 h-3.5 mr-1"></i><span>Fail2ban Shield</span>
                                     <span v-if="fail2banData.running" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">Active</span>
                                 </button>
                                 <button @click="firewallSubTab = 'telegram'; fetchTelegramConfig();"
                                     :class="firewallSubTab === 'telegram' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
-                                    <span>🔔 Cảnh Báo Telegram</span>
+                                    <i data-lucide="bell" class="w-3.5 h-3.5 mr-1"></i><span>Cảnh Báo Telegram</span>
                                     <span v-if="telegramConfig.enabled" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-sky-500/20 text-sky-400 font-bold border border-sky-500/30">ON</span>
                                 </button>
                                 <button @click="firewallSubTab = 'audit'; runSecurityAudit();"
                                     :class="firewallSubTab === 'audit' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
-                                    <span>🔍 Đánh Giá An Ninh</span>
+                                    <i data-lucide="check-circle" class="w-3.5 h-3.5 mr-1"></i><span>Đánh Giá An Ninh</span>
                                     <span v-if="securityAudit.score !== undefined" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px]" :class="securityAudit.score === securityAudit.max_score ? 'bg-emerald-500 text-slate-950 font-bold' : 'bg-amber-500 text-slate-950 font-bold'">
                                         {{ securityAudit.score }}/{{ securityAudit.max_score }}
                                     </span>
                                 </button>
                                 <button @click="firewallSubTab = 'logs'; fetchSecurityLogs();"
                                     :class="firewallSubTab === 'logs' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
-                                    <span>📜 Nhật Ký Đăng Nhập</span>
+                                    <i data-lucide="file-text" class="w-3.5 h-3.5 mr-1"></i><span>Nhật Ký Đăng Nhập</span>
                                 </button>
                             </div>
                         </div>
@@ -71,7 +71,7 @@
                                         </div>
                                         <div class="text-[10px] text-slate-500 mt-0.5">Backend: {{ (firewallData.firewall && firewallData.firewall.type) || 'iptables' }}</div>
                                     </div>
-                                    <div class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-base">🛡️</div>
+                                    <div class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400"><i data-lucide="shield-check" class="w-5 h-5"></i></div>
                                 </div>
 
                                 <div class="bg-[#12151c] p-3.5 rounded-xl border border-[#22262e] flex items-center justify-between">

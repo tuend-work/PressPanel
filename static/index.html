@@ -446,31 +446,31 @@ function showAlert(message) {
                             </button>
                         </div>
                         <div class="mt-3 text-center text-[10px] text-slate-500 font-mono">
-                            WPCloud Control Panel v{{ panelVersion }}
+                            PressPanel Pro Max v{{ panelVersion }}
                         </div>
                     </div>
                 </div>
             </aside>
 
             <!-- Main Content Area -->
-            <div class="flex-1 flex flex-col min-w-0 transition-colors duration-200" :class="isDarkMode ? 'bg-[#0c1017]' : 'bg-[#f3f6fa]'">
+            <div class="flex-1 flex flex-col min-w-0 transition-colors duration-200" :class="isDarkMode ? 'bg-[#0b0f17]' : 'bg-[#f8fafc]'">
 
-                <!-- Topbar Header WPCloud Style (Hỗ trợ Dark & Light Mode) -->
+                <!-- Topbar Header Pro Max Style -->
                 <header class="h-16 px-4 sm:px-6 flex items-center justify-between shrink-0 shadow-sm z-10 transition-colors duration-200"
-                    :class="isDarkMode ? 'bg-[#111722] border-b border-[#1e2736]' : 'bg-white border-b border-slate-200/80'">
+                    :class="isDarkMode ? 'bg-[#0f1522] border-b border-[#1a2333]' : 'bg-white border-b border-slate-200/80'">
                     <!-- Left: Hamburger toggle & Server Info Badges (Hostname, IP, OS) -->
                     <div class="flex items-center space-x-2 shrink-0">
-                        <button class="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition md:hidden">
+                        <button class="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition md:hidden cursor-pointer">
                             <i data-lucide="menu" class="w-5 h-5"></i>
                         </button>
                         
                         <!-- System Identity Info Badges -->
-                        <div class="hidden sm:flex items-center gap-1.5 text-xs font-mono select-none">
+                        <div class="hidden sm:flex items-center gap-2 text-xs font-mono select-none">
                             <!-- Hostname -->
                             <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border transition shadow-sm"
                                 :class="isDarkMode ? 'bg-slate-900/90 border-slate-800 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'"
                                 :title="'Hostname máy chủ: ' + (sysStats?.hostname || 'wpc-server')">
-                                <span class="text-xs">🖥️</span>
+                                <i data-lucide="server" class="w-3.5 h-3.5 text-blue-400 shrink-0"></i>
                                 <span class="font-semibold truncate max-w-[110px] lg:max-w-[160px]">{{ sysStats?.hostname || currentHostName || 'localhost' }}</span>
                             </div>
 
@@ -478,7 +478,7 @@ function showAlert(message) {
                             <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border transition shadow-sm"
                                 :class="isDarkMode ? 'bg-slate-900/90 border-slate-800 text-cyan-400' : 'bg-cyan-50 border-cyan-200 text-cyan-800'"
                                 :title="'Địa chỉ IP máy chủ: ' + (sysStats?.server_ip || currentHostName)">
-                                <span class="text-xs">🌐</span>
+                                <i data-lucide="globe" class="w-3.5 h-3.5 text-cyan-400 shrink-0"></i>
                                 <span class="font-bold">{{ sysStats?.server_ip || currentHostName || '127.0.0.1' }}</span>
                             </div>
 
@@ -486,7 +486,7 @@ function showAlert(message) {
                             <div class="hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border transition shadow-sm"
                                 :class="isDarkMode ? 'bg-slate-900/90 border-slate-800 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-800'"
                                 :title="'Hệ điều hành: ' + (sysStats?.os_name || 'Linux')">
-                                <span class="text-xs">🐧</span>
+                                <i data-lucide="cpu" class="w-3.5 h-3.5 text-amber-400 shrink-0"></i>
                                 <span class="font-medium truncate max-w-[120px] lg:max-w-[180px]">{{ sysStats?.os_name || 'Linux' }}</span>
                             </div>
                         </div>

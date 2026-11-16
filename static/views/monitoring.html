@@ -53,16 +53,16 @@
                 <select v-model="monitorTimeRange" @change="fetchResourceMonitorData"
                     class="pl-7 pr-8 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 hover:border-slate-600 text-slate-200 text-xs font-semibold focus:outline-none focus:border-cyan-500 shadow-sm cursor-pointer appearance-none transition"
                     title="Chọn chu kỳ thời gian hiển thị">
-                    <option value="1m">⏱️ 1 Phút</option>
-                    <option value="15m">⏱️ 15 Phút</option>
-                    <option value="30m">⏱️ 30 Phút (Mặc định)</option>
-                    <option value="1h">⏱️ 1 Giờ</option>
-                    <option value="24h">⏱️ 24 Giờ</option>
-                    <option value="7d">📅 7 Ngày</option>
-                    <option value="14d">📅 14 Ngày</option>
-                    <option value="30d">📅 30 Ngày</option>
-                    <option value="60d">📅 60 Ngày</option>
-                    <option value="90d">📅 90 Ngày</option>
+                    <option value="1m">1 Phút</option>
+                    <option value="15m">15 Phút</option>
+                    <option value="30m">30 Phút (Mặc định)</option>
+                    <option value="1h">1 Giờ</option>
+                    <option value="24h">24 Giờ</option>
+                    <option value="7d">7 Ngày</option>
+                    <option value="14d">14 Ngày</option>
+                    <option value="30d">30 Ngày</option>
+                    <option value="60d">60 Ngày</option>
+                    <option value="90d">90 Ngày</option>
                 </select>
                 <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none text-slate-400">
                     <i data-lucide="chevron-down" class="w-3 h-3"></i>
@@ -93,7 +93,7 @@
         <div class="bg-[#111722] p-4 sm:p-5 rounded-2xl border border-slate-800/80 shadow-sm relative overflow-hidden group hover:border-slate-700 transition">
             <div class="flex justify-between items-start mb-3">
                 <div class="flex items-center gap-2">
-                    <span class="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 text-sm">⚡</span>
+                    <span class="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center"><i data-lucide="cpu" class="w-4 h-4"></i></span>
                     <div>
                         <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">CPU Usage</div>
                         <div class="text-xs text-slate-500 font-mono">

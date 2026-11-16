@@ -78,12 +78,12 @@
                                                     class="px-3 py-1.5 rounded-xl border font-semibold">
                                                     {{ getApp('mysql').running ? 'Dừng' : 'Bật' }}
                                                 </button>
-                                                <button @click="handleAppAction('mysql', 'uninstall')" class="px-2.5 py-1.5 rounded-xl bg-rose-950 text-rose-300 border border-rose-800" title="Gỡ cài đặt">🗑️</button>
+                                                <button @click="handleAppAction('mysql', 'uninstall')" class="px-2.5 py-1.5 rounded-xl bg-rose-950 text-rose-300 border border-rose-800" title="Gỡ cài đặt"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                             </template>
                                             <button @click="openMySQLControllerModal"
                                                 class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600/90 to-emerald-600/90 hover:from-amber-500 hover:to-emerald-500 text-white font-bold transition flex items-center gap-1.5 border border-emerald-500/30"
                                                 title="Mở bảng điều khiển MySQL Resource Controller">
-                                                <span>🛡️ Controller</span>
+                                                <i data-lucide="shield" class="w-3.5 h-3.5 mr-1"></i><span>Controller</span>
                                                 <span v-if="mysqlControllerShieldCount > 0" class="px-1.5 py-0.2 bg-red-500 text-white text-[10px] rounded-full font-bold animate-pulse">
                                                     {{ mysqlControllerShieldCount }}
                                                 </span>
@@ -136,7 +136,7 @@
                                                     class="px-3 py-1.5 rounded-xl border font-semibold">
                                                     {{ getApp('sqlserver').running ? 'Dừng' : 'Bật' }}
                                                 </button>
-                                                <button @click="handleAppAction('sqlserver', 'uninstall')" class="px-2.5 py-1.5 rounded-xl bg-rose-950 text-rose-300 border border-rose-800" title="Gỡ cài đặt">🗑️</button>
+                                                <button @click="handleAppAction('sqlserver', 'uninstall')" class="px-2.5 py-1.5 rounded-xl bg-rose-950 text-rose-300 border border-rose-800" title="Gỡ cài đặt"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                             </template>
                                             <button @click="alert('Chuỗi kết nối: Server=127.0.0.1,1433;Database=master;User Id=sa;Password=<mật khẩu>;Encrypt=True;TrustServerCertificate=True;')"
                                                 class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold">
@@ -183,14 +183,14 @@
                                                 <span>⚡ Cài Đặt MongoDB 7.0 (1-Click)</span>
                                             </button>
                                             <template v-else>
-                                                <button @click="openMongoExpress" class="px-3 py-1.5 rounded-xl bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold">🍃 Mongo Express GUI</button>
+                                                <button @click="openMongoExpress" class="px-3 py-1.5 rounded-xl bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold"><i data-lucide="database" class="w-3.5 h-3.5 inline mr-1 text-emerald-400"></i> Mongo Express GUI</button>
                                                 <button @click="handleAppAction('mongodb', 'restart')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">Khởi động lại</button>
                                                 <button @click="handleAppAction('mongodb', getApp('mongodb').running ? 'stop' : 'start')"
                                                     :class="getApp('mongodb').running ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-emerald-950 text-emerald-300 border-emerald-800'"
                                                     class="px-3 py-1.5 rounded-xl border font-semibold">
                                                     {{ getApp('mongodb').running ? 'Dừng' : 'Bật' }}
                                                 </button>
-                                                <button @click="handleAppAction('mongodb', 'uninstall')" class="px-2.5 py-1.5 rounded-xl bg-rose-950 text-rose-300 border border-rose-800" title="Gỡ cài đặt">🗑️</button>
+                                                <button @click="handleAppAction('mongodb', 'uninstall')" class="px-2.5 py-1.5 rounded-xl bg-rose-950 text-rose-300 border border-rose-800" title="Gỡ cài đặt"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                             </template>
                                             <button @click="alert('Kết nối MongoDB Compass: mongodb://127.0.0.1:27017/')"
                                                 class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold">
@@ -280,7 +280,7 @@
                                                     <button @click="handleUserRedisAction('flush')" :disabled="userRedis.loading"
                                                             class="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5"
                                                             title="Xóa sạch cache trong socket riêng của bạn">
-                                                        <span>🧹 Xóa Cache (FLUSHDB)</span>
+                                                        <i data-lucide="trash-2" class="w-3.5 h-3.5 mr-1"></i><span>Xóa Cache (FLUSHDB)</span>
                                                     </button>
                                                     <button @click="handleUserRedisAction('restart')" :disabled="userRedis.loading"
                                                             class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 font-medium text-xs transition">
@@ -323,7 +323,7 @@
                                             <div class="flex items-center justify-between border-b border-[#27272a] pb-3">
                                                 <div>
                                                     <h4 class="font-bold text-white text-sm flex items-center gap-2">
-                                                        <span>🔌</span> <span>Kết Nối WordPress Qua Unix Socket (Cực Nhanh & An Toàn 100%)</span>
+                                                        <i data-lucide="zap" class="w-3.5 h-3.5 mr-1 text-amber-400"></i> <span>Kết Nối WordPress Qua Unix Socket (Cực Nhanh & An Toàn 100%)</span>
                                                     </h4>
                                                     <p class="text-[11px] text-zinc-400 mt-0.5">
                                                         Unix Socket chạy thẳng trong kernel bộ nhớ RAM mà không cần mở Port TCP, miễn nhiễm hoàn toàn với nguy cơ bị website khác xem trộm cache.
@@ -338,7 +338,7 @@
                                                         <span>Đường dẫn Socket UNIX:</span>
                                                         <button @click="copyToClipboard(userRedis.socket_path || ('/home/' + currentUser.username + '/.redis/redis.sock'))" 
                                                                 class="text-emerald-400 hover:text-emerald-300 hover:underline text-[11px] flex items-center gap-1">
-                                                            <span>📋 Copy</span>
+                                                            <i data-lucide="copy" class="w-3.5 h-3.5 mr-1"></i><span>Copy</span>
                                                         </button>
                                                     </div>
                                                     <input type="text" readonly :value="userRedis.socket_path || ('/home/' + currentUser.username + '/.redis/redis.sock')" 
@@ -354,7 +354,7 @@
                                                         <span>Code chèn wp-config.php (Redis Object Cache):</span>
                                                         <button @click="copyToClipboard('define( \'WP_REDIS_SCHEME\', \'unix\' );\ndefine( \'WP_REDIS_PATH\', \'' + (userRedis.socket_path || ('/home/' + currentUser.username + '/.redis/redis.sock')) + '\' );')" 
                                                                 class="text-emerald-400 hover:text-emerald-300 hover:underline text-[11px] flex items-center gap-1">
-                                                            <span>📋 Copy Code</span>
+                                                            <i data-lucide="copy" class="w-3.5 h-3.5 mr-1"></i><span>Copy Code</span>
                                                         </button>
                                                     </div>
                                                     <pre class="w-full p-2.5 rounded-lg bg-zinc-900 border border-[#33353a] text-cyan-300 text-[11px] font-mono overflow-x-auto select-all">define( 'WP_REDIS_SCHEME', 'unix' );
@@ -464,14 +464,14 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                                 <span>⚡ Cài Đặt PostgreSQL 16 (1-Click)</span>
                                             </button>
                                             <template v-else>
-                                                <button @click="openPgAdmin" class="px-3 py-1.5 rounded-xl bg-indigo-950 text-indigo-300 border border-indigo-800 font-semibold">🐘 pgAdmin GUI</button>
+                                                <button @click="openPgAdmin" class="px-3 py-1.5 rounded-xl bg-indigo-950 text-indigo-300 border border-indigo-800 font-semibold"><i data-lucide="database" class="w-3.5 h-3.5 inline mr-1 text-indigo-400"></i> pgAdmin GUI</button>
                                                 <button @click="handleAppAction('pgsql', 'restart')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">Khởi động lại</button>
                                                 <button @click="handleAppAction('pgsql', getApp('pgsql').running ? 'stop' : 'start')"
                                                     :class="getApp('pgsql').running ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-emerald-950 text-emerald-300 border-emerald-800'"
                                                     class="px-3 py-1.5 rounded-xl border font-semibold">
                                                     {{ getApp('pgsql').running ? 'Dừng' : 'Bật' }}
                                                 </button>
-                                                <button @click="handleAppAction('pgsql', 'uninstall')" class="px-2.5 py-1.5 rounded-xl bg-rose-950 text-rose-300 border border-rose-800" title="Gỡ cài đặt">🗑️</button>
+                                                <button @click="handleAppAction('pgsql', 'uninstall')" class="px-2.5 py-1.5 rounded-xl bg-rose-950 text-rose-300 border border-rose-800" title="Gỡ cài đặt"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                             </template>
                                             <button @click="showRootPasswordModal = true" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold">
                                                 🔑 User postgres
@@ -545,7 +545,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                             <button v-else-if="dbTypeTab === 'sqlserver'" @click="handleManageDb({ db_name: 'master', db_user: 'sa' })"
                                                 class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
                                                 title="Xem chuỗi kết nối MS SQL Server">
-                                                <span>📋 Chuỗi kết nối</span>
+                                                <i data-lucide="clipboard" class="w-3.5 h-3.5 mr-1"></i><span>Chuỗi kết nối</span>
                                             </button>
                                             <button v-else-if="dbTypeTab === 'mongodb'" @click="openMongoExpress"
                                                 class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
@@ -563,19 +563,19 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                                 <!-- Root / Admin Password -->
                                                 <button @click="showRootPasswordModal = true"
                                                     class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
-                                                    <span>🔑 Đổi Mật Khẩu Root</span>
+                                                    <i data-lucide="key" class="w-3.5 h-3.5 mr-1"></i><span>Đổi Mật Khẩu Root</span>
                                                 </button>
 
                                                 <!-- Remote DB -->
                                                 <button @click="showRemoteDbModal = true"
                                                     class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
-                                                    <span>🌐 Remote DB</span>
+                                                    <i data-lucide="globe" class="w-3.5 h-3.5 mr-1"></i><span>Remote DB</span>
                                                 </button>
 
                                                 <!-- Advanced Setup -->
                                                 <button @click="showAdvDbModal = true"
                                                     class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
-                                                    <span>⚙️ Cấu Hình Nâng Cao</span>
+                                                    <i data-lucide="settings" class="w-3.5 h-3.5 mr-1"></i><span>Cấu Hình Nâng Cao</span>
                                                 </button>
 
                                                 <!-- MySQL Resource Controller (Chỉ hiển thị cho Tab MySQL) -->
@@ -592,13 +592,13 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                                 <button @click="fetchDatabasesList"
                                                     class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm"
                                                     title="Đồng bộ danh sách CSDL">
-                                                    <span>🔄 Đồng bộ</span>
+                                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5 mr-1"></i><span>Đồng bộ</span>
                                                 </button>
 
                                                 <!-- Get DB from server -->
                                                 <button @click="showGetDbModal = true"
                                                     class="px-3 py-1.5 rounded-lg bg-[#242c38] hover:bg-[#2d3746] text-slate-200 border border-[#354152] font-medium text-xs transition shadow-sm">
-                                                    <span>📥 Nạp CSDL Từ Máy Chủ</span>
+                                                    <i data-lucide="download" class="w-3.5 h-3.5 mr-1"></i><span>Nạp CSDL Từ Máy Chủ</span>
                                                 </button>
                                             </template>
                                         </div>

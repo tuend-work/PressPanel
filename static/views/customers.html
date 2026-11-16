@@ -4,13 +4,13 @@
                             <button @click="customersSubTab = 'users'"
                                 :class="customersSubTab === 'users' ? 'bg-blue-600 text-white font-bold shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'"
                                 class="px-4 py-2 rounded-xl transition flex items-center gap-2">
-                                <span>👤 Danh Sách Users</span>
+                                <i data-lucide="users" class="w-4 h-4 mr-1"></i><span>Danh Sách Users</span>
                                 <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-mono font-bold">{{ customers.length }}</span>
                             </button>
                             <button @click="customersSubTab = 'packages'; fetchServicePlans();"
                                 :class="customersSubTab === 'packages' ? 'bg-blue-600 text-white font-bold shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'"
                                 class="px-4 py-2 rounded-xl transition flex items-center gap-2">
-                                <span>📦 User Packages</span>
+                                <i data-lucide="package" class="w-4 h-4 mr-1"></i><span>User Packages</span>
                                 <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono font-bold">{{ servicePlans.length }}</span>
                             </button>
                         </div>
@@ -23,7 +23,7 @@
                             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                                 <div>
                                     <h2 class="text-base sm:text-lg font-bold text-slate-800 dark:text-white tracking-tight flex items-center gap-2">
-                                        <span>👤</span> <span>Quản Lý Users (Khách Hàng)</span>
+                                        <i data-lucide="users" class="w-5 h-5 mr-1 text-blue-400"></i><span>Quản Lý Users (Khách Hàng)</span>
                                     </h2>
                                     <p class="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">Quản lý các tài khoản User trên hệ thống, phân bổ User Package và kiểm soát trạng thái hoạt động.</p>
                                 </div>
@@ -41,7 +41,7 @@
                                     </button>
                                     <button @click="customersSubTab = 'packages'; fetchServicePlans();"
                                         class="px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium text-xs text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition flex items-center space-x-1.5">
-                                        <span>📦 User Packages ({{ servicePlans.length }})</span>
+                                        <i data-lucide="package" class="w-4 h-4 mr-1"></i><span>User Packages ({{ servicePlans.length }})</span>
                                     </button>
                                     
                                     <!-- Set Status Dropdown -->
@@ -67,7 +67,7 @@
                                         :disabled="selectedCustomerIds.length === 0"
                                         :class="selectedCustomerIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700' : 'bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800'"
                                         class="px-3.5 py-2 rounded-xl text-xs font-medium transition flex items-center space-x-1">
-                                        <span>🗑️ Remove</span>
+                                        <i data-lucide="trash-2" class="w-3.5 h-3.5 mr-1"></i><span>Xóa</span>
                                         <span v-if="selectedCustomerIds.length > 0" class="text-[10px] font-mono font-bold">({{ selectedCustomerIds.length }})</span>
                                     </button>
                                 </div>
@@ -194,7 +194,7 @@
                             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                                 <div>
                                     <h2 class="text-base sm:text-lg font-bold text-slate-800 dark:text-white tracking-tight flex items-center gap-2">
-                                        <span>📦</span>
+                                        <i data-lucide="package" class="w-4 h-4"></i>
                                         <span>Quản Lý User Packages</span>
                                     </h2>
                                     <p class="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">
@@ -290,7 +290,7 @@
                                             <button @click="openEditPlanModal(plan)"
                                                 title="Sửa thông tin gói"
                                                 class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 dark:bg-slate-800 dark:hover:bg-blue-900/40 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 border border-slate-200 dark:border-slate-700 transition flex items-center gap-1 text-[11px] font-semibold">
-                                                <span>✏️ Sửa</span>
+                                                <i data-lucide="edit-3" class="w-3.5 h-3.5 mr-1"></i><span>Sửa</span>
                                             </button>
                                             <button @click="handleDeletePlan(plan)"
                                                 :disabled="plan.subscriber_count > 0"

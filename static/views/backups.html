@@ -4,14 +4,14 @@
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-[#13171e] p-4 rounded-xl border border-[#222834]">
                             <div>
                                 <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                                    <span class="text-sky-400">📦</span>
+                                    <i data-lucide="archive" class="w-5 h-5 text-sky-400"></i>
                                     <span>Trung Tâm Sao Lưu & Đám Mây (Backups & Cloud Storage)</span>
                                 </h2>
                                 <p class="text-[12px] text-slate-400 mt-0.5">Sao lưu toàn diện website, CSDL, tự động đẩy lên AWS S3, Cloudflare R2, Wasabi, SFTP và lập lịch xoay vòng</p>
                             </div>
                             <div class="flex items-center space-x-2 text-[12px]">
                                 <button @click="refreshCurrentBackupTab" class="px-3 py-1.5 rounded-lg bg-[#1a202c] hover:bg-[#242e40] text-slate-300 border border-[#2a3446] transition flex items-center gap-1.5 font-medium" title="Làm mới dữ liệu">
-                                    <span :class="{'animate-spin': loadingBackups}">🔄</span>
+                                    <i data-lucide="refresh-cw" :class="{'animate-spin': loadingBackups}" class="w-3.5 h-3.5"></i>
                                     <span>Làm mới</span>
                                 </button>
                             </div>
@@ -22,17 +22,17 @@
                             <div class="flex flex-wrap gap-1.5">
                                 <button @click="backupSubTab = 'list'"
                                     :class="backupSubTab === 'list' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
-                                    <span>📦 Bản Sao Lưu Đã Tạo</span>
+                                    <i data-lucide="archive" class="w-3.5 h-3.5 mr-1"></i><span>Bản Sao Lưu Đã Tạo</span>
                                     <span v-if="backupsList.length > 0" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-700/80">{{ backupsList.length }}</span>
                                 </button>
                                 <button @click="backupSubTab = 'destinations'; fetchBackupDestinations();"
                                     :class="backupSubTab === 'destinations' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
-                                    <span>☁️ Kho Lưu Trữ Đám Mây (S3 / R2 / SFTP)</span>
+                                    <i data-lucide="cloud" class="w-3.5 h-3.5 mr-1"></i><span>Kho Lưu Trữ Đám Mây (S3 / R2 / SFTP)</span>
                                     <span v-if="backupDestinations.length > 0" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-sky-500/20 text-sky-400 font-bold border border-sky-500/30">{{ backupDestinations.length }}</span>
                                 </button>
                                 <button @click="backupSubTab = 'schedules'; fetchBackupSchedules();"
                                     :class="backupSubTab === 'schedules' ? 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium shadow-sm' : 'px-3 py-1.5 rounded-lg bg-[#151922] text-slate-300 border border-[#222834] hover:bg-[#1c2230]'">
-                                    <span>⏰ Lịch Sao Lưu Tự Động (Retention)</span>
+                                    <i data-lucide="clock" class="w-3.5 h-3.5 mr-1"></i><span>Lịch Sao Lưu Tự Động (Retention)</span>
                                     <span v-if="backupSchedules.length > 0" class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">{{ backupSchedules.length }}</span>
                                 </button>
                             </div>
@@ -46,7 +46,7 @@
                             <div class="flex flex-wrap items-center justify-between gap-3 bg-[#13171e] p-3 rounded-xl border border-[#222834] text-xs">
                                 <button @click="openCreateBackupModal"
                                     class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-sm flex items-center gap-1.5">
-                                    <span>➕ Tạo Bản Sao Lưu Mới</span>
+                                    <i data-lucide="plus" class="w-4 h-4 mr-1"></i><span>Tạo Bản Sao Lưu Mới</span>
                                 </button>
                                 <div class="text-slate-400 text-[11.5px]">
                                     Tổng dung lượng bản sao lưu: <b class="text-white">{{ totalBackupSizeMb }} MB</b>
@@ -82,7 +82,7 @@
                                                 <td class="py-3 px-3">
                                                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-bold uppercase"
                                                         :class="b.storage_type === 's3' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : (b.storage_type === 'sftp' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : 'bg-slate-800 text-slate-300 border border-slate-700')">
-                                                        <span>{{ b.storage_type === 's3' ? '☁️ S3 / R2' : (b.storage_type === 'sftp' ? '🖥️ SFTP' : '💾 Local') }}</span>
+                                                        <span>{{ b.storage_type === 's3' ? 'S3 / R2' : (b.storage_type === 'sftp' ? 'SFTP' : 'Local') }}</span>
                                                     </span>
                                                 </td>
                                                 <td class="py-3 px-3 text-right font-mono font-bold text-slate-200">
