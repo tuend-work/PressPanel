@@ -8,6 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
@@ -1118,6 +1119,26 @@ function showAlert(message) {
                     return 'Admin';
                 });
 
+                // Customers Search & Filtering (Pro Max Enterprise Style)
+                const customerSearchQuery = ref('');
+                const customerStatusFilter = ref('all');
+                const filteredCustomers = computed(() => {
+                    let list = customers.value || [];
+                    if (customerStatusFilter.value !== 'all') {
+                        list = list.filter(c => c.status === customerStatusFilter.value);
+                    }
+                    if (customerSearchQuery.value && customerSearchQuery.value.trim()) {
+                        const q = customerSearchQuery.value.trim().toLowerCase();
+                        list = list.filter(c => 
+                            (c.username && c.username.toLowerCase().includes(q)) ||
+                            (c.full_name && c.full_name.toLowerCase().includes(q)) ||
+                            (c.email && c.email.toLowerCase().includes(q)) ||
+                            (c.package_name && c.package_name.toLowerCase().includes(q))
+                        );
+                    }
+                    return list;
+                });
+
                 // Selection & Batch Action State (WPC Style)
                 const selectedCustomerIds = ref([]);
                 const selectedDomainIds = ref([]);
@@ -1126,13 +1147,15 @@ function showAlert(message) {
                 const showSubStatusMenu = ref(false);
 
                 const isAllCustomersSelected = computed(() => {
-                    return customers.value.length > 0 && selectedCustomerIds.value.length === customers.value.length;
+                    const list = filteredCustomers.value;
+                    return list.length > 0 && selectedCustomerIds.value.length >= list.length && list.every(c => selectedCustomerIds.value.includes(c.id));
                 });
                 const toggleSelectAllCustomers = () => {
+                    const list = filteredCustomers.value;
                     if (isAllCustomersSelected.value) {
                         selectedCustomerIds.value = [];
                     } else {
-                        selectedCustomerIds.value = customers.value.map(c => c.id);
+                        selectedCustomerIds.value = list.map(c => c.id);
                     }
                 };
 
@@ -1512,6 +1535,22 @@ function showAlert(message) {
                 const completedTasks = ref([]);
                 const selectedTaskId = ref('');
                 const selectedTaskLog = ref('');
+                const prevRunningTaskIds = ref(new Set());
+                const activeInstallingAppIds = ref([]);
+
+                const isAppInstalling = (appId) => {
+                    if (!appId) return false;
+                    if (installingAppId.value === appId) return true;
+                    if (activeInstallingAppIds.value.includes(appId)) return true;
+                    const cleanId = String(appId).toLowerCase();
+                    const app = (appsList.value || []).find(a => a.id === appId);
+                    const appName = (app ? app.name : appId).toLowerCase();
+                    return (runningTasks.value || []).some(t => {
+                        const act = (t.action || '').toLowerCase();
+                        return (act.includes('install') || act.includes('cài đặt') || act.includes('reinstall') || act.includes('compile') || act.includes('build') || act.includes('switch')) &&
+                               (act.includes(cleanId) || act.includes(appName));
+                    });
+                };
 
                 const fetchTasks = async () => {
                     if (!token.value) return;
@@ -1520,8 +1559,52 @@ function showAlert(message) {
                             fetch('/api/v1/tasks/list?status_filter=running', { headers: { 'Authorization': `Bearer ${token.value}` } }),
                             fetch('/api/v1/tasks/list?status_filter=completed', { headers: { 'Authorization': `Bearer ${token.value}` } })
                         ]);
-                        if (resRun.ok) runningTasks.value = await resRun.json();
-                        if (resComp.ok) completedTasks.value = await resComp.json();
+                        const newRunning = resRun.ok ? await resRun.json() : [];
+                        const newComp = resComp.ok ? await resComp.json() : [];
+
+                        // Kiểm tra xem có tác vụ nào vừa hoàn tất không
+                        const currentRunningIds = new Set(newRunning.map(t => t.id));
+                        let taskJustFinished = false;
+                        const finishedTaskActions = [];
+
+                        for (const oldId of prevRunningTaskIds.value) {
+                            if (!currentRunningIds.has(oldId)) {
+                                taskJustFinished = true;
+                                const finished = newComp.find(t => t.id === oldId);
+                                if (finished && finished.action) {
+                                    finishedTaskActions.push(finished.action);
+                                }
+                            }
+                        }
+
+                        runningTasks.value = newRunning;
+                        completedTasks.value = newComp;
+                        prevRunningTaskIds.value = currentRunningIds;
+
+                        // Cập nhật lại activeInstallingAppIds
+                        activeInstallingAppIds.value = activeInstallingAppIds.value.filter(id => isAppInstalling(id));
+
+                        // Nếu có tác vụ hoàn tất, tự động tải lại App Store và các dịch vụ liên quan!
+                        if (taskJustFinished) {
+                            console.log('[WPCloud] Tác vụ nền hoàn tất -> Tự động nạp lại danh sách App Store!');
+                            await fetchAppsList();
+                            fetchSystemStatus();
+                            fetchDatabasesList();
+                            fetchInstalledPhpList();
+                            refreshLucideIcons();
+
+                            if (finishedTaskActions.length > 0 && typeof Swal !== 'undefined') {
+                                Swal.fire({
+                                    toast: true,
+                                    position: 'top-end',
+                                    icon: 'success',
+                                    title: `Hoàn tất: ${finishedTaskActions[0]}`,
+                                    showConfirmButton: false,
+                                    timer: 3500,
+                                    timerProgressBar: true
+                                });
+                            }
+                        }
 
                         if (showMessagesBox.value && msgBoxTab.value === 'log' && selectedTaskId.value) {
                             refreshSelectedLog();
@@ -2070,6 +2153,9 @@ function showAlert(message) {
                 const handleAppAction = async (appId, action, customVersion = null) => {
                     if (action === 'install' || action === 'reinstall') {
                         installingAppId.value = appId;
+                        if (!activeInstallingAppIds.value.includes(appId)) {
+                            activeInstallingAppIds.value.push(appId);
+                        }
                     }
                     if (action === 'uninstall') {
                         if (!confirm(`Bạn có chắc chắn muốn gỡ cài đặt ứng dụng này khỏi máy chủ?`)) return;
@@ -2097,6 +2183,7 @@ function showAlert(message) {
                             if (['start', 'restart'].includes(action) && ['ols', 'nginx'].includes(appId)) {
                                 handleRewriteWebserverConfig(appId);
                             }
+                            fetchTasks();
                             setTimeout(() => {
                                 fetchAppsList();
                                 fetchSystemStatus();
@@ -8215,6 +8302,13 @@ if ($host ~* ^www\\.(.*)$) {
                     if (newTab === 'backups') {
                         fetchBackups();
                     }
+                    if (newTab === 'apps') {
+                        fetchAppsList();
+                    }
+                    if (newTab === 'customers') {
+                        fetchCustomers();
+                        fetchServicePlans();
+                    }
                     setTimeout(refreshLucideIcons, 50);
                     setTimeout(refreshLucideIcons, 250);
                 });
@@ -8344,6 +8438,9 @@ if ($host ~* ^www\\.(.*)$) {
                             }
                             if (currentTab.value === 'monitoring' && !loadingMonitor.value) {
                                 fetchResourceMonitorData();
+                            }
+                            if (currentTab.value === 'apps' && (runningTasks.value.length > 0 || activeInstallingAppIds.value.length > 0)) {
+                                fetchAppsList();
                             }
                             fetchTasks();
                         }
@@ -9032,6 +9129,7 @@ if ($host ~* ^www\\.(.*)$) {
                     token, currentUser, currentTab, domains, showAddDomainModal, isHostingUser, isWebUser,
                     pleskSubTab, showConnectionInfoModal,
                     customers, showAddCustomerModal, creatingCustomer, newCustomer, isImpersonating, impersonatorTitle,
+                    customerSearchQuery, customerStatusFilter, filteredCustomers,
                     selectedCustomerIds, selectedDomainIds, selectedSubIds, showCustomerStatusMenu, showSubStatusMenu,
                     isAllCustomersSelected, toggleSelectAllCustomers, isAllDomainsSelected, toggleSelectAllDomains,
                     isAllSubsSelected, toggleSelectAllSubs, handleSetCustomerStatus, handleBatchDeleteCustomers, handleBatchDeleteDomains,
@@ -9054,6 +9152,7 @@ if ($host ~* ^www\\.(.*)$) {
                     truncateText, showInstallModal, selectedAppToInstall, selectedInstallVersion, openInstallAppModal, confirmInstallApp,
                     isUserIsolatedApp, getUserAppPools, navigateToWebsiteFpm, restartAllUserAppPools,
                     installingAppId, installedAppsCount, filteredApps,
+                    activeInstallingAppIds, isAppInstalling,
                     getApp, fetchAppsList, handleAppAction, handleCheckPhpUpdate, checkingPhpUpdateId, openPhpMyAdmin, appVersions,
                     primaryWebserver, switchingWebserver, handleSwitchPrimaryWebserver,
                     showAppSettingModal, selectedSettingApp, appSettingTab, appConfigPath, selectedSwitchVersion, handleSwitchAppVersion,

@@ -1,181 +1,268 @@
                     <div v-if="currentTab === 'customers'" class="space-y-5 max-w-7xl mx-auto">
-                        <!-- Sub-tab Navigation: Users List vs User Packages -->
-                        <div class="flex items-center space-x-2 border-b border-slate-800/80 pb-3 text-xs font-semibold">
-                            <button @click="customersSubTab = 'users'"
-                                :class="customersSubTab === 'users' ? 'bg-blue-600 text-white font-bold shadow-sm' : 'bg-slate-900/60 text-slate-600 dark:text-slate-300 border border-slate-800/80 hover:bg-slate-800/40'"
-                                class="px-4 py-2 rounded-xl transition flex items-center gap-2">
-                                <i data-lucide="users" class="w-4 h-4 mr-1"></i><span>Danh Sách Users</span>
-                                <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-mono font-bold">{{ customers.length }}</span>
-                            </button>
-                            <button @click="customersSubTab = 'packages'; fetchServicePlans();"
-                                :class="customersSubTab === 'packages' ? 'bg-blue-600 text-white font-bold shadow-sm' : 'bg-slate-900/60 text-slate-600 dark:text-slate-300 border border-slate-800/80 hover:bg-slate-800/40'"
-                                class="px-4 py-2 rounded-xl transition flex items-center gap-2">
-                                <i data-lucide="package" class="w-4 h-4 mr-1"></i><span>User Packages</span>
-                                <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono font-bold">{{ servicePlans.length }}</span>
-                            </button>
+                        <!-- Top Header: Title, Segmented Tabs & Action Button -->
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-1">
+                            <div>
+                                <h2 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center justify-center shrink-0">
+                                        <i data-lucide="users" class="w-4 h-4"></i>
+                                    </div>
+                                    <span>Quản Lý Users & Gói Dịch Vụ</span>
+                                </h2>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    Quản lý tài khoản người dùng hosting, phân bổ User Package và kiểm soát trạng thái hoạt động an toàn.
+                                </p>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-3">
+                                <!-- Segmented Sub-Tab Switcher -->
+                                <div class="inline-flex p-1 rounded-xl bg-slate-200/80 dark:bg-slate-800/80 border border-slate-300/60 dark:border-slate-700/60 text-xs font-semibold shadow-inner">
+                                    <button @click="customersSubTab = 'users'"
+                                        :class="customersSubTab === 'users' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'"
+                                        class="px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2">
+                                        <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                                        <span>Danh Sách Users</span>
+                                        <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold"
+                                            :class="customersSubTab === 'users' ? 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300' : 'bg-slate-300/80 dark:bg-slate-700 text-slate-600 dark:text-slate-300'">
+                                            {{ customers.length }}
+                                        </span>
+                                    </button>
+                                    <button @click="customersSubTab = 'packages'; fetchServicePlans();"
+                                        :class="customersSubTab === 'packages' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'"
+                                        class="px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2">
+                                        <i data-lucide="package" class="w-3.5 h-3.5"></i>
+                                        <span>User Packages</span>
+                                        <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold"
+                                            :class="customersSubTab === 'packages' ? 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300' : 'bg-slate-300/80 dark:bg-slate-700 text-slate-600 dark:text-slate-300'">
+                                            {{ servicePlans.length }}
+                                        </span>
+                                    </button>
+                                </div>
+
+                                <!-- Primary Add Button -->
+                                <button v-if="customersSubTab === 'users'" @click="showAddCustomerModal = true; fetchServicePlans();"
+                                    class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm hover:shadow-blue-500/20 transition flex items-center gap-1.5">
+                                    <i data-lucide="user-plus" class="w-4 h-4"></i>
+                                    <span>Thêm User Mới</span>
+                                </button>
+                                <button v-else @click="showAddPlanModal = true"
+                                    class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm hover:shadow-blue-500/20 transition flex items-center gap-1.5">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                    <span>Thêm User Package</span>
+                                </button>
+                            </div>
                         </div>
 
                         <!-- ========================================== -->
                         <!-- SUB-TAB 1: USERS LIST                      -->
                         <!-- ========================================== -->
-                        <div v-if="customersSubTab === 'users'" class="space-y-5">
-                            <!-- Action Bar -->
-                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                                <div>
-                                    <h2 class="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                                        <i data-lucide="users" class="w-5 h-5 mr-1 text-blue-400"></i><span>Quản Lý Users (Khách Hàng)</span>
-                                    </h2>
-                                    <p class="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">Quản lý các tài khoản User trên hệ thống, phân bổ User Package và kiểm soát trạng thái hoạt động.</p>
-                                </div>
-                                <button @click="showAddCustomerModal = true; fetchServicePlans();" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-950/40 text-blue-400 border border-blue-800/600 font-medium text-xs text-white shadow-sm transition flex items-center space-x-1.5">
-                                    <span>➕ Thêm User Mới</span>
-                                </button>
-                            </div>
+                        <div v-if="customersSubTab === 'users'" class="space-y-4">
+                            <!-- Filter & Batch Action Toolbar -->
+                            <div class="p-3 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+                                <div class="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+                                    <!-- Search Box -->
+                                    <div class="relative flex-1 max-w-sm">
+                                        <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                                        <input type="text" v-model="customerSearchQuery"
+                                            placeholder="Tìm user theo tên, username, email, gói..."
+                                            class="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-800 dark:text-slate-100 placeholder-slate-400 text-xs focus:outline-none focus:border-blue-500 transition">
+                                        <button v-if="customerSearchQuery" @click="customerSearchQuery = ''" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                                            <i data-lucide="x" class="w-3 h-3"></i>
+                                        </button>
+                                    </div>
 
-                            <!-- WPC Style Toolbar for Customers -->
-                            <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-sm">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <button @click="showAddCustomerModal = true; fetchServicePlans();"
-                                        class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-950/40 text-blue-400 border border-blue-800/600 font-bold text-xs text-white shadow-sm transition flex items-center space-x-1.5">
-                                        <span>➕ Add User</span>
-                                    </button>
-                                    <button @click="customersSubTab = 'packages'; fetchServicePlans();"
-                                        class="px-3.5 py-2 rounded-xl bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium text-xs text-slate-300 dark:text-slate-300 border border-slate-700/60 transition flex items-center space-x-1.5">
-                                        <i data-lucide="package" class="w-4 h-4 mr-1"></i><span>User Packages ({{ servicePlans.length }})</span>
-                                    </button>
-                                    
-                                    <!-- Set Status Dropdown -->
+                                    <!-- Status Filter -->
+                                    <select v-model="customerStatusFilter"
+                                        class="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 text-xs focus:outline-none focus:border-blue-500 cursor-pointer">
+                                        <option value="all">Tất cả trạng thái</option>
+                                        <option value="active">Đang hoạt động</option>
+                                        <option value="suspended">Tạm khóa</option>
+                                    </select>
+
+                                    <!-- Batch Action: Set Status Dropdown -->
                                     <div class="relative">
                                         <button @click="showCustomerStatusMenu = !showCustomerStatusMenu"
                                             :disabled="selectedCustomerIds.length === 0"
-                                            :class="selectedCustomerIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-800/50 text-slate-400 border border-slate-700/60' : 'bg-slate-900/60 dark:bg-slate-800 hover:bg-slate-800/50 dark:hover:bg-slate-700 text-slate-300 dark:text-slate-200 border border-slate-700/60'"
-                                            class="px-3.5 py-2 rounded-xl text-xs font-medium transition flex items-center space-x-1">
-                                            <span>⚙️ Set Status</span>
-                                            <span class="text-[10px]">▼</span>
+                                            :class="selectedCustomerIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800/40 text-slate-400 border border-slate-200 dark:border-slate-700/50' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 shadow-sm'"
+                                            class="px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center gap-1.5">
+                                            <i data-lucide="sliders" class="w-3.5 h-3.5"></i>
+                                            <span>Đặt Trạng Thái</span>
+                                            <i data-lucide="chevron-down" class="w-3 h-3 text-slate-400"></i>
                                         </button>
-                                        <div v-if="showCustomerStatusMenu" class="absolute left-0 mt-1 w-36 bg-slate-900/60 dark:bg-slate-800 border border-slate-700/60 rounded-xl shadow-xl py-1 z-30">
-                                            <button @click="handleSetCustomerStatus('active')" class="w-full text-left px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-slate-800/50 dark:hover:bg-slate-700/60 flex items-center space-x-1.5 font-medium">
-                                                <span>●</span> <span>Active</span>
+                                        <div v-if="showCustomerStatusMenu" class="absolute left-0 mt-1.5 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1.5 z-30">
+                                            <button @click="handleSetCustomerStatus('active'); showCustomerStatusMenu = false;" class="w-full text-left px-3.5 py-2 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-slate-50 dark:hover:bg-slate-700/60 flex items-center gap-2 font-medium">
+                                                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                                <span>Kích hoạt (Active)</span>
                                             </button>
-                                            <button @click="handleSetCustomerStatus('suspended')" class="w-full text-left px-3 py-2 text-xs text-rose-600 dark:text-rose-400 hover:bg-slate-800/50 dark:hover:bg-slate-700/60 flex items-center space-x-1.5 font-medium">
-                                                <span>●</span> <span>Suspended</span>
+                                            <button @click="handleSetCustomerStatus('suspended'); showCustomerStatusMenu = false;" class="w-full text-left px-3.5 py-2 text-xs text-rose-600 dark:text-rose-400 hover:bg-slate-50 dark:hover:bg-slate-700/60 flex items-center gap-2 font-medium">
+                                                <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                                                <span>Tạm khóa (Suspended)</span>
                                             </button>
                                         </div>
                                     </div>
 
+                                    <!-- Batch Action: Delete Button -->
                                     <button @click="handleBatchDeleteCustomers"
                                         :disabled="selectedCustomerIds.length === 0"
-                                        :class="selectedCustomerIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-800/50 text-slate-400 border border-slate-700/60' : 'bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800'"
-                                        class="px-3.5 py-2 rounded-xl text-xs font-medium transition flex items-center space-x-1">
-                                        <i data-lucide="trash-2" class="w-3.5 h-3.5 mr-1"></i><span>Xóa</span>
-                                        <span v-if="selectedCustomerIds.length > 0" class="text-[10px] font-mono font-bold">({{ selectedCustomerIds.length }})</span>
+                                        :class="selectedCustomerIds.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800/40 text-slate-400 border border-slate-200 dark:border-slate-700/50' : 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800 shadow-sm'"
+                                        class="px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center gap-1.5">
+                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                        <span>Xóa đã chọn</span>
+                                        <span v-if="selectedCustomerIds.length > 0" class="font-mono font-bold text-[11px]">({{ selectedCustomerIds.length }})</span>
                                     </button>
                                 </div>
-                                <div class="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                                    {{ customers.length }} items total
+
+                                <!-- Counter -->
+                                <div class="text-[11px] text-slate-500 dark:text-slate-400 font-mono flex items-center gap-1.5 shrink-0">
+                                    <span>Tổng số:</span>
+                                    <span class="font-bold text-slate-800 dark:text-slate-200">{{ filteredCustomers.length }}</span>
+                                    <span>tài khoản</span>
                                 </div>
                             </div>
 
-                            <!-- Bảng danh sách Customer -->
-                            <div class="bg-slate-900/60 rounded-2xl overflow-hidden shadow-sm border border-slate-800/80">
+                            <!-- Customers Table Container -->
+                            <div class="bg-white dark:bg-slate-900/60 rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800">
                                 <div class="overflow-x-auto">
-                                    <table class="w-full text-left text-xs text-slate-600 dark:text-slate-300">
-                                        <thead class="bg-slate-800/50 border-b border-slate-800/80 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                    <table class="w-full text-left text-xs text-slate-700 dark:text-slate-200">
+                                        <thead class="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                             <tr>
-                                                <th class="py-3.5 px-3 w-10 text-center">
+                                                <th class="py-3 px-2 w-8 text-center">
                                                     <input type="checkbox" :checked="isAllCustomersSelected" @change="toggleSelectAllCustomers"
-                                                        class="rounded text-blue-600 bg-slate-900/60 dark:bg-slate-800 border-slate-300 dark:border-slate-700 focus:ring-blue-500">
+                                                        class="rounded text-blue-600 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 focus:ring-blue-500 cursor-pointer">
                                                 </th>
-                                                <th class="py-3.5 px-4">Tài Khoản</th>
-                                                <th class="py-3.5 px-4">Gói Dịch Vụ</th>
-                                                <th class="py-3.5 px-4">Email Liên Hệ</th>
-                                                <th class="py-3.5 px-4">Số Websites</th>
-                                                <th class="py-3.5 px-4">Hạn Mức Tài Nguyên</th>
-                                                <th class="py-3.5 px-4">Trạng Thái</th>
-                                                <th class="py-3.5 px-4 text-right">Thao Tác</th>
+                                                <th class="py-3 px-2.5 w-[18%]">Tài Khoản</th>
+                                                <th class="py-3 px-2.5 w-[16%]">Gói Dịch Vụ</th>
+                                                <th class="py-3 px-2.5 w-[18%]">Email & SĐT</th>
+                                                <th class="py-3 px-2 w-[7%] text-center">Websites</th>
+                                                <th class="py-3 px-2.5 w-[16%]">Hạn Mức</th>
+                                                <th class="py-3 px-2 w-[10%] text-center">Trạng Thái</th>
+                                                <th class="py-3 px-3 w-[15%] text-right">Thao Tác</th>
                                             </tr>
                                         </thead>
-                                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                                            <tr v-if="customers.length === 0">
-                                                <td colspan="8" class="py-12 text-center text-slate-400">
-                                                    <div class="text-3xl mb-2">👥</div>
-                                                    <div class="font-semibold text-slate-300 dark:text-slate-200">Chưa có tài khoản User nào</div>
-                                                    <div class="text-[11px] text-slate-400 mt-1">Bấm nút "➕ Add User" ở trên để tạo người dùng đầu tiên.</div>
+                                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800/80">
+                                            <!-- Empty State -->
+                                            <tr v-if="filteredCustomers.length === 0">
+                                                <td colspan="8" class="py-14 text-center">
+                                                    <div class="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 flex items-center justify-center mx-auto mb-3">
+                                                        <i data-lucide="users" class="w-6 h-6"></i>
+                                                    </div>
+                                                    <div class="font-semibold text-slate-800 dark:text-slate-200 text-sm">Không tìm thấy tài khoản User nào</div>
+                                                    <div class="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
+                                                        {{ customerSearchQuery ? 'Không có tài khoản nào phù hợp với bộ lọc tìm kiếm.' : 'Bấm nút "Thêm User Mới" ở góc trên để tạo tài khoản đầu tiên.' }}
+                                                    </div>
                                                 </td>
                                             </tr>
-                                            <tr v-for="c in customers" :key="c.id" :class="selectedCustomerIds.includes(c.id) ? 'bg-blue-950/40 text-blue-400 border border-blue-800/60/40 dark:bg-blue-950/20' : 'hover:bg-slate-800/40/50'" class="transition">
-                                                <td class="py-4 px-3 text-center">
+
+                                            <!-- Data Rows -->
+                                            <tr v-for="c in filteredCustomers" :key="c.id"
+                                                :class="selectedCustomerIds.includes(c.id) ? 'bg-blue-50/60 dark:bg-blue-950/20' : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'"
+                                                class="transition-colors">
+                                                <!-- Checkbox -->
+                                                <td class="py-3 px-3 text-center">
                                                     <input type="checkbox" :value="c.id" v-model="selectedCustomerIds"
-                                                        class="rounded text-blue-600 bg-slate-900/60 dark:bg-slate-800 border-slate-300 dark:border-slate-700 focus:ring-blue-500">
+                                                        class="rounded text-blue-600 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 focus:ring-blue-500 cursor-pointer">
                                                 </td>
-                                                <td class="py-4 px-4 font-medium text-slate-200 flex items-center space-x-2.5">
-                                                    <div class="w-8 h-8 rounded-xl bg-blue-950/40 text-blue-400 border border-blue-800/60 dark:border-blue-800 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-xs shadow-inner">
-                                                        {{ (c.full_name || c.username).slice(0, 2).toUpperCase() }}
-                                                    </div>
-                                                    <div>
-                                                        <div class="font-bold text-white">{{ c.full_name || c.username }}</div>
-                                                        <div class="text-[10px] text-slate-400 font-mono">@{{ c.username }}</div>
+
+                                                <!-- User info -->
+                                                <td class="py-3 px-3">
+                                                    <div class="flex items-center gap-2.5">
+                                                        <div class="w-8 h-8 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center justify-center font-bold text-xs shrink-0 font-mono">
+                                                            {{ (c.full_name || c.username).slice(0, 2).toUpperCase() }}
+                                                        </div>
+                                                        <div>
+                                                            <div class="font-bold text-slate-900 dark:text-white leading-tight">
+                                                                {{ c.full_name || c.username }}
+                                                            </div>
+                                                            <div class="text-[11px] text-slate-400 font-mono mt-0.5">
+                                                                @{{ c.username }}
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td class="py-4 px-4 font-semibold text-blue-600 dark:text-blue-400">
-                                                    <div class="flex items-center space-x-2">
-                                                        <span>{{ c.package_name || 'Standard Plan' }}</span>
-                                                        <button @click="openChangePlanModal(c)" 
-                                                            title="Đổi gói Hosting Plan"
-                                                            class="p-1 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-950/40 text-blue-400 border border-blue-800/60 dark:hover:bg-blue-950 transition">
-                                                            <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+
+                                                <!-- Service Package -->
+                                                <td class="py-3 px-3">
+                                                    <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/60 text-blue-700 dark:text-blue-300 font-medium text-xs">
+                                                        <i data-lucide="package" class="w-3.5 h-3.5 shrink-0"></i>
+                                                        <span class="truncate max-w-[130px]">{{ c.package_name || 'Standard Plan' }}</span>
+                                                        <button @click="openChangePlanModal(c)" title="Đổi gói hosting" class="ml-0.5 text-blue-500 hover:text-blue-700 dark:hover:text-blue-200 transition">
+                                                            <i data-lucide="edit-3" class="w-3 h-3"></i>
                                                         </button>
                                                     </div>
                                                 </td>
-                                                <td class="py-4 px-4 text-slate-500 dark:text-slate-400">
-                                                    <div class="font-medium text-slate-300 dark:text-slate-300">{{ c.email }}</div>
-                                                    <div v-if="c.phone" class="text-[10px] text-slate-400 font-mono flex items-center gap-1 mt-0.5">
-                                                        <i data-lucide="phone" class="w-3 h-3 text-slate-400"></i>
+
+                                                <!-- Email & Contact -->
+                                                <td class="py-3 px-3">
+                                                    <div class="font-medium text-slate-700 dark:text-slate-300 font-mono text-xs">{{ c.email || '—' }}</div>
+                                                    <div v-if="c.phone" class="text-[11px] text-slate-400 font-mono flex items-center gap-1 mt-0.5">
+                                                        <i data-lucide="phone" class="w-3 h-3 text-slate-400 shrink-0"></i>
                                                         <span>{{ c.phone }}</span>
                                                     </div>
                                                 </td>
-                                                <td class="py-4 px-4">
-                                                    <span class="px-2.5 py-1 rounded-full font-mono text-[11px] font-semibold"
-                                                        :class="c.domain_count > 0 ? 'bg-blue-950/40 text-blue-400 border border-blue-800/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'">
-                                                        {{ c.domain_count }} sites
+
+                                                <!-- Domain Count -->
+                                                <td class="py-3 px-2 text-center">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono text-[11px] font-semibold"
+                                                        :class="c.domain_count > 0 ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'">
+                                                        <i data-lucide="globe" class="w-3 h-3"></i>
+                                                        <span>{{ c.domain_count }}</span>
                                                     </span>
                                                 </td>
-                                                <td class="py-4 px-4 font-mono text-[11px] text-slate-600 dark:text-slate-300">
-                                                    <div class="flex items-center space-x-2">
-                                                        <span title="Dung lượng ổ cứng">💾 {{ (c.disk_mb / 1024).toFixed(1) }}GB</span>
-                                                        <span class="text-slate-300 dark:text-slate-600">|</span>
-                                                        <span title="RAM">⚡ {{ c.mem_mb }}MB</span>
-                                                        <span class="text-slate-300 dark:text-slate-600">|</span>
-                                                        <span title="CPU">🖥️ {{ c.cpu_pct }}%</span>
+
+                                                <!-- Resource Limits (No emojis, clean micro badges) -->
+                                                <td class="py-3 px-3">
+                                                    <div class="flex items-center gap-2 text-[11px] font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                                                        <div class="flex items-center gap-1" title="Dung lượng ổ cứng SSD">
+                                                            <i data-lucide="hard-drive" class="w-3 h-3 text-slate-400 shrink-0"></i>
+                                                            <span class="font-semibold">{{ ((c.disk_mb || 5120) / 1024).toFixed(1) }}G</span>
+                                                        </div>
+                                                        <span class="text-slate-300 dark:text-slate-700">•</span>
+                                                        <div class="flex items-center gap-1" title="Bộ nhớ RAM">
+                                                            <i data-lucide="zap" class="w-3 h-3 text-amber-500 shrink-0"></i>
+                                                            <span class="font-semibold">{{ c.mem_mb || 1024 }}M</span>
+                                                        </div>
+                                                        <span class="text-slate-300 dark:text-slate-700">•</span>
+                                                        <div class="flex items-center gap-1" title="Hạn mức CPU">
+                                                            <i data-lucide="cpu" class="w-3 h-3 text-blue-500 shrink-0"></i>
+                                                            <span class="font-semibold">{{ c.cpu_pct || 100 }}%</span>
+                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td class="py-4 px-4">
-                                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-semibold"
-                                                        :class="c.status === 'active' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'">
-                                                        ● {{ c.status === 'active' ? 'Hoạt động' : 'Đã khóa' }}
+
+                                                <!-- Status Badge (Zero text wrap) -->
+                                                <td class="py-3 px-3 text-center">
+                                                    <span class="whitespace-nowrap inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                                                        :class="c.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'">
+                                                        <span class="w-1.5 h-1.5 rounded-full shrink-0"
+                                                            :class="c.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'"></span>
+                                                        <span>{{ c.status === 'active' ? 'Hoạt động' : 'Tạm khóa' }}</span>
                                                     </span>
                                                 </td>
-                                                <td class="py-4 px-4 text-right">
-                                                    <div class="flex items-center justify-end space-x-2">
-                                                        <!-- Nút Sửa Hồ Sơ User -->
+
+                                                <!-- Actions Group -->
+                                                <td class="py-3 px-2 text-right">
+                                                    <div class="inline-flex items-center justify-end gap-1 whitespace-nowrap">
+                                                        <!-- Edit User -->
                                                         <button @click="openEditCustomerModal(c)"
-                                                            class="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-300 dark:text-slate-300 font-semibold text-xs border border-slate-700/60 transition flex items-center space-x-1"
-                                                            title="Chỉnh sửa thông tin hồ sơ & Đặt lại mật khẩu">
-                                                            <i data-lucide="user-cog" class="w-3.5 h-3.5 text-slate-600 dark:text-slate-400"></i>
+                                                            title="Sửa thông tin tài khoản"
+                                                            class="h-7 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs border border-slate-200 dark:border-slate-700 transition flex items-center gap-1 shadow-sm">
+                                                            <i data-lucide="edit-3" class="w-3 h-3 text-slate-500 dark:text-slate-400"></i>
                                                             <span>Sửa</span>
                                                         </button>
-                                                        <!-- Nút Đổi Plan -->
+
+                                                        <!-- Change Plan -->
                                                         <button @click="openChangePlanModal(c)"
-                                                            class="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-300 dark:text-slate-300 font-semibold text-xs border border-slate-700/60 transition flex items-center space-x-1"
-                                                            title="Đổi gói Service Plan">
-                                                            <i data-lucide="package" class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400"></i>
-                                                            <span>Đổi Plan</span>
+                                                            title="Đổi gói Hosting Plan"
+                                                            class="h-7 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs border border-slate-200 dark:border-slate-700 transition flex items-center gap-1 shadow-sm">
+                                                            <i data-lucide="package" class="w-3 h-3 text-blue-500"></i>
+                                                            <span>Gói</span>
                                                         </button>
-                                                        <!-- Nút Chức Năng Cốt Lõi: LOGIN AS USER -->
+
+                                                        <!-- Impersonate Login -->
                                                         <button @click="impersonateUser(c)"
-                                                            class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-950/40 text-blue-400 border border-blue-800/600 text-white font-semibold text-xs shadow-sm transition flex items-center space-x-1.5">
-                                                            <span>🔑</span>
-                                                            <span>Login as user</span>
+                                                            title="Đăng nhập dưới quyền User này để quản trị website"
+                                                            class="h-7 px-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-sm hover:shadow-indigo-500/20 transition flex items-center gap-1">
+                                                            <i data-lucide="log-in" class="w-3 h-3"></i>
+                                                            <span>Truy Cập</span>
                                                         </button>
                                                     </div>
                                                 </td>
@@ -189,114 +276,160 @@
                         <!-- ========================================== -->
                         <!-- SUB-TAB 2: USER PACKAGES                   -->
                         <!-- ========================================== -->
-                        <div v-if="customersSubTab === 'packages'" class="space-y-5">
-                            <!-- Action Bar -->
-                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                                <div>
-                                    <h2 class="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                                        <i data-lucide="package" class="w-4 h-4"></i>
-                                        <span>Quản Lý User Packages</span>
-                                    </h2>
-                                    <p class="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                        Quản lý các gói User Package cấp phát tài nguyên hạn mức cho người dùng hosting.
-                                    </p>
-                                </div>
-                                <button @click="showAddPlanModal = true" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-950/40 text-blue-400 border border-blue-800/600 font-medium text-xs text-white shadow-sm transition flex items-center space-x-1.5">
-                                    <span>➕ Thêm User Package</span>
-                                </button>
-                            </div>
-
-                            <!-- Grid User Packages -->
-                            <div v-if="servicePlans.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                        <div v-if="customersSubTab === 'packages'" class="space-y-4">
+                            <!-- User Packages Cards Grid -->
+                            <div v-if="servicePlans.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                                 <div v-for="plan in servicePlans" :key="plan.id"
-                                    class="bg-slate-900/60/90 rounded-2xl p-5 flex flex-col justify-between border border-slate-800/80 hover:border-blue-500/80 dark:hover:border-blue-500/80 transition shadow-sm hover:shadow-lg space-y-4">
+                                    class="bg-white dark:bg-slate-900/60 rounded-2xl p-5 flex flex-col justify-between border border-slate-200 dark:border-slate-800 hover:border-blue-500/60 transition shadow-sm hover:shadow-md space-y-4">
                                     <div>
+                                        <!-- Card Header -->
                                         <div class="flex justify-between items-start mb-3">
-                                            <div class="w-10 h-10 rounded-xl bg-blue-950/40 text-blue-400 border border-blue-800/60 dark:border-blue-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-base shadow-inner">
-                                                📦
+                                            <div class="w-9 h-9 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center justify-center font-bold text-sm shadow-inner">
+                                                <i data-lucide="package" class="w-4 h-4"></i>
                                             </div>
-                                            <span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full font-bold uppercase bg-blue-950/40 text-blue-400 border border-blue-800/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60">
+                                            <span class="text-[10px] font-mono px-2 py-0.5 rounded-full font-bold uppercase bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                                                 User Package
                                             </span>
                                         </div>
 
-                                        <h3 class="font-bold text-white text-base">{{ plan.name }}</h3>
-                                        <div class="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">Plan ID: #{{ plan.id }}</div>
+                                        <h3 class="font-bold text-slate-900 dark:text-white text-sm tracking-tight">
+                                            {{ plan.name }}
+                                        </h3>
+                                        <p class="text-[11px] text-slate-400 font-mono mt-0.5">
+                                            Plan ID: #{{ plan.id }}
+                                        </p>
 
-                                        <!-- Thông số kỹ thuật của gói -->
-                                        <div class="mt-4 space-y-2 text-xs divide-y divide-slate-100 dark:divide-slate-800/70">
-                                            <div class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
-                                                <span class="text-slate-500 dark:text-slate-400">💾 Dung lượng ổ cứng:</span>
-                                                <span class="font-bold text-blue-600 dark:text-blue-400 font-mono">{{ (plan.disk_mb / 1024).toFixed(1) }} GB</span>
+                                        <!-- Specifications List (Clean Lucide Icons, No Emojis) -->
+                                        <div class="mt-4 space-y-2 text-xs border-t border-slate-100 dark:border-slate-800/80 pt-3 text-slate-600 dark:text-slate-300">
+                                            <div class="flex justify-between items-center">
+                                                <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                                    <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-slate-400"></i>
+                                                    <span>Dung lượng ổ cứng:</span>
+                                                </span>
+                                                <span class="font-bold font-mono text-blue-600 dark:text-blue-400">
+                                                    {{ ((plan.disk_mb || plan.disk_quota_mb || 5120) >= 1024) ? ((plan.disk_mb || plan.disk_quota_mb || 5120) / 1024).toFixed(1) + ' GB' : (plan.disk_mb || plan.disk_quota_mb || 5120) + ' MB' }}
+                                                </span>
                                             </div>
-                                            <div class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
-                                                <span class="text-slate-500 dark:text-slate-400">📁 Giới hạn Inodes:</span>
-                                                <span class="font-bold text-slate-300 dark:text-slate-200 font-mono">{{ (plan.max_inodes || 250000).toLocaleString() }}</span>
+
+                                            <div class="flex justify-between items-center">
+                                                <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                                    <i data-lucide="folder" class="w-3.5 h-3.5 text-slate-400"></i>
+                                                    <span>Giới hạn Inodes:</span>
+                                                </span>
+                                                <span class="font-semibold font-mono text-slate-700 dark:text-slate-200">
+                                                    {{ Number(plan.max_inodes || plan.inode_quota || 250000).toLocaleString() }}
+                                                </span>
                                             </div>
-                                            <div class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
-                                                <span class="text-slate-500 dark:text-slate-400">⚡ Bộ nhớ RAM:</span>
-                                                <span class="font-bold text-slate-300 dark:text-slate-200 font-mono">{{ plan.mem_mb }} MB</span>
+
+                                            <div class="flex justify-between items-center">
+                                                <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                                    <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-500"></i>
+                                                    <span>Bộ nhớ RAM:</span>
+                                                </span>
+                                                <span class="font-semibold font-mono text-slate-700 dark:text-slate-200">
+                                                    {{ plan.mem_mb || plan.memory_limit_mb || 1024 }} MB
+                                                </span>
                                             </div>
-                                            <div class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
-                                                <span class="text-slate-500 dark:text-slate-400">🖥️ Hạn mức CPU:</span>
-                                                <span class="font-bold text-slate-300 dark:text-slate-200 font-mono">{{ plan.cpu_pct }}% Core</span>
+
+                                            <div class="flex justify-between items-center">
+                                                <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                                    <i data-lucide="cpu" class="w-3.5 h-3.5 text-blue-500"></i>
+                                                    <span>Hạn mức CPU:</span>
+                                                </span>
+                                                <span class="font-semibold font-mono text-slate-700 dark:text-slate-200">
+                                                    {{ plan.cpu_pct || plan.cpu_limit_pct || 100 }}% Core
+                                                </span>
                                             </div>
-                                            <div class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
-                                                <span class="text-slate-500 dark:text-slate-400">🌐 Số tên miền tối đa:</span>
-                                                <span class="font-bold text-slate-300 dark:text-slate-200 font-mono">{{ plan.max_domains }}</span>
+
+                                            <div class="flex justify-between items-center">
+                                                <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                                    <i data-lucide="globe" class="w-3.5 h-3.5 text-slate-400"></i>
+                                                    <span>Số tên miền tối đa:</span>
+                                                </span>
+                                                <span class="font-semibold font-mono text-slate-700 dark:text-slate-200">
+                                                    {{ plan.max_domains || 10 }}
+                                                </span>
                                             </div>
-                                            
-                                            <!-- Hạn mức chuyên sâu cho User Package -->
-                                            <div class="pt-2 text-slate-600 dark:text-slate-300 space-y-1">
-                                                <div class="text-[11px] text-slate-400 dark:text-slate-500 font-semibold uppercase">Giới hạn theo loại App:</div>
-                                                <div class="grid grid-cols-2 gap-1 text-[11px] font-mono bg-slate-800/50/50 p-2 rounded-xl">
-                                                    <span>WP: <b class="text-blue-500">{{ plan.max_wp_sites ?? 5 }}</b></span>
-                                                    <span>PHP: <b class="text-indigo-400">{{ plan.max_php_sites ?? 10 }}</b></span>
-                                                    <span>Node: <b class="text-emerald-400">{{ plan.max_nodejs_sites ?? 2 }}</b></span>
-                                                    <span>Py/Go: <b class="text-amber-400">{{ (plan.max_python_sites ?? 2) + (plan.max_go_sites ?? 2) }}</b></span>
+
+                                            <!-- App limits mini-grid -->
+                                            <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                                                <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1.5">
+                                                    Hạn mức loại ứng dụng:
+                                                </div>
+                                                <div class="grid grid-cols-2 gap-1.5 text-[11px] font-mono">
+                                                    <div class="bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-lg flex justify-between">
+                                                        <span class="text-slate-500">WP:</span>
+                                                        <span class="font-bold text-blue-600 dark:text-blue-400">{{ plan.max_wp_sites || 5 }}</span>
+                                                    </div>
+                                                    <div class="bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-lg flex justify-between">
+                                                        <span class="text-slate-500">PHP:</span>
+                                                        <span class="font-bold text-blue-600 dark:text-blue-400">{{ plan.max_php_sites || 10 }}</span>
+                                                    </div>
+                                                    <div class="bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-lg flex justify-between">
+                                                        <span class="text-slate-500">Node:</span>
+                                                        <span class="font-bold text-emerald-600 dark:text-emerald-400">{{ plan.max_nodejs_sites || 2 }}</span>
+                                                    </div>
+                                                    <div class="bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-lg flex justify-between">
+                                                        <span class="text-slate-500">Py/Go:</span>
+                                                        <span class="font-bold text-amber-600 dark:text-amber-400">{{ plan.max_python_sites || plan.max_go_sites || 2 }}</span>
+                                                    </div>
                                                 </div>
                                             </div>
 
-                                            <div class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
-                                                <span class="text-slate-500 dark:text-slate-400">🗄️ MySQL / MongoDB:</span>
-                                                <span class="font-bold text-slate-300 dark:text-slate-200 font-mono">{{ plan.max_mysql_dbs ?? plan.max_databases ?? 10 }} / {{ plan.max_mongo_dbs ?? 2 }}</span>
+                                            <div class="flex justify-between items-center pt-1.5">
+                                                <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                                    <i data-lucide="database" class="w-3.5 h-3.5 text-slate-400"></i>
+                                                    <span>MySQL / MongoDB:</span>
+                                                </span>
+                                                <span class="font-semibold font-mono text-slate-700 dark:text-slate-200">
+                                                    {{ plan.max_mysql_dbs || 10 }} / {{ plan.max_mongo_dbs || 2 }}
+                                                </span>
                                             </div>
-                                            <div class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
-                                                <span class="text-slate-500 dark:text-slate-400">📶 Băng thông / FTP:</span>
-                                                <span class="font-bold text-slate-300 dark:text-slate-200 font-mono">{{ plan.bandwidth_mb > 0 ? (plan.bandwidth_mb/1024).toFixed(0)+'GB' : '∞' }} / {{ plan.max_ftp_accounts ?? 5 }} FTP</span>
+
+                                            <div class="flex justify-between items-center">
+                                                <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                                    <i data-lucide="activity" class="w-3.5 h-3.5 text-slate-400"></i>
+                                                    <span>Băng thông / FTP:</span>
+                                                </span>
+                                                <span class="font-semibold font-mono text-slate-700 dark:text-slate-200">
+                                                    {{ plan.bandwidth_mb ? ((plan.bandwidth_mb >= 1024) ? (plan.bandwidth_mb / 1024).toFixed(1) + ' GB' : plan.bandwidth_mb + ' MB') : '∞' }} / {{ plan.max_ftp_accounts || 5 }} FTP
+                                                </span>
                                             </div>
-                                            <div class="flex justify-between items-center pt-2 text-slate-600 dark:text-slate-300">
-                                                <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                                    <i data-lucide="terminal" class="w-3.5 h-3.5 text-emerald-500"></i>
+
+                                            <div class="flex justify-between items-center pt-1">
+                                                <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                                    <i data-lucide="terminal" class="w-3.5 h-3.5 text-slate-400"></i>
                                                     <span>Quyền SSH Terminal:</span>
                                                 </span>
                                                 <button @click="handleTogglePlanSsh(plan)"
-                                                    :class="plan.allow_ssh ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-700/60'"
-                                                    class="px-2 py-0.5 rounded text-[11px] font-semibold border transition hover:opacity-80">
+                                                    :class="plan.allow_ssh ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'"
+                                                    class="px-2 py-0.5 rounded-full text-[10px] font-semibold border transition hover:opacity-80">
                                                     {{ plan.allow_ssh ? '✓ Cho Phép' : '✗ Đã Chặn' }}
                                                 </button>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                                    <!-- Card Footer -->
+                                    <div class="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
                                         <div class="flex items-center gap-1.5">
-                                            <span class="text-slate-500 dark:text-slate-400">Dùng:</span>
-                                            <span class="px-2 py-0.5 rounded-full bg-slate-800/50 border border-slate-700/60 font-mono text-blue-600 dark:text-blue-400 font-bold">
+                                            <span class="text-slate-400">Dùng:</span>
+                                            <span class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-blue-600 dark:text-blue-400 font-bold text-[11px]">
                                                 {{ plan.subscriber_count || 0 }} Users
                                             </span>
                                         </div>
-                                        <div class="flex items-center space-x-1.5">
+                                        <div class="flex items-center gap-1.5">
                                             <button @click="openEditPlanModal(plan)"
                                                 title="Sửa thông tin gói"
-                                                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-950/40 text-blue-400 border border-blue-800/60 dark:bg-slate-800 dark:hover:bg-blue-900/40 text-slate-300 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 border border-slate-700/60 transition flex items-center gap-1 text-[11px] font-semibold">
-                                                <i data-lucide="edit-3" class="w-3.5 h-3.5 mr-1"></i><span>Sửa</span>
+                                                class="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-[11px] border border-slate-200 dark:border-slate-700 transition flex items-center gap-1 shadow-sm">
+                                                <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                                <span>Sửa</span>
                                             </button>
                                             <button @click="handleDeletePlan(plan)"
                                                 :disabled="plan.subscriber_count > 0"
                                                 :title="plan.subscriber_count > 0 ? 'Không thể xóa gói đang có người dùng' : 'Xóa gói này'"
-                                                :class="plan.subscriber_count > 0 ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400' : 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 border-rose-200 dark:border-rose-800'"
-                                                class="p-1 rounded-lg border transition">
+                                                :class="plan.subscriber_count > 0 ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700' : 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800'"
+                                                class="p-1 rounded-xl border transition shadow-sm">
                                                 <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                                             </button>
                                         </div>
@@ -304,19 +437,20 @@
                                 </div>
                             </div>
 
-                            <!-- Empty State khi chưa có User Package -->
-                            <div v-else class="bg-slate-900/60 rounded-2xl p-12 text-center border border-slate-800/80 shadow-sm space-y-3">
-                                <div class="w-16 h-16 rounded-2xl bg-blue-950/40 text-blue-400 border border-blue-800/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-3xl mx-auto shadow-inner">
-                                    📦
+                            <!-- Empty State for Packages -->
+                            <div v-else class="bg-white dark:bg-slate-900/60 rounded-2xl p-12 text-center border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                                <div class="w-14 h-14 rounded-2xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center justify-center mx-auto shadow-inner">
+                                    <i data-lucide="package" class="w-7 h-7"></i>
                                 </div>
-                                <h3 class="text-base font-bold text-white">
+                                <h3 class="text-base font-bold text-slate-900 dark:text-white">
                                     Chưa có User Package nào
                                 </h3>
                                 <p class="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                                    Hãy tạo gói User Package đầu tiên để cấp phát tài nguyên cho người dùng.
+                                    Hãy tạo gói User Package đầu tiên để cấp phát tài nguyên cho người dùng hosting.
                                 </p>
-                                <button @click="showAddPlanModal = true" class="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-950/40 text-blue-400 border border-blue-800/600 text-white text-xs font-semibold shadow transition inline-flex items-center space-x-1.5">
-                                    <span>➕ Thêm User Package</span>
+                                <button @click="showAddPlanModal = true" class="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition inline-flex items-center gap-1.5">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                    <span>Thêm User Package</span>
                                 </button>
                             </div>
                         </div>
