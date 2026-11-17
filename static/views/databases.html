@@ -160,63 +160,156 @@
                                 <template v-else>
                                 <!-- 1. TAB MYSQL / MARIADB -->
                                 <div v-if="dbTypeTab === 'mysql'" class="space-y-4">
-                                    <!-- Service Controller Widget -->
-                                    <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                                        <div class="flex items-center space-x-3">
-                                            <div class="w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-700/80 text-blue-400 flex items-center justify-center text-xl font-bold">
-                                                🐬
+                                    <!-- ======================================================== -->
+                                    <!-- A. DÀNH CHO QUẢN TRỊ VIÊN ADMIN: ĐIỀU KHIỂN DỊCH VỤ MARIADB HỆ THỐNG -->
+                                    <!-- ======================================================== -->
+                                    <template v-if="currentUser.role === 'admin'">
+                                        <!-- Service Controller Widget -->
+                                        <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-700/80 text-blue-400 flex items-center justify-center text-xl font-bold">
+                                                    🐬
+                                                </div>
+                                                <div>
+                                                    <div class="font-bold text-white text-sm">MariaDB & MySQL Database Server</div>
+                                                    <div class="text-slate-400 text-xs">Dịch vụ: mariadb.service • Port 3306 • User: root</div>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <div class="font-bold text-white text-sm">MariaDB & MySQL Database Server</div>
-                                                <div class="text-slate-400 text-xs">Dịch vụ: mariadb.service • Port 3306 • User: root</div>
+                                            <div class="flex items-center space-x-2">
+                                                <button v-if="!getApp('mysql').installed" @click="handleAppAction('mysql', 'install')"
+                                                    class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-medium text-white shadow-sm transition flex items-center gap-1.5">
+                                                    <span>⚡ Cài Đặt MariaDB (1-Click)</span>
+                                                </button>
+                                                <template v-else>
+                                                    <button @click="openPhpMyAdmin()" class="px-3 py-1.5 rounded-xl bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold hover:bg-emerald-900 transition flex items-center gap-1.5 shadow-sm" title="Mở phpMyAdmin Port 888">
+                                                        <span>🐬 phpMyAdmin GUI</span>
+                                                    </button>
+                                                    <button @click="handleAppAction('mysql', 'restart')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">Khởi động lại</button>
+                                                    <button @click="handleAppAction('mysql', getApp('mysql').running ? 'stop' : 'start')"
+                                                        :class="getApp('mysql').running ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-emerald-950 text-emerald-300 border-emerald-800'"
+                                                        class="px-3 py-1.5 rounded-xl border font-semibold">
+                                                        {{ getApp('mysql').running ? 'Dừng' : 'Bật' }}
+                                                    </button>
+                                                    <button @click="handleAppAction('mysql', 'uninstall')" class="px-2.5 py-1.5 rounded-xl bg-rose-950 text-rose-300 border border-rose-800" title="Gỡ cài đặt"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                                </template>
+                                                <button @click="openMySQLControllerModal"
+                                                    class="px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-700"
+                                                    title="Mở bảng điều khiển MySQL Resource Controller">
+                                                    <i data-lucide="shield" class="w-3.5 h-3.5 mr-1"></i><span>Controller</span>
+                                                    <span v-if="mysqlControllerShieldCount > 0" class="px-1.5 py-0.2 bg-red-500 text-white text-[10px] rounded-full font-bold animate-pulse">
+                                                        {{ mysqlControllerShieldCount }}
+                                                    </span>
+                                                </button>
                                             </div>
                                         </div>
-                                        <div class="flex items-center space-x-2">
-                                            <button v-if="!getApp('mysql').installed" @click="handleAppAction('mysql', 'install')"
-                                                class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-medium text-white shadow-sm transition flex items-center gap-1.5">
-                                                <span>⚡ Cài Đặt MariaDB (1-Click)</span>
-                                            </button>
-                                            <template v-else>
-                                                <button @click="openPhpMyAdmin" class="px-3 py-1.5 rounded-xl bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold" title="Mở phpMyAdmin Port 888">
-                                                    🐬 phpMyAdmin GUI
-                                                </button>
-                                                <button @click="handleAppAction('mysql', 'restart')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">Khởi động lại</button>
-                                                <button @click="handleAppAction('mysql', getApp('mysql').running ? 'stop' : 'start')"
-                                                    :class="getApp('mysql').running ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-emerald-950 text-emerald-300 border-emerald-800'"
-                                                    class="px-3 py-1.5 rounded-xl border font-semibold">
-                                                    {{ getApp('mysql').running ? 'Dừng' : 'Bật' }}
-                                                </button>
-                                                <button @click="handleAppAction('mysql', 'uninstall')" class="px-2.5 py-1.5 rounded-xl bg-rose-950 text-rose-300 border border-rose-800" title="Gỡ cài đặt"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-                                            </template>
-                                            <button @click="openMySQLControllerModal"
-                                                class="px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-700"
-                                                title="Mở bảng điều khiển MySQL Resource Controller">
-                                                <i data-lucide="shield" class="w-3.5 h-3.5 mr-1"></i><span>Controller</span>
-                                                <span v-if="mysqlControllerShieldCount > 0" class="px-1.5 py-0.2 bg-red-500 text-white text-[10px] rounded-full font-bold animate-pulse">
-                                                    {{ mysqlControllerShieldCount }}
-                                                </span>
-                                            </button>
-                                        </div>
-                                    </div>
 
-                                    <!-- 3 Status Cards -->
-                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
-                                        <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
-                                            <div class="text-slate-400 text-[11px]">Dịch vụ Hệ Thống</div>
-                                            <div class="text-sm font-bold text-slate-200 mt-1">mariadb.service</div>
-                                            <div class="text-blue-400 font-semibold mt-0.5">● Port mặc định: 3306</div>
+                                        <!-- 3 Status Cards cho Admin -->
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
+                                            <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
+                                                <div class="text-slate-400 text-[11px]">Dịch vụ Hệ Thống</div>
+                                                <div class="text-sm font-bold text-slate-200 mt-1">mariadb.service</div>
+                                                <div class="text-blue-400 font-semibold mt-0.5">● Port mặc định: 3306</div>
+                                            </div>
+                                            <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
+                                                <div class="text-slate-400 text-[11px]">Tài khoản Quản trị</div>
+                                                <div class="text-sm font-bold text-slate-200 mt-1">User: root</div>
+                                                <div class="text-slate-400 font-mono mt-0.5">Xác thực: <span class="text-slate-200 font-semibold">unix_socket</span></div>
+                                            </div>
+                                            <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
+                                                <div class="text-slate-400 text-[11px]">Định dạng Tệp dữ liệu</div>
+                                                <div class="text-sm font-bold text-slate-200 mt-1">InnoDB & Aria Engine</div>
+                                                <div class="text-slate-400 font-semibold mt-0.5">Path: /var/lib/mysql</div>
+                                            </div>
                                         </div>
-                                        <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
-                                            <div class="text-slate-400 text-[11px]">Tài khoản Quản trị</div>
-                                            <div class="text-sm font-bold text-slate-200 mt-1">User: root</div>
-                                            <div class="text-slate-400 font-mono mt-0.5">Xác thực: <span class="text-slate-200 font-semibold">unix_socket</span></div>
+                                    </template>
+
+                                    <!-- ======================================================== -->
+                                    <!-- B. DÀNH CHO HOSTING USER (RESELLER): QUẢN LÝ CSDL TÀI KHOẢN -->
+                                    <!-- ======================================================== -->
+                                    <template v-else-if="currentUser.role === 'reseller' || isHostingUser">
+                                        <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-10 h-10 rounded-xl bg-blue-950/80 border border-blue-800/80 text-blue-400 flex items-center justify-center text-xl font-bold">
+                                                    🐬
+                                                </div>
+                                                <div>
+                                                    <div class="font-bold text-white text-sm">Quản Lý Cơ Sở Dữ Liệu MySQL (Hosting Account)</div>
+                                                    <div class="text-slate-400 text-xs">Tài khoản: <span class="text-blue-400 font-mono font-semibold">{{ currentUser.username }}</span> • Host: localhost / 127.0.0.1 • Port: 3306</div>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center space-x-2">
+                                                <button @click="openPhpMyAdmin()" class="px-3.5 py-1.5 rounded-xl bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold hover:bg-emerald-900 transition flex items-center gap-1.5 shadow-sm" title="Mở phpMyAdmin xem tất cả CSDL của bạn">
+                                                    <span>🐬 phpMyAdmin GUI</span>
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
-                                            <div class="text-slate-400 text-[11px]">Định dạng Tệp dữ liệu</div>
-                                            <div class="text-sm font-bold text-slate-200 mt-1">InnoDB & Aria Engine</div>
-                                            <div class="text-slate-400 font-semibold mt-0.5">Path: /var/lib/mysql</div>
+
+                                        <!-- 3 Info Cards cho Hosting User -->
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
+                                            <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
+                                                <div class="text-slate-400 text-[11px]">Tổng Số CSDL</div>
+                                                <div class="text-sm font-bold text-slate-200 mt-1 font-mono text-base text-blue-400">{{ (filteredDatabases || []).length }} Database</div>
+                                                <div class="text-slate-400 font-sans mt-0.5">Thuộc gói hosting của bạn</div>
+                                            </div>
+                                            <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
+                                                <div class="text-slate-400 text-[11px]">Trạng Thái Dịch Vụ CSDL</div>
+                                                <div class="text-sm font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
+                                                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                                    <span>Đang Hoạt Động (Online)</span>
+                                                </div>
+                                                <div class="text-slate-400 font-sans mt-0.5">Sẵn sàng kết nối website</div>
+                                            </div>
+                                            <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
+                                                <div class="text-slate-400 text-[11px]">Cơ Chế Phân Quyền & Bảo Mật</div>
+                                                <div class="text-sm font-bold text-slate-200 mt-1">Dedicated User / Cgroups v2</div>
+                                                <div class="text-slate-400 font-sans mt-0.5">Cách ly an toàn 100% tài nguyên</div>
+                                            </div>
                                         </div>
-                                    </div>
+                                    </template>
+
+                                    <!-- ======================================================== -->
+                                    <!-- C. DÀNH CHO WEB USER (CUSTOMER): CSDL WEBSITE RIÊNG LẺ    -->
+                                    <!-- ======================================================== -->
+                                    <template v-else>
+                                        <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-10 h-10 rounded-xl bg-emerald-950/80 border border-emerald-800/80 text-emerald-400 flex items-center justify-center text-xl font-bold">
+                                                    🐬
+                                                </div>
+                                                <div>
+                                                    <div class="font-bold text-white text-sm">Cơ Sở Dữ Liệu Website (MySQL)</div>
+                                                    <div class="text-slate-400 text-xs">Người dùng: <span class="text-emerald-400 font-mono font-semibold">{{ currentUser.username }}</span> • Kết nối nội bộ: localhost:3306</div>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center space-x-2">
+                                                <button @click="openPhpMyAdmin()" class="px-3.5 py-1.5 rounded-xl bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold hover:bg-emerald-900 transition flex items-center gap-1.5 shadow-sm" title="Mở phpMyAdmin xem CSDL của website">
+                                                    <span>🐬 phpMyAdmin GUI</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- 3 Info Cards cho Web User -->
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
+                                            <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
+                                                <div class="text-slate-400 text-[11px]">Cơ Sở Dữ Liệu Khả Dụng</div>
+                                                <div class="text-sm font-bold text-slate-200 mt-1 font-mono text-base text-emerald-400">{{ (filteredDatabases || []).length }} Database</div>
+                                                <div class="text-slate-400 font-sans mt-0.5">Dành cho website của bạn</div>
+                                            </div>
+                                            <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
+                                                <div class="text-slate-400 text-[11px]">Trạng Thái Kết Nối</div>
+                                                <div class="text-sm font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
+                                                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                                    <span>Hoạt Động Bình Thường</span>
+                                                </div>
+                                                <div class="text-slate-400 font-sans mt-0.5">DB Engine: InnoDB / utf8mb4</div>
+                                            </div>
+                                            <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800">
+                                                <div class="text-slate-400 text-[11px]">Quản Trị Trực Quan</div>
+                                                <div class="text-sm font-bold text-slate-200 mt-1">phpMyAdmin 1-Click SSO</div>
+                                                <div class="text-slate-400 font-sans mt-0.5">Bấm nút Quản lý để thao tác nhanh</div>
+                                            </div>
+                                        </div>
+                                    </template>
                                 </div>
 
                                 <!-- 2. TAB SQL SERVER -->
@@ -332,7 +425,7 @@
                                     <!-- ======================================================== -->
                                     <!-- A. DÀNH CHO WEBSITE USER: REDIS / VALKEY SOCKET PER USER -->
                                     <!-- ======================================================== -->
-                                    <template v-if="isWebUser || currentUser.role === 'user'">
+                                    <template v-if="currentUser.role !== 'admin'">
                                         <!-- Header & Controller Widget cho Website User -->
                                         <div class="p-5 rounded-2xl bg-[#18181b] border border-[#27272a] shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-xs">
                                             <div class="flex items-start sm:items-center space-x-3.5">
@@ -645,7 +738,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                             </button>
 
                                             <!-- Web GUI / Connection Button -->
-                                            <button v-if="dbTypeTab === 'mysql'" @click="openPhpMyAdmin"
+                                            <button v-if="dbTypeTab === 'mysql'" @click="openPhpMyAdmin()"
                                                 class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 font-medium text-xs transition shadow-sm"
                                                 title="Mở phpMyAdmin Port 888">
                                                 <span>🐬 phpMyAdmin</span>

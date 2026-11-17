@@ -652,7 +652,7 @@ function showAlert(message) {
                                     </button>
 
                                     <!-- File Manager -->
-                                    <button v-if="!isHostingUser" @click="openFileManager()" :class="navClass('files')">
+                                    <button @click="openFileManager()" :class="navClass('files')">
                                         <div class="flex items-center space-x-3">
                                             <i data-lucide="folder" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
                                             <span>Files Manager</span>
@@ -661,7 +661,7 @@ function showAlert(message) {
                                     </button>
 
                                     <!-- Databases -->
-                                    <button v-if="!isHostingUser" @click="currentTab = 'databases'" :class="navClass('databases')">
+                                    <button @click="currentTab = 'databases'" :class="navClass('databases')">
                                         <div class="flex items-center space-x-3">
                                             <i data-lucide="database" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
                                             <span>Databases</span>
@@ -1076,7 +1076,7 @@ function showAlert(message) {
                     if (isWebUser.value && (chosen === 'dashboard' || chosen === 'service_plans' || chosen === 'customers' || chosen === 'apps' || chosen === 'firewall' || chosen === 'tools_settings')) {
                         chosen = 'domains';
                     }
-                    if (isHostingUser.value && ['mail', 'files', 'databases'].includes(chosen)) {
+                    if (isHostingUser.value && ['mail'].includes(chosen)) {
                         chosen = 'domains';
                     }
                     return chosen;
@@ -2281,6 +2281,15 @@ function showAlert(message) {
                 const openPhpMyAdmin = async (db = null) => {
                     const dbObj = (db && typeof db === 'object' && !db.preventDefault && (db.id || db.db_name)) ? db : null;
                     const host = window.location.hostname || 'localhost';
+
+                    // Mở tab trước ngay lập tức để giữ Transient User Activation (tránh bị trình duyệt chặn popup sau await)
+                    let newTab = null;
+                    try {
+                        newTab = window.open('about:blank', '_blank');
+                    } catch (e) {
+                        console.warn("Popup blocked or not permitted:", e);
+                    }
+
                     try {
                         const payload = {};
                         if (dbObj) {
@@ -2301,14 +2310,31 @@ function showAlert(message) {
                             const resData = await resp.json();
                             if (resData && resData.token) {
                                 const ssoUrl = `http://${host}:888/wpc_signon.php?token=${encodeURIComponent(resData.token)}`;
-                                window.open(ssoUrl, '_blank');
+                                if (newTab && !newTab.closed) {
+                                    newTab.location.href = ssoUrl;
+                                } else {
+                                    window.open(ssoUrl, '_blank');
+                                }
+                                return;
+                            }
+                        } else {
+                            const errData = await resp.json().catch(() => ({}));
+                            if (errData && errData.detail) {
+                                if (newTab && !newTab.closed) newTab.close();
+                                showAlert(errData.detail);
                                 return;
                             }
                         }
                     } catch (err) {
                         console.warn("One-click SSO failed, falling back to direct phpMyAdmin URL:", err);
                     }
-                    window.open(`http://${host}:888`, '_blank');
+
+                    const fallbackUrl = `http://${host}:888`;
+                    if (newTab && !newTab.closed) {
+                        newTab.location.href = fallbackUrl;
+                    } else {
+                        window.open(fallbackUrl, '_blank');
+                    }
                 };
 
                 const openPgAdmin = () => {

@@ -88,9 +88,14 @@ $_SESSION['PMA_single_signon_host'] = $data['host'] ?? '127.0.0.1';
 $_SESSION['PMA_single_signon_port'] = (int)($data['port'] ?? 3306);
 
 $db = $data['database'] ?? '';
+$onlyDb = $data['only_db'] ?? null;
 $cfgUpdate = [];
-if (!empty($data['only_db']) && !empty($db)) {
-    $cfgUpdate['only_db'] = $db;
+if ($onlyDb !== false && !empty($onlyDb)) {
+    if (is_array($onlyDb) || is_string($onlyDb)) {
+        $cfgUpdate['only_db'] = $onlyDb;
+    } elseif (!empty($db)) {
+        $cfgUpdate['only_db'] = $db;
+    }
 }
 $_SESSION['PMA_single_signon_cfgupdate'] = $cfgUpdate;
 $_SESSION['PMA_single_signon_HMAC_secret'] = hash('sha1', uniqid((string)random_int(0, mt_getrandmax()), true));

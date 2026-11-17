@@ -887,7 +887,8 @@ async def generate_pma_sso_token(
     """
     Sinh token đăng nhập một lần (Single Sign-On) an toàn vào phpMyAdmin (Port 888).
     - Nếu admin: đăng nhập quyền root quản lý tất cả DB (hoặc điều hướng thẳng tới DB được chọn).
-    - Nếu khách hàng / user thường: chỉ được quản lý DB thuộc sở hữu của mình (chế độ only_db).
+    - Nếu hosting user (reseller): chỉ thấy các CSDL thuộc quyền quản lý của mình/khách hàng con.
+    - Nếu web user (user): chỉ quản lý các CSDL thuộc website của mình.
     """
     now = time.time()
     # Dọn dẹp token đã hết hạn (> 60s)
@@ -896,6 +897,7 @@ async def generate_pma_sso_token(
         PMA_SSO_TOKENS.pop(t, None)
 
     target_db = ""
+    only_db: Any = False
     req_db_id = req.db_id if req else None
     req_db_name = req.db_name if req else None
 
@@ -905,26 +907,76 @@ async def generate_pma_sso_token(
             cursor = await db.execute("SELECT * FROM databases WHERE id = ?", (req_db_id,))
             row = await cursor.fetchone()
             if row:
-                if current_user["role"] != "admin" and row["user_id"] != current_user["id"]:
-                    raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập cơ sở dữ liệu này.")
+                if current_user["role"] != "admin":
+                    owner_id = row["user_id"]
+                    if owner_id != current_user["id"]:
+                        if current_user["role"] == "reseller":
+                            u_cur = await db.execute("SELECT parent_id FROM users WHERE id = ?", (owner_id,))
+                            u_row = await u_cur.fetchone()
+                            if not u_row or u_row["parent_id"] != current_user["id"]:
+                                raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập cơ sở dữ liệu này.")
+                        else:
+                            raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập cơ sở dữ liệu này.")
                 target_db = row["db_name"]
+                only_db = target_db if current_user["role"] != "admin" else False
             elif req_db_id >= 1000:
                 dom_id = req_db_id - 1000
                 dom_cur = await db.execute("SELECT * FROM domains WHERE id = ?", (dom_id,))
                 dom_row = await dom_cur.fetchone()
                 if dom_row:
-                    if current_user["role"] != "admin" and dom_row["user_id"] != current_user["id"]:
-                        raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập cơ sở dữ liệu này.")
+                    if current_user["role"] != "admin":
+                        owner_id = dom_row["user_id"]
+                        if owner_id != current_user["id"]:
+                            if current_user["role"] == "reseller":
+                                u_cur = await db.execute("SELECT parent_id FROM users WHERE id = ?", (owner_id,))
+                                u_row = await u_cur.fetchone()
+                                if not u_row or u_row["parent_id"] != current_user["id"]:
+                                    raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập cơ sở dữ liệu này.")
+                            else:
+                                raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập cơ sở dữ liệu này.")
                     prefix = dom_row["domain_name"].replace(".", "").replace("-", "")[:8]
                     target_db = f"wp_{prefix}"
+                    only_db = target_db if current_user["role"] != "admin" else False
         elif req_db_name:
             clean_name = req_db_name.strip()
             cursor = await db.execute("SELECT * FROM databases WHERE db_name = ?", (clean_name,))
             row = await cursor.fetchone()
             if row:
-                if current_user["role"] != "admin" and row["user_id"] != current_user["id"]:
-                    raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập cơ sở dữ liệu này.")
+                if current_user["role"] != "admin":
+                    owner_id = row["user_id"]
+                    if owner_id != current_user["id"]:
+                        if current_user["role"] == "reseller":
+                            u_cur = await db.execute("SELECT parent_id FROM users WHERE id = ?", (owner_id,))
+                            u_row = await u_cur.fetchone()
+                            if not u_row or u_row["parent_id"] != current_user["id"]:
+                                raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập cơ sở dữ liệu này.")
+                        else:
+                            raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập cơ sở dữ liệu này.")
             target_db = clean_name
+            only_db = target_db if current_user["role"] != "admin" else False
+        else:
+            # Không truyền db cụ thể -> Click nút tổng quát "phpMyAdmin"
+            if current_user["role"] == "admin":
+                target_db = ""
+                only_db = False
+            elif current_user["role"] == "reseller":
+                cur = await db.execute("""
+                    SELECT db.db_name FROM databases db
+                    JOIN users u ON db.user_id = u.id
+                    WHERE u.id = ? OR u.parent_id = ?
+                """, (current_user["id"], current_user["id"]))
+                reseller_dbs = [r["db_name"] for r in await cur.fetchall()]
+                if not reseller_dbs:
+                    raise HTTPException(status_code=400, detail="Tài khoản Hosting chưa có cơ sở dữ liệu nào. Vui lòng tạo CSDL trước.")
+                target_db = reseller_dbs[0]
+                only_db = reseller_dbs
+            else:
+                cur = await db.execute("SELECT db_name FROM databases WHERE user_id = ?", (current_user["id"],))
+                user_dbs = [r["db_name"] for r in await cur.fetchall()]
+                if not user_dbs:
+                    raise HTTPException(status_code=400, detail="Tài khoản chưa có cơ sở dữ liệu nào. Vui lòng tạo CSDL trước.")
+                target_db = user_dbs[0]
+                only_db = user_dbs
     finally:
         await db.close()
 
@@ -936,7 +988,7 @@ async def generate_pma_sso_token(
         "user": "root",
         "password": root_pass,
         "database": target_db,
-        "only_db": False if current_user["role"] == "admin" else True,
+        "only_db": only_db,
         "expires_at": now + 60,
     }
 
