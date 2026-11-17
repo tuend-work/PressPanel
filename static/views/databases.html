@@ -50,6 +50,114 @@
                             <!-- 2. NỘI DUNG BÊN TRONG CONTAINER -->
                             <div class="p-4 sm:p-5 space-y-3.5 bg-[#181d24]">
                                 
+                                <!-- ======================================================== -->
+                                <!-- EMPTY / UNINSTALLED STATE: KHI CSDL CHƯA ĐƯỢC CÀI ĐẶT    -->
+                                <!-- ẨN TOÀN BỘ MENU CHỨC NĂNG, CHỈ HIỆN CTA CHUYỂN TỚI APP STORE -->
+                                <!-- ======================================================== -->
+                                <div v-if="dbTypeTab !== 'appstore' && !getCurrentDbApp().installed" 
+                                     class="py-12 px-4 sm:px-8 text-center max-w-2xl mx-auto space-y-6">
+                                    
+                                    <!-- Icon CSDL lớn với Glow viền -->
+                                    <div class="relative inline-flex items-center justify-center">
+                                        <div class="w-20 h-20 rounded-2xl bg-slate-900/90 border border-slate-700/80 shadow-2xl flex items-center justify-center text-4xl select-none">
+                                            <span v-if="dbTypeTab === 'mysql'">🐬</span>
+                                            <span v-else-if="dbTypeTab === 'sqlserver'">🗄️</span>
+                                            <span v-else-if="dbTypeTab === 'mongodb'">🍃</span>
+                                            <span v-else-if="dbTypeTab === 'redis'">🔴</span>
+                                            <span v-else-if="dbTypeTab === 'pgsql'">🐘</span>
+                                            <span v-else>🗄️</span>
+                                        </div>
+                                        <!-- Status indicator badge -->
+                                        <span class="absolute -bottom-1 -right-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1 shadow-sm">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                                            <span>Chưa Cài Đặt</span>
+                                        </span>
+                                    </div>
+
+                                    <!-- Tiêu đề & Mô tả chi tiết -->
+                                    <div class="space-y-2">
+                                        <h3 class="text-lg sm:text-xl font-bold text-white tracking-tight">
+                                            <span v-if="dbTypeTab === 'mysql'">MariaDB & MySQL Database Server</span>
+                                            <span v-else-if="dbTypeTab === 'sqlserver'">Microsoft SQL Server 2022</span>
+                                            <span v-else-if="dbTypeTab === 'mongodb'">MongoDB Community Server</span>
+                                            <span v-else-if="dbTypeTab === 'redis'">Redis / Valkey In-Memory Cache</span>
+                                            <span v-else-if="dbTypeTab === 'pgsql'">PostgreSQL Relational Database</span>
+                                            <span v-else>Cơ Sở Dữ Liệu</span>
+                                        </h3>
+                                        <p class="text-xs sm:text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
+                                            Ứng dụng CSDL này chưa được cài đặt trên máy chủ. Toàn bộ thanh công cụ, tạo người dùng, sao lưu và menu quản trị CSDL tạm thời được ẩn cho đến khi bạn hoàn tất cài đặt ứng dụng.
+                                        </p>
+                                    </div>
+
+                                    <!-- Thông số kỹ thuật tóm tắt -->
+                                    <div class="grid grid-cols-3 gap-2.5 max-w-lg mx-auto text-left text-xs font-mono">
+                                        <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                                            <div class="text-[10px] text-slate-400 font-sans">Dịch Vụ Systemd</div>
+                                            <div class="font-bold text-slate-200 mt-0.5 truncate text-[11px]">
+                                                <span v-if="dbTypeTab === 'mysql'">mariadb.service</span>
+                                                <span v-else-if="dbTypeTab === 'sqlserver'">mssql-server</span>
+                                                <span v-else-if="dbTypeTab === 'mongodb'">mongod.service</span>
+                                                <span v-else-if="dbTypeTab === 'redis'">redis-server</span>
+                                                <span v-else-if="dbTypeTab === 'pgsql'">postgresql</span>
+                                            </div>
+                                        </div>
+                                        <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                                            <div class="text-[10px] text-slate-400 font-sans">Cổng Mặc Định</div>
+                                            <div class="font-bold text-blue-400 mt-0.5 text-[11px]">
+                                                <span v-if="dbTypeTab === 'mysql'">Port 3306</span>
+                                                <span v-else-if="dbTypeTab === 'sqlserver'">Port 1433</span>
+                                                <span v-else-if="dbTypeTab === 'mongodb'">Port 27017</span>
+                                                <span v-else-if="dbTypeTab === 'redis'">Port 6379</span>
+                                                <span v-else-if="dbTypeTab === 'pgsql'">Port 5432</span>
+                                            </div>
+                                        </div>
+                                        <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                                            <div class="text-[10px] text-slate-400 font-sans">Quản Trị Web GUI</div>
+                                            <div class="font-bold text-emerald-400 mt-0.5 truncate text-[11px]">
+                                                <span v-if="dbTypeTab === 'mysql'">phpMyAdmin</span>
+                                                <span v-else-if="dbTypeTab === 'sqlserver'">SQL Client / SSMS</span>
+                                                <span v-else-if="dbTypeTab === 'mongodb'">Mongo Express</span>
+                                                <span v-else-if="dbTypeTab === 'redis'">Redis Commander</span>
+                                                <span v-else-if="dbTypeTab === 'pgsql'">pgAdmin 4</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Call to Actions -->
+                                    <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                                        <!-- Primary CTA: Go to App Store -->
+                                        <button @click="currentTab = 'apps'; appsCategory = 'database'; fetchAppsList();"
+                                            class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-xs text-white shadow-lg shadow-blue-500/20 transition flex items-center justify-center gap-2">
+                                            <span>🏬</span>
+                                            <span>Chuyển Đến App Store Để Cài Đặt</span>
+                                            <span>→</span>
+                                        </button>
+
+                                        <!-- Quick Action: 1-Click Install -->
+                                        <button @click="handleAppAction(getCurrentDbApp().id, 'install')"
+                                            :disabled="installingAppId === getCurrentDbApp().id"
+                                            class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-semibold text-xs text-white shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2 disabled:opacity-60">
+                                            <span v-if="installingAppId === getCurrentDbApp().id" class="animate-spin">⏳</span>
+                                            <span v-else>⚡</span>
+                                            <span>{{ installingAppId === getCurrentDbApp().id ? 'Đang gửi lệnh cài đặt...' : 'Cài Đặt Nhanh (1-Click)' }}</span>
+                                        </button>
+                                    </div>
+
+                                    <!-- Refresh Status Link -->
+                                    <div class="pt-1">
+                                        <button @click="fetchAppsList(); fetchDatabasesList();"
+                                            class="text-[11px] text-slate-400 hover:text-slate-200 transition underline underline-offset-4 inline-flex items-center gap-1">
+                                            <span>🔄</span>
+                                            <span>Bạn đã cài đặt từ terminal? Bấm vào đây để đồng bộ lại trạng thái</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- ======================================================== -->
+                                <!-- ACTIVE STATE: KHI CSDL ĐÃ ĐƯỢC CÀI ĐẶT                   -->
+                                <!-- HIỂN THỊ ĐẦY ĐỦ MENU CHỨC NĂNG, TOOLBAR & BẢNG QUẢN TRỊ  -->
+                                <!-- ======================================================== -->
+                                <template v-else>
                                 <!-- 1. TAB MYSQL / MARIADB -->
                                 <div v-if="dbTypeTab === 'mysql'" class="space-y-4">
                                     <!-- Service Controller Widget -->
@@ -712,6 +820,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                         </table>
                                     </div>
                                 </div>
+                                </template>
 
                                 <!-- 6. TAB APP STORE DATABASE (Kho Ứng Dụng & Quản lý toàn diện cài đặt, xoá, cấu hình) -->
                                 <div v-if="dbTypeTab === 'appstore'" class="space-y-4">
