@@ -2278,12 +2278,37 @@ function showAlert(message) {
                     }
                 };
 
-                const openPhpMyAdmin = () => {
+                const openPhpMyAdmin = async (db = null) => {
+                    const dbObj = (db && typeof db === 'object' && !db.preventDefault && (db.id || db.db_name)) ? db : null;
                     const host = window.location.hostname || 'localhost';
-                    const protocol = window.location.protocol || 'http:';
-                    // phpMyAdmin được cấu hình chạy vhost riêng port 888 trên Nginx/OLS
-                    const pmaUrl = `${protocol}//${host}:888`;
-                    window.open(pmaUrl, '_blank');
+                    try {
+                        const payload = {};
+                        if (dbObj) {
+                            if (dbObj.id) payload.db_id = dbObj.id;
+                            if (dbObj.db_name) payload.db_name = dbObj.db_name;
+                        }
+                        const authToken = (token && token.value) || localStorage.getItem('wpc_token') || localStorage.getItem('token') || '';
+                        const headers = { 'Content-Type': 'application/json' };
+                        if (authToken) {
+                            headers['Authorization'] = `Bearer ${authToken}`;
+                        }
+                        const resp = await fetch('/api/v1/databases/pma-sso', {
+                            method: 'POST',
+                            headers: headers,
+                            body: JSON.stringify(payload)
+                        });
+                        if (resp.ok) {
+                            const resData = await resp.json();
+                            if (resData && resData.token) {
+                                const ssoUrl = `http://${host}:888/wpc_signon.php?token=${encodeURIComponent(resData.token)}`;
+                                window.open(ssoUrl, '_blank');
+                                return;
+                            }
+                        }
+                    } catch (err) {
+                        console.warn("One-click SSO failed, falling back to direct phpMyAdmin URL:", err);
+                    }
+                    window.open(`http://${host}:888`, '_blank');
                 };
 
                 const openPgAdmin = () => {
@@ -2314,7 +2339,7 @@ function showAlert(message) {
                         const user = (db && db.db_user) || 'sa';
                         alert(`Chuỗi kết nối SQL Server:\nServer=127.0.0.1,1433;Database=${name};User Id=${user};Password=<mật khẩu>;Encrypt=True;TrustServerCertificate=True;\n\nBạn có thể kết nối trực tiếp qua SQL Server Management Studio (SSMS), Azure Data Studio hoặc DBeaver.`);
                     } else {
-                        openPhpMyAdmin();
+                        openPhpMyAdmin(db);
                     }
                 };
 

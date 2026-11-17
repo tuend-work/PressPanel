@@ -169,7 +169,6 @@ if (!is_dir(__DIR__ . '/logs')) {
 
 \$i = 0;
 \$i++;
-\$cfg['Servers'][\$i]['auth_type'] = 'cookie';
 \$cfg['Servers'][\$i]['host'] = '127.0.0.1';
 \$cfg['Servers'][\$i]['port'] = '3306';
 \$cfg['Servers'][\$i]['connect_type'] = 'tcp';
@@ -177,6 +176,17 @@ if (!is_dir(__DIR__ . '/logs')) {
 \$cfg['Servers'][\$i]['compress'] = false;
 \$cfg['Servers'][\$i]['AllowNoPassword'] = false;
 \$cfg['Servers'][\$i]['AllowRoot'] = true;
+\$cfg['Servers'][\$i]['SessionSavePath'] = \$tmpDir;
+
+// Hỗ trợ Single Sign-On (SSO) tự động khi có cookie SignonSession hoặc yêu cầu xác thực
+if (isset(\$_COOKIE['SignonSession']) || isset(\$_GET['token']) || isset(\$_REQUEST['token']) || isset(\$_GET['wpc_sso'])) {
+    \$cfg['Servers'][\$i]['auth_type'] = 'signon';
+    \$cfg['Servers'][\$i]['SignonSession'] = 'SignonSession';
+    \$cfg['Servers'][\$i]['SignonURL'] = 'wpc_signon.php';
+    \$cfg['Servers'][\$i]['LogoutURL'] = 'wpc_signon.php?logout=1';
+} else {
+    \$cfg['Servers'][\$i]['auth_type'] = 'cookie';
+}
 
 \$cfg['UploadDir'] = '';
 \$cfg['SaveDir'] = '';
@@ -185,6 +195,12 @@ if (!is_dir(__DIR__ . '/logs')) {
 \$cfg['ShowPhpInfo'] = true;
 \$cfg['MaxRows'] = 50;
 EOF
+
+        # Sao chép wpc_signon.php vào thư mục gốc của phpMyAdmin
+        WPC_SIGNON_SRC="$WPC_BASE/templates/apps/phpmyadmin/wpc_signon.php"
+        if [ -f "$WPC_SIGNON_SRC" ]; then
+            cp -f "$WPC_SIGNON_SRC" "$TARGET_DIR/wpc_signon.php"
+        fi
 
         # Nếu index.php vẫn chưa có, tạo trang chẩn đoán tạm thời để tránh 403 Directory Index Forbidden
         if [ ! -f "$TARGET_DIR/index.php" ]; then
@@ -201,7 +217,7 @@ EOF
         # 5. Phân quyền toàn diện chuẩn Website User
         rm -f "$TARGET_DIR/.htaccess" 2>/dev/null || true
         mkdir -p "$TARGET_DIR/tmp" "$PMA_HOME/.sessions" "$PMA_HOME/.tmp" "$PMA_HOME/logs"
-        chmod 1777 "$TARGET_DIR/tmp" "$PMA_HOME/.sessions" "$PMA_HOME/.tmp" 2>/dev/null || true
+        chmod -R 777 "$TARGET_DIR/tmp" "$PMA_HOME/.sessions" "$PMA_HOME/.tmp" 2>/dev/null || true
         chmod 755 "$PMA_HOME/logs" 2>/dev/null || true
         chmod 644 "$TARGET_DIR/config.inc.php" "$TARGET_DIR/index.php" 2>/dev/null || true
 
@@ -210,7 +226,7 @@ EOF
         chown -R pma:pma "$PMA_HOME" 2>/dev/null || true
         find "$TARGET_DIR" -type d -exec chmod 755 {} + 2>/dev/null || true
         find "$TARGET_DIR" -type f -exec chmod 644 {} + 2>/dev/null || true
-        chmod 1777 "$TARGET_DIR/tmp" "$PMA_HOME/.sessions" "$PMA_HOME/.tmp" 2>/dev/null || true
+        chmod -R 777 "$TARGET_DIR/tmp" "$PMA_HOME/.sessions" "$PMA_HOME/.tmp" 2>/dev/null || true
 
         # Thêm nobody (OLS) và www-data (Nginx) vào group pma để truy cập static files
         id "nobody" &>/dev/null && usermod -a -G pma nobody 2>/dev/null || true
@@ -240,7 +256,7 @@ EOF
         elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
             PKG_MGR="dnf"
             command -v dnf &>/dev/null || PKG_MGR="yum"
-            $PKG_MGR install -y php-mysqlnd php-mysqli php-mbstring php-xml php-curl php-zip 2>/dev/null || true
+            $PKG_MGR install -y php-mysqlnd php-mysqli php-mbstring php-xml php-curl php-zip php-json 2>/dev/null || true
             if [ -d "/usr/local/lsws" ]; then
                 for lsp_name in "$OLS_LSPHP" lsphp83 lsphp82 lsphp81 lsphp84; do
                     if [ -d "/usr/local/lsws/$lsp_name" ] || [ "$lsp_name" = "$OLS_LSPHP" ]; then
@@ -347,8 +363,13 @@ EOF
             systemctl restart "wpc-php${ACTIVE_PHP}-fpm@pma" 2>/dev/null || true
 
             PMA_FPM_SOCK="/run/php/php${ACTIVE_PHP}-fpm-pma.sock"
-            if [ ! -e "$PMA_FPM_SOCK" ]; then
-                PMA_FPM_SOCK=$(ls /run/php/php*-fpm-pma.sock 2>/dev/null | head -n 1 || echo "/run/php/php${ACTIVE_PHP}-fpm.sock")
+            if [ ! -S "$PMA_FPM_SOCK" ]; then
+                for s in /run/php/php*-fpm-pma.sock "/run/php/php${ACTIVE_PHP}-fpm.sock" /run/php-fpm/www.sock /var/opt/remi/php82/run/php-fpm/www.sock /run/php/php*-fpm.sock; do
+                    if [ -S "$s" ]; then
+                        PMA_FPM_SOCK="$s"
+                        break
+                    fi
+                done
             fi
             echo "[+] Khởi tạo PHP-FPM riêng cho pma trên Nginx (Service: wpc-php${ACTIVE_PHP}-fpm@pma, Sock: $PMA_FPM_SOCK)"
 
@@ -357,7 +378,7 @@ EOF
             chmod 755 "$PMA_HOME" "$TARGET_DIR" 2>/dev/null || true
             mkdir -p "$TARGET_DIR/tmp" "$PMA_HOME/.sessions" "$PMA_HOME/.tmp" "$PMA_HOME/logs" 2>/dev/null || true
             chown -R pma:pma "$PMA_HOME" 2>/dev/null || true
-            chmod 1777 "$TARGET_DIR/tmp" "$PMA_HOME/.sessions" "$PMA_HOME/.tmp" 2>/dev/null || true
+            chmod -R 777 "$TARGET_DIR/tmp" "$PMA_HOME/.sessions" "$PMA_HOME/.tmp" 2>/dev/null || true
 
             cat <<EOF > "/etc/nginx/conf.d/00_phpmyadmin.conf"
 server {

@@ -3,6 +3,8 @@ import subprocess
 import shutil
 import json
 import re
+import secrets
+import time
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -11,6 +13,12 @@ from app.db.session import get_db_connection
 from app.executor.gatekeeper import run_gatekeeper
 
 router = APIRouter(prefix="/databases", tags=["Databases & DB Management"])
+
+PMA_SSO_TOKENS: Dict[str, Dict[str, Any]] = {}
+
+class PmaSSORequest(BaseModel):
+    db_id: Optional[int] = None
+    db_name: Optional[str] = None
 
 class DatabaseCreateRequest(BaseModel):
     db_name: str
@@ -869,4 +877,93 @@ async def ensure_controller_endpoint(current_user: dict = Depends(get_current_us
     return {
         "status": "ok" if ok else "warning",
         "message": "Đã đảm bảo và nạp cấu hình MySQL Resource Controller thành công!"
+    }
+
+@router.post("/pma-sso")
+async def generate_pma_sso_token(
+    req: Optional[PmaSSORequest] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Sinh token đăng nhập một lần (Single Sign-On) an toàn vào phpMyAdmin (Port 888).
+    - Nếu admin: đăng nhập quyền root quản lý tất cả DB (hoặc điều hướng thẳng tới DB được chọn).
+    - Nếu khách hàng / user thường: chỉ được quản lý DB thuộc sở hữu của mình (chế độ only_db).
+    """
+    now = time.time()
+    # Dọn dẹp token đã hết hạn (> 60s)
+    expired = [t for t, item in PMA_SSO_TOKENS.items() if item.get("expires_at", 0) < now]
+    for t in expired:
+        PMA_SSO_TOKENS.pop(t, None)
+
+    target_db = ""
+    req_db_id = req.db_id if req else None
+    req_db_name = req.db_name if req else None
+
+    db = await get_db_connection()
+    try:
+        if req_db_id:
+            cursor = await db.execute("SELECT * FROM databases WHERE id = ?", (req_db_id,))
+            row = await cursor.fetchone()
+            if row:
+                if current_user["role"] != "admin" and row["user_id"] != current_user["id"]:
+                    raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập cơ sở dữ liệu này.")
+                target_db = row["db_name"]
+            elif req_db_id >= 1000:
+                dom_id = req_db_id - 1000
+                dom_cur = await db.execute("SELECT * FROM domains WHERE id = ?", (dom_id,))
+                dom_row = await dom_cur.fetchone()
+                if dom_row:
+                    if current_user["role"] != "admin" and dom_row["user_id"] != current_user["id"]:
+                        raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập cơ sở dữ liệu này.")
+                    prefix = dom_row["domain_name"].replace(".", "").replace("-", "")[:8]
+                    target_db = f"wp_{prefix}"
+        elif req_db_name:
+            clean_name = req_db_name.strip()
+            cursor = await db.execute("SELECT * FROM databases WHERE db_name = ?", (clean_name,))
+            row = await cursor.fetchone()
+            if row:
+                if current_user["role"] != "admin" and row["user_id"] != current_user["id"]:
+                    raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập cơ sở dữ liệu này.")
+            target_db = clean_name
+    finally:
+        await db.close()
+
+    root_pass = get_mysql_root_password() or ""
+
+    # Sinh mã token ngẫu nhiên an toàn 256-bit
+    token = secrets.token_urlsafe(32)
+    PMA_SSO_TOKENS[token] = {
+        "user": "root",
+        "password": root_pass,
+        "database": target_db,
+        "only_db": False if current_user["role"] == "admin" else True,
+        "expires_at": now + 60,
+    }
+
+    return {
+        "status": "ok",
+        "token": token,
+        "database": target_db,
+        "sso_url": f"/wpc_signon.php?token={token}"
+    }
+
+@router.get("/pma-sso/verify")
+async def verify_pma_sso_token(token: str):
+    """
+    Xác minh và tiêu thụ mã token SSO từ wpc_signon.php nội bộ máy chủ.
+    Mỗi token chỉ được sử dụng duy nhất một lần và hết hạn sau 60 giây.
+    """
+    now = time.time()
+    data = PMA_SSO_TOKENS.pop(token, None)
+    if not data or data.get("expires_at", 0) < now:
+        raise HTTPException(status_code=401, detail="Token SSO không hợp lệ hoặc đã hết hạn.")
+
+    return {
+        "valid": True,
+        "user": data["user"],
+        "password": data["password"],
+        "host": "127.0.0.1",
+        "port": 3306,
+        "database": data.get("database", ""),
+        "only_db": data.get("only_db", False)
     }
