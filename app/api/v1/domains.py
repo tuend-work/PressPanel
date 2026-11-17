@@ -198,6 +198,9 @@ class DomainCreate(BaseModel):
 class DomainBatchDeleteRequest(BaseModel):
     domain_ids: List[int]
 
+class DomainRenameRequest(BaseModel):
+    new_domain_name: str
+
 class DomainChangePlanRequest(BaseModel):
     package_id: int
 
@@ -699,6 +702,104 @@ async def delete_domain(domain_id: int, current_user: dict = Depends(get_current
         "message": f"Đã xóa hoàn toàn website '{domain['domain_name']}' khỏi hệ thống!",
         "deleted_domain": domain["domain_name"]
     }
+
+@router.post("/{domain_id}/rename")
+async def rename_domain(
+    domain_id: int,
+    req: DomainRenameRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Đổi tên miền Website (Rename Domain):
+    1. Kiểm tra quyền sở hữu website.
+    2. Chuẩn hóa & validate tên miền mới FQDN, không chứa ký tự lạ, không trùng domain cũ.
+    3. Kiểm tra xem tên miền mới đã tồn tại trên hệ thống chưa.
+    4. Gọi gatekeeper SUID: vhost rename <isolated_user> <old_domain> <new_domain> <webserver> <php_ver> <hosting_user>.
+    5. Cập nhật cơ sở dữ liệu SQLite: domains, wp_instances, ssl_certificates, users.
+    """
+    clean_new_domain = re.sub(r"^(https?://)?(www\.)?", "", req.new_domain_name.strip().lower()).rstrip("/")
+    if not clean_new_domain or not re.match(r"^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$", clean_new_domain):
+        raise HTTPException(status_code=400, detail="Tên miền mới không hợp lệ (ví dụ hợp lệ: newdomain.com, mysite.vn)")
+
+    db = await get_db_connection()
+    try:
+        # Lấy thông tin domain cũ
+        cursor = await db.execute("""
+            SELECT d.id, d.domain_name, d.document_root, d.webserver, d.php_version, d.user_id,
+                   u.username as owner_username, u.parent_id, u.role as owner_role
+            FROM domains d
+            JOIN users u ON d.user_id = u.id
+            WHERE d.id = ?
+        """, (domain_id,))
+        dom = await cursor.fetchone()
+        if not dom:
+            raise HTTPException(status_code=404, detail="Không tìm thấy website")
+
+        # Kiểm tra phân quyền
+        if current_user["role"] == "reseller" and dom["user_id"] != current_user["id"] and dom["parent_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
+        elif current_user["role"] == "user" and dom["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
+
+        old_domain = dom["domain_name"]
+        if old_domain == clean_new_domain:
+            raise HTTPException(status_code=400, detail="Tên miền mới trùng với tên miền hiện tại")
+
+        # Kiểm tra xem tên miền mới đã tồn tại trong DB chưa
+        check_cur = await db.execute("SELECT id FROM domains WHERE domain_name = ?", (clean_new_domain,))
+        existing = await check_cur.fetchone()
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Tên miền '{clean_new_domain}' đã tồn tại trên hệ thống")
+
+        isolated_user = domain_to_linux_user(old_domain)
+        hosting_username = dom["owner_username"] or isolated_user
+        active_ws = dom["webserver"] or "ols"
+        php_ver = dom["php_version"] or "8.2"
+
+        # Gọi C gatekeeper thực thi đổi tên:
+        # vhost rename <isolated_user> <old_domain> <new_domain> <webserver> <php_ver> [hosting_user]
+        res = await run_gatekeeper("vhost", "rename", isolated_user, old_domain, clean_new_domain, active_ws, php_ver, hosting_username)
+        if res.get("status") == "error":
+            raise HTTPException(status_code=500, detail=res.get("message", "Thao tác đổi tên miền thất bại"))
+
+        new_doc_root = f"/home/{isolated_user}/domains/{clean_new_domain}/public_html"
+
+        # Cập nhật DB
+        await db.execute("""
+            UPDATE domains 
+            SET domain_name = ?, document_root = ?
+            WHERE id = ?
+        """, (clean_new_domain, new_doc_root, domain_id))
+
+        # Cập nhật SSL certificates paths nếu có
+        await db.execute("""
+            UPDATE ssl_certificates
+            SET cert_path = REPLACE(cert_path, ?, ?),
+                key_path = REPLACE(key_path, ?, ?)
+            WHERE domain_id = ?
+        """, (old_domain, clean_new_domain, old_domain, clean_new_domain, domain_id))
+
+        # Cập nhật người dùng nếu có web user gắn với domain cũ
+        await db.execute("""
+            UPDATE users
+            SET full_name = REPLACE(full_name, ?, ?)
+            WHERE full_name LIKE ?
+        """, (old_domain, clean_new_domain, f"%{old_domain}%"))
+
+        await db.commit()
+
+        # Xóa cache disk usage nếu có
+        _disk_usage_cache.pop(dom["document_root"], None)
+
+        return {
+            "status": "success",
+            "message": f"Đã đổi tên miền từ '{old_domain}' sang '{clean_new_domain}' thành công!",
+            "old_domain": old_domain,
+            "new_domain": clean_new_domain,
+            "document_root": new_doc_root
+        }
+    finally:
+        await db.close()
 
 @router.post("/{domain_id}/impersonate-user")
 async def impersonate_website_user(

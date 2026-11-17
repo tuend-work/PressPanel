@@ -9,7 +9,7 @@ int main(int argc, char *argv[]) {
     init_security_env();
 
     if (argc < 2) {
-        send_json_error("vhost", "Cu phap: vhost <add|remove|set-php|ssl|suspend|unsuspend|rewrite-all|apply-php-ini|reload-vhost> [args...]");
+        send_json_error("vhost", "Cu phap: vhost <add|remove|rename|set-php|ssl|suspend|unsuspend|rewrite-all|apply-php-ini|reload-vhost> [args...]");
         return 1;
     }
 
@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (argc < 4) {
-        send_json_error("vhost", "Cu phap: vhost <add|remove|set-php|ssl|suspend|unsuspend|apply-php-ini|reload-vhost> <username> <domain> [args...]");
+        send_json_error("vhost", "Cu phap: vhost <add|remove|rename|set-php|ssl|suspend|unsuspend|apply-php-ini|reload-vhost> <username> <domain> [args...]");
         return 1;
     }
 
@@ -130,6 +130,30 @@ int main(int argc, char *argv[]) {
         }
         snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh reload-vhost %s %s %s %s",
                  username, domain, webserver, php_ver);
+    }
+    else if (strcmp(action, "rename") == 0) {
+        if (argc < 5) {
+            send_json_error("vhost", "Cu phap: vhost rename <username> <old_domain> <new_domain> [webserver] [php_ver] [hosting_user]");
+            return 1;
+        }
+        const char *new_domain = argv[4];
+        if (!is_safe_token(new_domain)) {
+            send_json_error("vhost", "New Domain khong hop le");
+            return 1;
+        }
+        const char *webserver = (argc > 5) ? argv[5] : "ols";
+        const char *php_ver = (argc > 6) ? argv[6] : "8.2";
+        const char *hosting_user = (argc > 7) ? argv[7] : username;
+        if (!is_safe_webserver(webserver) || !is_safe_php_ver(php_ver)) {
+            send_json_error("vhost", "Webserver hoac PHP version khong hop le");
+            return 1;
+        }
+        if (argc > 7 && !is_safe_id(hosting_user)) {
+            send_json_error("vhost", "Hosting user khong hop le");
+            return 1;
+        }
+        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh rename %s %s %s %s %s %s",
+                 username, domain, new_domain, webserver, php_ver, hosting_user);
     }
     else {
         send_json_error("vhost", "Hanh dong khong hop le");

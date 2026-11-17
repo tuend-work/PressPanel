@@ -30,6 +30,14 @@ async def run_gatekeeper(module: str, *args, stdin_data: Optional[str] = None) -
         if not raw_output:
             return {"status": "error", "module": module, "message": f"Exit code {proc.returncode} voi output rong"}
 
+        lines = [line.strip() for line in raw_output.splitlines() if line.strip()]
+        for line in reversed(lines):
+            if line.startswith("{") and line.endswith("}"):
+                try:
+                    return json.loads(line)
+                except json.JSONDecodeError:
+                    pass
+
         try:
             return json.loads(raw_output)
         except json.JSONDecodeError:

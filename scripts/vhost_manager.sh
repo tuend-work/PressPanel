@@ -692,6 +692,173 @@ EOF
         exit 0
         ;;
 
+    rename)
+        NEW_DOMAIN="${4:-}"
+        WS="${5:-$WEBSERVER}"
+        P_VER="${6:-$PHP_VER}"
+        H_USER="${7:-$HOSTING_USER}"
+        OLD_DOMAIN="$DOMAIN"
+
+        if [ -z "$NEW_DOMAIN" ]; then
+            echo "[-] Thieu ten mien moi"
+            exit 1
+        fi
+
+        echo "[+] Doi ten mien tu '$OLD_DOMAIN' sang '$NEW_DOMAIN' (Webserver: $WS, PHP: $P_VER, User: $USERNAME)..."
+
+        OLD_DIR="/home/$USERNAME/domains/$OLD_DOMAIN"
+        NEW_DIR="/home/$USERNAME/domains/$NEW_DOMAIN"
+        if [ ! -d "$OLD_DIR" ] && [ -d "/home/$USERNAME/httpdocs/$OLD_DOMAIN" ]; then
+            OLD_DIR="/home/$USERNAME/httpdocs/$OLD_DOMAIN"
+            NEW_DIR="/home/$USERNAME/httpdocs/$NEW_DOMAIN"
+        fi
+
+        # 1. Đổi tên thư mục mã nguồn website
+        if [ -d "$OLD_DIR" ]; then
+            if [ -d "$NEW_DIR" ] && [ "$OLD_DIR" != "$NEW_DIR" ]; then
+                echo "[!] Thu muc $NEW_DIR da ton tai, dong bo va don dep thu muc cu..."
+                rsync -a "$OLD_DIR/" "$NEW_DIR/" 2>/dev/null || true
+                rm -rf "$OLD_DIR" 2>/dev/null || true
+            else
+                mv "$OLD_DIR" "$NEW_DIR" 2>/dev/null || true
+            fi
+        else
+            mkdir -p "$NEW_DIR/public_html" 2>/dev/null || true
+        fi
+
+        # Cập nhật symlink public_html nếu đang trỏ tới domain cũ
+        if [ -L "/home/$USERNAME/public_html" ]; then
+            TARGET_LNK=$(readlink "/home/$USERNAME/public_html" || true)
+            if echo "$TARGET_LNK" | grep -q "$OLD_DOMAIN"; then
+                rm -f "/home/$USERNAME/public_html" 2>/dev/null || true
+                ln -sf "$NEW_DIR/public_html" "/home/$USERNAME/public_html" 2>/dev/null || true
+            fi
+        fi
+
+        # 2. Xóa cấu hình VHost cũ trên các Webserver
+        # a) OpenLiteSpeed
+        rm -rf "/usr/local/lsws/conf/vhosts/$OLD_DOMAIN" 2>/dev/null || true
+        if [ -f "/usr/local/lsws/conf/httpd_config.conf" ]; then
+            sed -i "/virtualhost[[:space:]]\+$OLD_DOMAIN[[:space:]]*{/,/^[[:space:]]*}/d" /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
+            sed -i "/map[[:space:]]\+$OLD_DOMAIN[[:space:]]/d" /usr/local/lsws/conf/httpd_config.conf 2>/dev/null || true
+        fi
+        # b) Nginx
+        rm -f "/etc/nginx/conf.d/$OLD_DOMAIN.conf" 2>/dev/null || true
+
+        # 3. Tạo cấu hình VHost mới
+        DOC_ROOT="$NEW_DIR/public_html"
+        [ ! -d "$DOC_ROOT" ] && mkdir -p "$DOC_ROOT"
+        ensure_linux_user "$USERNAME" "$H_USER"
+        ensure_ssl_certs "$NEW_DOMAIN" "$USERNAME"
+
+        # Cấu hình OpenLiteSpeed
+        if [ "$WS" = "ols" ] || [ "$WS" = "all" ]; then
+            OLS_VHOST_DIR="/usr/local/lsws/conf/vhosts/$NEW_DOMAIN"
+            mkdir -p "$OLS_VHOST_DIR"
+            if [ -f "$WPC_DIR/templates/vhost_ols/vhconf.tpl" ]; then
+                sed -e "s/{{DOMAIN}}/$NEW_DOMAIN/g" \
+                    -e "s/{{PHP_VERSION}}/$P_VER/g" \
+                    -e "s/{{USERNAME}}/$USERNAME/g" \
+                    -e "s|{{DOCUMENT_ROOT}}|$DOC_ROOT|g" \
+                    "$WPC_DIR/templates/vhost_ols/vhconf.tpl" > "$OLS_VHOST_DIR/vhconf.conf"
+            fi
+            setup_ols_vhost_php "$NEW_DOMAIN" "$P_VER" "$USERNAME" "$H_USER" "$OLS_VHOST_DIR/vhconf.conf"
+
+            OLS_MAIN_CONF="/usr/local/lsws/conf/httpd_config.conf"
+            if [ -f "$OLS_MAIN_CONF" ]; then
+                if ! grep -q "virtualhost $NEW_DOMAIN " "$OLS_MAIN_CONF"; then
+                    cat <<EOF_VH >> "$OLS_MAIN_CONF"
+
+virtualhost $NEW_DOMAIN {
+    vhRoot                   /home/$USERNAME/domains/$NEW_DOMAIN
+    configFile               \$SERVER_ROOT/conf/vhosts/$NEW_DOMAIN/vhconf.conf
+    allowSymbolLink          1
+    enableScript             1
+    restrained               1
+    setUIDMode               2
+}
+EOF_VH
+                fi
+                map_hosts="$NEW_DOMAIN, *.$NEW_DOMAIN"
+                awk -v d="$NEW_DOMAIN" -v mh="$map_hosts" '
+                    /listener[[:space:]]+(Default|HTTP_80|HTTP)[[:space:]]*{/ { in_l=1 }
+                    in_l && /}/ {
+                        print "    map                      " d " " mh
+                        in_l=0
+                    }
+                    { print }
+                ' "$OLS_MAIN_CONF" > "$OLS_MAIN_CONF.tmp" && mv "$OLS_MAIN_CONF.tmp" "$OLS_MAIN_CONF"
+
+                awk -v d="$NEW_DOMAIN" -v mh="$map_hosts" '
+                    /listener[[:space:]]+(HTTPS_443|HTTPS)[[:space:]]*{/ { in_l=1 }
+                    in_l && /}/ {
+                        print "    map                      " d " " mh
+                        in_l=0
+                    }
+                    { print }
+                ' "$OLS_MAIN_CONF" > "$OLS_MAIN_CONF.tmp" && mv "$OLS_MAIN_CONF.tmp" "$OLS_MAIN_CONF"
+                chmod 644 "$OLS_MAIN_CONF" 2>/dev/null || true
+            fi
+        fi
+
+        # Cấu hình Nginx
+        if [ "$WS" = "nginx" ] || [ "$WS" = "all" ]; then
+            mkdir -p /etc/nginx/conf.d
+            if [ -f "$WPC_DIR/templates/vhost_nginx/default.tpl" ]; then
+                USER_POOL_SOCK="/run/php/php${P_VER}-fpm-${USERNAME}.sock"
+                PHP_SOCK="$USER_POOL_SOCK"
+                if [ ! -S "$PHP_SOCK" ]; then
+                    for fallback_sock in "/run/php/php${P_VER}-fpm.sock" "/var/run/php/php${P_VER}-fpm.sock" "/run/php/php-fpm.sock"; do
+                        if [ -S "$fallback_sock" ]; then
+                            PHP_SOCK="$fallback_sock"
+                            break
+                        fi
+                    done
+                fi
+                SSL_CERT="/home/$USERNAME/domains/$NEW_DOMAIN/ssl/fullchain.pem"
+                SSL_KEY="/home/$USERNAME/domains/$NEW_DOMAIN/ssl/privkey.pem"
+                if [ ! -s "$SSL_CERT" ] || [ ! -s "$SSL_KEY" ]; then
+                    ensure_server_default_ssl
+                    SSL_CERT="/etc/ssl/wpc/selfsigned.crt"
+                    SSL_KEY="/etc/ssl/wpc/selfsigned.key"
+                fi
+                sed -e "s/{{DOMAIN}}/$NEW_DOMAIN/g" \
+                    -e "s/{{PHP_VERSION}}/$P_VER/g" \
+                    -e "s/{{USERNAME}}/$USERNAME/g" \
+                    -e "s|{{DOCUMENT_ROOT}}|$DOC_ROOT|g" \
+                    -e "s|{{PHP_SOCK}}|$PHP_SOCK|g" \
+                    -e "s|{{SSL_CERT}}|$SSL_CERT|g" \
+                    -e "s|{{SSL_KEY}}|$SSL_KEY|g" \
+                    "$WPC_DIR/templates/vhost_nginx/default.tpl" > "/etc/nginx/conf.d/$NEW_DOMAIN.conf"
+            fi
+        fi
+
+        # 4. WordPress: Tự động cập nhật URL nếu có cài đặt WordPress
+        if [ -f "$DOC_ROOT/wp-config.php" ]; then
+            echo "[+] Cap nhat URL WordPress tu $OLD_DOMAIN sang $NEW_DOMAIN..."
+            if command -v wp &>/dev/null; then
+                wp search-replace "http://$OLD_DOMAIN" "http://$NEW_DOMAIN" --path="$DOC_ROOT" --skip-plugins --skip-themes --allow-root >/dev/null 2>&1 || true
+                wp search-replace "https://$OLD_DOMAIN" "https://$NEW_DOMAIN" --path="$DOC_ROOT" --skip-plugins --skip-themes --allow-root >/dev/null 2>&1 || true
+                wp search-replace "//$OLD_DOMAIN" "//$NEW_DOMAIN" --path="$DOC_ROOT" --skip-plugins --skip-themes --allow-root >/dev/null 2>&1 || true
+            fi
+            sed -i "s/$OLD_DOMAIN/$NEW_DOMAIN/g" "$DOC_ROOT/wp-config.php" 2>/dev/null || true
+        fi
+
+        # 5. Phân quyền lại thư mục mới
+        if id "$USERNAME" &>/dev/null; then
+            chown -R "$USERNAME:$USERNAME" "$NEW_DIR" 2>/dev/null || true
+            chmod 711 "$NEW_DIR" 2>/dev/null || true
+            chmod 755 "$DOC_ROOT" 2>/dev/null || true
+        fi
+
+        # 6. Khởi động lại webservers
+        /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || true
+        nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+
+        echo "[+] Da doi ten mien tu $OLD_DOMAIN sang $NEW_DOMAIN thanh cong!"
+        exit 0
+        ;;
+
     set-php|change-php)
         echo "[+] Chuyen PHP sang $PHP_VER cho $DOMAIN (Webserver: $WEBSERVER)..."
         PHP_NUM=$(echo "$PHP_VER" | tr -d '.')

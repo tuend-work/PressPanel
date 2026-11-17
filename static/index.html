@@ -30,8 +30,13 @@
     </script>
     <!-- Vue 3 CDN (Chạy trực tiếp không cần build npm) -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-    <!-- Lucide Icons (Free official icons https://lucide.dev/icons/) -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Lucide Icons (Free official icons https://lucide.dev/icons/) - Local first with CDN fallback -->
+    <script src="/static/js/lucide.min.js"></script>
+    <script>
+        if (typeof lucide === 'undefined') {
+            document.write('<script src="https://unpkg.com/lucide@latest"><\/script>');
+        }
+    </script>
     <!-- Google Font Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -977,7 +982,7 @@ function showAlert(message) {
         <div id="modals-container"></div>
     </div>
     <script>
-        const { createApp, ref, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
+        const { createApp, ref, computed, watch, nextTick, onMounted, onUnmounted, onUpdated } = Vue;
 
         async function initWpcApp() {
             // Tải động các modules HTML riêng biệt trước khi Vue mount để tối ưu tốc độ
@@ -3024,6 +3029,60 @@ function showAlert(message) {
                         showAlert('Lỗi kết nối: ' + e.message);
                     } finally {
                         savingDomainEdit.value = false;
+                    }
+                };
+
+                // ==========================================
+                // RENAME DOMAIN MANAGEMENT
+                // ==========================================
+                const showRenameDomainModal = ref(false);
+                const selectedRenameDomain = ref(null);
+                const newDomainNameInput = ref('');
+                const renamingDomain = ref(false);
+
+                const openRenameDomainModal = (domain) => {
+                    if (!domain) return;
+                    selectedRenameDomain.value = domain;
+                    newDomainNameInput.value = '';
+                    showRenameDomainModal.value = true;
+                    refreshLucideIcons();
+                };
+
+                const handleRenameDomain = async () => {
+                    if (!selectedRenameDomain.value) return;
+                    const cleanName = newDomainNameInput.value.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '');
+                    if (!cleanName) {
+                        showAlert('Vui lòng nhập tên miền mới hợp lệ!');
+                        return;
+                    }
+                    if (cleanName === selectedRenameDomain.value.domain_name.toLowerCase()) {
+                        showAlert('Tên miền mới không được trùng với tên miền hiện tại!');
+                        return;
+                    }
+                    renamingDomain.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${selectedRenameDomain.value.id}/rename`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ new_domain_name: cleanName })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showRenameDomainModal.value = false;
+                            if (showEditDomainModal.value) showEditDomainModal.value = false;
+                            showAlert(data.message || `Đã đổi tên miền sang ${cleanName} thành công!`);
+                            await fetchDomains();
+                            refreshLucideIcons();
+                        } else {
+                            showAlert('Lỗi đổi tên miền: ' + (data.detail || 'Thao tác thất bại'));
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối khi đổi tên miền: ' + e.message);
+                    } finally {
+                        renamingDomain.value = false;
                     }
                 };
 
@@ -7474,13 +7533,58 @@ if ($host ~* ^www\\.(.*)$) {
                     }
                 };
 
+                let lucideRaf = null;
                 const refreshLucideIcons = () => {
-                    nextTick(() => {
+                    if (lucideRaf) cancelAnimationFrame(lucideRaf);
+                    lucideRaf = requestAnimationFrame(() => {
                         if (window.lucide && typeof window.lucide.createIcons === 'function') {
-                            window.lucide.createIcons();
+                            try {
+                                window.lucide.createIcons();
+                            } catch (e) {
+                                console.warn('Lucide createIcons error:', e);
+                            }
                         }
                     });
                 };
+
+                // Tự động re-render icon mỗi khi Vue cập nhật DOM
+                onUpdated(() => {
+                    refreshLucideIcons();
+                });
+
+                // MutationObserver: Tự động bắt mọi phần tử [data-lucide] mới sinh ra trong DOM
+                if (typeof MutationObserver !== 'undefined') {
+                    const iconObserver = new MutationObserver((mutations) => {
+                        let hasNew = false;
+                        for (let i = 0; i < mutations.length; i++) {
+                            const m = mutations[i];
+                            if (m.addedNodes && m.addedNodes.length > 0) {
+                                for (let j = 0; j < m.addedNodes.length; j++) {
+                                    const node = m.addedNodes[j];
+                                    if (node.nodeType === 1) {
+                                        if (node.hasAttribute && node.hasAttribute('data-lucide')) {
+                                            hasNew = true; break;
+                                        }
+                                        if (node.querySelector && node.querySelector('i[data-lucide]')) {
+                                            hasNew = true; break;
+                                        }
+                                    }
+                                }
+                            }
+                            if (hasNew) break;
+                        }
+                        if (hasNew) {
+                            refreshLucideIcons();
+                        }
+                    });
+                    if (document.body) {
+                        iconObserver.observe(document.body, { childList: true, subtree: true });
+                    } else {
+                        document.addEventListener('DOMContentLoaded', () => {
+                            iconObserver.observe(document.body, { childList: true, subtree: true });
+                        });
+                    }
+                }
 
                 // ==========================================
                 // CRONJOBS MANAGEMENT LOGIC
@@ -8975,6 +9079,7 @@ if ($host ~* ^www\\.(.*)$) {
                     domainLsapiData, loadingDomainLsapi, savingDomainLsapi, resettingDomainLsapi, controllingLsapi, lsapiConfigMode, applyLsapiPreset, loadDomainLsapiSettings, saveDomainLsapiSettings, resetDomainLsapiSettings, controlDomainLsapi,
                     navClass, handleLogin, handleLogout, handleAddDomain, handleDeleteDomain, handleToggleDomainStatus,
                     showEditDomainModal, selectedEditDomain, editDomainForm, savingDomainEdit, openEditDomainModal, handleSaveDomainEdit,
+                    showRenameDomainModal, selectedRenameDomain, newDomainNameInput, renamingDomain, openRenameDomainModal, handleRenameDomain,
                     showDomainChangePlanModal, selectedDomainForPlan, targetDomainPlanId, changingDomainPlan, selectedDomainPlanPreview, openChangeDomainPlanModal, confirmChangeDomainPlan,
                     domainSearchQuery, domainCategoryFilter, filteredDomains,
                     handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
