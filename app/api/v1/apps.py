@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import subprocess
 import asyncio
@@ -541,21 +542,61 @@ def get_nginx_config_path() -> str:
     """Helper tương thích ngược lấy file config nginx/openresty thực tế"""
     return resolve_app_config_path("nginx")
 
-def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
-    """Kiểm tra thực tế nhị phân và service trên Linux với cơ chế nhận diện thông minh đa nền tảng"""
+def _extract_php_version_from_bin(bpath: str, expected_major_minor: str = "") -> str:
+    """Lấy chuỗi phiên bản PHP chính xác (vd: 8.2.30) bằng cờ -v an toàn cho cả php, php-fpm và lsphp"""
+    if not bpath or not os.path.isfile(bpath) or (os.name != "nt" and not os.access(bpath, os.X_OK)):
+        return ""
+    try:
+        r_ver = subprocess.run([bpath, "-v"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+        out = (r_ver.stdout or "") + "\n" + (r_ver.stderr or "")
+        m = re.search(r"\bPHP\s+(\d+\.\d+\.\d+(?:[-_][A-Za-z0-9.]+)?)\b", out)
+        if m:
+            ver_found = m.group(1)
+            if not expected_major_minor or ver_found.startswith(f"{expected_major_minor}."):
+                return ver_found
+    except Exception:
+        pass
+    return ""
+
+def check_app_status(app: Dict[str, Any], primary_ws: Optional[str] = None) -> Dict[str, Any]:
+    """Kiểm tra thực tế nhị phân và service trên Linux với cơ chế nhận diện thông minh theo Webserver đang hoạt động"""
     installed = False
     running = False
 
     is_php = (app.get("category") == "php")
+    active_ws = (primary_ws or (detect_primary_webserver() if is_php else "") or "nginx").lower()
 
     # 1. Kiểm tra binary thực tế
-    for b in app["binary_checks"]:
-        if is_php:
-            # PHP apps: Bắt buộc phải là file thực thi hợp lệ (executable binary), tuyệt đối không nhận diện folder hoặc broken symlink
-            if os.path.isfile(b) and (os.access(b, os.X_OK) if os.name != "nt" else True):
+    if is_php:
+        clean_num = app["id"].replace("php", "")
+        ver = f"{app['id'][3]}.{app['id'][4]}" if len(app["id"]) >= 5 else app.get("default_version", "")
+        if os.name == "nt":
+            installed = (app["id"] in ["php82", "php83"])
+        elif active_ws == "ols":
+            # Khi OpenLiteSpeed đang bật: chỉ nhận diện PHP khả dụng khi có binary lsphp
+            lsphp_bin = f"/usr/local/lsws/lsphp{clean_num}/bin/lsphp"
+            if os.path.isfile(lsphp_bin) and os.access(lsphp_bin, os.X_OK):
                 installed = True
-                break
         else:
+            # Khi Nginx / Caddy / Apache đang bật: chỉ nhận diện PHP khả dụng khi có PHP-FPM thực tế (AlmaLinux Remi & Debian/Ubuntu)
+            fpm_candidates = [
+                f"/opt/remi/php{clean_num}/root/usr/sbin/php-fpm",
+                f"/usr/sbin/php-fpm{ver}",
+                f"/usr/sbin/php{clean_num}-fpm",
+            ]
+            for fp in fpm_candidates:
+                if os.path.isfile(fp) and os.access(fp, os.X_OK):
+                    installed = True
+                    break
+            if not installed:
+                for conf_p in [f"/etc/opt/remi/php{clean_num}/php-fpm.conf", f"/etc/php/{ver}/fpm/php-fpm.conf"]:
+                    if os.path.exists(conf_p):
+                        installed = True
+                        break
+            if not installed and _extract_php_version_from_bin("/usr/sbin/php-fpm", ver):
+                installed = True
+    else:
+        for b in app["binary_checks"]:
             if os.path.exists(b):
                 installed = True
                 break
@@ -564,26 +605,12 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
                 installed = True
                 break
 
-    # Bổ sung kiểm tra binary PHP Remi trên AlmaLinux / RHEL (chỉ file thực thi, không kiểm tra thư mục cấu hình /etc)
-    if not installed and is_php:
-        clean_num = app["id"].replace("php", "")
-        remi_paths = [
-            f"/opt/remi/php{clean_num}/root/usr/sbin/php-fpm",
-            f"/opt/remi/php{clean_num}/root/usr/bin/php",
-            f"/usr/bin/php{clean_num}",
-            f"/usr/sbin/php{clean_num}-fpm"
-        ]
-        for rp in remi_paths:
-            if os.path.isfile(rp) and (os.access(rp, os.X_OK) if os.name != "nt" else True):
-                installed = True
-                break
-
     # 2. Tự động nhận diện daemon service/timer phù hợp với hệ điều hành (RHEL/AlmaLinux vs Debian/Ubuntu)
     app_id = app["id"]
     candidates = get_app_service_candidates(app_id)
     active_service = app.get("service", "")
 
-    if candidates and os.name != "nt":
+    if not is_php and candidates and os.name != "nt":
         for svc_name in candidates:
             try:
                 res = subprocess.run(
@@ -693,22 +720,25 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
         ver = f"{app['id'][3]}.{app['id'][4]}" if len(app["id"]) >= 5 else app.get("default_version", "")
         if installed:
             if os.name != "nt":
-                bin_candidates = [
-                    f"/usr/bin/php{ver}",
-                    f"/opt/remi/php{clean_num}/root/usr/bin/php",
-                    f"/usr/local/lsws/lsphp{clean_num}/bin/lsphp",
-                    f"/usr/sbin/php-fpm{ver}",
-                    "/usr/bin/php"
-                ]
+                if active_ws == "ols":
+                    bin_candidates = [
+                        f"/usr/local/lsws/lsphp{clean_num}/bin/lsphp",
+                        f"/usr/local/lsws/lsphp{clean_num}/bin/php",
+                    ]
+                else:
+                    bin_candidates = [
+                        f"/opt/remi/php{clean_num}/root/usr/sbin/php-fpm",
+                        f"/opt/remi/php{clean_num}/root/usr/bin/php",
+                        f"/usr/sbin/php-fpm{ver}",
+                        f"/usr/bin/php{ver}",
+                        "/usr/sbin/php-fpm",
+                        "/usr/bin/php",
+                    ]
                 for bpath in bin_candidates:
-                    if os.path.isfile(bpath) and os.access(bpath, os.X_OK):
-                        try:
-                            r_ver = subprocess.run([bpath, "-r", "echo PHP_VERSION;"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1)
-                            if r_ver.returncode == 0 and r_ver.stdout.strip():
-                                exact_version = r_ver.stdout.strip()
-                                break
-                        except Exception:
-                            pass
+                    v_found = _extract_php_version_from_bin(bpath, ver)
+                    if v_found:
+                        exact_version = v_found
+                        break
                 try:
                     r_cli = subprocess.run(["php", "-v"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1)
                     ver_check = app.get("default_version", "")
@@ -723,7 +753,13 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
                     "7.2": "7.2.34", "7.1": "7.1.33", "7.0": "7.0.33", "5.6": "5.6.40"
                 }
                 exact_version = sem_map_dev.get(ver, f"{ver}.27")
-        app = {**app, "service": "", "is_default_cli": is_default_cli, "exact_version": exact_version}
+        app = {
+            **app,
+            "service": "",
+            "is_default_cli": is_default_cli,
+            "exact_version": exact_version,
+            "active_webserver": active_ws
+        }
         running = installed
     elif installed and not app.get("service"):
         running = True
@@ -755,19 +791,21 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
     if is_php:
         clean_num = app["id"].replace("php", "")
         ver = f"{app['id'][3]}.{app['id'][4]}" if len(app["id"]) >= 5 else app.get("default_version", "")
-        if os.name != "nt":
+        if active_ws == "ols":
+            repo_name = "LiteSpeed LSPHP"
+        elif os.name != "nt":
             if os.path.exists(f"/opt/remi/php{clean_num}") or os.path.exists(f"/etc/opt/remi/php{clean_num}"):
-                repo_name = "Remi repo"
+                repo_name = "Remi PHP-FPM"
             elif os.path.exists(f"/etc/apt/sources.list.d/ondrej-ubuntu-php.list") or os.path.exists("/etc/apt/sources.list.d/php.list"):
-                repo_name = "Ondrej PPA"
+                repo_name = "Ondrej PHP-FPM"
             elif shutil.which("rpm") and os.path.exists("/etc/redhat-release"):
-                repo_name = "Remi repo"
+                repo_name = "Remi PHP-FPM"
             elif shutil.which("apt-get"):
-                repo_name = "Ondrej PPA"
+                repo_name = "Ondrej PHP-FPM"
             else:
-                repo_name = "Remi repo"
+                repo_name = "PHP-FPM"
         else:
-            repo_name = "Remi repo" if app["id"] in ["php83", "php82", "php80", "php74", "php72", "php56"] else "Ondrej PPA"
+            repo_name = "Remi PHP-FPM" if app["id"] in ["php83", "php82", "php80", "php74", "php72", "php56"] else "Ondrej PHP-FPM"
 
         sem_map = {
             "8.5": "8.5.0-dev", "8.4": "8.4.3", "8.3": "8.3.27", "8.2": "8.2.26",
@@ -832,35 +870,47 @@ def check_app_status(app: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 def detect_primary_webserver() -> str:
-    """Phát hiện webserver chính đang chiếm giữ port 80/443 (ols hoặc nginx)"""
+    """Phát hiện webserver chính đang chạy thực tế trên port 80/443 (ols, nginx, caddy, apache)"""
     if os.name != "nt":
-        for svc in ["lshttpd", "lsws"]:
-            try:
-                r = subprocess.run(["systemctl", "is-active", "--quiet", svc], check=False)
-                if r.returncode == 0:
-                    return "ols"
-            except Exception:
-                pass
-        for svc in ["nginx", "openresty"]:
-            try:
-                r = subprocess.run(["systemctl", "is-active", "--quiet", svc], check=False)
-                if r.returncode == 0:
-                    return "nginx"
-            except Exception:
-                pass
+        preferred = ""
+        try:
+            from app.core.config import CONF_DATA
+            preferred = str(CONF_DATA.get("default_webserver", "")).lower().strip()
+        except Exception:
+            pass
+
+        ws_services = {
+            "ols": ["lshttpd", "lsws"],
+            "nginx": ["nginx", "openresty"],
+            "caddy": ["caddy"],
+            "apache": ["httpd", "apache2"],
+        }
+        order = ["ols", "nginx", "caddy", "apache"]
+        if preferred in order:
+            order.remove(preferred)
+            order.insert(0, preferred)
+
+        for ws_id in order:
+            for svc in ws_services[ws_id]:
+                try:
+                    r = subprocess.run(["systemctl", "is-active", "--quiet", svc], check=False)
+                    if r.returncode == 0:
+                        return ws_id
+                except Exception:
+                    pass
     try:
         from app.core.config import CONF_DATA
-        return str(CONF_DATA.get("default_webserver", "ols")).lower()
+        return str(CONF_DATA.get("default_webserver", "nginx")).lower()
     except Exception:
-        return "ols"
+        return "nginx"
 
 @router.get("/list")
 async def get_apps_list(current_user: dict = Depends(get_current_user)):
-    """Trả về danh sách ứng dụng kèm trạng thái cài đặt thực tế"""
+    """Trả về danh sách ứng dụng kèm trạng thái cài đặt thực tế theo Webserver chính đang hoạt động"""
     primary_ws = detect_primary_webserver()
     apps_status = []
     for app in SUPPORTED_APPS:
-        st = check_app_status(app)
+        st = check_app_status(app, primary_ws=primary_ws)
         if st.get("category") == "webserver":
             st["is_primary"] = (st["id"] == primary_ws and st.get("running", False))
         apps_status.append(st)
@@ -1289,6 +1339,23 @@ async def app_action(
         if app.get("service") and app["service"] not in services_to_try:
             services_to_try.append(app["service"])
 
+        async def _sync_started_webserver():
+            if req.action == "start" and app.get("category") == "webserver" and req.app_id in ("nginx", "ols", "caddy", "apache"):
+                try:
+                    from app.core.config import CONF_DATA
+                    CONF_DATA["default_webserver"] = req.app_id
+                except Exception:
+                    pass
+                try:
+                    db_ws = await get_db_connection()
+                    try:
+                        await db_ws.execute("UPDATE domains SET webserver = ?", (req.app_id,))
+                        await db_ws.commit()
+                    finally:
+                        await db_ws.close()
+                except Exception:
+                    pass
+
         last_error = ""
         # Ưu tiên thực thi qua C Gatekeeper SUID (tránh lỗi Polkit / Interactive authentication required)
         if os.path.isfile(gatekeeper_bin):
@@ -1300,6 +1367,7 @@ async def app_action(
                     text=True
                 )
                 if proc.returncode == 0:
+                    await _sync_started_webserver()
                     return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} ({target_svc}) thành công!"}
                 last_error = proc.stderr or proc.stdout
 
@@ -1313,6 +1381,7 @@ async def app_action(
                     text=True
                 )
                 if res.returncode == 0:
+                    await _sync_started_webserver()
                     return {"status": "ok", "message": f"Đã {req.action} dịch vụ {app['name']} ({target_svc}) thành công!"}
                 last_error = res.stderr or res.stdout
             except Exception as e:

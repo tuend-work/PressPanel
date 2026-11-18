@@ -50,43 +50,72 @@ def check_file_exists_privileged(path: str) -> bool:
             return res.returncode == 0
         except Exception:
             pass
-def detect_running_webserver() -> str:
-    """Phát hiện chính xác webserver đang chạy thực tế trên Linux (Nginx hoặc OpenLiteSpeed)"""
-    if platform.system() == "Linux":
-        # 1. Kiểm tra service Nginx / OpenResty đang active
-        for svc in ["nginx", "openresty"]:
-            try:
-                r = subprocess.run(["systemctl", "is-active", "--quiet", svc], check=False)
-                if r.returncode == 0:
-                    return "nginx"
-            except Exception:
-                pass
+def is_webserver_service_running(ws: str) -> bool:
+    """Kiểm tra một webserver cụ thể (nginx, ols, caddy, apache) có thực sự đang chạy trên Linux không"""
+    if platform.system() != "Linux":
+        return False
+    ws = (ws or "").lower()
+    svc_map = {
+        "nginx": (["nginx", "openresty"], ["-x", "nginx"]),
+        "ols": (["lshttpd", "lsws"], ["-f", "openlitespeed|litespeed|lshttpd"]),
+        "caddy": (["caddy"], ["-x", "caddy"]),
+        "apache": (["httpd", "apache2"], ["-x", "httpd|apache2"]),
+    }
+    svcs, pgrep_args = svc_map.get(ws, ([], []))
+    for svc in svcs:
         try:
-            r = subprocess.run(["pgrep", "-x", "nginx"], capture_output=True, check=False)
+            r = subprocess.run(["systemctl", "is-active", "--quiet", svc], check=False)
             if r.returncode == 0:
-                return "nginx"
+                return True
         except Exception:
             pass
+    if pgrep_args:
+        try:
+            if pgrep_args[0] == "-x" and "|" in pgrep_args[1]:
+                for pname in pgrep_args[1].split("|"):
+                    r = subprocess.run(["pgrep", "-x", pname], capture_output=True, check=False)
+                    if r.returncode == 0:
+                        return True
+            else:
+                r = subprocess.run(["pgrep"] + pgrep_args, capture_output=True, check=False)
+                if r.returncode == 0:
+                    return True
+        except Exception:
+            pass
+    return False
 
-        # 2. Kiểm tra OpenLiteSpeed
-        for svc in ["lshttpd", "lsws"]:
-            try:
-                r = subprocess.run(["systemctl", "is-active", "--quiet", svc], check=False)
-                if r.returncode == 0:
-                    return "ols"
-            except Exception:
-                pass
+def detect_running_webserver() -> str:
+    """Phát hiện chính xác webserver đang chạy thực tế trên Linux (Nginx, OpenLiteSpeed, Caddy, Apache)"""
+    if platform.system() == "Linux":
+        # Ưu tiên kiểm tra webserver mặc định trong wpc.conf trước nếu nó đang chạy
+        preferred = ""
         try:
-            r = subprocess.run(["pgrep", "-f", "openlitespeed|litespeed|lshttpd"], capture_output=True, check=False)
-            if r.returncode == 0:
-                return "ols"
+            from app.core.config import CONF_DATA
+            preferred = str(CONF_DATA.get("default_webserver", "")).lower().strip()
         except Exception:
             pass
+        order = ["nginx", "ols", "caddy", "apache"]
+        if preferred in order:
+            order.remove(preferred)
+            order.insert(0, preferred)
+        for ws in order:
+            if is_webserver_service_running(ws):
+                return ws
+
+    try:
+        from app.core.config import CONF_DATA
+        cfg_ws = str(CONF_DATA.get("default_webserver", "")).lower().strip()
+        if cfg_ws in ("nginx", "ols", "caddy", "apache"):
+            return cfg_ws
+    except Exception:
+        pass
 
     if os.path.exists("/etc/nginx/nginx.conf") or os.path.isdir("/etc/nginx/conf.d"):
         return "nginx"
     if os.path.exists("/usr/local/lsws"):
         return "ols"
+    if os.path.exists("/etc/caddy/Caddyfile"):
+        return "caddy"
     return "nginx"
 
 def nginx_supports_brotli() -> bool:
@@ -869,46 +898,91 @@ ALL_KNOWN_PHP = [
     ("5.6", "PHP 5.6 (Legacy)")
 ]
 
+def get_system_default_php_fpm_ver() -> str:
+    """Lấy phiên bản major.minor (vd: 8.2) của binary hệ thống /usr/sbin/php-fpm nếu có"""
+    if os.name == "nt":
+        return ""
+    fpm_default = "/usr/sbin/php-fpm"
+    if os.path.isfile(fpm_default) and os.access(fpm_default, os.X_OK):
+        try:
+            r = subprocess.run([fpm_default, "-v"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+            out = (r.stdout or "") + " " + (r.stderr or "")
+            m = re.search(r"PHP\s+(\d+\.\d+)\.", out)
+            if m:
+                return m.group(1)
+        except Exception:
+            pass
+    return ""
+
 def get_available_php_for_ws(webserver: str) -> list:
-    """Quét và chỉ trả về các phiên bản PHP THỰC SỰ ĐÃ CÀI ĐẶT và hoạt động được trên Webserver chỉ định"""
+    """Quét và chỉ trả về các phiên bản PHP THỰC SỰ ĐÃ CÀI ĐẶT và hoạt động được trên Webserver chỉ định (hỗ trợ cả AlmaLinux/Remi & Debian/Ubuntu)"""
     res = []
-    ws = (webserver or "ols").lower()
+    ws = (webserver or detect_running_webserver() or "nginx").lower()
     is_windows = (os.name == "nt")
+    sys_fpm_ver = get_system_default_php_fpm_ver() if (ws != "ols" and not is_windows) else ""
+
+    handler_map = {
+        "ols": "LiteSpeed SAPI (lsapi)",
+        "nginx": "PHP-FPM Socket (Nginx)",
+        "caddy": "PHP-FPM FastCGI (Caddy)",
+        "apache": "PHP-FPM / Event MPM (Apache)",
+    }
+    handler_label = handler_map.get(ws, "PHP-FPM Socket")
 
     for ver, label in ALL_KNOWN_PHP:
         pnum = ver.replace(".", "")
         if ws == "ols":
             lsphp_path = f"/usr/local/lsws/lsphp{pnum}/bin/lsphp"
-            if is_windows or os.path.exists(lsphp_path):
+            if is_windows or (os.path.isfile(lsphp_path) and os.access(lsphp_path, os.X_OK)):
                 res.append({
                     "ver": ver,
                     "label": f"PHP {ver}" + (" (Khuyên dùng)" if ver == "8.2" else ""),
                     "raw_label": label,
-                    "handler": "LiteSpeed SAPI (lsapi)",
+                    "handler": handler_label,
                     "binary": lsphp_path
                 })
         else:
-            fpm_bin = f"/usr/sbin/php-fpm{ver}"
-            fpm_conf = f"/etc/php/{ver}/fpm/php-fpm.conf"
-            if is_windows or os.path.exists(fpm_bin) or os.path.exists(fpm_conf):
+            remi_fpm_bin = f"/opt/remi/php{pnum}/root/usr/sbin/php-fpm"
+            remi_fpm_conf = f"/etc/opt/remi/php{pnum}/php-fpm.conf"
+            deb_fpm_bin = f"/usr/sbin/php-fpm{ver}"
+            deb_fpm_conf = f"/etc/php/{ver}/fpm/php-fpm.conf"
+            found_bin = ""
+            if is_windows:
+                found_bin = deb_fpm_bin
+            elif os.path.isfile(remi_fpm_bin) and os.access(remi_fpm_bin, os.X_OK):
+                found_bin = remi_fpm_bin
+            elif os.path.isfile(deb_fpm_bin) and os.access(deb_fpm_bin, os.X_OK):
+                found_bin = deb_fpm_bin
+            elif os.path.exists(remi_fpm_conf):
+                found_bin = remi_fpm_bin
+            elif os.path.exists(deb_fpm_conf):
+                found_bin = deb_fpm_bin
+            elif sys_fpm_ver == ver:
+                found_bin = "/usr/sbin/php-fpm"
+
+            if found_bin:
                 res.append({
                     "ver": ver,
                     "label": f"PHP {ver}" + (" (Khuyên dùng)" if ver == "8.2" else ""),
                     "raw_label": label,
-                    "handler": "PHP-FPM Socket",
-                    "binary": fpm_bin
+                    "handler": handler_label,
+                    "binary": found_bin
                 })
     return res
 
 @router.get("/installed-php")
 async def get_installed_php_list(
-    webserver: Optional[str] = "ols",
+    webserver: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """Lấy danh sách các phiên bản PHP đã cài đặt và khả dụng cho webserver"""
+    """Lấy danh sách các phiên bản PHP đã cài đặt và khả dụng cho webserver đang hoạt động"""
+    running_ws = detect_running_webserver()
+    target_ws = (webserver or "").lower().strip()
+    if not target_ws or target_ws == "auto" or (os.name != "nt" and not is_webserver_service_running(target_ws) and is_webserver_service_running(running_ws)):
+        target_ws = running_ws
     return {
-        "webserver": webserver,
-        "available_versions": get_available_php_for_ws(webserver)
+        "webserver": target_ws,
+        "available_versions": get_available_php_for_ws(target_ws)
     }
 
 @router.get("/{domain_id}/available-php")
@@ -916,7 +990,7 @@ async def get_domain_available_php(
     domain_id: int,
     current_user: dict = Depends(get_current_user)
 ):
-    """Chỉ trả về danh sách PHP ĐÃ CÀI ĐẶT và có thể hoạt động cho website này"""
+    """Chỉ trả về danh sách PHP ĐÃ CÀI ĐẶT và có thể hoạt động cho website này theo Webserver thực tế đang chạy"""
     db = await get_db_connection()
     cursor = await db.execute("""
         SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.parent_id
@@ -925,16 +999,28 @@ async def get_domain_available_php(
         WHERE d.id = ?
     """, (domain_id,))
     domain = await cursor.fetchone()
-    await db.close()
 
     if not domain:
+        await db.close()
         raise HTTPException(status_code=404, detail="Không tìm thấy website này")
 
     if current_user["role"] != "admin":
         if current_user["id"] != domain["user_id"] and current_user["id"] != domain["parent_id"]:
+            await db.close()
             raise HTTPException(status_code=403, detail="Bạn không có quyền quản trị website này")
 
-    ws = domain["webserver"] or "ols"
+    ws = (domain["webserver"] or "ols").lower()
+    running_ws = detect_running_webserver()
+    # Nếu webserver lưu trong DB của domain hiện đang TẮT nhưng có 1 webserver khác đang BẬT trên máy chủ -> tự động đồng bộ theo webserver đang chạy
+    if os.name != "nt" and running_ws and ws != running_ws and not is_webserver_service_running(ws) and is_webserver_service_running(running_ws):
+        ws = running_ws
+        try:
+            await db.execute("UPDATE domains SET webserver = ? WHERE id = ?", (ws, domain_id))
+            await db.commit()
+        except Exception:
+            pass
+    await db.close()
+
     current_p = domain["php_version"] or "8.2"
     avail = get_available_php_for_ws(ws)
     is_cur_avail = any(p["ver"] == current_p for p in avail)
@@ -978,7 +1064,10 @@ async def change_domain_php(
 
     clean_domain = domain["domain_name"]
     isolated_user = domain_to_linux_user(clean_domain)
-    active_ws = domain["webserver"]
+    active_ws = (domain["webserver"] or "ols").lower()
+    running_ws = detect_running_webserver()
+    if os.name != "nt" and running_ws and active_ws != running_ws and not is_webserver_service_running(active_ws) and is_webserver_service_running(running_ws):
+        active_ws = running_ws
     new_php = req.php_version
     hosting_username = domain["owner_username"] or isolated_user
 
@@ -986,24 +1075,24 @@ async def change_domain_php(
         await db.close()
         raise HTTPException(status_code=400, detail=f"Phiên bản PHP không hợp lệ. Cho phép: {', '.join(sorted(ALLOWED_PHP_VERSIONS))}")
 
-    if active_ws == "ols":
-        clean_pnum = new_php.replace(".", "")
-        lsphp_path = f"/usr/local/lsws/lsphp{clean_pnum}/bin/lsphp"
-        if os.name != "nt" and not os.path.exists(lsphp_path):
-            await db.close()
-            raise HTTPException(
-                status_code=400,
-                detail=f"OpenLiteSpeed không hỗ trợ PHP {new_php} (thiếu gói lsphp{clean_pnum} trên hệ điều hành này). Để chạy website với PHP {new_php}, vui lòng chuyển webserver sang Nginx (sử dụng PHP-FPM {new_php})!"
-            )
+    avail_list = get_available_php_for_ws(active_ws)
+    if os.name != "nt" and not any(p["ver"] == new_php for p in avail_list):
+        await db.close()
+        ws_label_map = {"ols": "OpenLiteSpeed (LSPHP)", "nginx": "Nginx (PHP-FPM)", "caddy": "Caddy (PHP-FPM)", "apache": "Apache (PHP-FPM)"}
+        raise HTTPException(
+            status_code=400,
+            detail=f"Phiên bản PHP {new_php} chưa được cài đặt cho {ws_label_map.get(active_ws, active_ws)}. Vui lòng cài đặt PHP {new_php} tại Kho Ứng Dụng (App Store)!"
+        )
 
     # Thực thi Gatekeeper: vhost set-php <user> <domain> <ols|nginx> <php_ver> [hosting_user]
-    res = await run_gatekeeper("vhost", "set-php", isolated_user, clean_domain, active_ws, new_php, hosting_username)
+    gate_ws = "ols" if active_ws == "ols" else "nginx"
+    res = await run_gatekeeper("vhost", "set-php", isolated_user, clean_domain, gate_ws, new_php, hosting_username)
     if res.get("status") == "error":
         await db.close()
         raise HTTPException(status_code=400, detail=res.get("message", "Không thể đổi phiên bản PHP"))
 
     # Cập nhật database
-    await db.execute("UPDATE domains SET php_version = ? WHERE id = ?", (new_php, domain_id))
+    await db.execute("UPDATE domains SET php_version = ?, webserver = ? WHERE id = ?", (new_php, active_ws, domain_id))
     await db.commit()
     await db.close()
 

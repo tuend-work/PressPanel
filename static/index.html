@@ -1315,14 +1315,16 @@ function showAlert(message) {
                 const appsCategory = ref('all');
                 const installingAppId = ref('');
 
-                // Xác định Web Server đang hoạt động ở tầng Server (OLS hoặc Nginx)
+                // Xác định Web Server đang hoạt động ở tầng Server (OLS, Nginx, Caddy, Apache)
                 const activeSystemWebserver = computed(() => {
-                    const nginxApp = (appsList.value || []).find(a => a.id === 'nginx');
-                    const olsApp = (appsList.value || []).find(a => a.id === 'ols');
-                    if (nginxApp && nginxApp.running) return 'nginx';
-                    if (olsApp && olsApp.running) return 'ols';
-                    if (nginxApp && nginxApp.installed && (!olsApp || !olsApp.installed)) return 'nginx';
-                    return 'ols';
+                    const wsApps = (appsList.value || []).filter(a => a.category === 'webserver');
+                    const primary = wsApps.find(a => a.is_primary && a.running);
+                    if (primary) return primary.id;
+                    const runningWs = wsApps.find(a => a.running);
+                    if (runningWs) return runningWs.id;
+                    const installedWs = wsApps.find(a => a.installed);
+                    if (installedWs) return installedWs.id;
+                    return 'nginx';
                 });
 
                 const getApp = (id) => {
@@ -2184,9 +2186,11 @@ function showAlert(message) {
                                 handleRewriteWebserverConfig(appId);
                             }
                             fetchTasks();
-                            setTimeout(() => {
-                                fetchAppsList();
+                            setTimeout(async () => {
+                                await fetchAppsList();
                                 fetchSystemStatus();
+                                fetchDomains();
+                                fetchInstalledPhpList();
                             }, 1500);
                         } else {
                             showAlert('Lỗi: ' + (data.detail || 'Không thể thực hiện tác vụ'));
@@ -4064,10 +4068,11 @@ function showAlert(message) {
                     availablePhpData.value = null;
                     loadingAvailablePhp.value = true;
 
-                    // Tự động chuyển tab phù hợp webserver (Nginx -> fpm, OLS -> lsapi)
-                    if (initialTab === 'fpm' && (domain.webserver === 'ols' || currentWebserver.value === 'ols')) {
+                    const effectiveWs = domain.webserver || activeSystemWebserver.value || 'nginx';
+                    // Tự động chuyển tab phù hợp webserver (Nginx/Caddy/Apache -> fpm, OLS -> lsapi)
+                    if (initialTab === 'fpm' && effectiveWs === 'ols') {
                         phpModalTab.value = 'lsapi';
-                    } else if (initialTab === 'lsapi' && (domain.webserver === 'nginx' || currentWebserver.value === 'nginx')) {
+                    } else if (initialTab === 'lsapi' && effectiveWs !== 'ols') {
                         phpModalTab.value = 'fpm';
                     } else {
                         phpModalTab.value = initialTab;
@@ -4078,6 +4083,9 @@ function showAlert(message) {
                         headers: { 'Authorization': `Bearer ${token.value}` }
                     }).then(r => r.json()).then(data => {
                         availablePhpData.value = data;
+                        if (data.webserver && targetPhpDomain.value) {
+                            targetPhpDomain.value.webserver = data.webserver;
+                        }
                         const availList = data.available_versions || [];
                         if (availList.some(p => p.ver === domain.php_version)) {
                             selectedNewPhpVersion.value = domain.php_version;
@@ -4090,7 +4098,7 @@ function showAlert(message) {
 
                     loadDomainPhpIni(domain);
                     loadDomainPhpExtensions(domain);
-                    if (domain.webserver === 'nginx' || currentWebserver.value === 'nginx') {
+                    if (effectiveWs !== 'ols') {
                         loadDomainFpmSettings(domain);
                     } else {
                         loadDomainLsapiSettings(domain);

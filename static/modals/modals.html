@@ -64,7 +64,7 @@
 
             <!-- MODAL: PHP SETTINGS & VERSION SWITCHER (UX CHỌN PHP & CHỈNH PHP.INI CHUẨN WPC) -->
             <div v-if="showChangePhpModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
-                <div class="bg-slate-900 rounded-2xl max-w-xl w-full p-6 shadow-2xl relative border border-slate-800 text-slate-100 animate-fadeIn my-6 max-h-[92vh] flex flex-col">
+                <div class="bg-slate-900 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative border border-slate-800 text-slate-100 animate-fadeIn my-6 max-h-[92vh] flex flex-col">
                     <!-- Modal Header -->
                     <div class="flex justify-between items-center pb-4 border-b border-slate-800 shrink-0">
                         <div class="flex items-center space-x-3">
@@ -82,32 +82,32 @@
                     </div>
 
                     <!-- Tabs Navigation: Phiên bản PHP vs Cấu hình php.ini vs PHP Extensions -->
-                    <div class="flex border-b border-slate-800 mt-3 mb-4 shrink-0 overflow-x-auto">
+                    <div class="flex border-b border-slate-800 mt-3 mb-4 shrink-0 overflow-x-auto no-scrollbar">
                         <button type="button" @click="phpModalTab = 'version'"
                             :class="phpModalTab === 'version' ? 'border-blue-500 text-blue-400 font-bold bg-blue-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
-                            class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
+                            class="py-2 px-3 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
                             <span>⚡ Phiên Bản PHP</span>
                         </button>
                         <button type="button" @click="phpModalTab = 'ini'; loadDomainPhpIni(targetPhpDomain)"
                             :class="phpModalTab === 'ini' ? 'border-indigo-500 text-indigo-400 font-bold bg-indigo-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
-                            class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
+                            class="py-2 px-3 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
                             <span>⚙️ Cấu Hình php.ini (.user.ini)</span>
                         </button>
                         <button type="button" @click="phpModalTab = 'extensions'; loadDomainPhpExtensions(targetPhpDomain)"
                             :class="phpModalTab === 'extensions' ? 'border-emerald-500 text-emerald-400 font-bold bg-emerald-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
-                            class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
+                            class="py-2 px-3 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
                             <span>🧩 PHP Extensions</span>
                         </button>
-                        <button v-if="targetPhpDomain?.webserver === 'nginx' || currentWebserver === 'nginx'"
+                        <button v-if="(availablePhpData?.webserver || targetPhpDomain?.webserver || activeSystemWebserver) !== 'ols'"
                             type="button" @click="phpModalTab = 'fpm'; loadDomainFpmSettings(targetPhpDomain)"
                             :class="phpModalTab === 'fpm' ? 'border-amber-500 text-amber-400 font-bold bg-amber-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
-                            class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
+                            class="py-2 px-3 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
                             <span>🚀 FPM Settings</span>
                         </button>
                         <button v-else
                             type="button" @click="phpModalTab = 'lsapi'; loadDomainLsapiSettings(targetPhpDomain)"
                             :class="phpModalTab === 'lsapi' ? 'border-cyan-500 text-cyan-400 font-bold bg-cyan-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
-                            class="py-2 px-4 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
+                            class="py-2 px-3 text-xs border-b-2 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap">
                             <span>⚡ LSAPI Settings</span>
                         </button>
                     </div>
@@ -121,12 +121,13 @@
                                     <div class="text-slate-400 text-xs">Phiên bản PHP hiện tại:</div>
                                     <div class="font-bold text-white text-base font-mono mt-0.5 flex items-center gap-2">
                                         <span>PHP {{ targetPhpDomain?.php_version }}</span>
-                                        <span v-if="availablePhpData && !availablePhpData.is_current_available" class="text-rose-400 text-xs font-sans font-semibold px-2 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/20">Không khả dụng</span>
+                                        <span v-if="availablePhpData && availablePhpData.is_current_available" class="text-emerald-400 text-xs font-sans font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">Khả dụng</span>
+                                        <span v-else-if="availablePhpData && !availablePhpData.is_current_available" class="text-rose-400 text-xs font-sans font-semibold px-2 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/20">Không khả dụng</span>
                                     </div>
                                 </div>
                                 <span class="text-[11px] px-3 py-1 rounded-full font-mono font-semibold"
-                                    :class="targetPhpDomain?.webserver === 'ols' ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30' : 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30'">
-                                    {{ targetPhpDomain?.webserver === 'ols' ? '⚡ LiteSpeed LSAPI' : '🌐 Nginx PHP-FPM' }}
+                                    :class="(availablePhpData?.webserver || targetPhpDomain?.webserver) === 'ols' ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30' : 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30'">
+                                    {{ (availablePhpData?.webserver || targetPhpDomain?.webserver) === 'ols' ? '⚡ LiteSpeed LSAPI' : ((availablePhpData?.webserver || targetPhpDomain?.webserver) === 'caddy' ? '🚀 Caddy PHP-FPM' : ((availablePhpData?.webserver || targetPhpDomain?.webserver) === 'apache' ? '🪶 Apache PHP-FPM' : '🌐 Nginx PHP-FPM')) }}
                                 </span>
                             </div>
 
@@ -134,7 +135,7 @@
                             <div v-if="availablePhpData && !availablePhpData.is_current_available" class="mt-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] leading-relaxed flex items-start gap-2.5">
                                 <span class="text-sm leading-none mt-0.5">⚠️</span>
                                 <div>
-                                    <span class="font-bold">Cảnh báo:</span> Phiên bản <b>PHP {{ targetPhpDomain?.php_version }}</b> không khả dụng trên <b>{{ targetPhpDomain?.webserver === 'ols' ? 'OpenLiteSpeed' : 'Nginx' }}</b> của máy chủ này. Vui lòng chuyển sang một trong các phiên bản khả dụng bên dưới để website hoạt động ổn định.
+                                    <span class="font-bold">Cảnh báo:</span> Phiên bản <b>PHP {{ targetPhpDomain?.php_version }}</b> không khả dụng trên <b>{{ (availablePhpData?.webserver || targetPhpDomain?.webserver) === 'ols' ? 'OpenLiteSpeed' : ((availablePhpData?.webserver || targetPhpDomain?.webserver) === 'caddy' ? 'Caddy' : ((availablePhpData?.webserver || targetPhpDomain?.webserver) === 'apache' ? 'Apache' : 'Nginx')) }}</b> của máy chủ này. Vui lòng chuyển sang một trong các phiên bản khả dụng bên dưới để website hoạt động ổn định.
                                 </div>
                             </div>
                         </div>
@@ -160,7 +161,7 @@
                             </select>
 
                             <div v-else-if="!loadingAvailablePhp" class="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between">
-                                <span>Chưa có phiên bản PHP nào khả dụng cho {{ targetPhpDomain?.webserver === 'ols' ? 'OpenLiteSpeed' : 'Nginx' }}.</span>
+                                <span>Chưa có phiên bản PHP nào khả dụng cho {{ (availablePhpData?.webserver || targetPhpDomain?.webserver) === 'ols' ? 'OpenLiteSpeed' : ((availablePhpData?.webserver || targetPhpDomain?.webserver) === 'caddy' ? 'Caddy' : ((availablePhpData?.webserver || targetPhpDomain?.webserver) === 'apache' ? 'Apache' : 'Nginx')) }}.</span>
                                 <button type="button" @click="showChangePhpModal = false; currentTab = 'apps'" class="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-[11px] transition">
                                     Cài đặt tại App Store
                                 </button>
@@ -175,7 +176,7 @@
                         <div class="p-3.5 rounded-xl bg-slate-800/50 border border-slate-700/60 space-y-2 text-[11px] text-slate-300">
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Kiểu xử lý (Handler Type):</span>
-                                <span class="font-semibold text-slate-200">{{ targetPhpDomain?.webserver === 'ols' ? 'LiteSpeed SAPI (lsapi)' : 'FPM application served by Nginx' }}</span>
+                                <span class="font-semibold text-slate-200">{{ (availablePhpData?.webserver || targetPhpDomain?.webserver) === 'ols' ? 'LiteSpeed SAPI (lsapi)' : ((availablePhpData?.webserver || targetPhpDomain?.webserver) === 'caddy' ? 'FPM application served by Caddy' : ((availablePhpData?.webserver || targetPhpDomain?.webserver) === 'apache' ? 'FPM application served by Apache' : 'FPM application served by Nginx')) }}</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Isolated Linux User:</span>
@@ -183,7 +184,7 @@
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-slate-400">Webserver hiện tại:</span>
-                                <span class="font-mono font-bold uppercase text-blue-400">{{ targetPhpDomain?.webserver || 'OLS' }}</span>
+                                <span class="font-mono font-bold uppercase text-blue-400">{{ availablePhpData?.webserver || targetPhpDomain?.webserver || activeSystemWebserver || 'NGINX' }}</span>
                             </div>
                         </div>
 
