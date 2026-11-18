@@ -31,10 +31,16 @@ async def run_gatekeeper(module: str, *args, stdin_data: Optional[str] = None) -
             return {"status": "error", "module": module, "message": f"Exit code {proc.returncode} voi output rong"}
 
         lines = [line.strip() for line in raw_output.splitlines() if line.strip()]
+        script_err_lines = [l for l in lines if l.startswith("[-]")]
         for line in reversed(lines):
             if line.startswith("{") and line.endswith("}"):
                 try:
-                    return json.loads(line)
+                    parsed = json.loads(line)
+                    if parsed.get("status") == "error" and script_err_lines:
+                        detail_err = script_err_lines[-1].lstrip("[-]").strip()
+                        if detail_err and detail_err not in (parsed.get("message") or ""):
+                            parsed["message"] = f"{parsed.get('message', '')} ({detail_err})".strip()
+                    return parsed
                 except json.JSONDecodeError:
                     pass
 

@@ -59,16 +59,37 @@ def check_mysql_service_available() -> tuple[bool, str]:
     except Exception as e:
         return False, f"Lỗi kiểm tra cơ sở dữ liệu MariaDB: {str(e)}"
 
-def resolve_target_dir(username: str, domain: str) -> str:
+def extract_linux_user(docroot: Optional[str], domain: str, fallback: str = "webuser") -> str:
+    """Trích xuất Linux user thực tế sở hữu thư mục website từ document_root hoặc tên miền"""
+    if docroot:
+        m = re.match(r"^/home/([^/]+)/", docroot.strip())
+        if m and m.group(1):
+            return m.group(1)
+    clean_dom = re.sub(r"^(https?://)?(www\.)?", "", (domain or "").strip().lower()).rstrip("/")
+    clean_linux = re.sub(r"[^a-z0-9]", "", clean_dom)[:30]
+    if clean_linux and os.path.isdir(f"/home/{clean_linux}/domains/{clean_dom}/public_html"):
+        return clean_linux
+    return clean_linux or fallback
+
+def resolve_target_dir(username: str, domain: str, docroot: Optional[str] = None) -> str:
+    if docroot and os.path.isdir(docroot):
+        return docroot
+    clean_dom = re.sub(r"^(https?://)?(www\.)?", "", (domain or "").strip().lower()).rstrip("/")
+    clean_linux = re.sub(r"[^a-z0-9]", "", clean_dom)[:30]
     candidates = [
+        f"/home/{clean_linux}/domains/{domain}/public_html" if clean_linux else "",
         f"/home/{username}/domains/{domain}/public_html",
         f"/home/{username}/httpdocs/{domain}",
-        f"/home/{username}/public_html"
+        f"/home/{clean_linux}/httpdocs/{domain}" if clean_linux else "",
+        f"/home/{username}/public_html",
+        f"/home/{clean_linux}/public_html" if clean_linux else ""
     ]
     for c in candidates:
-        if os.path.isdir(c):
+        if c and os.path.isdir(c):
             return c
-    return candidates[0]
+    if docroot:
+        return docroot
+    return f"/home/{clean_linux or username}/domains/{domain}/public_html"
 
 def parse_wp_config_file(docroot: str) -> Dict[str, Any]:
     """Phân tích wp-config.php để trích xuất DB credentials và các constant WP defines"""
@@ -191,7 +212,7 @@ class WPInstallRequest(BaseModel):
     site_title: str = "My WordPress Site"
     language: Optional[str] = "en_US"
     php_version: Optional[str] = "8.4"
-    wp_version: Optional[str] = "7.1.3"
+    wp_version: Optional[str] = "latest"
     admin_user: str = "admin"
     admin_pass: str
     admin_email: str
@@ -332,15 +353,24 @@ async def list_wordpress_instances(current_user: dict = Depends(get_current_user
                 JOIN users u ON d.user_id = u.id
                 ORDER BY w.id DESC
             """)
+        elif current_user.get("web_domain_id"):
+            cursor = await db.execute("""
+                SELECT w.*, d.domain_name, u.username as owner_username
+                FROM wp_instances w
+                JOIN domains d ON w.domain_id = d.id
+                JOIN users u ON d.user_id = u.id
+                WHERE d.id = ?
+                ORDER BY w.id DESC
+            """, (current_user["web_domain_id"],))
         else:
             cursor = await db.execute("""
                 SELECT w.*, d.domain_name, u.username as owner_username
                 FROM wp_instances w
                 JOIN domains d ON w.domain_id = d.id
                 JOIN users u ON d.user_id = u.id
-                WHERE d.user_id = ?
+                WHERE d.user_id = ? OR u.parent_id = ?
                 ORDER BY w.id DESC
-            """, (current_user["id"],))
+            """, (current_user["id"], current_user["id"]))
 
         rows = await cursor.fetchall()
         instances = []
@@ -368,10 +398,18 @@ async def list_wordpress_instances(current_user: dict = Depends(get_current_user
 async def scan_wordpress_instances(current_user: dict = Depends(get_current_user)):
     """Tự động quét các thư mục domain trên máy chủ để phát hiện và đăng ký các site WordPress"""
     db = await get_db_connection()
+    await ensure_wp_instances_table(db)
     if current_user["role"] == "admin":
-        cursor = await db.execute("SELECT id, domain_name, user_id FROM domains")
+        cursor = await db.execute("SELECT id, domain_name, user_id, document_root FROM domains WHERE COALESCE(is_system, 0) = 0")
+    elif current_user.get("web_domain_id"):
+        cursor = await db.execute("SELECT id, domain_name, user_id, document_root FROM domains WHERE id = ?", (current_user["web_domain_id"],))
     else:
-        cursor = await db.execute("SELECT id, domain_name, user_id FROM domains WHERE user_id = ?", (current_user["id"],))
+        cursor = await db.execute("""
+            SELECT d.id, d.domain_name, d.user_id, d.document_root
+            FROM domains d
+            JOIN users u ON d.user_id = u.id
+            WHERE (d.user_id = ? OR u.parent_id = ?) AND COALESCE(d.is_system, 0) = 0
+        """, (current_user["id"], current_user["id"]))
 
     domains = await cursor.fetchall()
     discovered = 0
@@ -387,7 +425,7 @@ async def scan_wordpress_instances(current_user: dict = Depends(get_current_user
             continue
         uname = user_row["username"]
 
-        docroot = resolve_target_dir(uname, dom_name)
+        docroot = resolve_target_dir(uname, dom_name, d["document_root"])
         cfg = parse_wp_config_file(docroot)
         if cfg["exists"]:
             # Kiểm tra xem instance đã được lưu trong DB chưa
@@ -557,19 +595,34 @@ async def install_wordpress(req: WPInstallRequest, current_user: dict = Depends(
 
     # 2. XÁC THỰC VÀ CHUẨN HÓA TÊN MIỀN
     db = await get_db_connection()
+    await ensure_wp_instances_table(db)
     domain_name = ""
+    domain_docroot = ""
+    owner_user_id = current_user["id"]
     domain_id = req.domain_id
 
     if domain_id:
         if current_user["role"] == "admin":
-            cursor = await db.execute("SELECT id, domain_name, user_id FROM domains WHERE id = ?", (domain_id,))
+            cursor = await db.execute("SELECT id, domain_name, user_id, document_root FROM domains WHERE id = ?", (domain_id,))
+        elif current_user.get("web_domain_id"):
+            if int(domain_id) != int(current_user["web_domain_id"]):
+                await db.close()
+                raise HTTPException(status_code=403, detail="Bạn chỉ có quyền cài đặt WordPress trên website của mình")
+            cursor = await db.execute("SELECT id, domain_name, user_id, document_root FROM domains WHERE id = ?", (domain_id,))
         else:
-            cursor = await db.execute("SELECT id, domain_name, user_id FROM domains WHERE id = ? AND user_id = ?", (domain_id, current_user["id"]))
+            cursor = await db.execute("""
+                SELECT d.id, d.domain_name, d.user_id, d.document_root
+                FROM domains d
+                JOIN users u ON d.user_id = u.id
+                WHERE d.id = ? AND (d.user_id = ? OR u.parent_id = ?)
+            """, (domain_id, current_user["id"], current_user["id"]))
         domain_row = await cursor.fetchone()
         if not domain_row:
             await db.close()
             raise HTTPException(status_code=404, detail="Không tìm thấy tên miền chỉ định")
         domain_name = domain_row["domain_name"]
+        domain_docroot = domain_row["document_root"] or ""
+        owner_user_id = domain_row["user_id"]
     elif req.domain:
         clean_domain = re.sub(r"^(https?://)?(www\.)?", "", req.domain.strip().lower()).rstrip("/")
         if not clean_domain or not re.match(r"^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$", clean_domain):
@@ -578,13 +631,23 @@ async def install_wordpress(req: WPInstallRequest, current_user: dict = Depends(
 
         domain_name = clean_domain
         # Kiểm tra xem domain đã tồn tại trong database chưa
-        cursor = await db.execute("SELECT id, domain_name, user_id FROM domains WHERE domain_name = ?", (domain_name,))
+        cursor = await db.execute("SELECT id, domain_name, user_id, document_root FROM domains WHERE domain_name = ?", (domain_name,))
         existing_domain = await cursor.fetchone()
         if existing_domain:
-            if current_user["role"] != "admin" and existing_domain["user_id"] != current_user["id"]:
-                await db.close()
-                raise HTTPException(status_code=403, detail="Tên miền này đã được đăng ký bởi người dùng khác trên hệ thống")
+            if current_user["role"] != "admin":
+                if current_user.get("web_domain_id"):
+                    if int(existing_domain["id"]) != int(current_user["web_domain_id"]):
+                        await db.close()
+                        raise HTTPException(status_code=403, detail="Bạn chỉ có quyền cài đặt WordPress trên website của mình")
+                elif existing_domain["user_id"] != current_user["id"]:
+                    u_chk = await db.execute("SELECT parent_id FROM users WHERE id = ?", (existing_domain["user_id"],))
+                    u_chk_row = await u_chk.fetchone()
+                    if not u_chk_row or u_chk_row["parent_id"] != current_user["id"]:
+                        await db.close()
+                        raise HTTPException(status_code=403, detail="Tên miền này đã được đăng ký bởi người dùng khác trên hệ thống")
             domain_id = existing_domain["id"]
+            domain_docroot = existing_domain["document_root"] or ""
+            owner_user_id = existing_domain["user_id"]
         else:
             # Tự động khởi tạo VirtualHost cho domain mới
             clean_linux_user = re.sub(r"[^a-z0-9]", "", clean_domain)[:30] or "webuser"
@@ -604,11 +667,13 @@ async def install_wordpress(req: WPInstallRequest, current_user: dict = Depends(
                 await db.close()
                 raise HTTPException(status_code=400, detail=f"Không thể khởi tạo VirtualHost cho {domain_name}: {vhost_res.get('message')}")
 
+            domain_docroot = f"/home/{clean_linux_user}/domains/{domain_name}/public_html"
             ins_cur = await db.execute("""
                 INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version, allow_ssh)
                 VALUES (?, ?, ?, ?, ?, 1)
-            """, (current_user["id"], domain_name, f"/home/{clean_linux_user}/domains/{domain_name}/public_html", active_ws, php_ver))
+            """, (current_user["id"], domain_name, domain_docroot, active_ws, php_ver))
             domain_id = ins_cur.lastrowid
+            owner_user_id = current_user["id"]
             await db.commit()
     else:
         await db.close()
@@ -640,12 +705,12 @@ async def install_wordpress(req: WPInstallRequest, current_user: dict = Depends(
         await db.close()
         raise HTTPException(status_code=400, detail="Thư mục con (Subdirectory) chỉ được chứa ký tự chữ, số, gạch ngang và gạch dưới")
 
-    username = current_user["username"]
+    linux_user = extract_linux_user(domain_docroot, domain_name, current_user["username"])
 
     # 4. GỌI GATEKEEPER THỰC THI SCRIPT CÀI ĐẶT
     res = await run_gatekeeper(
         "wp", "install",
-        username,
+        linux_user,
         domain_name,
         req.site_title or "Website title for wordpress",
         req.admin_user.strip(),
@@ -666,10 +731,25 @@ async def install_wordpress(req: WPInstallRequest, current_user: dict = Depends(
         err_msg = res.get("message", "Cài đặt WordPress thất bại. Kiểm tra MariaDB hoặc quyền thư mục!")
         raise HTTPException(status_code=400, detail=err_msg)
 
-    docroot = resolve_target_dir(username, domain_name)
+    docroot = resolve_target_dir(linux_user, domain_name, domain_docroot)
     if sub_dir:
         docroot = os.path.join(docroot, sub_dir)
     cfg = parse_wp_config_file(docroot)
+
+    installed_wp_ver = req.wp_version or "latest"
+    v_file = os.path.join(docroot, "wp-includes", "version.php")
+    if os.path.isfile(v_file):
+        try:
+            with open(v_file, "r", encoding="utf-8", errors="ignore") as vf:
+                vm = re.search(r"\$wp_version\s*=\s*['\"]([^'\"]+)['\"];", vf.read())
+                if vm:
+                    installed_wp_ver = vm.group(1)
+        except Exception:
+            pass
+
+    created_db_name = cfg["db_name"] or req.db_name or f"wp_{linux_user[:8]}"
+    created_db_user = cfg["db_user"] or f"usr_{created_db_name[:24]}"
+    created_prefix = cfg["table_prefix"] or req.db_prefix or "wp_"
 
     # 5. LƯU THÔNG TIN INSTANCE VÀO DATABASE
     await db.execute("""
@@ -678,14 +758,25 @@ async def install_wordpress(req: WPInstallRequest, current_user: dict = Depends(
             wp_version, db_name, db_user, db_prefix, document_root
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        domain_id, current_user["id"], req.site_title or "Website title for wordpress",
+        domain_id, owner_user_id, req.site_title or "Website title for wordpress",
         req.admin_user.strip(), req.admin_email.strip(),
-        req.wp_version or "latest",
-        cfg["db_name"] or req.db_name or f"wp_{username[:8]}",
-        cfg["db_user"] or username,
-        cfg["table_prefix"] or req.db_prefix or "wp_",
+        installed_wp_ver,
+        created_db_name,
+        created_db_user,
+        created_prefix,
         docroot
     ))
+
+    # Đồng bộ CSDL vừa tạo vào bảng databases để hiển thị ngay trong menu Databases & phpMyAdmin SSO
+    try:
+        db_chk = await db.execute("SELECT id FROM databases WHERE db_name = ?", (created_db_name,))
+        if not await db_chk.fetchone():
+            await db.execute("""
+                INSERT INTO databases (user_id, domain_id, db_name, db_user, db_type, charset, description)
+                VALUES (?, ?, ?, ?, 'mysql', 'utf8mb4_unicode_520_ci', ?)
+            """, (owner_user_id, domain_id, created_db_name, created_db_user, f"WordPress DB ({domain_name})"))
+    except Exception:
+        pass
 
     # Nếu người dùng chọn Apply for SSL
     if req.apply_ssl:
@@ -697,7 +788,11 @@ async def install_wordpress(req: WPInstallRequest, current_user: dict = Depends(
     site_path_info = f"{domain_name}/{sub_dir}" if sub_dir else domain_name
     return {
         "status": "ok",
-        "message": f"Website WordPress cho {site_path_info} đã được cài đặt thành công!"
+        "message": f"Website WordPress cho {site_path_info} đã được cài đặt thành công!",
+        "db_name": created_db_name,
+        "db_user": created_db_user,
+        "wp_version": installed_wp_ver,
+        "document_root": docroot
     }
 
 @router.post("/clone")

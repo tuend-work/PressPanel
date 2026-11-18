@@ -7559,6 +7559,8 @@ if ($host ~* ^www\\.(.*)$) {
                             showAlert(d.message || 'Cài đặt WordPress thành công!');
                             showWpInstallModal.value = false;
                             await fetchWpInstances();
+                            fetchDatabasesList();
+                            fetchDomains();
                         } else {
                             const errMsg = d.detail || d.message || 'Cài đặt thất bại';
                             showAlert('LỖI CÀI ĐẶT WORDPRESS:\n' + errMsg);

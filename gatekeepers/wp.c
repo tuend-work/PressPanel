@@ -78,6 +78,21 @@ int main(int argc, char *argv[]) {
             send_json_error("wp", "Subdirectory khong hop le");
             return 1;
         }
+        if (*locale && !is_safe_token(locale)) {
+            send_json_error("wp", "Ngon ngu khong hop le");
+            return 1;
+        }
+        if (*wp_ver && !is_safe_token(wp_ver)) {
+            send_json_error("wp", "Phien ban WordPress khong hop le");
+            return 1;
+        }
+        for (size_t i = 0; custom_db_pass[i]; i++) {
+            char c = custom_db_pass[i];
+            if (c == '\'' || c == '\n' || c == '\r' || c == '\\') {
+                send_json_error("wp", "Mat khau Database khong duoc chua dau nhay don hoac dau gach cheo nguoc");
+                return 1;
+            }
+        }
 
         // Nhận mật khẩu qua stdin
         char password[256] = {0};

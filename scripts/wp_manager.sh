@@ -6,6 +6,62 @@
 # ==============================================================================
 
 set -uo pipefail
+export HOME="/root"
+
+MYSQL_CONF_ARG=""
+if [ -f "/root/.my.cnf" ]; then
+    MYSQL_CONF_ARG="--defaults-extra-file=/root/.my.cnf"
+fi
+
+run_mysql() {
+    if [ -n "$MYSQL_CONF_ARG" ]; then
+        mysql "$MYSQL_CONF_ARG" "$@"
+    else
+        mysql "$@"
+    fi
+}
+
+run_mysqldump() {
+    if [ -n "$MYSQL_CONF_ARG" ]; then
+        mysqldump "$MYSQL_CONF_ARG" "$@"
+    else
+        mysqldump "$@"
+    fi
+}
+
+find_php_bin() {
+    for candidate in \
+        "$(command -v php 2>/dev/null || true)" \
+        /usr/local/lsws/lsphp84/bin/php \
+        /usr/local/lsws/lsphp83/bin/php \
+        /usr/local/lsws/lsphp82/bin/php \
+        /usr/local/lsws/lsphp81/bin/php \
+        /usr/local/lsws/lsphp80/bin/php \
+        /usr/local/lsws/lsphp74/bin/php \
+        /opt/remi/php84/root/usr/bin/php \
+        /opt/remi/php83/root/usr/bin/php \
+        /opt/remi/php82/root/usr/bin/php \
+        /opt/remi/php81/root/usr/bin/php \
+        /usr/bin/php; do
+        if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+            if "$candidate" -m 2>/dev/null | grep -qiE '^mysqli$'; then
+                echo "$candidate"
+                return 0
+            fi
+        fi
+    done
+    for candidate in \
+        "$(command -v php 2>/dev/null || true)" \
+        /usr/local/lsws/lsphp*/bin/php \
+        /opt/remi/php*/root/usr/bin/php \
+        /usr/bin/php; do
+        if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    echo ""
+}
 
 ACTION="${1:-}"
 USERNAME="${2:-}"
@@ -13,6 +69,13 @@ DOMAIN="${3:-}"
 
 # Xác định document root chính xác của website
 TARGET_DIR="/home/$USERNAME/domains/$DOMAIN/public_html"
+if [ ! -d "$TARGET_DIR" ]; then
+    CLEAN_DOM_USER=$(echo "$DOMAIN" | tr '[:upper:]' '[:lower:]' | tr -dc 'a-z0-9' | cut -c 1-30)
+    if [ -n "$CLEAN_DOM_USER" ] && [ -d "/home/$CLEAN_DOM_USER/domains/$DOMAIN/public_html" ]; then
+        USERNAME="$CLEAN_DOM_USER"
+        TARGET_DIR="/home/$USERNAME/domains/$DOMAIN/public_html"
+    fi
+fi
 if [ ! -d "$TARGET_DIR" ] && [ -d "/home/$USERNAME/httpdocs/$DOMAIN" ]; then
     TARGET_DIR="/home/$USERNAME/httpdocs/$DOMAIN"
 fi
@@ -67,8 +130,8 @@ case "$ACTION" in
             exit 2
         fi
 
-        if ! mysql -e "SELECT 1;" &>/dev/null && ! mysqladmin ping --silent 2>/dev/null; then
-            echo "[-] LOI NGHICH: Khong the ket noi toi MariaDB/MySQL. Dich vu chua chay hoac chua duoc khoi dong!"
+        if ! run_mysql -e "SELECT 1;" &>/dev/null; then
+            echo "[-] LOI NGHICH: Khong the ket noi toi MariaDB/MySQL (kiem tra /root/.my.cnf hoac dich vu mariadb)!"
             exit 2
         fi
 
@@ -164,16 +227,24 @@ case "$ACTION" in
             DB_PASS=$(head -c 16 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 16)
         fi
 
-        DB_USER="usr_$(echo "$DB_NAME" | cut -c 1-12)"
+        DB_USER="usr_$(echo "$DB_NAME" | cut -c 1-24)"
         DB_PREFIX="${CUSTOM_DB_PREFIX:-wp_}"
 
         echo "[+] Tao co so du lieu MariaDB: $DB_NAME..."
-        if ! mysql -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci;"; then
+        if ! run_mysql -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci;"; then
             echo "[-] LOI NGHICH: Khong the tao database $DB_NAME trong MariaDB!"
             exit 7
         fi
 
-        if ! mysql -e "CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS'; GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost'; FLUSH PRIVILEGES;"; then
+        DB_PASS_SQL="${DB_PASS//\'/\'\'}"
+        SQL_USER="CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS_SQL}';
+ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS_SQL}';
+CREATE USER IF NOT EXISTS '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASS_SQL}';
+ALTER USER '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASS_SQL}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'127.0.0.1';
+FLUSH PRIVILEGES;"
+        if ! run_mysql -e "$SQL_USER"; then
             echo "[-] LOI NGHICH: Khong the tao user database $DB_USER hoac cap quyen that bai!"
             exit 8
         fi
@@ -266,8 +337,13 @@ if (!is_blog_installed()) {
 }
 EOF_SCHEMA
 
-        PHP_BIN=$(command -v php || echo "/usr/bin/php")
-        INIT_RES=$($PHP_BIN "$SCHEMA_SCRIPT" "$TARGET_DIR" "$SITE_URL" "$TITLE" "$ADMIN_USER" "$ADMIN_EMAIL" "$ADMIN_PASS" "$LOCALE" 2>&1 || true)
+        PHP_BIN=$(find_php_bin)
+        if [ -n "$PHP_BIN" ]; then
+            echo "[+] Su dung PHP CLI: $PHP_BIN"
+            INIT_RES=$($PHP_BIN "$SCHEMA_SCRIPT" "$TARGET_DIR" "$SITE_URL" "$TITLE" "$ADMIN_USER" "$ADMIN_EMAIL" "$ADMIN_PASS" "$LOCALE" 2>&1 || true)
+        else
+            INIT_RES="Khong tim thay binary PHP CLI tren he thong"
+        fi
         rm -f "$SCHEMA_SCRIPT"
 
         # Nếu PHP CLI gặp lỗi, fallback sang WP-CLI
@@ -315,10 +391,14 @@ EOF_SCHEMA
 
         # 8. PHÂN QUYỀN CHUẨN LINUX
         if id "$USERNAME" &>/dev/null; then
-            chown -R "$USERNAME:$USERNAME" "$TARGET_DIR" 2>/dev/null || true
+            TARGET_GROUP=$(stat -c '%G' "$TARGET_DIR" 2>/dev/null || echo "$USERNAME")
+            if [ "$TARGET_GROUP" = "root" ] || [ -z "$TARGET_GROUP" ]; then
+                TARGET_GROUP="$USERNAME"
+            fi
+            chown -R "$USERNAME:$TARGET_GROUP" "$TARGET_DIR" 2>/dev/null || chown -R "$USERNAME:$USERNAME" "$TARGET_DIR" 2>/dev/null || true
             find "$TARGET_DIR" -type d -exec chmod 755 {} + 2>/dev/null || true
             find "$TARGET_DIR" -type f -exec chmod 644 {} + 2>/dev/null || true
-            chmod 600 "$TARGET_DIR/wp-config.php" 2>/dev/null || true
+            chmod 640 "$TARGET_DIR/wp-config.php" 2>/dev/null || true
         fi
 
         echo "[+] Cai dat WordPress thanh cong tren $DOMAIN tai $TARGET_DIR!"
@@ -453,7 +533,7 @@ EOF_SCHEMA
         echo "[+] Mo khoa WordPress Lockdown tai $TARGET_DIR..."
         if [ -f "$TARGET_DIR/wp-config.php" ]; then
             chattr -i "$TARGET_DIR/wp-config.php" 2>/dev/null || true
-            chmod 0600 "$TARGET_DIR/wp-config.php" 2>/dev/null || true
+            chmod 0640 "$TARGET_DIR/wp-config.php" 2>/dev/null || true
         fi
         if [ -d "$TARGET_DIR/wp-admin" ]; then
             chattr -R -i "$TARGET_DIR/wp-admin" 2>/dev/null || true
@@ -470,11 +550,15 @@ EOF_SCHEMA
     fixperms)
         echo "[+] Chuan hoa quyen tep tin WordPress tai $TARGET_DIR..."
         if id "$USERNAME" &>/dev/null; then
-            chown -R "$USERNAME:$USERNAME" "$TARGET_DIR" 2>/dev/null || true
+            TARGET_GROUP=$(stat -c '%G' "$TARGET_DIR" 2>/dev/null || echo "$USERNAME")
+            if [ "$TARGET_GROUP" = "root" ] || [ -z "$TARGET_GROUP" ]; then
+                TARGET_GROUP="$USERNAME"
+            fi
+            chown -R "$USERNAME:$TARGET_GROUP" "$TARGET_DIR" 2>/dev/null || chown -R "$USERNAME:$USERNAME" "$TARGET_DIR" 2>/dev/null || true
             find "$TARGET_DIR" -type d -exec chmod 755 {} + 2>/dev/null || true
             find "$TARGET_DIR" -type f -exec chmod 644 {} + 2>/dev/null || true
             if [ -f "$TARGET_DIR/wp-config.php" ]; then
-                chmod 600 "$TARGET_DIR/wp-config.php" 2>/dev/null || true
+                chmod 640 "$TARGET_DIR/wp-config.php" 2>/dev/null || true
             fi
         fi
         echo "[+] Da phan quyen chuan thanh cong!"
@@ -585,7 +669,7 @@ EOF
 
         # Tam mo khoa neu dang lockdown
         chattr -i "$FILE" 2>/dev/null || true
-        chmod 600 "$FILE" 2>/dev/null || true
+        chmod 640 "$FILE" 2>/dev/null || true
 
         # Xoa constant cu neu co
         sed -i -E "/define\(\s*['\"]$CONSTANT['\"]/d" "$FILE"
@@ -653,12 +737,12 @@ EOF
         DEST_USER="usr_${SAFE_USER_PREFIX}_${RAND_SUFFIX}"
         DEST_PASS=$(head -c 16 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 16)
 
-        mysql -e "CREATE DATABASE IF NOT EXISTS \`$DEST_DB\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci;" 2>/dev/null || true
-        mysql -e "CREATE USER IF NOT EXISTS '$DEST_USER'@'localhost' IDENTIFIED BY '$DEST_PASS';" 2>/dev/null || true
-        mysql -e "GRANT ALL PRIVILEGES ON \`$DEST_DB\`.* TO '$DEST_USER'@'localhost'; FLUSH PRIVILEGES;" 2>/dev/null || true
+        run_mysql -e "CREATE DATABASE IF NOT EXISTS \`$DEST_DB\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci;" 2>/dev/null || true
+        run_mysql -e "CREATE USER IF NOT EXISTS '$DEST_USER'@'localhost' IDENTIFIED BY '$DEST_PASS'; ALTER USER '$DEST_USER'@'localhost' IDENTIFIED BY '$DEST_PASS'; CREATE USER IF NOT EXISTS '$DEST_USER'@'127.0.0.1' IDENTIFIED BY '$DEST_PASS'; ALTER USER '$DEST_USER'@'127.0.0.1' IDENTIFIED BY '$DEST_PASS';" 2>/dev/null || true
+        run_mysql -e "GRANT ALL PRIVILEGES ON \`$DEST_DB\`.* TO '$DEST_USER'@'localhost'; GRANT ALL PRIVILEGES ON \`$DEST_DB\`.* TO '$DEST_USER'@'127.0.0.1'; FLUSH PRIVILEGES;" 2>/dev/null || true
 
         if [ -n "$SRC_DB" ]; then
-            mysqldump "$SRC_DB" 2>/dev/null | mysql "$DEST_DB" 2>/dev/null || true
+            run_mysqldump "$SRC_DB" 2>/dev/null | run_mysql "$DEST_DB" 2>/dev/null || true
         fi
 
         # Cap nhat wp-config.php o dest
@@ -676,7 +760,7 @@ EOF
             chown -R "$USERNAME:$USERNAME" "$DEST_DIR" 2>/dev/null || true
             find "$DEST_DIR" -type d -exec chmod 755 {} + 2>/dev/null || true
             find "$DEST_DIR" -type f -exec chmod 644 {} + 2>/dev/null || true
-            chmod 600 "$DEST_DIR/wp-config.php" 2>/dev/null || true
+            chmod 640 "$DEST_DIR/wp-config.php" 2>/dev/null || true
         fi
 
         echo "[+] Clone website thanh cong: $DEST_DOMAIN!"
