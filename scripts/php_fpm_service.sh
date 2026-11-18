@@ -55,21 +55,40 @@ chmod 755 /run/php /var/run/php 2>/dev/null || true
 chmod 1777 /tmp/lshttpd 2>/dev/null || true
 chown -R ${WORKER_USER}:${WORKER_GRP} /run/php /var/run/php 2>/dev/null || true
 
+resolve_fpm_bin() {
+    local pver="$1"
+    local pnum
+    pnum=$(echo "$pver" | tr -d '.')
+    if [ -x "/opt/remi/php${pnum}/root/usr/sbin/php-fpm" ]; then
+        echo "/opt/remi/php${pnum}/root/usr/sbin/php-fpm"
+        return 0
+    elif [ -x "/usr/sbin/php-fpm${pver}" ]; then
+        echo "/usr/sbin/php-fpm${pver}"
+        return 0
+    elif [ -x "/usr/sbin/php${pnum}-fpm" ]; then
+        echo "/usr/sbin/php${pnum}-fpm"
+        return 0
+    elif [ -x "/usr/bin/php-fpm${pver}" ]; then
+        echo "/usr/bin/php-fpm${pver}"
+        return 0
+    elif [ -x "/usr/sbin/php-fpm" ]; then
+        if /usr/sbin/php-fpm -v 2>&1 | grep -q "PHP ${pver}\."; then
+            echo "/usr/sbin/php-fpm"
+            return 0
+        fi
+    fi
+    echo ""
+}
+
 case "$ACTION" in
     create)
         mkdir -p "$USER_CONF_DIR" 2>/dev/null || true
         
-        # 0. Kiểm tra binary PHP-FPM có sẵn trên hệ thống hay không
-        FPM_BIN=""
-        if [ -x "/usr/sbin/php-fpm${PHP_VER}" ]; then
-            FPM_BIN="/usr/sbin/php-fpm${PHP_VER}"
-        elif [ -x "/usr/sbin/php-fpm" ]; then
-            FPM_BIN="/usr/sbin/php-fpm"
-        elif [ -x "/usr/bin/php-fpm${PHP_VER}" ]; then
-            FPM_BIN="/usr/bin/php-fpm${PHP_VER}"
-        fi
+        # 0. Kiểm tra binary PHP-FPM đúng phiên bản trên hệ thống (hỗ trợ cả AlmaLinux/Remi & Debian/Ubuntu)
+        PHP_NUM=$(echo "$PHP_VER" | tr -d '.')
+        FPM_BIN=$(resolve_fpm_bin "$PHP_VER")
 
-        # Nếu chưa có php-fpm trên VPS, tự động cài đặt package tương ứng
+        # Nếu chưa có php-fpm đúng phiên bản trên VPS, tự động cài đặt package tương ứng
         if [ -z "$FPM_BIN" ]; then
             echo "[!] Không tìm thấy PHP-FPM ${PHP_VER}, tự động cài đặt gói hệ thống..."
             if command -v apt-get &>/dev/null; then
@@ -79,14 +98,9 @@ case "$ACTION" in
             elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
                 PKG_MGR="dnf"
                 command -v dnf &>/dev/null || PKG_MGR="yum"
-                PHP_NUM=$(echo "$PHP_VER" | tr -d '.')
-                $PKG_MGR install -y "php${PHP_NUM}-php-fpm" "php-fpm" 2>/dev/null || true
+                $PKG_MGR install -y "php${PHP_NUM}-php-fpm" "php${PHP_NUM}-php-cli" "php${PHP_NUM}-php-mysqlnd" 2>/dev/null || true
             fi
-            if [ -x "/usr/sbin/php-fpm${PHP_VER}" ]; then
-                FPM_BIN="/usr/sbin/php-fpm${PHP_VER}"
-            elif [ -x "/usr/sbin/php-fpm" ]; then
-                FPM_BIN="/usr/sbin/php-fpm"
-            fi
+            FPM_BIN=$(resolve_fpm_bin "$PHP_VER")
         fi
 
         # Đảm bảo user và group tồn tại
@@ -166,6 +180,12 @@ case "$ACTION" in
                 -e "s|{{CUSTOM_DIRECTIVES}}||g" \
                 -e "s|{{EXT_CONFIG}}||g" \
                 "$TPL_FILE" > "$CONF_FILE"
+            # PHP <= 7.2 không hỗ trợ decorate_workers_output (chỉ có từ PHP 7.3+)
+            case "$PHP_VER" in
+                5.6|7.0|7.1|7.2)
+                    sed -i '/^[;[:space:]]*decorate_workers_output/d' "$CONF_FILE" 2>/dev/null || true
+                    ;;
+            esac
         else
             cat << EOF > "$CONF_FILE"
 [global]
@@ -281,8 +301,13 @@ EOF
         # Nếu service riêng chưa lên socket, tự khởi động service PHP-FPM mặc định và symlink sang $SOCK_FILE
         if [ "$SOCKET_READY" -eq 0 ]; then
             echo "[!] Socket riêng $SOCK_FILE chưa khởi tạo, kích hoạt fallback từ pool mặc định..."
-            systemctl start "php${PHP_VER}-fpm" 2>/dev/null || true
-            for def_sock in "/run/php/php${PHP_VER}-fpm.sock" "/var/run/php/php${PHP_VER}-fpm.sock" "/run/php/php-fpm.sock"; do
+            systemctl start "php${PHP_NUM}-php-fpm" 2>/dev/null || systemctl start "php${PHP_VER}-fpm" 2>/dev/null || true
+            for def_sock in \
+                "/var/opt/remi/php${PHP_NUM}/run/php-fpm/www.sock" \
+                "/run/php/php${PHP_VER}-fpm.sock" \
+                "/var/run/php/php${PHP_VER}-fpm.sock" \
+                "/run/php-fpm/www.sock" \
+                "/run/php/php-fpm.sock"; do
                 if [ -S "$def_sock" ]; then
                     chmod 666 "$def_sock" 2>/dev/null || true
                     ln -sf "$def_sock" "$SOCK_FILE" 2>/dev/null || true
@@ -293,16 +318,30 @@ EOF
         fi
         ;;
 
-    start)
-        systemctl start "$SVC_NAME" 2>/dev/null || true
+    start|restart)
+        # Tự động vá lại ExecStart trong systemd template nếu trỏ nhầm binary PHP-FPM cũ
+        HEALED_BIN=$(resolve_fpm_bin "$PHP_VER")
+        TEMPLATE_FILE="/etc/systemd/system/wpc-php${PHP_VER}-fpm@.service"
+        if [ -n "$HEALED_BIN" ] && [ -f "$TEMPLATE_FILE" ]; then
+            if ! grep -q "ExecStart=${HEALED_BIN} " "$TEMPLATE_FILE" 2>/dev/null; then
+                sed -i -E "s|^ExecStart=[^ ]+|ExecStart=${HEALED_BIN}|" "$TEMPLATE_FILE" 2>/dev/null || true
+                systemctl daemon-reload 2>/dev/null || true
+            fi
+        fi
+        case "$PHP_VER" in
+            5.6|7.0|7.1|7.2)
+                [ -f "$CONF_FILE" ] && sed -i '/^[;[:space:]]*decorate_workers_output/d' "$CONF_FILE" 2>/dev/null || true
+                ;;
+        esac
+        if [ "$ACTION" = "start" ]; then
+            systemctl start "$SVC_NAME" 2>/dev/null || true
+        else
+            systemctl restart "$SVC_NAME" 2>/dev/null || true
+        fi
         ;;
 
     stop)
         systemctl stop "$SVC_NAME" 2>/dev/null || true
-        ;;
-
-    restart)
-        systemctl restart "$SVC_NAME" 2>/dev/null || true
         ;;
 
     reload)

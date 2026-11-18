@@ -2702,6 +2702,8 @@ pm.max_requests = {max_req}"""
 
     # Luôn kiểm tra khử lỗi listen.owner/listen.group không tồn tại (như www-data trên AlmaLinux)
     content = sanitize_fpm_config_content(content, isolated_user)
+    if php_ver in ("5.6", "7.0", "7.1", "7.2"):
+        content = re.sub(r'(?m)^[ \t;]*decorate_workers_output[ \t]*=[^\r\n]*\r?\n?', '', content)
 
     # Ghi file cấu hình an toàn qua sudo/python
     try:

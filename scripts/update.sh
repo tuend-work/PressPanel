@@ -271,9 +271,18 @@ systemctl daemon-reload 2>/dev/null || true
 systemctl enable wpc 2>/dev/null || true
 # Dịch vụ wpc sẽ được khởi động lại ở cuối cùng của script để không kill tiến trình update giữa chừng
 
-# Khởi tạo các Systemd Template Service wpc-php<ver>-fpm@.service cho tất cả các bản PHP
+# Khởi tạo các Systemd Template Service wpc-php<ver>-fpm@.service cho tất cả các bản PHP (AlmaLinux Remi & Debian/Ubuntu)
 for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
-    if [ -x "/usr/sbin/php-fpm${pver}" ]; then
+    pnum=$(echo "$pver" | tr -d '.')
+    FPM_BIN_FOUND=""
+    if [ -x "/opt/remi/php${pnum}/root/usr/sbin/php-fpm" ]; then
+        FPM_BIN_FOUND="/opt/remi/php${pnum}/root/usr/sbin/php-fpm"
+    elif [ -x "/usr/sbin/php-fpm${pver}" ]; then
+        FPM_BIN_FOUND="/usr/sbin/php-fpm${pver}"
+    elif [ -x "/usr/sbin/php-fpm" ] && /usr/sbin/php-fpm -v 2>&1 | grep -q "PHP ${pver}\."; then
+        FPM_BIN_FOUND="/usr/sbin/php-fpm"
+    fi
+    if [ -n "$FPM_BIN_FOUND" ]; then
         TPL="/etc/systemd/system/wpc-php${pver}-fpm@.service"
         cat << EOF > "$TPL"
 [Unit]
@@ -283,7 +292,8 @@ After=network.target
 [Service]
 Type=notify
 PIDFile=/run/php/php${pver}-fpm-%i.pid
-ExecStart=/usr/sbin/php-fpm${pver} --nodaemonize --fpm-config /etc/php/${pver}/fpm/users/%i.conf
+EnvironmentFile=-/etc/php/${pver}/fpm/users/%i.env
+ExecStart=${FPM_BIN_FOUND} --nodaemonize --fpm-config /etc/php/${pver}/fpm/users/%i.conf
 ExecReload=/bin/kill -USR2 \$MAINPID
 TimeoutSec=15
 Slice=wpc-user-%i.slice
