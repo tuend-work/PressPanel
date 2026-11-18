@@ -1463,19 +1463,42 @@ AVAILABLE_PHP_EXTENSIONS = [
     }
 ]
 
-def get_installed_php_modules(php_version: str) -> set:
+def get_installed_php_modules(php_version: str, webserver: Optional[str] = None) -> set:
     ver_clean = (php_version or "8.2").replace("php", "")
     if len(ver_clean) == 2 and "." not in ver_clean:
         ver_clean = f"{ver_clean[0]}.{ver_clean[1]}"
     php_num = ver_clean.replace(".", "")
+    ws = (webserver or detect_running_webserver() or "nginx").lower()
 
     modules = set()
-    # 1. Quét nhị phân LSPHP (OpenLiteSpeed) và PHP CLI
-    lsphp_bin = f"/usr/local/lsws/lsphp{php_num}/bin/lsphp"
-    php_cli = f"/usr/bin/php{ver_clean}"
+    # 1. Quét đúng nhị phân PHP theo Webserver đang hoạt động
+    if ws == "ols":
+        bin_candidates = [
+            f"/usr/local/lsws/lsphp{php_num}/bin/lsphp",
+            f"/usr/local/lsws/lsphp{php_num}/bin/php",
+        ]
+        dir_candidates = [
+            f"/usr/local/lsws/lsphp{php_num}/etc/php.d",
+            f"/usr/local/lsws/lsphp{php_num}/etc/php/{ver_clean}/mods-available",
+        ]
+    else:
+        bin_candidates = [
+            f"/opt/remi/php{php_num}/root/usr/bin/php",
+            f"/opt/remi/php{php_num}/root/usr/sbin/php-fpm",
+            f"/usr/bin/php{ver_clean}",
+            f"/usr/sbin/php-fpm{ver_clean}",
+        ]
+        dir_candidates = [
+            f"/etc/opt/remi/php{php_num}/php.d",
+            f"/etc/php/{ver_clean}/fpm/conf.d",
+            f"/etc/php/{ver_clean}/mods-available",
+        ]
+        if get_system_default_php_fpm_ver() == ver_clean:
+            bin_candidates.append("/usr/sbin/php-fpm")
+            dir_candidates.append("/etc/php.d")
 
-    for bin_path in [lsphp_bin, php_cli]:
-        if os.path.exists(bin_path):
+    for bin_path in bin_candidates:
+        if os.path.isfile(bin_path) and (os.name == "nt" or os.access(bin_path, os.X_OK)):
             try:
                 res = subprocess.run([bin_path, "-m"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3)
                 if res.returncode == 0:
@@ -1486,16 +1509,13 @@ def get_installed_php_modules(php_version: str) -> set:
             except Exception:
                 pass
 
-    # 2. Quét conf.d / mods-available
-    for check_dir in [
-        f"/etc/php/{ver_clean}/mods-available",
-        f"/etc/php/{ver_clean}/fpm/conf.d",
-        f"/usr/local/lsws/lsphp{php_num}/etc/php/{ver_clean}/mods-available",
-        f"/usr/local/lsws/lsphp{php_num}/etc/php.d"
-    ]:
+    # 2. Quét conf.d / mods-available / Remi php.d đúng theo Webserver
+    for check_dir in dir_candidates:
         if os.path.isdir(check_dir):
             try:
                 for f_name in os.listdir(check_dir):
+                    if not f_name.endswith(".ini"):
+                        continue
                     f_clean = f_name.lower().replace(".ini", "")
                     if "-" in f_clean:
                         f_clean = f_clean.split("-", 1)[-1]
@@ -1653,15 +1673,24 @@ def sync_user_php_scan_dir(isolated_user: str, php_ver: str, extensions: dict) -
         subprocess.run(["sudo", "mv", "-f", tmp_env, user_env_file], check=False)
         subprocess.run(["sudo", "chmod", "644", user_env_file], check=False)
 
-        # 2. Tìm thư mục chứa file .ini gốc của hệ thống
-        src_candidates = [
-            f"/etc/php/{clean_ver}/fpm/conf.d",
-            f"/etc/php/{clean_ver}/cli/conf.d",
-            f"/etc/php/{clean_ver}/mods-available",
-            f"/usr/local/lsws/lsphp{php_num}/etc/php.d",
-            f"/etc/opt/remi/php{php_num}/php.d",
-            f"/etc/php.d"
-        ]
+        # 2. Tìm thư mục chứa file .ini gốc của hệ thống ĐÚNG THEO WEBSERVER ĐANG CHẠY
+        active_ws = (detect_running_webserver() or "nginx").lower()
+        if active_ws == "ols":
+            src_candidates = [
+                f"/usr/local/lsws/lsphp{php_num}/etc/php.d",
+                f"/usr/local/lsws/lsphp{php_num}/etc/php/{clean_ver}/mods-available",
+                f"/etc/php/{clean_ver}/fpm/conf.d",
+                f"/etc/opt/remi/php{php_num}/php.d",
+                "/etc/php.d"
+            ]
+        else:
+            src_candidates = [
+                f"/etc/opt/remi/php{php_num}/php.d",
+                f"/etc/php/{clean_ver}/fpm/conf.d",
+                f"/etc/php/{clean_ver}/cli/conf.d",
+                f"/etc/php/{clean_ver}/mods-available",
+                "/etc/php.d"
+            ]
         src_dir = None
         for cand in src_candidates:
             if os.path.isdir(cand):
