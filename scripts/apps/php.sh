@@ -155,24 +155,37 @@ EOF
             fi
 
             # 2. Cài đặt các gói PHP SCL độc lập từ Remi (hỗ trợ nhiều phiên bản song song không xung đột)
-            echo "[+] Đang cài đặt ${PHP_PKG_PREFIX}-php-fpm cùng các module cho WordPress trên RHEL/AlmaLinux..."
-            $PKG_MGR install -y \
+            echo "[+] Đang cài đặt ${PHP_PKG_PREFIX}-php-fpm cùng các module cốt lõi cho WordPress trên RHEL/AlmaLinux..."
+            $PKG_MGR install -y --skip-broken \
                 "${PHP_PKG_PREFIX}-php-fpm" \
                 "${PHP_PKG_PREFIX}-php-cli" \
                 "${PHP_PKG_PREFIX}-php-common" \
                 "${PHP_PKG_PREFIX}-php-mysqlnd" \
+                "${PHP_PKG_PREFIX}-php-pdo" \
                 "${PHP_PKG_PREFIX}-php-mbstring" \
                 "${PHP_PKG_PREFIX}-php-xml" \
-                "${PHP_PKG_PREFIX}-php-curl" \
                 "${PHP_PKG_PREFIX}-php-gd" \
-                "${PHP_PKG_PREFIX}-php-zip" \
                 "${PHP_PKG_PREFIX}-php-opcache" \
                 "${PHP_PKG_PREFIX}-php-intl" \
                 "${PHP_PKG_PREFIX}-php-bcmath" \
-                "${PHP_PKG_PREFIX}-php-pecl-imagick" \
-                "${PHP_PKG_PREFIX}-php-pecl-redis5" \
-                "${PHP_PKG_PREFIX}-php-soap" 2>/dev/null || \
-            $PKG_MGR install -y "${PHP_PKG_PREFIX}-php-fpm" "${PHP_PKG_PREFIX}-php-cli" "${PHP_PKG_PREFIX}-php-mysqlnd" || true
+                "${PHP_PKG_PREFIX}-php-soap" || \
+            $PKG_MGR install -y "${PHP_PKG_PREFIX}-php-fpm" "${PHP_PKG_PREFIX}-php-cli" "${PHP_PKG_PREFIX}-php-mysqlnd" "${PHP_PKG_PREFIX}-php-pdo" || true
+
+            # Cài đặt thêm các gói PECL bổ trợ (cài riêng từng gói để 1 gói thiếu không làm lỗi toàn bộ)
+            $PKG_MGR install -y "${PHP_PKG_PREFIX}-php-pecl-zip" 2>/dev/null || $PKG_MGR install -y "${PHP_PKG_PREFIX}-php-zip" 2>/dev/null || true
+            $PKG_MGR install -y "${PHP_PKG_PREFIX}-php-pecl-redis6" 2>/dev/null || $PKG_MGR install -y "${PHP_PKG_PREFIX}-php-pecl-redis5" 2>/dev/null || $PKG_MGR install -y "${PHP_PKG_PREFIX}-php-pecl-redis" 2>/dev/null || true
+            $PKG_MGR install -y "${PHP_PKG_PREFIX}-php-pecl-imagick-im7" 2>/dev/null || $PKG_MGR install -y "${PHP_PKG_PREFIX}-php-pecl-imagick-im6" 2>/dev/null || $PKG_MGR install -y "${PHP_PKG_PREFIX}-php-pecl-imagick" 2>/dev/null || true
+
+            # Đồng bộ symlink .ini mới cài vào thư mục conf.d của các user FPM đang tồn tại
+            if [ -d "/etc/opt/remi/${PHP_PKG_PREFIX}/php.d" ] && [ -d "/etc/php/${VERSION_CLEAN}/fpm/users" ]; then
+                for uconfd in "/etc/php/${VERSION_CLEAN}/fpm/users"/*/conf.d; do
+                    [ -d "$uconfd" ] || continue
+                    for inifile in "/etc/opt/remi/${PHP_PKG_PREFIX}/php.d"/*.ini; do
+                        [ -f "$inifile" ] || continue
+                        [ ! -e "$uconfd/$(basename "$inifile")" ] && ln -sf "$inifile" "$uconfd/$(basename "$inifile")" 2>/dev/null || true
+                    done
+                done
+            fi
 
             # Cài đặt LSPHP nếu máy chủ đang có OpenLiteSpeed repo
             $PKG_MGR install -y "lsphp${LSPHP_NUM}" "lsphp${LSPHP_NUM}-mysqlnd" "lsphp${LSPHP_NUM}-curl" "lsphp${LSPHP_NUM}-opcache" "lsphp${LSPHP_NUM}-gd" "lsphp${LSPHP_NUM}-zip" "lsphp${LSPHP_NUM}-mbstring" 2>/dev/null || true

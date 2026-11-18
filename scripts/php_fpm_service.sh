@@ -230,7 +230,7 @@ EOF
 
         # Khởi tạo symlink mặc định (ưu tiên conf.d gốc đã có tiền tố số để đảm bảo thứ tự nạp module)
         SRC_DIR=""
-        for cdir in "/etc/php/${PHP_VER}/fpm/conf.d" "/etc/php/${PHP_VER}/cli/conf.d" "/etc/php/${PHP_VER}/mods-available" "/etc/opt/remi/php$(echo "$PHP_VER" | tr -d '.')/php.d" "/etc/php.d"; do
+        for cdir in "/etc/opt/remi/php${PHP_NUM}/php.d" "/etc/php/${PHP_VER}/fpm/conf.d" "/etc/php/${PHP_VER}/cli/conf.d" "/etc/php/${PHP_VER}/mods-available" "/etc/php.d"; do
             if [ -d "$cdir" ] && [ -n "$(ls -A "$cdir"/*.ini 2>/dev/null)" ]; then
                 SRC_DIR="$cdir"
                 break
@@ -245,15 +245,17 @@ EOF
 
         # Đảm bảo mysqlnd load trước mysqli (tránh lỗi undefined symbol và lỗi thiếu phần mở rộng mysqli)
         rm -f "$USER_CONF_D/mysqli.ini" "$USER_CONF_D/mysqlnd.ini" "$USER_CONF_D/pdo_mysql.ini" 2>/dev/null || true
-        for mdir in "/etc/php/${PHP_VER}/fpm/conf.d" "/etc/php/${PHP_VER}/mods-available" "/etc/php/${PHP_VER}/cli/conf.d"; do
-            [ -f "$mdir/mysqlnd.ini" ] && ln -sf "$mdir/mysqlnd.ini" "$USER_CONF_D/10-mysqlnd.ini" 2>/dev/null || true
-            [ -f "$mdir/10-mysqlnd.ini" ] && ln -sf "$mdir/10-mysqlnd.ini" "$USER_CONF_D/10-mysqlnd.ini" 2>/dev/null || true
-            [ -f "$mdir/mysqli.ini" ] && ln -sf "$mdir/mysqli.ini" "$USER_CONF_D/20-mysqli.ini" 2>/dev/null || true
-            [ -f "$mdir/20-mysqli.ini" ] && ln -sf "$mdir/20-mysqli.ini" "$USER_CONF_D/20-mysqli.ini" 2>/dev/null || true
-            [ -f "$mdir/pdo_mysql.ini" ] && ln -sf "$mdir/pdo_mysql.ini" "$USER_CONF_D/20-pdo_mysql.ini" 2>/dev/null || true
-            [ -f "$mdir/20-pdo_mysql.ini" ] && ln -sf "$mdir/20-pdo_mysql.ini" "$USER_CONF_D/20-pdo_mysql.ini" 2>/dev/null || true
-            [ -f "$mdir/mbstring.ini" ] && ln -sf "$mdir/mbstring.ini" "$USER_CONF_D/20-mbstring.ini" 2>/dev/null || true
-        done
+        if [ ! -d "/etc/opt/remi/php${PHP_NUM}/php.d" ]; then
+            for mdir in "/etc/php/${PHP_VER}/fpm/conf.d" "/etc/php/${PHP_VER}/mods-available" "/etc/php/${PHP_VER}/cli/conf.d"; do
+                [ -f "$mdir/mysqlnd.ini" ] && ln -sf "$mdir/mysqlnd.ini" "$USER_CONF_D/10-mysqlnd.ini" 2>/dev/null || true
+                [ -f "$mdir/10-mysqlnd.ini" ] && ln -sf "$mdir/10-mysqlnd.ini" "$USER_CONF_D/10-mysqlnd.ini" 2>/dev/null || true
+                [ -f "$mdir/mysqli.ini" ] && ln -sf "$mdir/mysqli.ini" "$USER_CONF_D/20-mysqli.ini" 2>/dev/null || true
+                [ -f "$mdir/20-mysqli.ini" ] && ln -sf "$mdir/20-mysqli.ini" "$USER_CONF_D/20-mysqli.ini" 2>/dev/null || true
+                [ -f "$mdir/pdo_mysql.ini" ] && ln -sf "$mdir/pdo_mysql.ini" "$USER_CONF_D/20-pdo_mysql.ini" 2>/dev/null || true
+                [ -f "$mdir/20-pdo_mysql.ini" ] && ln -sf "$mdir/20-pdo_mysql.ini" "$USER_CONF_D/20-pdo_mysql.ini" 2>/dev/null || true
+                [ -f "$mdir/mbstring.ini" ] && ln -sf "$mdir/mbstring.ini" "$USER_CONF_D/20-mbstring.ini" 2>/dev/null || true
+            done
+        fi
 
         # 2. Xoá file pool cũ trong pool.d để tránh trùng lặp
         rm -f "$PHP_CONF_DIR/pool.d/${USERNAME}.conf" 2>/dev/null || true
