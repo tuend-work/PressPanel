@@ -6,6 +6,7 @@ import shutil
 import time
 import asyncio
 import platform
+import uuid
 from typing import List, Optional, Dict
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -174,6 +175,56 @@ def read_file_privileged(path: str) -> str:
             pass
     return content
 
+def sync_nginx_vhost_rate_limit(domain_name: str, rate_limit: str) -> bool:
+    """
+    Cập nhật an toàn chỉ thị set $limit_rate trong file vhost Nginx bằng quyền sudo
+    Tránh lỗi Permission Denied khi tiến trình API chạy dưới quyền wpc
+    """
+    vhost_path = f"/etc/nginx/conf.d/{domain_name}.conf"
+    if not os.path.exists(vhost_path):
+        return False
+    try:
+        clean_rate = (rate_limit or "0").strip()
+        v_txt = read_file_privileged(vhost_path)
+        if not v_txt:
+            return False
+
+        if "set $limit_rate" in v_txt:
+            v_txt = re.sub(r"set \$limit_rate [^;]+;", f"set $limit_rate {clean_rate};", v_txt)
+        else:
+            v_txt = re.sub(
+                r"location / \{",
+                f"set $limit_rate {clean_rate};\n    limit_rate $limit_rate;\n    fastcgi_limit_rate $limit_rate;\n\n    location / {{",
+                v_txt,
+                count=1
+            )
+
+        tmp_v = f"/tmp/vhost_{uuid.uuid4().hex}.conf"
+        with open(tmp_v, "w", encoding="utf-8") as tf:
+            tf.write(v_txt)
+
+        subprocess.run(["sudo", "mv", "-f", tmp_v, vhost_path], check=True)
+        subprocess.run(["sudo", "chmod", "644", vhost_path], check=False)
+        subprocess.run(["sudo", "chown", "root:root", vhost_path], check=False)
+        return True
+    except Exception as e:
+        print(f"Error syncing nginx vhost rate limit for {domain_name}: {e}")
+        return False
+
+def reload_nginx_service() -> bool:
+    """Kiểm tra cú pháp và reload an toàn Nginx bằng sudo"""
+    try:
+        t_res = subprocess.run(["sudo", "nginx", "-t"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+        if t_res.returncode == 0:
+            subprocess.run(["sudo", "nginx", "-s", "reload"], check=False)
+            return True
+        else:
+            print(f"Nginx config test failed: {t_res.stderr}")
+            return False
+    except Exception as e:
+        print(f"Error reloading nginx: {e}")
+        return False
+
 async def get_path_disk_usage_mb(path: str) -> float:
     if not path or not os.path.exists(path):
         return 0.0
@@ -237,6 +288,7 @@ class DomainUpdateRequest(BaseModel):
     php_version: Optional[str] = None
     package_id: Optional[int] = None
     allow_ssh: Optional[bool] = None
+    rate_limit: Optional[str] = None
 
 @router.get("/")
 async def list_domains(current_user: dict = Depends(get_current_user)):
@@ -470,21 +522,9 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
         await db.commit()
 
         # Cập nhật Rate Limit vào Nginx VirtualHost nếu chạy Nginx
-        if active_ws == "nginx" and pkg_rate_limit != "0":
-            vhost_path = f"/etc/nginx/conf.d/{clean_domain}.conf"
-            if os.path.exists(vhost_path):
-                try:
-                    with open(vhost_path, "r", encoding="utf-8") as vf:
-                        v_txt = vf.read()
-                    if "set $limit_rate" in v_txt:
-                        v_txt = re.sub(r"set \$limit_rate [^;]+;", f"set $limit_rate {pkg_rate_limit};", v_txt)
-                    else:
-                        v_txt = re.sub(r"location / \{", f"set $limit_rate {pkg_rate_limit};\n    limit_rate $limit_rate;\n    fastcgi_limit_rate $limit_rate;\n\n    location / {{", v_txt, count=1)
-                    with open(vhost_path, "w", encoding="utf-8") as vf:
-                        vf.write(v_txt)
-                    subprocess.run(["nginx", "-s", "reload"], check=False)
-                except Exception as r_err:
-                    print(f"Warning: Failed to inject initial rate_limit for {clean_domain}: {r_err}")
+        if active_ws == "nginx":
+            if sync_nginx_vhost_rate_limit(clean_domain, pkg_rate_limit):
+                reload_nginx_service()
 
         # Tự động khởi tạo WordPress nếu được yêu cầu
         if req.install_wp:
@@ -512,7 +552,7 @@ async def change_domain_plan(domain_id: int, req: DomainChangePlanRequest, curre
     """
     db = await get_db_connection()
     cur = await db.execute("""
-        SELECT d.id, d.domain_name, d.user_id, d.package_id, u.username as owner_username, u.parent_id, u.role as owner_role,
+        SELECT d.id, d.domain_name, d.user_id, d.package_id, d.webserver, u.username as owner_username, u.parent_id, u.role as owner_role,
                u.cpu_pct as parent_cpu, u.mem_mb as parent_mem, u.disk_mb as parent_disk
         FROM domains d
         JOIN users u ON d.user_id = u.id
@@ -552,20 +592,9 @@ async def change_domain_plan(domain_id: int, req: DomainChangePlanRequest, curre
     reseller_id = str(dom["parent_id"] or 1)
 
     # Cập nhật Rate Limit tức thì vào Nginx VirtualHost của website này
-    vhost_path = f"/etc/nginx/conf.d/{dom['domain_name']}.conf"
-    if os.path.exists(vhost_path):
-        try:
-            with open(vhost_path, "r", encoding="utf-8") as vf:
-                v_txt = vf.read()
-            if "set $limit_rate" in v_txt:
-                v_txt = re.sub(r"set \$limit_rate [^;]+;", f"set $limit_rate {u_rate_limit};", v_txt)
-            else:
-                v_txt = re.sub(r"location / \{", f"set $limit_rate {u_rate_limit};\n    limit_rate $limit_rate;\n    fastcgi_limit_rate $limit_rate;\n\n    location / {{", v_txt, count=1)
-            with open(vhost_path, "w", encoding="utf-8") as vf:
-                vf.write(v_txt)
-            subprocess.run(["nginx", "-s", "reload"], check=False)
-        except Exception as r_err:
-            print(f"Warning: Failed to update nginx rate limit: {r_err}")
+    if dom.get("webserver") == "nginx" or os.path.exists(f"/etc/nginx/conf.d/{dom['domain_name']}.conf"):
+        if sync_nginx_vhost_rate_limit(dom["domain_name"], u_rate_limit):
+            reload_nginx_service()
 
     hosting_username = dom.get("owner_username", isolated_user)
     try:
@@ -598,7 +627,7 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
     """
     db = await get_db_connection()
     cur = await db.execute("""
-        SELECT d.id, d.domain_name, d.user_id, d.php_version, d.package_id, d.allow_ssh, d.webserver,
+        SELECT d.id, d.domain_name, d.user_id, d.php_version, d.package_id, d.allow_ssh, d.webserver, d.rate_limit,
                u.username as owner_username, u.parent_id, u.role as owner_role,
                u.cpu_pct as parent_cpu, u.mem_mb as parent_mem
         FROM domains d
@@ -641,11 +670,13 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
         except Exception:
             pass
 
+    new_rate_limit = dom.get("rate_limit", "0") or "0"
     if req.package_id and req.package_id != dom["package_id"]:
-        pkg_cur = await db.execute("SELECT id, name, cpu_pct, mem_mb, disk_mb, allow_ssh FROM packages WHERE id = ?", (req.package_id,))
+        pkg_cur = await db.execute("SELECT id, name, cpu_pct, mem_mb, disk_mb, allow_ssh, rate_limit FROM packages WHERE id = ?", (req.package_id,))
         pkg = await pkg_cur.fetchone()
         if pkg:
             new_pkg_id = pkg["id"]
+            new_rate_limit = pkg.get("rate_limit", "0") or "0"
             u_cpu = pkg["cpu_pct"]
             u_mem = pkg["mem_mb"]
             if dom["owner_role"] == "user" and dom["parent_cpu"]:
@@ -662,11 +693,19 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
             except Exception:
                 pass
 
+    if req.rate_limit is not None:
+        new_rate_limit = req.rate_limit.strip() or "0"
+
+    # Tự động đồng bộ Rate Limit vào Nginx VirtualHost nếu có thay đổi
+    if dom.get("webserver") == "nginx" or os.path.exists(f"/etc/nginx/conf.d/{dom['domain_name']}.conf"):
+        if sync_nginx_vhost_rate_limit(dom["domain_name"], new_rate_limit):
+            reload_nginx_service()
+
     await db.execute("""
         UPDATE domains 
-        SET php_version = ?, package_id = ?, allow_ssh = ?
+        SET php_version = ?, package_id = ?, allow_ssh = ?, rate_limit = ?
         WHERE id = ?
-    """, (new_php, new_pkg_id, new_ssh, domain_id))
+    """, (new_php, new_pkg_id, new_ssh, new_rate_limit, domain_id))
     await db.commit()
     await db.close()
 
@@ -675,7 +714,8 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
         "message": f"Đã cập nhật website '{dom['domain_name']}' thành công!",
         "php_version": new_php,
         "package_id": new_pkg_id,
-        "allow_ssh": new_ssh
+        "allow_ssh": new_ssh,
+        "rate_limit": new_rate_limit
     }
 
 @router.post("/batch-delete")

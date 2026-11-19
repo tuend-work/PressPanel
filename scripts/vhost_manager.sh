@@ -594,6 +594,12 @@ EOF
                         SSL_KEY="/etc/ssl/wpc/selfsigned.key"
                     fi
 
+                    VHOST_RATE="${RATE_LIMIT:-}"
+                    if [ -z "$VHOST_RATE" ] && [ -f "$WPC_DIR/data/panel.db" ]; then
+                        VHOST_RATE=$(sqlite3 "$WPC_DIR/data/panel.db" "SELECT rate_limit FROM domains WHERE domain_name = '$DOMAIN' LIMIT 1;" 2>/dev/null || true)
+                    fi
+                    VHOST_RATE="${VHOST_RATE:-0}"
+
                     sed -e "s/{{DOMAIN}}/$DOMAIN/g" \
                         -e "s/{{PHP_VERSION}}/$PHP_VER/g" \
                         -e "s/{{USERNAME}}/$USERNAME/g" \
@@ -601,7 +607,7 @@ EOF
                         -e "s|{{PHP_SOCK}}|$PHP_SOCK|g" \
                         -e "s|{{SSL_CERT}}|$SSL_CERT|g" \
                         -e "s|{{SSL_KEY}}|$SSL_KEY|g" \
-                        -e "s/{{RATE_LIMIT}}/${RATE_LIMIT:-0}/g" \
+                        -e "s/{{RATE_LIMIT}}/$VHOST_RATE/g" \
                         "$WPC_DIR/templates/vhost_nginx/default.tpl" > "/etc/nginx/conf.d/$DOMAIN.conf"
 
                     # Kiểm tra tính tương thích QUIC / HTTP3 và HTTP2 với phiên bản Nginx hiện tại
@@ -823,6 +829,12 @@ EOF_VH
                     SSL_CERT="/etc/ssl/wpc/selfsigned.crt"
                     SSL_KEY="/etc/ssl/wpc/selfsigned.key"
                 fi
+                VHOST_RATE="${RATE_LIMIT:-}"
+                if [ -z "$VHOST_RATE" ] && [ -f "$WPC_DIR/data/panel.db" ]; then
+                    VHOST_RATE=$(sqlite3 "$WPC_DIR/data/panel.db" "SELECT rate_limit FROM domains WHERE domain_name = '$NEW_DOMAIN' LIMIT 1;" 2>/dev/null || true)
+                fi
+                VHOST_RATE="${VHOST_RATE:-0}"
+
                 sed -e "s/{{DOMAIN}}/$NEW_DOMAIN/g" \
                     -e "s/{{PHP_VERSION}}/$P_VER/g" \
                     -e "s/{{USERNAME}}/$USERNAME/g" \
@@ -830,7 +842,7 @@ EOF_VH
                     -e "s|{{PHP_SOCK}}|$PHP_SOCK|g" \
                     -e "s|{{SSL_CERT}}|$SSL_CERT|g" \
                     -e "s|{{SSL_KEY}}|$SSL_KEY|g" \
-                    -e "s/{{RATE_LIMIT}}/${RATE_LIMIT:-0}/g" \
+                    -e "s/{{RATE_LIMIT}}/$VHOST_RATE/g" \
                     "$WPC_DIR/templates/vhost_nginx/default.tpl" > "/etc/nginx/conf.d/$NEW_DOMAIN.conf"
             fi
         fi

@@ -8,7 +8,7 @@ from app.api.deps import get_current_user, require_role
 from app.db.session import get_db_connection
 from app.core.security import get_password_hash, verify_password, create_access_token
 from app.executor.gatekeeper import run_gatekeeper
-from app.api.v1.domains import domain_to_linux_user
+from app.api.v1.domains import domain_to_linux_user, sync_nginx_vhost_rate_limit, reload_nginx_service
 
 router = APIRouter(prefix="/users", tags=["Customer Management"])
 
@@ -637,23 +637,19 @@ async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict 
         if req.rate_limit is not None:
             clean_rate = req.rate_limit.strip() or "0"
             try:
+                # 1. Đồng bộ giá trị rate_limit vào bảng domains cho tất cả các domain thuộc gói này
+                await db.execute("UPDATE domains SET rate_limit = ? WHERE package_id = ?", (clean_rate, plan_id))
+                await db.commit()
+
+                # 2. Cập nhật VirtualHost Nginx của các domain tương ứng
                 dom_cur = await db.execute("SELECT domain_name FROM domains WHERE package_id = ? AND webserver = 'nginx'", (plan_id,))
                 dom_rows = await dom_cur.fetchall()
                 reloaded = False
                 for d_row in dom_rows:
-                    vhost_path = f"/etc/nginx/conf.d/{d_row['domain_name']}.conf"
-                    if os.path.exists(vhost_path):
-                        with open(vhost_path, "r", encoding="utf-8") as vf:
-                            v_txt = vf.read()
-                        if "set $limit_rate" in v_txt:
-                            v_txt = re.sub(r"set \$limit_rate [^;]+;", f"set $limit_rate {clean_rate};", v_txt)
-                        else:
-                            v_txt = re.sub(r"location / \{", f"set $limit_rate {clean_rate};\n    limit_rate $limit_rate;\n    fastcgi_limit_rate $limit_rate;\n\n    location / {{", v_txt, count=1)
-                        with open(vhost_path, "w", encoding="utf-8") as vf:
-                            vf.write(v_txt)
+                    if sync_nginx_vhost_rate_limit(d_row["domain_name"], clean_rate):
                         reloaded = True
                 if reloaded:
-                    subprocess.run(["nginx", "-s", "reload"], check=False)
+                    reload_nginx_service()
             except Exception as e:
                 print(f"Warning: Failed to sync nginx rate limit for plan {plan_id}: {e}")
 
