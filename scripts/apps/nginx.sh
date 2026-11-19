@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ACTION="${1:-install}"
-VERSION="${2:-1.26.x}"
+VERSION="${2:-1.30.x}"
 
 function configure_openresty_env() {
     echo "[+] Thiết lập môi trường và cấu hình thông minh cho OpenResty..."
@@ -126,21 +126,101 @@ case "$ACTION" in
             [ -L "/usr/sbin/nginx" ] && rm -f /usr/sbin/nginx 2>/dev/null || true
             systemctl daemon-reload 2>/dev/null || true
 
-            echo "[+] Đang cài đặt Nginx cùng các module tăng tốc tối đa (Brotli, Cache-Purge, Headers-More, Redis2, Srcache)..."
-            if command -v apt-get &>/dev/null; then
+            # Phân tích phiên bản yêu cầu:
+            # - Mainline (1.31.x / latest / mainline): Các tính năng mới nhất từ nginx.org
+            # - Stable (1.30.x / stable / default): Bản ổn định khuyên dùng sản xuất
+            # - Legacy Stable (1.28.x): Bản ổn định tiền nhiệm
+            # - Legacy LTS (1.26.x, 1.24.x): Bản cũ
+            REPO_CHANNEL="stable"
+            PKG_VERSION_SPEC=""
+            
+            if [[ "$VERSION" =~ ^(1\.31|latest|mainline) ]]; then
+                REPO_CHANNEL="mainline"
+            elif [[ "$VERSION" =~ ^1\.30 ]]; then
+                REPO_CHANNEL="stable"
+            elif [[ "$VERSION" =~ ^1\.28 ]]; then
+                REPO_CHANNEL="stable"
+                PKG_VERSION_SPEC="1.28"
+            elif [[ "$VERSION" =~ ^1\.26 ]]; then
+                REPO_CHANNEL="stable"
+                PKG_VERSION_SPEC="1.26"
+            elif [[ "$VERSION" =~ ^1\.24 ]]; then
+                REPO_CHANNEL="stable"
+                PKG_VERSION_SPEC="1.24"
+            fi
+
+            echo "[+] Đang cấu hình Kho lưu trữ Nginx Official (Kênh: $REPO_CHANNEL, Phiên bản yêu cầu: $VERSION)..."
+
+            if command -v dnf &>/dev/null || command -v yum &>/dev/null; then
+                rpm --import https://nginx.org/keys/nginx_signing.key 2>/dev/null || true
+                cat << 'EOF_REPO' > /etc/yum.repos.d/nginx.repo
+[nginx-stable]
+name=nginx stable repo
+baseurl=http://nginx.org/packages/centos/$releasever/$basearch/
+gpgcheck=1
+enabled=1
+gpgkey=https://nginx.org/keys/nginx_signing.key
+module_hotfixes=true
+
+[nginx-mainline]
+name=nginx mainline repo
+baseurl=http://nginx.org/packages/mainline/centos/$releasever/$basearch/
+gpgcheck=1
+enabled=0
+gpgkey=https://nginx.org/keys/nginx_signing.key
+module_hotfixes=true
+EOF_REPO
+                # Reset module stream nếu có của OS để ưu tiên gói nginx.org
+                command -v dnf &>/dev/null && dnf module reset -y nginx 2>/dev/null || true
+
+                ENABLE_REPO="nginx-stable"
+                DISABLE_REPO="nginx-mainline"
+                if [ "$REPO_CHANNEL" = "mainline" ]; then
+                    ENABLE_REPO="nginx-mainline"
+                    DISABLE_REPO="nginx-stable"
+                fi
+
+                if [ -n "$PKG_VERSION_SPEC" ]; then
+                    echo "[+] Cài đặt / Chuyển đổi Nginx bản chỉ định: $PKG_VERSION_SPEC..."
+                    dnf install -y --enablerepo="$ENABLE_REPO" --disablerepo="$DISABLE_REPO" "nginx-1:${PKG_VERSION_SPEC}.*" 2>/dev/null || \
+                    dnf downgrade -y --enablerepo="$ENABLE_REPO" --disablerepo="$DISABLE_REPO" "nginx-1:${PKG_VERSION_SPEC}.*" 2>/dev/null || \
+                    dnf install -y --enablerepo="$ENABLE_REPO" --disablerepo="$DISABLE_REPO" "nginx-${PKG_VERSION_SPEC}.*" 2>/dev/null || \
+                    dnf downgrade -y --enablerepo="$ENABLE_REPO" --disablerepo="$DISABLE_REPO" "nginx-${PKG_VERSION_SPEC}.*" 2>/dev/null || \
+                    dnf install -y --enablerepo="$ENABLE_REPO" nginx
+                else
+                    echo "[+] Cài đặt / Chuyển đổi Nginx kênh $REPO_CHANNEL..."
+                    dnf install -y --enablerepo="$ENABLE_REPO" --disablerepo="$DISABLE_REPO" nginx 2>/dev/null || \
+                    dnf downgrade -y --enablerepo="$ENABLE_REPO" --disablerepo="$DISABLE_REPO" nginx 2>/dev/null || \
+                    dnf upgrade -y --enablerepo="$ENABLE_REPO" --disablerepo="$DISABLE_REPO" nginx 2>/dev/null || \
+                    dnf install -y nginx
+                fi
+            elif command -v apt-get &>/dev/null; then
                 export DEBIAN_FRONTEND=noninteractive
-                # Cài đặt Nginx và các module tăng tốc hiệu năng WordPress
-                apt-get install -y --reinstall nginx nginx-common nginx-core \
-                    libnginx-mod-http-brotli-filter libnginx-mod-http-brotli-static \
-                    libnginx-mod-http-cache-purge libnginx-mod-http-headers-more-filter \
-                    libnginx-mod-http-redis2 libnginx-mod-http-srcache-filter 2>/dev/null || \
-                apt-get install -y nginx nginx-extras 2>/dev/null || \
-                apt-get install -y nginx
+                apt-get install -y curl gnupg2 ca-certificates lsb-release debian-archive-keyring 2>/dev/null || true
+                curl -fsSL https://nginx.org/keys/nginx_signing.key | gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg 2>/dev/null || true
+                DISTRO=$(lsb_release -is 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "ubuntu")
+                CODENAME=$(lsb_release -cs 2>/dev/null || echo "jammy")
+
+                if [ "$REPO_CHANNEL" = "mainline" ]; then
+                    echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/mainline/${DISTRO}/ ${CODENAME} nginx" > /etc/apt/sources.list.d/nginx.list
+                else
+                    echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/${DISTRO}/ ${CODENAME} nginx" > /etc/apt/sources.list.d/nginx.list
+                fi
+                apt-get update -y || true
+
+                if [ -n "$PKG_VERSION_SPEC" ]; then
+                    PKG_VER_APT=$(apt-cache madison nginx 2>/dev/null | grep "$PKG_VERSION_SPEC" | head -n 1 | awk '{print $3}' || true)
+                    if [ -n "$PKG_VER_APT" ]; then
+                        apt-get install -y --allow-downgrades "nginx=${PKG_VER_APT}" || apt-get install -y nginx
+                    else
+                        apt-get install -y --allow-downgrades nginx
+                    fi
+                else
+                    apt-get install -y --allow-downgrades nginx
+                fi
 
                 # Cài đặt đồng thời các PHP runtime extensions tối ưu WordPress nếu có PHP
                 apt-get install -y php-opcache php-redis php-imagick php-curl php-mysql php-intl php-mbstring php-xml php-zip 2>/dev/null || true
-            elif command -v dnf &>/dev/null; then
-                dnf install -y nginx nginx-all-modules nginx-mod-brotli nginx-mod-http-cache-purge 2>/dev/null || dnf install -y nginx
             fi
             
             mkdir -p /etc/nginx/conf.d
@@ -264,7 +344,7 @@ EOF_BR
             $PKG_MGR install -y gcc gcc-c++ make pcre pcre-devel zlib zlib-devel openssl openssl-devel libxml2-devel libxslt-devel gd-devel curl wget tar || true
         fi
 
-        NGINX_VER="1.26.2"
+        NGINX_VER="${2:-1.30.7}"
         BUILD_DIR="/tmp/nginx_src_build"
         rm -rf "$BUILD_DIR"
         mkdir -p "$BUILD_DIR"

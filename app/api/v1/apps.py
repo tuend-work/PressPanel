@@ -52,12 +52,13 @@ SUPPORTED_APPS = [
         "desc": "Máy chủ Web & Reverse Proxy tin cậy, hiệu năng cao và phổ biến hàng đầu.",
         "service": "nginx",
         "binary_checks": ["/usr/sbin/nginx", "/usr/bin/nginx", "/usr/local/openresty/nginx/sbin/nginx"],
-        "default_version": "1.26.x",
+        "default_version": "1.30.x",
         "versions": [
-            {"value": "openresty", "label": "OpenResty (Nginx + LuaJIT, siêu hiệu năng)"},
-            {"value": "1.26.x", "label": "Nginx 1.26.x (Ổn định mới nhất)"},
-            {"value": "latest", "label": "Nginx Mainline (Mới nhất)"},
-            {"value": "1.24.x", "label": "Nginx 1.24.x (LTS ổn định)"}
+            {"value": "1.30.x", "label": "Nginx 1.30.x (Bản ổn định mới nhất - Stable)"},
+            {"value": "1.31.x", "label": "Nginx 1.31.x (Bản Mainline mới nhất - nginx.org)"},
+            {"value": "1.28.x", "label": "Nginx 1.28.x (Bản ổn định tiền nhiệm - Legacy Stable)"},
+            {"value": "1.26.x", "label": "Nginx 1.26.x (Bản LTS cũ - Legacy)"},
+            {"value": "openresty", "label": "OpenResty (Nginx + LuaJIT, siêu hiệu năng)"}
         ]
     },
     {
@@ -826,10 +827,22 @@ def check_app_status(app: Dict[str, Any], primary_ws: Optional[str] = None) -> D
                             if "openresty/" in out_v:
                                 v_part = out_v.split("openresty/")[1].split()[0]
                                 exact_v = f"Nginx openresty-{v_part}"
+                                repo_name = "OpenResty Official"
                                 break
                             elif "nginx/" in out_v:
                                 v_part = out_v.split("nginx/")[1].split()[0]
                                 exact_v = f"Nginx {v_part}"
+                                try:
+                                    r_rpm = subprocess.run(["rpm", "-q", "--qf", "%{VENDOR}", "nginx"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+                                    v_vendor = (r_rpm.stdout or "").strip()
+                                    if "nginx" in v_vendor.lower() or "f5" in v_vendor.lower():
+                                        repo_name = "nginx.org Official"
+                                    elif v_vendor:
+                                        repo_name = f"{v_vendor} Repo"
+                                    else:
+                                        repo_name = "nginx.org Official"
+                                except Exception:
+                                    repo_name = "nginx.org Official"
                                 break
                         except Exception:
                             pass
