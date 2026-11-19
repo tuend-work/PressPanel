@@ -17,6 +17,8 @@ fi
 if [ -z "$CURRENT_PASS" ]; then
     if [ -f "/root/.my.cnf" ]; then
         CURRENT_PASS=$(grep -E "^password" /root/.my.cnf | head -n 1 | awk -F'=' '{print $2}' | tr -d ' "')
+    elif [ -f "/opt/presspanel/conf/presspanel.conf" ]; then
+        CURRENT_PASS=$(grep -E "^mysql_root_password" /opt/presspanel/conf/presspanel.conf | head -n 1 | awk -F'=' '{print $2}' | tr -d ' "')
     elif [ -f "/opt/wpc/conf/wpc.conf" ]; then
         CURRENT_PASS=$(grep -E "^mysql_root_password" /opt/wpc/conf/wpc.conf | head -n 1 | awk -F'=' '{print $2}' | tr -d ' "')
     fi
@@ -128,21 +130,25 @@ password = "$NEW_PASS"
 EOF
     chmod 600 /root/.my.cnf 2>/dev/null || true
 
-    # 5. Cập nhật /opt/wpc/conf/wpc.conf nếu tồn tại
-    if [ -f "/opt/wpc/conf/wpc.conf" ]; then
-        if grep -q "^mysql_root_password" /opt/wpc/conf/wpc.conf; then
-            sed -i "s/^mysql_root_password[[:space:]]*=.*/mysql_root_password = $NEW_PASS/" /opt/wpc/conf/wpc.conf
-        else
-            echo "mysql_root_password = $NEW_PASS" >> /opt/wpc/conf/wpc.conf
+    # 5. Cập nhật file cấu hình presspanel.conf và wpc.conf nếu tồn tại
+    for conf_file in "/opt/presspanel/conf/presspanel.conf" "/opt/wpc/conf/wpc.conf"; do
+        if [ -f "$conf_file" ]; then
+            if grep -q "^mysql_root_password" "$conf_file"; then
+                sed -i "s/^mysql_root_password[[:space:]]*=.*/mysql_root_password = $NEW_PASS/" "$conf_file"
+            else
+                echo "mysql_root_password = $NEW_PASS" >> "$conf_file"
+            fi
         fi
-    fi
+    done
 
     # 6. Đảm bảo cấu hình phpMyAdmin (127.0.0.1) và dọn sạch session cũ
-    PMA_DIR="/opt/wpc/apps/phpmyadmin"
-    if [ -d "$PMA_DIR" ]; then
-        # Xóa các file session cũ trong thư mục tạm của phpMyAdmin để tránh kẹt phiên đăng nhập cũ
-        rm -f "$PMA_DIR/tmp/sess_"* 2>/dev/null || true
-        chmod 777 "$PMA_DIR/tmp" 2>/dev/null || true
+    for PMA_DIR in "/opt/presspanel/apps/phpmyadmin" "/home/pma/public_html" "/opt/wpc/apps/phpmyadmin"; do
+        if [ -d "$PMA_DIR" ]; then
+            # Xóa các file session cũ trong thư mục tạm của phpMyAdmin để tránh kẹt phiên đăng nhập cũ
+            rm -f "$PMA_DIR/tmp/sess_"* 2>/dev/null || true
+            chmod 777 "$PMA_DIR/tmp" 2>/dev/null || true
+        fi
+    done
 
         # Đảm bảo symlink socket giữa /var/run/mysqld/mysqld.sock và /tmp/mysql.sock để tối đa hiệu năng kết nối
         if [ -S "/var/run/mysqld/mysqld.sock" ] && [ ! -e "/tmp/mysql.sock" ]; then

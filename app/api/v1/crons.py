@@ -47,14 +47,14 @@ async def sync_user_crontab(username: str, db):
     jobs = await cursor.fetchall()
 
     lines = [
-        f"# WPCloud Managed Crontab for user: {username}",
-        "# Do not edit lines between WPC markers manually",
-        "# ==================== WPC-CRON-BEGIN ===================="
+        f"# PressPanel Managed Crontab for user: {username}",
+        "# Do not edit lines between PressPanel markers manually",
+        "# ==================== PRESSPANEL-CRON-BEGIN ===================="
     ]
     for j in jobs:
         cmd = j["command"].strip()
         lines.append(f"{j['schedule']} {cmd}")
-    lines.append("# ==================== WPC-CRON-END ====================\n")
+    lines.append("# ==================== PRESSPANEL-CRON-END ====================\n")
 
     content = "\n".join(lines)
 

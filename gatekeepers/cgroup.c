@@ -1,11 +1,16 @@
 /*
- * WPCloud: cgroup.c - Quản lý Cgroups v2 Phân Cấp & Khóa Trần 2 Lớp
- * SUID Binary (chmod 4750 root:wpc)
+ * PressPanel: cgroup.c - Quản lý Cgroups v2 Phân Cấp & Khóa Trần 2 Lớp
+ * SUID Binary (chmod 4750 root:presspanel)
  */
 
 #include "common.h"
 
-#define CGROUP_ROOT "/sys/fs/cgroup/wpc"
+#define CGROUP_ROOT "/sys/fs/cgroup/presspanel"
+
+static const char* get_attach_script(void) {
+    if (access("/opt/presspanel/scripts/cgroup_attach.sh", X_OK) == 0) return "/opt/presspanel/scripts/cgroup_attach.sh";
+    return "/opt/wpc/scripts/cgroup_attach.sh";
+}
 
 static void write_cgroup_file(const char *dir, const char *file, const char *val) {
     char fpath[512];
@@ -88,15 +93,16 @@ int main(int argc, char *argv[]) {
 
         /* 
          * KHÓA TRẦN PHÂN CẤP SYSTEMD SLICE & CGROUP V2:
-         * 1. Reseller cấp cha: wpc.slice -> wpc-reseller_%s.slice
-         * 2. Hosting User (Khách hàng): wpc-hosting_%s.slice (đặt CPUQuota và MemoryMax của gói hosting)
-         * 3. Website con của Hosting User: Kế thừa hoặc nằm trong wpc-hosting_%s-site_%s.slice
+         * 1. Reseller cấp cha: presspanel.slice -> presspanel-reseller_%s.slice
+         * 2. Hosting User (Khách hàng): presspanel-hosting_%s.slice (đặt CPUQuota và MemoryMax của gói hosting)
+         * 3. Website con của Hosting User: Kế thừa hoặc nằm trong presspanel-hosting_%s-site_%s.slice
          */
         char init_cmd[4096];
         snprintf(init_cmd, sizeof(init_cmd),
-            "mkdir -p /sys/fs/cgroup/wpc && "
+            "mkdir -p /sys/fs/cgroup/presspanel /sys/fs/cgroup/wpc && "
             "for c in cpu memory io pids; do "
             "  echo \"+$c\" > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true; "
+            "  echo \"+$c\" > /sys/fs/cgroup/presspanel/cgroup.subtree_control 2>/dev/null || true; "
             "  echo \"+$c\" > /sys/fs/cgroup/wpc/cgroup.subtree_control 2>/dev/null || true; "
             "done; "
             "mkdir -p %s && "
@@ -125,12 +131,16 @@ int main(int argc, char *argv[]) {
         char sys_cmd[4096];
         snprintf(sys_cmd, sizeof(sys_cmd),
             "if [ %u -gt 0 ]; then systemctl set-property user-%u.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; fi; "
+            "systemctl set-property presspanel-user-%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; "
+            "systemctl set-property presspanel-hosting_%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; "
             "systemctl set-property wpc-user-%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; "
             "systemctl set-property wpc-hosting_%s.slice CPUQuota=%d%% MemoryMax=%lldM TasksMax=%d 2>/dev/null || true; "
             "for lscg in /usr/local/lsws/lsns/bin/lscgctl /usr/local/lsws/bin/lscgctl; do "
             "  if [ -x \"$lscg\" ]; then \"$lscg\" set %s --cpu=%d 2>/dev/null || true; fi; "
             "done",
             (unsigned int)uid, (unsigned int)uid, cpu, mem_mb, pids,
+            username, cpu, mem_mb, pids,
+            username, cpu, mem_mb, pids,
             username, cpu, mem_mb, pids,
             username, cpu, mem_mb, pids,
             username, cpu);
@@ -164,25 +174,29 @@ int main(int argc, char *argv[]) {
                 send_json_error("cgroup", "Username khong hop le");
                 return 1;
             }
-            if (access("/opt/wpc/scripts/cgroup_attach.sh", X_OK) == 0) {
-                snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/cgroup_attach.sh once %s 2>/dev/null || true", username);
+            const char *attach_sh = get_attach_script();
+            if (access(attach_sh, X_OK) == 0) {
+                snprintf(cmd, sizeof(cmd), "%s once %s 2>/dev/null || true", attach_sh, username);
             } else {
                 snprintf(cmd, sizeof(cmd),
-                    "for cg in /sys/fs/cgroup/wpc/reseller_*/user_%s/cgroup.procs /sys/fs/cgroup/wpc/user_%s/cgroup.procs; do "
+                    "for cg in /sys/fs/cgroup/presspanel/reseller_*/user_%s/cgroup.procs /sys/fs/cgroup/presspanel/user_%s/cgroup.procs "
+                    "/sys/fs/cgroup/wpc/reseller_*/user_%s/cgroup.procs /sys/fs/cgroup/wpc/user_%s/cgroup.procs; do "
                     "  if [ -f \"$cg\" ]; then "
                     "    pgrep -u %s | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
                     "    pgrep -f 'lsphp.*%s' | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
                     "    pgrep -f 'pool %s' | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$cg\" 2>/dev/null || true; done; "
                     "  fi; "
                     "done",
-                    username, username, username, username, username);
+                    username, username, username, username, username, username, username);
             }
         } else {
-            if (access("/opt/wpc/scripts/cgroup_attach.sh", X_OK) == 0) {
-                snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/cgroup_attach.sh once 2>/dev/null || true");
+            const char *attach_sh = get_attach_script();
+            if (access(attach_sh, X_OK) == 0) {
+                snprintf(cmd, sizeof(cmd), "%s once 2>/dev/null || true", attach_sh);
             } else {
                 snprintf(cmd, sizeof(cmd),
-                    "for cg in /sys/fs/cgroup/wpc/reseller_*/user_*/cgroup.procs /sys/fs/cgroup/wpc/user_*/cgroup.procs; do "
+                    "for cg in /sys/fs/cgroup/presspanel/reseller_*/user_*/cgroup.procs /sys/fs/cgroup/presspanel/user_*/cgroup.procs "
+                    "/sys/fs/cgroup/wpc/reseller_*/user_*/cgroup.procs /sys/fs/cgroup/wpc/user_*/cgroup.procs; do "
                     "  [ -f \"$cg\" ] || continue; "
                     "  u=$(basename $(dirname \"$cg\") | sed 's/^user_//'); "
                     "  [ -n \"$u\" ] || continue; "
@@ -211,18 +225,21 @@ int main(int argc, char *argv[]) {
 
         char cmd[4096];
         snprintf(cmd, sizeof(cmd),
-            "for hcg in /sys/fs/cgroup/wpc/reseller_*/user_%s/cgroup.procs /sys/fs/cgroup/wpc/user_%s/cgroup.procs; do "
+            "for hcg in /sys/fs/cgroup/presspanel/reseller_*/user_%s/cgroup.procs /sys/fs/cgroup/presspanel/user_%s/cgroup.procs "
+            "/sys/fs/cgroup/wpc/reseller_*/user_%s/cgroup.procs /sys/fs/cgroup/wpc/user_%s/cgroup.procs; do "
             "  if [ -f \"$hcg\" ]; then "
             "    pgrep -u %s | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$hcg\" 2>/dev/null || true; done; "
             "    pgrep -f 'lsphp.*%s' | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$hcg\" 2>/dev/null || true; done; "
             "    pgrep -f 'pool %s' | while read -r p; do [ -n \"$p\" ] && echo \"$p\" > \"$hcg\" 2>/dev/null || true; done; "
             "  fi; "
             "done; "
-            "for stray in /sys/fs/cgroup/wpc/reseller_*/user_%s /sys/fs/cgroup/wpc/user_%s; do "
+            "for stray in /sys/fs/cgroup/presspanel/reseller_*/user_%s /sys/fs/cgroup/presspanel/user_%s "
+            "/sys/fs/cgroup/wpc/reseller_*/user_%s /sys/fs/cgroup/wpc/user_%s; do "
             "  [ -d \"$stray\" ] && rmdir \"$stray\" 2>/dev/null || true; "
             "done",
-            hosting_user, hosting_user, child_user, child_user, child_user,
-            child_user, child_user);
+            hosting_user, hosting_user, hosting_user, hosting_user,
+            child_user, child_user, child_user,
+            child_user, child_user, child_user, child_user);
         IGNORE_RESULT(system(cmd));
 
         send_json_ok("\"message\":\"Da gan tien trinh website con vao cgroup hosting user\"");
@@ -243,10 +260,11 @@ int main(int argc, char *argv[]) {
 
         char cmd[1024];
         snprintf(cmd, sizeof(cmd),
-            "for p in /sys/fs/cgroup/wpc/reseller_*/user_%s/cgroup.procs /sys/fs/cgroup/wpc/user_%s/cgroup.procs; do "
+            "for p in /sys/fs/cgroup/presspanel/reseller_*/user_%s/cgroup.procs /sys/fs/cgroup/presspanel/user_%s/cgroup.procs "
+            "/sys/fs/cgroup/wpc/reseller_*/user_%s/cgroup.procs /sys/fs/cgroup/wpc/user_%s/cgroup.procs; do "
             "  if [ -f \"$p\" ]; then echo '%d' > \"$p\" 2>/dev/null || true; fi; "
             "done",
-            username, username, pid);
+            username, username, username, username, pid);
         IGNORE_RESULT(system(cmd));
 
         send_json_ok("\"message\":\"Da gan pid vao cgroup\"");

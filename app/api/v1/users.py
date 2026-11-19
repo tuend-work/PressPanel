@@ -12,6 +12,8 @@ from app.api.v1.domains import domain_to_linux_user, sync_nginx_vhost_rate_limit
 
 router = APIRouter(prefix="/users", tags=["Customer Management"])
 
+PRESSPANEL_BASE = "/opt/presspanel" if os.path.exists("/opt/presspanel") else "/opt/wpc"
+
 class CustomerCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=32)
     password: str = Field(..., min_length=6)
@@ -114,10 +116,10 @@ async def set_customers_status(req: CustomerStatusRequest, current_user: dict = 
         try:
             res = await run_gatekeeper("vhost", action, isolated_u, d_name, d_ws)
             if res.get("status") != "success":
-                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", action, isolated_u, d_name, d_ws], check=False)
+                subprocess.run(["sudo", f"{PRESSPANEL_BASE}/scripts/vhost_manager.sh", action, isolated_u, d_name, d_ws], check=False)
         except Exception:
             try:
-                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", action, isolated_u, d_name, d_ws], check=False)
+                subprocess.run(["sudo", f"{PRESSPANEL_BASE}/scripts/vhost_manager.sh", action, isolated_u, d_name, d_ws], check=False)
             except Exception:
                 pass
 

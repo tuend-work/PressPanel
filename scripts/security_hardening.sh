@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# WPC: security_hardening.sh - Hệ thống Kiểm tra & Tối ưu Bảo mật Chuẩn CloudLinux
+# PressPanel: security_hardening.sh - Hệ thống Kiểm tra & Tối ưu Bảo mật Chuẩn CloudLinux
 # Bảo vệ tầng sâu: Kernel Sysctl, Compiler Lockdown, VFS Permissions, Loopback Firewall
 # ==============================================================================
 set -euo pipefail
@@ -13,8 +13,9 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-SYSCTL_CONF="/etc/sysctl.d/99-wpc-security.conf"
-PANEL_DIR="/opt/wpc"
+SYSCTL_CONF="/etc/sysctl.d/99-presspanel-security.conf"
+PANEL_DIR="/opt/presspanel"
+[ ! -d "$PANEL_DIR" ] && [ -d "/opt/wpc" ] && PANEL_DIR="/opt/wpc"
 
 check_root() {
     if [ "$EUID" -ne 0 ]; then
@@ -27,9 +28,10 @@ check_root() {
 apply_sysctl_hardening() {
     echo -e "${CYAN}[*] Đang cấu hình Kernel Sysctl bảo vệ chống leo quyền & Symlink Race...${NC}"
     mkdir -p /etc/sysctl.d
+    rm -f /etc/sysctl.d/99-wpc-security.conf 2>/dev/null || true
     cat << 'EOF' > "$SYSCTL_CONF"
 # ==============================================================================
-# WPC Cloud-Grade Security Hardening (Kernel & VFS Protection)
+# PressPanel Cloud-Grade Security Hardening (Kernel & VFS Protection)
 # ==============================================================================
 # 1. Chặn Symlink & Hardlink Race Condition (Bảo vệ chống đọc trộm wp-config.php)
 fs.protected_symlinks = 1
@@ -90,32 +92,39 @@ apply_compiler_lockdown() {
     echo -e "${GREEN}[✔] Đã khóa toàn bộ gcc, g++, make, cc về quyền 700 (Chỉ root mới có quyền compile)${NC}"
 }
 
-# 3. PANEL PERMISSIONS HARDENING (Khóa cứng dữ liệu, cấu hình WPC Panel)
+# 3. PANEL PERMISSIONS HARDENING (Khóa cứng dữ liệu, cấu hình PressPanel)
 apply_panel_permissions() {
-    echo -e "${CYAN}[*] Đang chuẩn hóa quyền bảo mật thư mục mã nguồn và CSDL WPC Panel (Least Privilege: User wpc)...${NC}"
+    echo -e "${CYAN}[*] Đang chuẩn hóa quyền bảo mật thư mục mã nguồn và CSDL PressPanel (Least Privilege: User presspanel)...${NC}"
     if [ -d "$PANEL_DIR" ]; then
-        # 1. Toàn bộ thư mục /opt/wpc thuộc sở hữu wpc:wpc, phân quyền 750 (ngăn chặn 100% người dùng web khác xâm nhập)
-        chown -R wpc:wpc "$PANEL_DIR" 2>/dev/null || true
+        PANEL_USER="presspanel"
+        if ! id -u "$PANEL_USER" &>/dev/null; then
+            PANEL_USER="wpc"
+        fi
+        PANEL_GROUP="$PANEL_USER"
+
+        # 1. Toàn bộ thư mục Panel thuộc sở hữu presspanel, phân quyền 750 (ngăn chặn 100% người dùng web khác xâm nhập)
+        chown -R "$PANEL_USER":"$PANEL_GROUP" "$PANEL_DIR" 2>/dev/null || true
         chmod 750 "$PANEL_DIR" 2>/dev/null || true
         
-        # 2. Virtualenv, Scripts, Static, Logs: wpc:wpc 750
+        # 2. Virtualenv, Scripts, Static, Logs: 750
         [ -d "$PANEL_DIR/venv" ] && chmod -R 750 "$PANEL_DIR/venv" 2>/dev/null || true
         [ -d "$PANEL_DIR/app" ] && chmod -R 750 "$PANEL_DIR/app" 2>/dev/null || true
         [ -d "$PANEL_DIR/static" ] && chmod -R 750 "$PANEL_DIR/static" 2>/dev/null || true
         [ -d "$PANEL_DIR/logs" ] && chmod -R 750 "$PANEL_DIR/logs" 2>/dev/null || true
-        [ -d "$PANEL_DIR/scripts" ] && chmod -R 750 "$PANEL_DIR/scripts" && chmod +x "$PANEL_DIR"/scripts/*.sh "$PANEL_DIR"/scripts/wpc 2>/dev/null || true
+        [ -d "$PANEL_DIR/scripts" ] && chmod -R 750 "$PANEL_DIR/scripts" && chmod +x "$PANEL_DIR"/scripts/*.sh "$PANEL_DIR"/scripts/presspanel "$PANEL_DIR"/scripts/wpc 2>/dev/null || true
         
-        # 3. Binary Gatekeepers SUID root (chỉ nhóm wpc được thực thi): 4750 root:wpc
+        # 3. Binary Gatekeepers SUID root (chỉ nhóm presspanel được thực thi): 4750 root:presspanel
         if [ -d "$PANEL_DIR/bin" ]; then
-            chown -R root:wpc "$PANEL_DIR/bin" 2>/dev/null || true
+            chown -R root:"$PANEL_GROUP" "$PANEL_DIR/bin" 2>/dev/null || true
             chmod 750 "$PANEL_DIR/bin" 2>/dev/null || true
             chmod 4750 "$PANEL_DIR"/bin/* 2>/dev/null || true
         fi
 
         # 4. File log hệ thống
-        touch /var/log/wpc.log 2>/dev/null || true
-        chown wpc:wpc /var/log/wpc.log 2>/dev/null || true
-        chmod 640 /var/log/wpc.log 2>/dev/null || true
+        touch /var/log/presspanel.log 2>/dev/null || true
+        chown "$PANEL_USER":"$PANEL_GROUP" /var/log/presspanel.log 2>/dev/null || true
+        chmod 640 /var/log/presspanel.log 2>/dev/null || true
+        ln -sf /var/log/presspanel.log /var/log/wpc.log 2>/dev/null || true
 
         # 5. Khóa chặt thư mục data và conf
         [ -d "$PANEL_DIR/data" ] && chmod 700 "$PANEL_DIR/data" 2>/dev/null || true
@@ -123,11 +132,12 @@ apply_panel_permissions() {
 
         # 6. Khóa cứng database SQLite và file cấu hình
         find "$PANEL_DIR/data" -name "*.db" -exec chmod 600 {} + 2>/dev/null || true
+        [ -f "$PANEL_DIR/conf/presspanel.conf" ] && chmod 600 "$PANEL_DIR/conf/presspanel.conf" 2>/dev/null || true
         [ -f "$PANEL_DIR/conf/wpc.conf" ] && chmod 600 "$PANEL_DIR/conf/wpc.conf" 2>/dev/null || true
 
         # 7. Đảm bảo Dynamic Linker (ld-linux.so, ld.so) luôn có quyền 755 cho mọi user
         chmod 755 /lib64/ld-*.so /usr/lib64/ld-*.so /lib64/ld-linux*.so.* /usr/lib64/ld-linux*.so.* /lib/ld-*.so /usr/lib/ld-*.so 2>/dev/null || true
-        echo -e "${GREEN}[✔] Đã chuẩn hóa phân quyền an ninh tối đa /opt/wpc (wpc:wpc 750, data 700, db 600, SUID 4750)${NC}"
+        echo -e "${GREEN}[✔] Đã chuẩn hóa phân quyền an ninh tối đa $PANEL_DIR ($PANEL_USER 750, data 700, db 600, SUID 4750)${NC}"
     fi
 }
 
@@ -149,25 +159,25 @@ apply_firewall_local_rules() {
     echo -e "${CYAN}[*] Đang thiết lập quy tắc tường lửa bảo vệ cổng quản trị Panel (Port 8888)...${NC}"
     if command -v iptables &>/dev/null; then
         local panel_port="8888"
-        if [ -f "$PANEL_DIR/conf/wpc.conf" ]; then
+        if [ -f "$PANEL_DIR/conf/presspanel.conf" ]; then
+            panel_port=$(grep -E "^port=" "$PANEL_DIR/conf/presspanel.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
+        elif [ -f "$PANEL_DIR/conf/wpc.conf" ]; then
             panel_port=$(grep -E "^port=" "$PANEL_DIR/conf/wpc.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
         fi
 
-        # Xác định UID của user wpc panel nếu có
-        local wpc_uid=""
-        if id "wpc" &>/dev/null; then
-            wpc_uid=$(id -u "wpc")
-        fi
-
-        # Quy tắc: Cho phép root (uid 0) và wpc panel truy cập loopback dport 8888, chặn toàn bộ Web User khác
+        # Quy tắc: Cho phép root (uid 0) và user quản trị panel truy cập loopback dport, chặn toàn bộ Web User khác
         if ! iptables -C OUTPUT -p tcp -o lo --dport "$panel_port" -m owner --uid-owner 0 -j ACCEPT 2>/dev/null; then
             iptables -I OUTPUT 1 -p tcp -o lo --dport "$panel_port" -m owner --uid-owner 0 -j ACCEPT 2>/dev/null || true
         fi
-        if [ -n "$wpc_uid" ]; then
-            if ! iptables -C OUTPUT -p tcp -o lo --dport "$panel_port" -m owner --uid-owner "$wpc_uid" -j ACCEPT 2>/dev/null; then
-                iptables -I OUTPUT 2 -p tcp -o lo --dport "$panel_port" -m owner --uid-owner "$wpc_uid" -j ACCEPT 2>/dev/null || true
+        for p_u in "presspanel" "wpc"; do
+            if id "$p_u" &>/dev/null; then
+                local u_id
+                u_id=$(id -u "$p_u")
+                if ! iptables -C OUTPUT -p tcp -o lo --dport "$panel_port" -m owner --uid-owner "$u_id" -j ACCEPT 2>/dev/null; then
+                    iptables -I OUTPUT 2 -p tcp -o lo --dport "$panel_port" -m owner --uid-owner "$u_id" -j ACCEPT 2>/dev/null || true
+                fi
             fi
-        fi
+        done
         if ! iptables -C OUTPUT -p tcp -o lo --dport "$panel_port" -j REJECT 2>/dev/null; then
             iptables -A OUTPUT -p tcp -o lo --dport "$panel_port" -j REJECT 2>/dev/null || true
         fi
@@ -277,7 +287,7 @@ audit_security() {
     fi
 
     # 7. Cage Terminal script exists
-    if [ -f "/opt/wpc/scripts/cage_terminal.sh" ]; then
+    if [ -f "$PANEL_DIR/scripts/cage_terminal.sh" ] || [ -f "/opt/wpc/scripts/cage_terminal.sh" ]; then
         echo -e " [${GREEN}PASS${NC}] Lồng cách ly Mount & PID Namespace (CageFS Mode): ${GREEN}Sẵn sàng${NC}"
         ((score++))
     else
@@ -291,7 +301,7 @@ audit_security() {
         echo -e " [${GREEN}PASS${NC}] Bộ nạp liên kết động (Dynamic Linker ld.so): ${GREEN}Quyền chuẩn (755)${NC}"
         ((score++))
     else
-        echo -e " [${RED}WARN${NC}] Bộ nạp liên kết động (Dynamic Linker ld.so): ${RED}Quyền $ld_perm bất thường (Cần 755, chạy 'wpc security fix')${NC}"
+        echo -e " [${RED}WARN${NC}] Bộ nạp liên kết động (Dynamic Linker ld.so): ${RED}Quyền $ld_perm bất thường (Cần 755, chạy 'presspanel security fix')${NC}"
     fi
 
     echo -e "${BOLD}----------------------------------------------------------------${NC}"
@@ -299,7 +309,7 @@ audit_security() {
     if [ "$score" -eq "$max_score" ]; then
         echo -e " Đánh giá: ${GREEN}${BOLD}XUẤT SẮC - ĐẠT CHUẨN CÁCH LY CLOUDLINUX HARDENED!${NC}"
     else
-        echo -e " Đánh giá: ${YELLOW}${BOLD}CẦN TỐI ƯU THÊM - Chạy lệnh 'wpc security fix' để khắc phục.${NC}"
+        echo -e " Đánh giá: ${YELLOW}${BOLD}CẦN TỐI ƯU THÊM - Chạy lệnh 'presspanel security fix' để khắc phục.${NC}"
     fi
     echo -e "${BOLD}================================================================${NC}"
 }
@@ -309,7 +319,7 @@ audit_security() {
 # ==============================================================================
 fix_all_security() {
     echo -e "${BOLD}================================================================${NC}"
-    echo -e "${BOLD}         TIẾN HÀNH TỐI ƯU TOÀN DIỆN BẢO MẬT HỆ THỐNG WPC         ${NC}"
+    echo -e "${BOLD}      TIẾN HÀNH TỐI ƯU TOÀN DIỆN BẢO MẬT HỆ THỐNG PRESSPANEL     ${NC}"
     echo -e "${BOLD}================================================================${NC}"
 
     apply_sysctl_hardening

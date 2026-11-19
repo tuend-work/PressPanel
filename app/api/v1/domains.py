@@ -17,6 +17,8 @@ from app.executor.gatekeeper import run_gatekeeper
 ALLOWED_PHP_VERSIONS = {"5.6", "7.0", "7.1", "7.2", "7.3", "7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"}
 ALLOWED_WEBSERVERS = {"ols", "nginx"}
 
+PRESSPANEL_BASE = "/opt/presspanel" if os.path.exists("/opt/presspanel") else "/opt/wpc"
+
 router = APIRouter(prefix="/domains", tags=["Websites & Domains"])
 
 _disk_usage_cache = {}  # {path: (size_mb, timestamp)}
@@ -298,8 +300,8 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
     if current_user["role"] == "admin":
         active_ws = detect_running_webserver()
         pma_doc = "/home/pma/public_html"
-        legacy_doc = "/opt/wpc/apps/phpmyadmin"
-        if os.path.exists(f"{pma_doc}/index.php") or os.path.exists(f"{legacy_doc}/index.php") or os.path.exists("/usr/local/lsws/conf/vhosts/phpmyadmin") or os.path.exists("/etc/nginx/conf.d/00_phpmyadmin.conf"):
+        legacy_doc = f"{PRESSPANEL_BASE}/apps/phpmyadmin"
+        if os.path.exists(f"{pma_doc}/index.php") or os.path.exists(f"{legacy_doc}/index.php") or os.path.exists("/opt/wpc/apps/phpmyadmin/index.php") or os.path.exists("/usr/local/lsws/conf/vhosts/phpmyadmin") or os.path.exists("/etc/nginx/conf.d/00_phpmyadmin.conf"):
             check_pma = await db.execute("SELECT id, webserver FROM domains WHERE domain_name IN ('phpmyadmin.sys', 'phpmyadmin') LIMIT 1")
             has_pma = await check_pma.fetchone()
             if not has_pma:
@@ -1430,7 +1432,7 @@ async def save_domain_php_ini(
         try:
             import subprocess
             subprocess.run(
-                ["sudo", "/opt/wpc/scripts/vhost_manager.sh", "apply-php-ini", isolated_user, clean_domain, active_ws],
+                ["sudo", f"{PRESSPANEL_BASE}/scripts/vhost_manager.sh", "apply-php-ini", isolated_user, clean_domain, active_ws],
                 check=False
             )
         except Exception:
@@ -1891,17 +1893,17 @@ def sync_user_php_scan_dir(isolated_user: str, php_ver: str, extensions: dict) -
                     subprocess.run(["sudo", "ln", "-sf", os.path.join(mdir, "20-pdo_mysql.ini"), os.path.join(user_conf_d, "20-pdo_mysql.ini")], check=False)
 
         # 4. Đảm bảo Systemd Template Service có EnvironmentFile
-        tpl_service = f"/etc/systemd/system/wpc-php{clean_ver}-fpm@.service"
-        if os.path.exists(tpl_service):
-            content = read_file_privileged(tpl_service)
-            if content and "EnvironmentFile" not in content:
-                content = content.replace("[Service]\n", f"[Service]\nEnvironmentFile=-/etc/php/{clean_ver}/fpm/users/%i.env\n")
-                tmp_s = f"/tmp/wpc_svc_tpl_{int(time.time())}.service"
-                with open(tmp_s, "w", encoding="utf-8") as tf:
-                    tf.write(content)
-                subprocess.run(["sudo", "mv", "-f", tmp_s, tpl_service], check=False)
-                subprocess.run(["sudo", "chmod", "644", tpl_service], check=False)
-                subprocess.run(["sudo", "systemctl", "daemon-reload"], check=False)
+        for tpl_service in [f"/etc/systemd/system/presspanel-php{clean_ver}-fpm@.service", f"/etc/systemd/system/wpc-php{clean_ver}-fpm@.service"]:
+            if os.path.exists(tpl_service):
+                content = read_file_privileged(tpl_service)
+                if content and "EnvironmentFile" not in content:
+                    content = content.replace("[Service]\n", f"[Service]\nEnvironmentFile=-/etc/php/{clean_ver}/fpm/users/%i.env\n")
+                    tmp_s = f"/tmp/presspanel_svc_tpl_{int(time.time())}.service"
+                    with open(tmp_s, "w", encoding="utf-8") as tf:
+                        tf.write(content)
+                    subprocess.run(["sudo", "mv", "-f", tmp_s, tpl_service], check=False)
+                    subprocess.run(["sudo", "chmod", "644", tpl_service], check=False)
+                    subprocess.run(["sudo", "systemctl", "daemon-reload"], check=False)
 
         return True
     except Exception as e:
@@ -1924,7 +1926,7 @@ def sync_fpm_pool_extensions(isolated_user: str, php_ver: str, extensions: dict)
     if not check_file_exists_privileged(conf_path) and platform.system() == "Linux":
         try:
             subprocess.run(
-                ["sudo", "/opt/wpc/scripts/php_fpm_service.sh", "create", isolated_user, php_ver],
+                ["sudo", f"{PRESSPANEL_BASE}/scripts/php_fpm_service.sh", "create", isolated_user, php_ver],
                 check=False,
                 timeout=15
             )
@@ -1994,7 +1996,12 @@ def sync_fpm_pool_extensions(isolated_user: str, php_ver: str, extensions: dict)
     if platform.system() == "Linux":
         try:
             subprocess.run(
-                ["sudo", "/opt/wpc/scripts/php_fpm_service.sh", "restart", isolated_user, php_ver],
+                ["sudo", f"{PRESSPANEL_BASE}/scripts/php_fpm_service.sh", "restart", isolated_user, php_ver],
+                check=False,
+                timeout=15
+            )
+            subprocess.run(
+                ["sudo", "systemctl", "restart", f"presspanel-php{php_ver}-fpm@{isolated_user}.service"],
                 check=False,
                 timeout=15
             )
@@ -2066,7 +2073,7 @@ async def save_domain_php_extensions(
                 except Exception:
                     try:
                         subprocess.run(
-                            ["sudo", "/opt/wpc/scripts/apps/php.sh", "install-ext", php_ver, pkg_ext],
+                            ["sudo", f"{PRESSPANEL_BASE}/scripts/apps/php.sh", "install-ext", php_ver, pkg_ext],
                             check=False,
                             timeout=60
                         )
@@ -2082,7 +2089,8 @@ async def save_domain_php_extensions(
             pass
         try:
             subprocess.run(["sudo", "systemctl", "restart", f"php{php_ver}-fpm"], check=False)
-            subprocess.run(["sudo", "/opt/wpc/scripts/php_fpm_service.sh", "restart", isolated_user, php_ver], check=False)
+            subprocess.run(["sudo", f"{PRESSPANEL_BASE}/scripts/php_fpm_service.sh", "restart", isolated_user, php_ver], check=False)
+            subprocess.run(["sudo", "systemctl", "restart", f"presspanel-php{php_ver}-fpm@{isolated_user}.service"], check=False)
             subprocess.run(["sudo", "systemctl", "restart", f"wpc-php{php_ver}-fpm@{isolated_user}.service"], check=False)
         except Exception:
             pass
@@ -2201,7 +2209,7 @@ async def save_domain_php_extensions(
     if res.get("status") == "error":
         try:
             subprocess.run(
-                ["sudo", "/opt/wpc/scripts/vhost_manager.sh", "apply-php-ini", isolated_user, clean_domain, active_ws],
+                ["sudo", f"{PRESSPANEL_BASE}/scripts/vhost_manager.sh", "apply-php-ini", isolated_user, clean_domain, active_ws],
                 check=False
             )
         except Exception:
@@ -2270,6 +2278,7 @@ def sanitize_fpm_config_content(content: str, isolated_user: str) -> str:
 def get_fpm_pool_template() -> str:
     """Tải nội dung file template php_fpm_pool.tpl từ hệ thống hoặc thư mục mã nguồn"""
     tpl_paths = [
+        f"{PRESSPANEL_BASE}/templates/vhost_nginx/php_fpm_pool.tpl",
         "/opt/wpc/templates/vhost_nginx/php_fpm_pool.tpl",
         os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../templates/vhost_nginx/php_fpm_pool.tpl")),
         os.path.join(os.getcwd(), "templates", "vhost_nginx", "php_fpm_pool.tpl")
@@ -2289,7 +2298,7 @@ def render_fpm_pool_config(params: dict) -> str:
     """Render cấu hình PHP-FPM standalone pool từ file template php_fpm_pool.tpl"""
     tpl = get_fpm_pool_template()
     if not tpl:
-        tpl = """; WPCloud PHP-FPM Standalone Master & Pool Configuration
+        tpl = """; PressPanel PHP-FPM Standalone Master & Pool Configuration
 [global]
 pid = {{PID_FILE}}
 error_log = {{ERROR_LOG}}
@@ -2340,6 +2349,7 @@ php_admin_value[error_log] = /home/{{USERNAME}}/logs/php-fpm.error.log
 def get_ols_extprocessor_template() -> str:
     """Tải nội dung file template extprocessor.tpl từ hệ thống hoặc thư mục mã nguồn"""
     tpl_paths = [
+        f"{PRESSPANEL_BASE}/templates/vhost_ols/extprocessor.tpl",
         "/opt/wpc/templates/vhost_ols/extprocessor.tpl",
         os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../templates/vhost_ols/extprocessor.tpl")),
         os.path.join(os.getcwd(), "templates", "vhost_ols", "extprocessor.tpl")
@@ -2481,7 +2491,8 @@ async def get_domain_fpm_service(
     clean_domain = domain["domain_name"]
     isolated_user = domain_to_linux_user(clean_domain)
     php_ver = str(domain["php_version"] or "8.2")
-    service_name = f"wpc-php{php_ver}-fpm@{isolated_user}.service"
+    service_name = f"presspanel-php{php_ver}-fpm@{isolated_user}.service"
+    alt_service_name = f"wpc-php{php_ver}-fpm@{isolated_user}.service"
     conf_dir = f"/etc/php/{php_ver}/fpm/users"
     conf_path = f"{conf_dir}/{isolated_user}.conf"
     sock_path = f"/run/php/php{php_ver}-fpm-{isolated_user}.sock"
@@ -2497,7 +2508,14 @@ async def get_domain_fpm_service(
     if platform.system() == "Linux":
         try:
             r_act = subprocess.run(["systemctl", "is-active", service_name], capture_output=True, text=True)
-            status = r_act.stdout.strip() or "inactive"
+            status = r_act.stdout.strip()
+            if status not in ["active", "activating"]:
+                r_alt = subprocess.run(["systemctl", "is-active", alt_service_name], capture_output=True, text=True)
+                if r_alt.stdout.strip() in ["active", "activating"]:
+                    service_name = alt_service_name
+                    status = r_alt.stdout.strip()
+                elif not status:
+                    status = r_alt.stdout.strip() or "inactive"
 
             r_en = subprocess.run(["systemctl", "is-enabled", service_name], capture_output=True, text=True)
             enabled = r_en.stdout.strip() or "disabled"
@@ -2703,7 +2721,7 @@ async def save_domain_fpm_service(
     clean_domain = domain["domain_name"]
     isolated_user = domain_to_linux_user(clean_domain)
     php_ver = str(domain["php_version"] or "8.2")
-    service_name = f"wpc-php{php_ver}-fpm@{isolated_user}.service"
+    service_name = f"presspanel-php{php_ver}-fpm@{isolated_user}.service"
     conf_dir = f"/etc/php/{php_ver}/fpm/users"
     conf_path = f"{conf_dir}/{isolated_user}.conf"
     sock_path = f"/run/php/php{php_ver}-fpm-{isolated_user}.sock"
@@ -2862,7 +2880,7 @@ pm.max_requests = {max_req}"""
 
     # Ghi file cấu hình an toàn qua sudo/python
     try:
-        tmp_conf = f"/tmp/wpc_fpm_{isolated_user}_{int(time.time())}.conf"
+        tmp_conf = f"/tmp/presspanel_fpm_{isolated_user}_{int(time.time())}.conf"
         with open(tmp_conf, "w", encoding="utf-8") as f:
             f.write(content)
         subprocess.run(["sudo", "mv", tmp_conf, conf_path], check=False)
@@ -2874,7 +2892,7 @@ pm.max_requests = {max_req}"""
     if platform.system() == "Linux":
         try:
             subprocess.run(
-                ["sudo", "/opt/wpc/scripts/php_fpm_service.sh", "restart", isolated_user, php_ver],
+                ["sudo", f"{PRESSPANEL_BASE}/scripts/php_fpm_service.sh", "restart", isolated_user, php_ver],
                 check=False
             )
         except Exception:
@@ -2911,7 +2929,7 @@ async def reset_domain_fpm_service(
     clean_domain = domain["domain_name"]
     isolated_user = domain_to_linux_user(clean_domain)
     php_ver = str(domain["php_version"] or "8.2")
-    service_name = f"wpc-php{php_ver}-fpm@{isolated_user}.service"
+    service_name = f"presspanel-php{php_ver}-fpm@{isolated_user}.service"
     conf_dir = f"/etc/php/{php_ver}/fpm/users"
     conf_path = f"{conf_dir}/{isolated_user}.conf"
 
@@ -2919,11 +2937,11 @@ async def reset_domain_fpm_service(
         try:
             # Tái tạo sạch cấu hình mặc định an toàn cho OS hiện tại qua script
             subprocess.run(
-                ["sudo", "/opt/wpc/scripts/php_fpm_service.sh", "create", isolated_user, php_ver],
+                ["sudo", f"{PRESSPANEL_BASE}/scripts/php_fpm_service.sh", "create", isolated_user, php_ver],
                 check=False
             )
             subprocess.run(
-                ["sudo", "/opt/wpc/scripts/php_fpm_service.sh", "restart", isolated_user, php_ver],
+                ["sudo", f"{PRESSPANEL_BASE}/scripts/php_fpm_service.sh", "restart", isolated_user, php_ver],
                 check=False
             )
         except Exception as e:
@@ -2934,7 +2952,7 @@ async def reset_domain_fpm_service(
         sock_path = f"/run/php/php{php_ver}-fpm-{isolated_user}.sock"
         pid_path = f"/run/php/php{php_ver}-fpm-{isolated_user}.pid"
         os.makedirs(conf_dir, exist_ok=True)
-        default_content = f"""; WPCloud PHP-FPM Pool Configuration
+        default_content = f"""; PressPanel PHP-FPM Pool Configuration
 [global]
 pid = {pid_path}
 error_log = /var/log/php{php_ver}-fpm-{isolated_user}.log
@@ -3005,12 +3023,13 @@ async def control_domain_fpm_service(
     clean_domain = domain["domain_name"]
     isolated_user = domain_to_linux_user(clean_domain)
     php_ver = str(domain["php_version"] or "8.2")
-    service_name = f"wpc-php{php_ver}-fpm@{isolated_user}.service"
+    service_name = f"presspanel-php{php_ver}-fpm@{isolated_user}.service"
+    alt_service_name = f"wpc-php{php_ver}-fpm@{isolated_user}.service"
 
     if platform.system() == "Linux":
         try:
             subprocess.run(
-                ["sudo", "/opt/wpc/scripts/php_fpm_service.sh", req.action, isolated_user, php_ver],
+                ["sudo", f"{PRESSPANEL_BASE}/scripts/php_fpm_service.sh", req.action, isolated_user, php_ver],
                 check=False
             )
         except Exception as e:
@@ -3021,6 +3040,8 @@ async def control_domain_fpm_service(
     if platform.system() == "Linux":
         try:
             r = subprocess.run(["systemctl", "is-active", service_name], capture_output=True, text=True)
+            if r.returncode != 0:
+                r = subprocess.run(["systemctl", "is-active", alt_service_name], capture_output=True, text=True)
             new_status = r.stdout.strip() or "inactive"
         except Exception:
             pass
@@ -3271,7 +3292,11 @@ async def save_domain_lsapi_service(
     content = read_file_privileged(conf_path)
     if not content:
         # Nếu chưa có file vhost, lấy từ template chuẩn của OpenLiteSpeed
-        tpl_path = "/opt/wpc/templates/vhost_ols/default.tpl"
+        tpl_path = f"{PRESSPANEL_BASE}/templates/vhost_ols/default.tpl"
+        if not os.path.exists(tpl_path):
+            tpl_path = f"{PRESSPANEL_BASE}/templates/vhost_ols/default.tpl"
+        if not os.path.exists(tpl_path):
+            tpl_path = "/opt/wpc/templates/vhost_ols/default.tpl"
         if os.path.exists(tpl_path):
             try:
                 with open(tpl_path, "r", encoding="utf-8", errors="ignore") as tf:
@@ -3425,7 +3450,9 @@ async def reset_domain_lsapi_service(
 
     content = read_file_privileged(conf_path)
     if not content:
-        tpl_path = "/opt/wpc/templates/vhost_ols/default.tpl"
+        tpl_path = f"{PRESSPANEL_BASE}/templates/vhost_ols/default.tpl"
+        if not os.path.exists(tpl_path):
+            tpl_path = "/opt/wpc/templates/vhost_ols/default.tpl"
         if os.path.exists(tpl_path):
             try:
                 with open(tpl_path, "r", encoding="utf-8", errors="ignore") as tf:
@@ -3617,10 +3644,10 @@ async def update_domain_status(
     try:
         res = await run_gatekeeper("vhost", action, isolated_u, domain["domain_name"], ws)
         if res.get("status") != "success":
-            subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", action, isolated_u, domain["domain_name"], ws], check=False)
+            subprocess.run(["sudo", f"{PRESSPANEL_BASE}/scripts/vhost_manager.sh", action, isolated_u, domain["domain_name"], ws], check=False)
     except Exception:
         try:
-            subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", action, isolated_u, domain["domain_name"], ws], check=False)
+            subprocess.run(["sudo", f"{PRESSPANEL_BASE}/scripts/vhost_manager.sh", action, isolated_u, domain["domain_name"], ws], check=False)
         except Exception:
             pass
 
@@ -4174,7 +4201,9 @@ async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(g
 
         if not content:
             # Tự động nạp template chuẩn nếu chưa có file cấu hình thực tế trên disk
-            tpl_path = f"/opt/wpc/templates/vhost_{ws}/default.tpl"
+            tpl_path = f"{PRESSPANEL_BASE}/templates/vhost_{ws}/default.tpl"
+            if not os.path.exists(tpl_path):
+                tpl_path = f"/opt/wpc/templates/vhost_{ws}/default.tpl"
             if not os.path.exists(tpl_path):
                 base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
                 tpl_path = os.path.join(base_dir, f"templates/vhost_{ws}/default.tpl")
@@ -4274,7 +4303,9 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
     content = read_file_privileged(conf_path)
 
     if not content:
-        tpl_path = f"/opt/wpc/templates/vhost_ols/default.tpl" if ws == "ols" else f"/opt/wpc/templates/vhost_nginx/default.tpl"
+        tpl_path = f"{PRESSPANEL_BASE}/templates/vhost_ols/default.tpl" if ws == "ols" else f"{PRESSPANEL_BASE}/templates/vhost_nginx/default.tpl"
+        if not os.path.exists(tpl_path):
+            tpl_path = f"/opt/wpc/templates/vhost_ols/default.tpl" if ws == "ols" else f"/opt/wpc/templates/vhost_nginx/default.tpl"
         if os.path.exists(tpl_path):
             with open(tpl_path, "r", encoding="utf-8", errors="ignore") as tf:
                 content = tf.read().replace("{{DOMAIN}}", clean_domain).replace("{{USERNAME}}", isolated_user).replace("{{PHP_VERSION}}", php_num).replace("{{PHP_NUM}}", php_num)
@@ -4341,10 +4372,10 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
         try:
             res_gate = await run_gatekeeper("vhost", "reload-vhost", isolated_user, clean_domain, ws, php_ver)
             if res_gate.get("status") != "success":
-                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws, php_ver], check=False)
+                subprocess.run(["sudo", f"{PRESSPANEL_BASE}/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws, php_ver], check=False)
         except Exception:
             try:
-                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws, php_ver], check=False)
+                subprocess.run(["sudo", f"{PRESSPANEL_BASE}/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws, php_ver], check=False)
             except Exception:
                 pass
 
@@ -4506,10 +4537,10 @@ async def save_domain_vhost_config(domain_id: int, req: VHostConfigRequest, curr
         try:
             res_gate = await run_gatekeeper("vhost", "reload-vhost", isolated_user, clean_domain, ws, php_ver)
             if res_gate.get("status") != "success":
-                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws, php_ver], check=False)
+                subprocess.run(["sudo", f"{PRESSPANEL_BASE}/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws, php_ver], check=False)
         except Exception:
             try:
-                subprocess.run(["sudo", "/opt/wpc/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws, php_ver], check=False)
+                subprocess.run(["sudo", f"{PRESSPANEL_BASE}/scripts/vhost_manager.sh", "reload-vhost", isolated_user, clean_domain, ws, php_ver], check=False)
             except Exception:
                 pass
 

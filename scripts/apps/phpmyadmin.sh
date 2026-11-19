@@ -10,6 +10,7 @@ TARGET_WS="${3:-}"
 PMA_USER="pma"
 PMA_HOME="/home/$PMA_USER"
 TARGET_DIR="$PMA_HOME/public_html"
+PRESSPANEL_LEGACY_DIR="/opt/presspanel/apps/phpmyadmin"
 LEGACY_DIR="/opt/wpc/apps/phpmyadmin"
 PMA_PORT="888"
 
@@ -102,9 +103,15 @@ case "$ACTION" in
             cp -rn "$LEGACY_DIR"/* "$TARGET_DIR/" 2>/dev/null || true
             rm -rf "$LEGACY_DIR" 2>/dev/null || true
         fi
+        if [ -d "$PRESSPANEL_LEGACY_DIR" ] && [ ! -L "$PRESSPANEL_LEGACY_DIR" ] && [ -f "$PRESSPANEL_LEGACY_DIR/index.php" ] && [ ! -f "$TARGET_DIR/index.php" ]; then
+            echo "[+] Chuyển mã nguồn phpMyAdmin từ $PRESSPANEL_LEGACY_DIR sang $TARGET_DIR..."
+            cp -rn "$PRESSPANEL_LEGACY_DIR"/* "$TARGET_DIR/" 2>/dev/null || true
+            rm -rf "$PRESSPANEL_LEGACY_DIR" 2>/dev/null || true
+        fi
 
-        # Tạo symlink tương thích ngược: /opt/wpc/apps/phpmyadmin -> /home/pma/public_html
-        mkdir -p /opt/wpc/apps 2>/dev/null || true
+        # Tạo symlink tương thích: /opt/presspanel/apps/phpmyadmin và /opt/wpc/apps/phpmyadmin -> /home/pma/public_html
+        mkdir -p /opt/presspanel/apps /opt/wpc/apps 2>/dev/null || true
+        ln -sfn "$TARGET_DIR" "$PRESSPANEL_LEGACY_DIR" 2>/dev/null || true
         ln -sfn "$TARGET_DIR" "$LEGACY_DIR" 2>/dev/null || true
 
         # 3. Tải và giải nén phpMyAdmin nếu chưa có file index.php
@@ -179,11 +186,12 @@ if (!is_dir(__DIR__ . '/logs')) {
 \$cfg['Servers'][\$i]['SessionSavePath'] = \$tmpDir;
 
 // Hỗ trợ Single Sign-On (SSO) tự động khi có cookie SignonSession hoặc yêu cầu xác thực
-if (isset(\$_COOKIE['SignonSession']) || isset(\$_GET['token']) || isset(\$_REQUEST['token']) || isset(\$_GET['wpc_sso'])) {
+if (isset(\$_COOKIE['SignonSession']) || isset(\$_GET['token']) || isset(\$_REQUEST['token']) || isset(\$_GET['presspanel_sso']) || isset(\$_GET['wpc_sso'])) {
     \$cfg['Servers'][\$i]['auth_type'] = 'signon';
     \$cfg['Servers'][\$i]['SignonSession'] = 'SignonSession';
-    \$cfg['Servers'][\$i]['SignonURL'] = 'wpc_signon.php';
-    \$cfg['Servers'][\$i]['LogoutURL'] = 'wpc_signon.php?logout=1';
+    \$signon = file_exists(__DIR__ . '/presspanel_signon.php') ? 'presspanel_signon.php' : 'wpc_signon.php';
+    \$cfg['Servers'][\$i]['SignonURL'] = \$signon;
+    \$cfg['Servers'][\$i]['LogoutURL'] = \$signon . '?logout=1';
 } else {
     \$cfg['Servers'][\$i]['auth_type'] = 'cookie';
 }
@@ -196,11 +204,17 @@ if (isset(\$_COOKIE['SignonSession']) || isset(\$_GET['token']) || isset(\$_REQU
 \$cfg['MaxRows'] = 50;
 EOF
 
-        # Sao chép wpc_signon.php vào thư mục gốc của phpMyAdmin
-        WPC_SIGNON_SRC="$WPC_BASE/templates/apps/phpmyadmin/wpc_signon.php"
-        if [ -f "$WPC_SIGNON_SRC" ]; then
-            cp -f "$WPC_SIGNON_SRC" "$TARGET_DIR/wpc_signon.php"
-        fi
+        # Sao chép presspanel_signon.php và wpc_signon.php vào thư mục gốc của phpMyAdmin
+        for sso_file in "presspanel_signon.php" "wpc_signon.php"; do
+            for base in "$WPC_BASE" "/opt/presspanel" "/opt/wpc"; do
+                if [ -f "$base/templates/apps/phpmyadmin/$sso_file" ]; then
+                    cp -f "$base/templates/apps/phpmyadmin/$sso_file" "$TARGET_DIR/$sso_file"
+                    break
+                fi
+            done
+        done
+        [ -f "$TARGET_DIR/presspanel_signon.php" ] && [ ! -f "$TARGET_DIR/wpc_signon.php" ] && cp -f "$TARGET_DIR/presspanel_signon.php" "$TARGET_DIR/wpc_signon.php"
+        [ -f "$TARGET_DIR/wpc_signon.php" ] && [ ! -f "$TARGET_DIR/presspanel_signon.php" ] && cp -f "$TARGET_DIR/wpc_signon.php" "$TARGET_DIR/presspanel_signon.php"
 
         # Nếu index.php vẫn chưa có, tạo trang chẩn đoán tạm thời để tránh 403 Directory Index Forbidden
         if [ ! -f "$TARGET_DIR/index.php" ]; then
@@ -208,7 +222,7 @@ EOF
             cat << 'EOF' > "$TARGET_DIR/index.php"
 <?php
 echo "<div style='font-family:sans-serif;text-align:center;padding:50px;'>";
-echo "<h2>🐬 WPCloud phpMyAdmin</h2>";
+echo "<h2>🐬 PressPanel phpMyAdmin</h2>";
 echo "<p>phpMyAdmin đang đồng bộ. Vui lòng bấm <b>🔄 Cài lại</b> trên giao diện hoặc kiểm tra kết nối mạng máy chủ.</p>";
 echo "</div>";
 EOF
@@ -277,12 +291,12 @@ EOF
 
         # 7. Cấu hình Cgroups v2 phân cấp cho user 'pma' (con của admin)
         echo "[+] Khởi tạo cgroup v2 cho user pma..."
-        mkdir -p /sys/fs/cgroup/wpc/user_admin/site_pma 2>/dev/null || true
-        mkdir -p /sys/fs/cgroup/wpc/user_pma 2>/dev/null || true
-        echo "50000 100000" > /sys/fs/cgroup/wpc/user_admin/site_pma/cpu.max 2>/dev/null || true
-        echo "536870912" > /sys/fs/cgroup/wpc/user_admin/site_pma/memory.max 2>/dev/null || true
-        echo "50000 100000" > /sys/fs/cgroup/wpc/user_pma/cpu.max 2>/dev/null || true
-        echo "536870912" > /sys/fs/cgroup/wpc/user_pma/memory.max 2>/dev/null || true
+        mkdir -p /sys/fs/cgroup/presspanel/user_admin/site_pma /sys/fs/cgroup/wpc/user_admin/site_pma 2>/dev/null || true
+        mkdir -p /sys/fs/cgroup/presspanel/user_pma /sys/fs/cgroup/wpc/user_pma 2>/dev/null || true
+        for d in /sys/fs/cgroup/presspanel/user_admin/site_pma /sys/fs/cgroup/wpc/user_admin/site_pma /sys/fs/cgroup/presspanel/user_pma /sys/fs/cgroup/wpc/user_pma; do
+            echo "50000 100000" > "$d/cpu.max" 2>/dev/null || true
+            echo "536870912" > "$d/memory.max" 2>/dev/null || true
+        done
 
         # 8. Phát hiện Web Server đang hoạt động thực tế (Nginx hoặc OpenLiteSpeed)
         ACTIVE_WS="nginx"
@@ -333,7 +347,8 @@ EOF
 
             mkdir -p /etc/nginx/conf.d /etc/nginx/sites-available /etc/nginx/sites-enabled
             ACTIVE_PHP=$(detect_php_version)
-            WPC_BASE="/opt/wpc"
+            WPC_BASE="/opt/presspanel"
+            [ ! -d "$WPC_BASE" ] && [ -d "/opt/wpc" ] && WPC_BASE="/opt/wpc"
             [ ! -d "$WPC_BASE" ] && WPC_BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
             # Tạo Systemd Service PHP-FPM riêng cho user pma
@@ -360,6 +375,7 @@ EOF
                 [ -f "$mdir/20-pdo_mysql.ini" ] && ln -sf "$mdir/20-pdo_mysql.ini" "$PMA_CONF_D/20-pdo_mysql.ini" 2>/dev/null || true
                 [ -f "$mdir/mbstring.ini" ] && ln -sf "$mdir/mbstring.ini" "$PMA_CONF_D/20-mbstring.ini" 2>/dev/null || true
             done
+            systemctl restart "presspanel-php${ACTIVE_PHP}-fpm@pma" 2>/dev/null || true
             systemctl restart "wpc-php${ACTIVE_PHP}-fpm@pma" 2>/dev/null || true
 
             PMA_FPM_SOCK="/run/php/php${ACTIVE_PHP}-fpm-pma.sock"
@@ -371,7 +387,7 @@ EOF
                     fi
                 done
             fi
-            echo "[+] Khởi tạo PHP-FPM riêng cho pma trên Nginx (Service: wpc-php${ACTIVE_PHP}-fpm@pma, Sock: $PMA_FPM_SOCK)"
+            echo "[+] Khởi tạo PHP-FPM riêng cho pma trên Nginx (Service: presspanel-php${ACTIVE_PHP}-fpm@pma, Sock: $PMA_FPM_SOCK)"
 
             # Đảm bảo quyền truy cập cho webserver vào thư mục /home/pma
             chmod 711 /home 2>/dev/null || true
@@ -556,7 +572,9 @@ EOF
         fi
 
         # 9. Gắn tiến trình pma vào Cgroups v2
-        if [ -f "/opt/wpc/scripts/cgroup_attach.sh" ]; then
+        if [ -f "/opt/presspanel/scripts/cgroup_attach.sh" ]; then
+            /bin/bash /opt/presspanel/scripts/cgroup_attach.sh once 2>/dev/null || true
+        elif [ -f "/opt/wpc/scripts/cgroup_attach.sh" ]; then
             /bin/bash /opt/wpc/scripts/cgroup_attach.sh once 2>/dev/null || true
         fi
 
@@ -565,7 +583,7 @@ EOF
             python3 - "$ACTIVE_WS" << 'PY_REGISTER' 2>/dev/null || true
 import sqlite3, os, sys
 active_ws = sys.argv[1] if len(sys.argv) > 1 else "nginx"
-candidates = ["/opt/wpc/data/panel.db", "/opt/wpc/panel.db", os.path.expanduser("~/PressPanel/panel.db")]
+candidates = ["/opt/presspanel/data/panel.db", "/opt/wpc/data/panel.db", "/opt/presspanel/panel.db", "/opt/wpc/panel.db", os.path.expanduser("~/PressPanel/panel.db")]
 db_path = None
 for c in candidates:
     if os.path.isfile(c):
@@ -615,7 +633,9 @@ PY_REGISTER
         # 1. Điều khiển PHP-FPM Service riêng nếu chạy Nginx
         ACTIVE_PHP=$(detect_php_version)
         for pver in 8.5 8.4 8.3 8.2 8.1 8.0 7.4; do
+            systemctl "$ACTION" "presspanel-php${pver}-fpm@pma" 2>/dev/null || true
             systemctl "$ACTION" "wpc-php${pver}-fpm@pma" 2>/dev/null || true
+            systemctl "$ACTION" "presspanel-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
             systemctl "$ACTION" "wpc-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
         done
         # 2. Điều khiển OpenLiteSpeed LSPHP nếu chạy OpenLiteSpeed
@@ -632,8 +652,8 @@ PY_REGISTER
 
     status)
         ACTIVE_PHP=$(detect_php_version)
-        PMA_SVC="wpc-php${ACTIVE_PHP}-fpm@pma"
-        if systemctl is-active --quiet "$PMA_SVC" 2>/dev/null || systemctl is-active --quiet "wpc-php${ACTIVE_PHP}-fpm@phpmyadmin" 2>/dev/null; then
+        PMA_SVC="presspanel-php${ACTIVE_PHP}-fpm@pma"
+        if systemctl is-active --quiet "$PMA_SVC" 2>/dev/null || systemctl is-active --quiet "wpc-php${ACTIVE_PHP}-fpm@pma" 2>/dev/null || systemctl is-active --quiet "wpc-php${ACTIVE_PHP}-fpm@phpmyadmin" 2>/dev/null; then
             echo "active (Nginx PHP-FPM: $PMA_SVC)"
         elif [ -d "/usr/local/lsws" ] && (systemctl is-active --quiet lsws 2>/dev/null || systemctl is-active --quiet lshttpd 2>/dev/null); then
             echo "active (OpenLiteSpeed LSPHP: $(detect_ols_lsphp))"
@@ -646,8 +666,12 @@ PY_REGISTER
         echo "[+] Đang gỡ bỏ phpMyAdmin..."
         # 1. Dừng và xoá PHP-FPM Service riêng
         for pver in 8.5 8.4 8.3 8.2 8.1 8.0 7.4; do
+            systemctl stop "presspanel-php${pver}-fpm@pma" 2>/dev/null || true
+            systemctl disable "presspanel-php${pver}-fpm@pma" 2>/dev/null || true
             systemctl stop "wpc-php${pver}-fpm@pma" 2>/dev/null || true
             systemctl disable "wpc-php${pver}-fpm@pma" 2>/dev/null || true
+            systemctl stop "presspanel-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
+            systemctl disable "presspanel-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
             systemctl stop "wpc-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
             systemctl disable "wpc-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
             rm -f "/etc/php/${pver}/fpm/users/pma.conf" "/run/php/php${pver}-fpm-pma.sock" "/run/php/php${pver}-fpm-pma.pid" 2>/dev/null || true
@@ -678,7 +702,7 @@ PY_REGISTER
         if command -v python3 &>/dev/null; then
             python3 - << 'PY_UNREGISTER' 2>/dev/null || true
 import sqlite3, os
-candidates = ["/opt/wpc/data/panel.db", "/opt/wpc/panel.db", os.path.expanduser("~/PressPanel/panel.db")]
+candidates = ["/opt/presspanel/data/panel.db", "/opt/wpc/data/panel.db", "/opt/presspanel/panel.db", "/opt/wpc/panel.db", os.path.expanduser("~/PressPanel/panel.db")]
 for c in candidates:
     if os.path.isfile(c):
         try:

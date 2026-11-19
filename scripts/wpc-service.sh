@@ -1,16 +1,29 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# WPCloud Control Panel Service Runner
+# PressPanel / WPCloud Control Panel Service Runner
 # Khởi chạy ứng dụng FastAPI + Uvicorn với cơ chế tự phục hồi môi trường & logging
 # ==============================================================================
 
 set -eo pipefail
 
-INSTALL_DIR="/opt/wpc"
-cd "$INSTALL_DIR" 2>/dev/null || cd /opt/wpc
+if [ -d "/opt/presspanel" ]; then
+    INSTALL_DIR="/opt/presspanel"
+elif [ -d "/opt/wpc" ]; then
+    INSTALL_DIR="/opt/wpc"
+else
+    INSTALL_DIR="/opt/presspanel"
+fi
 
-# Đọc cổng cấu hình từ wpc.conf (mặc định 8888)
-PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
+cd "$INSTALL_DIR" 2>/dev/null || cd /opt/presspanel 2>/dev/null || cd /opt/wpc 2>/dev/null || true
+
+# Đọc cổng cấu hình từ presspanel.conf hoặc wpc.conf (mặc định 8888)
+PANEL_PORT=""
+if [ -f "$INSTALL_DIR/conf/presspanel.conf" ]; then
+    PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || true)
+fi
+if [ -z "$PANEL_PORT" ] && [ -f "$INSTALL_DIR/conf/wpc.conf" ]; then
+    PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || true)
+fi
 [ -z "$PANEL_PORT" ] && PANEL_PORT="8888"
 
 # 1. Tìm Python binary trong venv hoặc hệ thống

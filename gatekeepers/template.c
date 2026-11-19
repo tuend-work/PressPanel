@@ -1,11 +1,15 @@
 /*
- * WPCloud: template.c - Bộ Sinh Cấu Hình Kế Thừa 3 Cấp
- * SUID Binary (chmod 4750 root:wpc)
+ * PressPanel: template.c - Bộ Sinh Cấu Hình Kế Thừa 3 Cấp
+ * SUID Binary (chmod 4750 root:presspanel)
  */
 
 #include "common.h"
 
-#define TEMPLATE_ROOT "/opt/wpc/templates"
+static const char* get_template_root(void) {
+    if (access("/opt/presspanel/templates", F_OK) == 0) return "/opt/presspanel/templates";
+    return "/opt/wpc/templates";
+}
+#define TEMPLATE_ROOT get_template_root()
 
 int main(int argc, char *argv[]) {
     init_security_env();

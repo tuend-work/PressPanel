@@ -30,11 +30,12 @@ $cfg['Servers'][$i]['AllowRoot'] = true;
 $cfg['Servers'][$i]['SessionSavePath'] = $tmpDir;
 
 // Hỗ trợ chế độ Single Sign-On (SSO) tự động khi có cookie SignonSession hoặc yêu cầu xác thực
-if (isset($_COOKIE['SignonSession']) || isset($_GET['token']) || isset($_REQUEST['token']) || isset($_GET['wpc_sso'])) {
+if (isset($_COOKIE['SignonSession']) || isset($_GET['token']) || isset($_REQUEST['token']) || isset($_GET['wpc_sso']) || isset($_GET['presspanel_sso'])) {
     $cfg['Servers'][$i]['auth_type'] = 'signon';
     $cfg['Servers'][$i]['SignonSession'] = 'SignonSession';
-    $cfg['Servers'][$i]['SignonURL'] = 'wpc_signon.php';
-    $cfg['Servers'][$i]['LogoutURL'] = 'wpc_signon.php?logout=1';
+    $signonFile = file_exists(__DIR__ . '/presspanel_signon.php') ? 'presspanel_signon.php' : 'wpc_signon.php';
+    $cfg['Servers'][$i]['SignonURL'] = $signonFile;
+    $cfg['Servers'][$i]['LogoutURL'] = $signonFile . '?logout=1';
 } else {
     $cfg['Servers'][$i]['auth_type'] = 'cookie';
 }

@@ -4,14 +4,16 @@ import json
 import logging
 from typing import Optional, Dict, Any
 
-logger = logging.getLogger("wpc.executor")
+logger = logging.getLogger("presspanel.executor")
 
 async def run_gatekeeper(module: str, *args, stdin_data: Optional[str] = None) -> Dict[str, Any]:
     """
-    Thực thi an toàn một trong 8 C gatekeeper tại /opt/wpc/bin/<module>
+    Thực thi an toàn một trong 8 C gatekeeper tại /opt/presspanel/bin/<module>
     Truyền tham số và đọc dữ liệu JSON chuẩn từ stdout/stderr.
     """
-    binary_path = f"/opt/wpc/bin/{module}"
+    binary_path = f"/opt/presspanel/bin/{module}"
+    if not os.path.exists(binary_path) and os.path.exists(f"/opt/wpc/bin/{module}"):
+        binary_path = f"/opt/wpc/bin/{module}"
     cmd = [binary_path] + [str(a) for a in args]
 
     try:

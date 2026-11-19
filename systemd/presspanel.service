@@ -1,0 +1,19 @@
+[Unit]
+Description=PressPanel Server (FastAPI + Asyncio)
+After=network.target
+
+[Service]
+Type=simple
+User=presspanel
+Group=presspanel
+WorkingDirectory=/opt/presspanel
+Environment=PYTHONPATH=/opt/presspanel
+ExecStart=/bin/bash /opt/presspanel/scripts/presspanel-service.sh
+Restart=always
+RestartSec=3
+LimitNOFILE=65535
+StandardOutput=append:/var/log/presspanel.log
+StandardError=append:/var/log/presspanel.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1671,10 +1671,10 @@
                                     <div class="flex items-center justify-between">
                                         <span class="text-slate-400 text-xs">Tên miền tạm thời tự động cấp:</span>
                                         <span class="font-mono text-emerald-400 font-bold bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-900/60 text-xs">
-                                            {{ (newCustomer.username || 'user') }}.wpc.local
+                                            {{ (newCustomer.username || 'user') }}.presspanel.local
                                         </span>
                                     </div>
-                                    <p class="text-[11px] text-slate-400 mt-1.5">Website sẽ tạo user linux riêng <code class="text-blue-400 font-mono">/home/{{ (newCustomer.username || 'user') }}wpclocal</code></p>
+                                    <p class="text-[11px] text-slate-400 mt-1.5">Website sẽ tạo user linux riêng <code class="text-blue-400 font-mono">/home/{{ (newCustomer.username || 'user') }}presspanellocal</code></p>
                                 </div>
 
                                 <!-- Service Plan dropdown -->
@@ -3537,7 +3537,7 @@
 
                                     <div class="space-y-1">
                                         <div class="flex items-center justify-between">
-                                            <label class="text-[11px] font-mono text-slate-400">File lưu trữ đối số: <code class="text-amber-400">/opt/wpc/config/build/{{ selectedSettingApp?.id }}.args</code></label>
+                                            <label class="text-[11px] font-mono text-slate-400">File lưu trữ đối số: <code class="text-amber-400">/opt/presspanel/config/build/{{ selectedSettingApp?.id }}.args</code></label>
                                             <button type="button" @click="resetAppBuildArgsToDefault" class="text-[11px] text-cyan-400 hover:underline">
                                                 🔄 Khôi phục đối số mặc định
                                             </button>
@@ -3709,7 +3709,7 @@
                 </div>
             </div>
 
-            <!-- MODAL: CẬP NHẬT PHIÊN BẢN WPCLOUD CONTROL PANEL (TERMINAL STREAMING STYLE) -->
+            <!-- MODAL: CẬP NHẬT PHIÊN BẢN PRESSPANEL (TERMINAL STREAMING STYLE) -->
             <div v-if="showUpdateModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div class="bg-[#1f2430] rounded-2xl max-w-2xl w-full shadow-2xl relative border border-slate-700/80 overflow-hidden text-slate-200">
                     <!-- Modal Header -->
@@ -3718,7 +3718,7 @@
                             <span v-if="isUpdating" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
                             <span v-else class="text-base">🔄</span>
                             <h3 class="text-sm font-medium text-slate-100 tracking-wide">
-                                {{ isUpdating ? 'Updating panel, please wait...' : 'Cập Nhật WPCloud Control Panel' }}
+                                {{ isUpdating ? 'Updating panel, please wait...' : 'Cập Nhật PressPanel' }}
                             </h3>
                         </div>
                         <button @click="showUpdateModal = false" class="text-slate-400 hover:text-white text-lg font-bold w-7 h-7 rounded-full hover:bg-slate-700/50 flex items-center justify-center transition leading-none">&times;</button>
@@ -3788,7 +3788,7 @@
                 </div>
             </div>
 
-            <!-- MODAL: MESSAGES BOX & TASK LIST (WPCLOUD LIGHT STYLE) -->
+            <!-- MODAL: MESSAGES BOX & TASK LIST (PRESSPANEL LIGHT STYLE) -->
             <div v-if="showMessagesBox" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div class="bg-white rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col border border-slate-200 h-[550px]">
                     <!-- Header -->

@@ -21,7 +21,8 @@ if [ -z "$USERNAME" ] || [ -z "$PHP_VER" ]; then
     exit 1
 fi
 
-SVC_NAME="wpc-php${PHP_VER}-fpm@${USERNAME}.service"
+SVC_NAME="presspanel-php${PHP_VER}-fpm@${USERNAME}.service"
+ALT_SVC_NAME="wpc-php${PHP_VER}-fpm@${USERNAME}.service"
 PHP_CONF_DIR="/etc/php/${PHP_VER}/fpm"
 USER_CONF_DIR="$PHP_CONF_DIR/users"
 CONF_FILE="$USER_CONF_DIR/${USERNAME}.conf"
@@ -121,7 +122,8 @@ case "$ACTION" in
         chmod 755 "/home/${USERNAME}/logs" "/home/${USERNAME}/.tmp" "/home/${USERNAME}/.sessions" 2>/dev/null || true
 
         # 1. Sinh file cấu hình standalone hoàn chỉnh từ template php_fpm_pool.tpl
-        TPL_FILE="/opt/wpc/templates/vhost_nginx/php_fpm_pool.tpl"
+        TPL_FILE="/opt/presspanel/templates/vhost_nginx/php_fpm_pool.tpl"
+        [ ! -f "$TPL_FILE" ] && [ -f "/opt/wpc/templates/vhost_nginx/php_fpm_pool.tpl" ] && TPL_FILE="/opt/wpc/templates/vhost_nginx/php_fpm_pool.tpl"
         [ ! -f "$TPL_FILE" ] && TPL_FILE="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/templates/vhost_nginx/php_fpm_pool.tpl"
 
         # Quyết định danh sách disable_functions:
@@ -261,12 +263,12 @@ EOF
         rm -f "$PHP_CONF_DIR/pool.d/${USERNAME}.conf" 2>/dev/null || true
         rm -f "$SOCK_FILE" 2>/dev/null || true
 
-        # 3. Đảm bảo Systemd Template Service tồn tại: /etc/systemd/system/wpc-php${PHP_VER}-fpm@.service
+        # 3. Đảm bảo Systemd Template Service tồn tại: /etc/systemd/system/presspanel-php${PHP_VER}-fpm@.service
         ACTUAL_BIN="${FPM_BIN:-/usr/sbin/php-fpm${PHP_VER}}"
-        TEMPLATE_FILE="/etc/systemd/system/wpc-php${PHP_VER}-fpm@.service"
+        TEMPLATE_FILE="/etc/systemd/system/presspanel-php${PHP_VER}-fpm@.service"
         cat << EOF > "$TEMPLATE_FILE"
 [Unit]
-Description=WPCloud PHP-FPM Service for user %i
+Description=PressPanel PHP-FPM Service for user %i
 After=network.target
 
 [Service]
@@ -276,11 +278,14 @@ EnvironmentFile=-/etc/php/${PHP_VER}/fpm/users/%i.env
 ExecStart=${ACTUAL_BIN} --nodaemonize --fpm-config /etc/php/${PHP_VER}/fpm/users/%i.conf
 ExecReload=/bin/kill -USR2 \$MAINPID
 TimeoutSec=15
-Slice=wpc-user-%i.slice
+Slice=presspanel-user-%i.slice
 
 [Install]
 WantedBy=multi-user.target
 EOF
+
+        # Tương thích ngược: tạo symlink wpc-php... trỏ về presspanel-php...
+        ln -sf "$TEMPLATE_FILE" "/etc/systemd/system/wpc-php${PHP_VER}-fpm@.service" 2>/dev/null || true
 
         # 4. Kích hoạt và nạp lại daemon
         systemctl daemon-reload 2>/dev/null || true
@@ -323,13 +328,14 @@ EOF
     start|restart)
         # Tự động vá lại ExecStart trong systemd template nếu trỏ nhầm binary PHP-FPM cũ
         HEALED_BIN=$(resolve_fpm_bin "$PHP_VER")
-        TEMPLATE_FILE="/etc/systemd/system/wpc-php${PHP_VER}-fpm@.service"
-        if [ -n "$HEALED_BIN" ] && [ -f "$TEMPLATE_FILE" ]; then
-            if ! grep -q "ExecStart=${HEALED_BIN} " "$TEMPLATE_FILE" 2>/dev/null; then
-                sed -i -E "s|^ExecStart=[^ ]+|ExecStart=${HEALED_BIN}|" "$TEMPLATE_FILE" 2>/dev/null || true
-                systemctl daemon-reload 2>/dev/null || true
+        for TEMPLATE_FILE in "/etc/systemd/system/presspanel-php${PHP_VER}-fpm@.service" "/etc/systemd/system/wpc-php${PHP_VER}-fpm@.service"; do
+            if [ -n "$HEALED_BIN" ] && [ -f "$TEMPLATE_FILE" ]; then
+                if ! grep -q "ExecStart=${HEALED_BIN} " "$TEMPLATE_FILE" 2>/dev/null; then
+                    sed -i -E "s|^ExecStart=[^ ]+|ExecStart=${HEALED_BIN}|" "$TEMPLATE_FILE" 2>/dev/null || true
+                    systemctl daemon-reload 2>/dev/null || true
+                fi
             fi
-        fi
+        done
         case "$PHP_VER" in
             5.6|7.0|7.1|7.2)
                 [ -f "$CONF_FILE" ] && sed -i '/^[;[:space:]]*decorate_workers_output/d' "$CONF_FILE" 2>/dev/null || true

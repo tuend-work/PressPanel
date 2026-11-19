@@ -158,7 +158,7 @@ async def sync_all_databases(current_user: dict = Depends(get_current_user)):
     return {"status": "ok", "message": f"Đã đồng bộ thành công {synced_count} cơ sở dữ liệu!"}
 
 def get_mysql_root_password() -> Optional[str]:
-    """Tìm mật khẩu root MariaDB/MySQL từ /root/.my.cnf hoặc /opt/wpc/conf/wpc.conf"""
+    """Tìm mật khẩu root MariaDB/MySQL từ /root/.my.cnf hoặc /opt/presspanel/conf/presspanel.conf (fallback /opt/wpc/conf/wpc.conf)"""
     try:
         if os.path.exists("/root/.my.cnf"):
             with open("/root/.my.cnf", "r", encoding="utf-8") as f:
@@ -167,14 +167,15 @@ def get_mysql_root_password() -> Optional[str]:
                         return line.split("=", 1)[1].strip().strip('"\'')
     except Exception:
         pass
-    try:
-        if os.path.exists("/opt/wpc/conf/wpc.conf"):
-            with open("/opt/wpc/conf/wpc.conf", "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.strip().startswith("mysql_root_password"):
-                        return line.split("=", 1)[1].strip().strip('"\'')
-    except Exception:
-        pass
+    for conf_file in ["/opt/presspanel/conf/presspanel.conf", "/opt/wpc/conf/wpc.conf"]:
+        try:
+            if os.path.exists(conf_file):
+                with open(conf_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip().startswith("mysql_root_password"):
+                            return line.split("=", 1)[1].strip().strip('"\'')
+        except Exception:
+            pass
     return None
 
 def execute_mysql_sql(sql_commands: str) -> tuple[bool, str]:
@@ -397,7 +398,7 @@ async def update_root_password(req: DatabaseRootPasswordRequest, current_user: d
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên cấp cao mới có quyền đổi mật khẩu Root DB")
     
     if os.name != "nt":
-        script_path = "/opt/wpc/scripts/db_root_password.sh"
+        script_path = "/opt/presspanel/scripts/db_root_password.sh" if os.path.exists("/opt/presspanel/scripts/db_root_password.sh") else "/opt/wpc/scripts/db_root_password.sh"
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         local_script = os.path.join(base_dir, "scripts", "db_root_password.sh")
         target_script = script_path if os.path.exists(script_path) else local_script
@@ -493,7 +494,7 @@ async def toggle_remote_access(req: RemoteAccessRequest, current_user: dict = De
 # ==============================================================================
 
 def get_redis_user_script_path() -> str:
-    path = "/opt/wpc/scripts/redis_user_manager.sh"
+    path = "/opt/presspanel/scripts/redis_user_manager.sh" if os.path.exists("/opt/presspanel/scripts/redis_user_manager.sh") else "/opt/wpc/scripts/redis_user_manager.sh"
     if os.path.exists(path):
         return path
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -659,7 +660,7 @@ async def user_redis_apply_wp(
             content = f.read()
 
         redis_snippet = (
-            f"\n// WPC Redis Socket Per User\n"
+            f"\n// PressPanel Redis Socket Per User\n"
             f"if ( ! defined( 'WP_REDIS_SCHEME' ) ) {{\n"
             f"    define( 'WP_REDIS_SCHEME', 'unix' );\n"
             f"}}\n"
@@ -697,7 +698,7 @@ async def user_redis_apply_wp(
         raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật wp-config.php: {str(e)}")
 
 # ==============================================================================
-# WPC MySQL Resource Controller Endpoints
+# PressPanel MySQL Resource Controller Endpoints
 # ==============================================================================
 
 class MySQLControllerSnipeRequest(BaseModel):
@@ -719,7 +720,7 @@ class MySQLControllerLimitsRequest(BaseModel):
 
 @router.get("/controller/status")
 async def get_mysql_controller_status_endpoint(current_user: dict = Depends(get_current_user)):
-    """Trả về trạng thái tổng quan của WPC MySQL Resource Controller"""
+    """Trả về trạng thái tổng quan của PressPanel MySQL Resource Controller"""
     from app.services.mysql_controller import get_controller_status
     return get_controller_status()
 
@@ -992,17 +993,22 @@ async def generate_pma_sso_token(
         "expires_at": now + 60,
     }
 
+    sso_file = "/presspanel_signon.php"
+    pma_doc = "/home/pma/public_html"
+    if not os.path.exists(f"{pma_doc}/presspanel_signon.php") and os.path.exists(f"{pma_doc}/wpc_signon.php"):
+        sso_file = "/wpc_signon.php"
+
     return {
         "status": "ok",
         "token": token,
         "database": target_db,
-        "sso_url": f"/wpc_signon.php?token={token}"
+        "sso_url": f"{sso_file}?token={token}"
     }
 
 @router.get("/pma-sso/verify")
 async def verify_pma_sso_token(token: str):
     """
-    Xác minh và tiêu thụ mã token SSO từ wpc_signon.php nội bộ máy chủ.
+    Xác minh và tiêu thụ mã token SSO từ presspanel_signon.php / wpc_signon.php nội bộ máy chủ.
     Mỗi token chỉ được sử dụng duy nhất một lần và hết hạn sau 60 giây.
     """
     now = time.time()

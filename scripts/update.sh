@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# WPCloud: update.sh - Cập nhật Panel lên phiên bản mới nhất từ GitHub
+# PressPanel: update.sh - Cập nhật Panel lên phiên bản mới nhất từ GitHub
 # Bảo toàn 100% dữ liệu database, website người dùng và file cấu hình
-# Cách chạy: sudo bash /opt/wpc/scripts/update.sh
+# Cách chạy: sudo bash /opt/presspanel/scripts/update.sh
 # ==============================================================================
 
 set -euo pipefail
@@ -10,20 +10,20 @@ set -euo pipefail
 # Tự động nhân bản script sang /tmp để tránh lỗi bash buffer khi tự ghi đè file scripts
 CURRENT_SCRIPT="${BASH_SOURCE[0]:-$0}"
 if [ -f "$CURRENT_SCRIPT" ] && [[ "$CURRENT_SCRIPT" != /tmp/* ]]; then
-    TMP_SELF=$(mktemp /tmp/wpc_update_runner_XXXXXX.sh 2>/dev/null || echo "/tmp/wpc_update_runner_$$.sh")
+    TMP_SELF=$(mktemp /tmp/presspanel_update_runner_XXXXXX.sh 2>/dev/null || echo "/tmp/presspanel_update_runner_$$.sh")
     cp "$CURRENT_SCRIPT" "$TMP_SELF"
     chmod +x "$TMP_SELF"
     exec bash "$TMP_SELF" "$@"
 fi
 
-INSTALL_DIR="/opt/wpc"
+INSTALL_DIR="/opt/presspanel"
 REPO_URL="https://github.com/tuend-work/PressPanel.git"
-rm -rf /tmp/wpc-update-* 2>/dev/null || true
-TMP_DIR=$(mktemp -d /tmp/wpc-update-XXXXXX 2>/dev/null || echo "/tmp/wpc-update-$$")
+rm -rf /tmp/presspanel-update-* /tmp/wpc-update-* 2>/dev/null || true
+TMP_DIR=$(mktemp -d /tmp/presspanel-update-XXXXXX 2>/dev/null || echo "/tmp/presspanel-update-$$")
 chmod 700 "$TMP_DIR" 2>/dev/null || true
 
 echo "=========================================================="
-echo "         CẬP NHẬT WPCLOUD CONTROL PANEL TỪ GITHUB         "
+echo "        CẬP NHẬT PRESSPANEL CONTROL PANEL TỪ GITHUB       "
 echo "=========================================================="
 
 if [ "$EUID" -ne 0 ]; then
@@ -31,8 +31,8 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-OLD_VER="${WPC_PREV_VER:-$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || cat "/opt/presspanel/VERSION" 2>/dev/null || echo "0.0.0")}"
-export WPC_PREV_VER="$OLD_VER"
+OLD_VER="${PRESSPANEL_PREV_VER:-$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || cat "/opt/wpc/VERSION" 2>/dev/null || echo "0.0.0")}"
+export PRESSPANEL_PREV_VER="$OLD_VER"
 
 on_update_error() {
     local err_code=$?
@@ -44,23 +44,26 @@ on_update_error() {
 }
 trap on_update_error ERR
 
-# Tự động di chuyển / migration nếu máy chủ hiện tại đang chạy tại /opt/presspanel cũ
-if [ -d "/opt/presspanel" ] && [ ! -L "/opt/presspanel" ] && [ ! -d "/opt/wpc" ]; then
-    echo "[+] Di chuyển thư mục từ /opt/presspanel sang /opt/wpc..."
-    mv /opt/presspanel /opt/wpc
-elif [ ! -d "$INSTALL_DIR" ] && [ -d "/opt/presspanel" ]; then
-    echo "[+] Phát hiện dữ liệu tại /opt/presspanel, di chuyển sang /opt/wpc..."
-    mv /opt/presspanel /opt/wpc
+# Di chuyển dữ liệu từ /opt/wpc sang /opt/presspanel nếu chưa di dời
+if [ -d "/opt/wpc" ] && [ ! -L "/opt/wpc" ]; then
+    if [ ! -d "$INSTALL_DIR" ]; then
+        echo "[+] Di chuyển dữ liệu hệ thống từ /opt/wpc sang $INSTALL_DIR..."
+        mv /opt/wpc "$INSTALL_DIR"
+    else
+        echo "[+] Đồng bộ dữ liệu còn thiếu từ /opt/wpc sang $INSTALL_DIR..."
+        cp -an /opt/wpc/* "$INSTALL_DIR/" 2>/dev/null || true
+        rm -rf /opt/wpc
+    fi
 fi
 
-# Dọn dẹp symlink cũ /opt/presspanel nếu có
-if [ -L "/opt/presspanel" ]; then
-    rm -f /opt/presspanel 2>/dev/null || true
+# Luôn duy trì symlink tương thích ngược: /opt/wpc -> /opt/presspanel
+if [ ! -e "/opt/wpc" ] || [ -L "/opt/wpc" ]; then
+    ln -sfn "$INSTALL_DIR" /opt/wpc
 fi
 
 if [ ! -d "$INSTALL_DIR" ]; then
-    echo "[-] Không tìm thấy thư mục cài đặt $INSTALL_DIR! Vui lòng cài đặt trước."
-    exit 1
+    echo "[+] Khởi tạo thư mục cài đặt $INSTALL_DIR..."
+    mkdir -p "$INSTALL_DIR"
 fi
 
 # Tự động chuyển SELinux sang Permissive để tránh systemd bị chặn Permission denied (203/EXEC)
@@ -120,54 +123,66 @@ cp -r "$TMP_DIR/static"/* "$INSTALL_DIR/static/" 2>/dev/null || true
 cp "$TMP_DIR/VERSION" "$INSTALL_DIR/" 2>/dev/null || true
 cp "$TMP_DIR/requirements.txt" "$INSTALL_DIR/" 2>/dev/null || true
 
-# 3.1 Đồng bộ và chuẩn hoá cấu hình & cơ sở dữ liệu sang /opt/wpc
+# 3.1 Đồng bộ và chuẩn hoá cấu hình & cơ sở dữ liệu sang /opt/presspanel
 mkdir -p "$INSTALL_DIR/data" "$INSTALL_DIR/conf" "$INSTALL_DIR/logs"
 
-# Nếu database cũ còn nằm đâu đó
-if [ -f "/opt/presspanel/data/panel.db" ] && [ ! -f "$INSTALL_DIR/data/panel.db" ]; then
+# Nếu database cũ còn nằm tại /opt/wpc
+if [ -f "/opt/wpc/data/panel.db" ] && [ ! -f "$INSTALL_DIR/data/panel.db" ]; then
     echo "[+] Sao chép cơ sở dữ liệu panel.db sang $INSTALL_DIR/data/panel.db..."
-    cp -a /opt/presspanel/data/panel.db* "$INSTALL_DIR/data/" 2>/dev/null || true
+    cp -a /opt/wpc/data/panel.db* "$INSTALL_DIR/data/" 2>/dev/null || true
 fi
 
-# Chuẩn hoá file cấu hình wpc.conf
-if [ ! -f "$INSTALL_DIR/conf/wpc.conf" ]; then
-    if [ -f "$INSTALL_DIR/conf/presspanel.conf" ]; then
-        mv "$INSTALL_DIR/conf/presspanel.conf" "$INSTALL_DIR/conf/wpc.conf"
+# Chuẩn hoá file cấu hình presspanel.conf và wpc.conf
+if [ ! -f "$INSTALL_DIR/conf/presspanel.conf" ]; then
+    if [ -f "$INSTALL_DIR/conf/wpc.conf" ]; then
+        cp "$INSTALL_DIR/conf/wpc.conf" "$INSTALL_DIR/conf/presspanel.conf"
+    elif [ -f "$TMP_DIR/conf/presspanel.conf" ]; then
+        cp "$TMP_DIR/conf/presspanel.conf" "$INSTALL_DIR/conf/presspanel.conf"
     elif [ -f "$TMP_DIR/conf/wpc.conf" ]; then
-        cp "$TMP_DIR/conf/wpc.conf" "$INSTALL_DIR/conf/wpc.conf"
+        cp "$TMP_DIR/conf/wpc.conf" "$INSTALL_DIR/conf/presspanel.conf"
     fi
 fi
-rm -f "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null || true
 
-# Tự động thay thế /opt/presspanel thành /opt/wpc trong file cấu hình
-if [ -f "$INSTALL_DIR/conf/wpc.conf" ]; then
-    sed -i 's|/opt/presspanel|/opt/wpc|g' "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null || true
-    chmod 640 "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null || true
+# Tự động chuẩn hóa đường dẫn /opt/presspanel trong file cấu hình
+if [ -f "$INSTALL_DIR/conf/presspanel.conf" ]; then
+    sed -i 's|/opt/wpc|/opt/presspanel|g' "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null || true
+    chmod 640 "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null || true
 fi
 
-# 3.2 Cập nhật tài khoản hệ thống sang wpc
-if ! id -u "wpc" >/dev/null 2>&1; then
-    echo "[+] Khởi tạo user hệ thống mới: wpc..."
-    useradd -r -s /usr/sbin/nologin -d "$INSTALL_DIR" wpc 2>/dev/null || true
+# Duy trì file cấu hình wpc.conf tương thích ngược
+if [ ! -f "$INSTALL_DIR/conf/wpc.conf" ] && [ -f "$INSTALL_DIR/conf/presspanel.conf" ]; then
+    cp "$INSTALL_DIR/conf/presspanel.conf" "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null || true
 fi
 
-chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
-
-# Cập nhật CLI tool /usr/local/bin/wpc thành binary ELF nhị phân (bảo mật, chống đọc trần)
-if [ -f "$TMP_DIR/gatekeepers/wpc.c" ]; then
-    echo "[+] Biên dịch wpc CLI thành file thực thi nhị phân (ELF Binary)..."
-    gcc -O2 -fPIE -pie "$TMP_DIR/gatekeepers/wpc.c" -o /usr/local/bin/wpc || \
-    (command -v shc >/dev/null 2>&1 && shc -f "$TMP_DIR/scripts/wpc" -o /usr/local/bin/wpc) || \
-    cp "$TMP_DIR/scripts/wpc" /usr/local/bin/wpc
-    strip /usr/local/bin/wpc 2>/dev/null || true
-    chmod 755 /usr/local/bin/wpc
-    ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || true
-elif [ -f "$TMP_DIR/scripts/wpc" ]; then
-    (command -v shc >/dev/null 2>&1 && shc -f "$TMP_DIR/scripts/wpc" -o /usr/local/bin/wpc) || cp "$TMP_DIR/scripts/wpc" /usr/local/bin/wpc
-    chmod 755 /usr/local/bin/wpc
-    ln -sf /usr/local/bin/wpc /usr/bin/wpc 2>/dev/null || true
+# 3.2 Cập nhật tài khoản hệ thống sang presspanel
+if ! getent group presspanel >/dev/null 2>&1; then
+    groupadd -r presspanel 2>/dev/null || true
 fi
-rm -f /usr/local/bin/presspanel /usr/bin/presspanel 2>/dev/null || true
+if ! id -u "presspanel" >/dev/null 2>&1; then
+    echo "[+] Khởi tạo user hệ thống mới: presspanel..."
+    useradd -r -s /usr/sbin/nologin -d "$INSTALL_DIR" -g presspanel presspanel 2>/dev/null || true
+fi
+
+chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/apps/*.sh "$INSTALL_DIR"/scripts/presspanel "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
+
+# Cập nhật CLI tool /usr/local/bin/presspanel và /usr/local/bin/wpc thành binary ELF nhị phân
+if [ -f "$TMP_DIR/gatekeepers/presspanel.c" ]; then
+    echo "[+] Biên dịch presspanel CLI thành file thực thi nhị phân (ELF Binary)..."
+    gcc -O2 -fPIE -pie "$TMP_DIR/gatekeepers/presspanel.c" -o /usr/local/bin/presspanel || \
+    (command -v shc >/dev/null 2>&1 && shc -f "$TMP_DIR/scripts/presspanel" -o /usr/local/bin/presspanel) || \
+    cp "$TMP_DIR/scripts/presspanel" /usr/local/bin/presspanel
+    strip /usr/local/bin/presspanel 2>/dev/null || true
+    chmod 755 /usr/local/bin/presspanel
+    ln -sf /usr/local/bin/presspanel /usr/bin/presspanel 2>/dev/null || true
+elif [ -f "$TMP_DIR/scripts/presspanel" ]; then
+    (command -v shc >/dev/null 2>&1 && shc -f "$TMP_DIR/scripts/presspanel" -o /usr/local/bin/presspanel) || cp "$TMP_DIR/scripts/presspanel" /usr/local/bin/presspanel
+    chmod 755 /usr/local/bin/presspanel
+    ln -sf /usr/local/bin/presspanel /usr/bin/presspanel 2>/dev/null || true
+fi
+
+# Symlink lệnh CLI wpc tương thích ngược 100%
+ln -sf /usr/local/bin/presspanel /usr/local/bin/wpc 2>/dev/null || true
+ln -sf /usr/local/bin/presspanel /usr/bin/wpc 2>/dev/null || true
 
 # 3.3 Tự động kiểm tra và phục hồi (Self-Healing) môi trường Python venv
 NEED_REBUILD_VENV=0
@@ -211,35 +226,43 @@ echo "[+] Kiểm tra và cập nhật cấu trúc cơ sở dữ liệu SQLite...
 cd "$INSTALL_DIR"
 "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/app/db/init_db.py"
 
-# 6. Đảm bảo phân quyền chính xác cho wpc (Chuẩn Least-Privilege wpc:wpc 750)
-PANEL_USER="wpc"
-chown -R "$PANEL_USER":"$PANEL_USER" "$INSTALL_DIR" 2>/dev/null || true
+# 6. Đảm bảo phân quyền chính xác cho presspanel (Chuẩn Least-Privilege presspanel:presspanel 750)
+PANEL_USER="presspanel"
+if ! id -u "$PANEL_USER" &>/dev/null; then
+    PANEL_USER="wpc"
+fi
+PANEL_GROUP="$PANEL_USER"
+
+chown -R "$PANEL_USER":"$PANEL_GROUP" "$INSTALL_DIR" 2>/dev/null || true
 chmod 750 "$INSTALL_DIR" 2>/dev/null || true
 chmod -R 750 "$INSTALL_DIR/venv" "$INSTALL_DIR/app" "$INSTALL_DIR/static" "$INSTALL_DIR/conf" 2>/dev/null || true
-chmod -R 750 "$INSTALL_DIR/scripts" && chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
+chmod -R 750 "$INSTALL_DIR/scripts" && chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/presspanel "$INSTALL_DIR"/scripts/wpc 2>/dev/null || true
 chmod 700 "$INSTALL_DIR"/data 2>/dev/null || true
 chmod 600 "$INSTALL_DIR"/data/panel.db* 2>/dev/null || true
+[ -f "$INSTALL_DIR/conf/presspanel.conf" ] && chmod 600 "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null || true
 [ -f "$INSTALL_DIR/conf/wpc.conf" ] && chmod 600 "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null || true
 if [ -d "$INSTALL_DIR/bin" ]; then
-    chown -R root:"$PANEL_USER" "$INSTALL_DIR/bin" 2>/dev/null || true
+    chown -R root:"$PANEL_GROUP" "$INSTALL_DIR/bin" 2>/dev/null || true
     chmod 750 "$INSTALL_DIR/bin" 2>/dev/null || true
     chmod 4750 "$INSTALL_DIR"/bin/* 2>/dev/null || true
 fi
 
 # Đảm bảo Dynamic Linker (ld-linux.so, ld.so) có quyền 755 cho mọi tiến trình
 chmod 755 /lib64/ld-*.so /usr/lib64/ld-*.so /lib64/ld-linux*.so.* /usr/lib64/ld-linux*.so.* /lib/ld-*.so /usr/lib/ld-*.so 2>/dev/null || true
-echo "$PANEL_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wpc 2>/dev/null || true
+echo "presspanel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/presspanel 2>/dev/null || true
+chmod 440 /etc/sudoers.d/presspanel 2>/dev/null || true
+echo "wpc ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wpc 2>/dev/null || true
 chmod 440 /etc/sudoers.d/wpc 2>/dev/null || true
-rm -f /etc/sudoers.d/presspanel 2>/dev/null || true
 
-# 6.1 Chuẩn bị file log /var/log/wpc.log và cấu hình logrotate
-touch /var/log/wpc.log 2>/dev/null || true
-chown "$PANEL_USER":"$PANEL_USER" /var/log/wpc.log 2>/dev/null || true
-chmod 640 /var/log/wpc.log 2>/dev/null || true
+# 6.1 Chuẩn bị file log /var/log/presspanel.log và cấu hình logrotate
+touch /var/log/presspanel.log 2>/dev/null || true
+chown "$PANEL_USER":"$PANEL_GROUP" /var/log/presspanel.log 2>/dev/null || true
+chmod 640 /var/log/presspanel.log 2>/dev/null || true
+ln -sf /var/log/presspanel.log /var/log/wpc.log 2>/dev/null || true
 
 if [ -d "/etc/logrotate.d" ]; then
-    cat << 'EOF_LOGROTATE' > /etc/logrotate.d/wpc
-/var/log/wpc.log {
+    cat << 'EOF_LOGROTATE' > /etc/logrotate.d/presspanel
+/var/log/presspanel.log /var/log/wpc.log {
     daily
     missingok
     rotate 14
@@ -251,27 +274,28 @@ if [ -d "/etc/logrotate.d" ]; then
 EOF_LOGROTATE
 fi
 
-# 7. Đăng ký & Khởi động lại dịch vụ wpc.service
-echo "[+] Đăng ký dịch vụ wpc.service..."
-# Dọn dẹp presspanel cũ nếu có để tránh xung đột cổng
-if systemctl is-active --quiet presspanel 2>/dev/null; then
-    systemctl stop presspanel 2>/dev/null || true
-fi
-systemctl disable presspanel 2>/dev/null || true
-rm -f /etc/systemd/system/presspanel.service 2>/dev/null || true
+# 7. Đăng ký & Khởi động lại dịch vụ presspanel.service
+echo "[+] Đăng ký dịch vụ presspanel.service..."
+CURR_VER=$(cat "$TMP_DIR/VERSION" 2>/dev/null || cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "")
 
-if [ -f "$TMP_DIR/systemd/wpc.service" ]; then
-    cp "$TMP_DIR/systemd/wpc.service" /etc/systemd/system/wpc.service
-    CURR_VER=$(cat "$TMP_DIR/VERSION" 2>/dev/null || cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "")
-    if [ -n "$CURR_VER" ]; then
-        sed -i "s/Description=.*/Description=WPCloud Control Panel Server v${CURR_VER} (FastAPI + Asyncio)/" /etc/systemd/system/wpc.service 2>/dev/null || true
-    fi
+if [ -f "$TMP_DIR/systemd/presspanel.service" ]; then
+    cp "$TMP_DIR/systemd/presspanel.service" /etc/systemd/system/presspanel.service
+elif [ -f "$INSTALL_DIR/systemd/presspanel.service" ]; then
+    cp "$INSTALL_DIR/systemd/presspanel.service" /etc/systemd/system/presspanel.service
 fi
+
+if [ -f /etc/systemd/system/presspanel.service ] && [ -n "$CURR_VER" ]; then
+    sed -i "s/Description=.*/Description=PressPanel Server v${CURR_VER} (FastAPI + Asyncio)/" /etc/systemd/system/presspanel.service 2>/dev/null || true
+fi
+
+# Tạo symlink tương thích ngược cho wpc.service trỏ sang presspanel.service
+ln -sf /etc/systemd/system/presspanel.service /etc/systemd/system/wpc.service 2>/dev/null || true
+
 systemctl daemon-reload 2>/dev/null || true
-systemctl enable wpc 2>/dev/null || true
+systemctl enable presspanel 2>/dev/null || true
 # Dịch vụ wpc sẽ được khởi động lại ở cuối cùng của script để không kill tiến trình update giữa chừng
 
-# Khởi tạo các Systemd Template Service wpc-php<ver>-fpm@.service cho tất cả các bản PHP (AlmaLinux Remi & Debian/Ubuntu)
+# Khởi tạo các Systemd Template Service presspanel-php<ver>-fpm@.service và wpc-php<ver>-fpm@.service cho tất cả các bản PHP
 for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
     pnum=$(echo "$pver" | tr -d '.')
     FPM_BIN_FOUND=""
@@ -283,10 +307,10 @@ for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
         FPM_BIN_FOUND="/usr/sbin/php-fpm"
     fi
     if [ -n "$FPM_BIN_FOUND" ]; then
-        TPL="/etc/systemd/system/wpc-php${pver}-fpm@.service"
+        TPL="/etc/systemd/system/presspanel-php${pver}-fpm@.service"
         cat << EOF > "$TPL"
 [Unit]
-Description=WPCloud PHP-FPM Service for user %i
+Description=PressPanel PHP-FPM Service for user %i
 After=network.target
 
 [Service]
@@ -296,11 +320,13 @@ EnvironmentFile=-/etc/php/${pver}/fpm/users/%i.env
 ExecStart=${FPM_BIN_FOUND} --nodaemonize --fpm-config /etc/php/${pver}/fpm/users/%i.conf
 ExecReload=/bin/kill -USR2 \$MAINPID
 TimeoutSec=15
-Slice=wpc-user-%i.slice
+Slice=presspanel-user-%i.slice
 
 [Install]
 WantedBy=multi-user.target
 EOF
+        # Tương thích ngược với wpc-php
+        ln -sf "$TPL" "/etc/systemd/system/wpc-php${pver}-fpm@.service" 2>/dev/null || true
     fi
 done
 systemctl daemon-reload 2>/dev/null || true
@@ -342,6 +368,8 @@ if ! systemctl is-active --quiet lshttpd 2>/dev/null && ! systemctl is-active --
     done
 else
     # Đang chạy OpenLiteSpeed: Dừng và tắt toàn bộ PHP-FPM (user + system) để không tốn RAM
+    systemctl stop "presspanel-php*-fpm@*" 2>/dev/null || true
+    systemctl disable "presspanel-php*-fpm@*" 2>/dev/null || true
     systemctl stop "wpc-php*-fpm@*" 2>/dev/null || true
     systemctl disable "wpc-php*-fpm@*" 2>/dev/null || true
     for php_ver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
@@ -358,7 +386,7 @@ if ! systemctl is-active --quiet lshttpd 2>/dev/null && ! systemctl is-active --
             systemctl restart "php${php_ver}-fpm" 2>/dev/null || true
         fi
     done
-    /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true
+    "$INSTALL_DIR/scripts/cgroup_attach.sh" 2>/dev/null || /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true
     # Dọn dẹp triệt để các tiến trình lsphp thừa của OLS
     pkill -9 -f "openlitespeed" 2>/dev/null || true
     pkill -9 -f "lshttpd" 2>/dev/null || true
@@ -522,8 +550,8 @@ if [ -d "/usr/local/lsws/conf/vhosts" ]; then
 listener HTTPS_443 {
   address                 *:443
   secure                  1
-  keyFile                 /etc/ssl/wpc/selfsigned.key
-  certFile                /etc/ssl/wpc/selfsigned.crt
+  keyFile                 /etc/ssl/presspanel/selfsigned.key
+  certFile                /etc/ssl/presspanel/selfsigned.crt
   certChain               1
   sslProtocol             24
   enableQuic              1
@@ -561,8 +589,8 @@ elif command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewall
 fi
 
 # 7.6 Đảm bảo chứng chỉ SSL tự ký mặc định cho máy chủ (hỗ trợ HTTP/2 & HTTP/3)
-mkdir -p /etc/ssl/wpc 2>/dev/null || true
-if [ ! -s "/etc/ssl/wpc/selfsigned.crt" ] || [ ! -s "/etc/ssl/wpc/selfsigned.key" ]; then
+mkdir -p /etc/ssl/presspanel /etc/ssl/wpc 2>/dev/null || true
+if [ ! -s "/etc/ssl/presspanel/selfsigned.crt" ] || [ ! -s "/etc/ssl/presspanel/selfsigned.key" ]; then
     echo "[+] Khởi tạo chứng chỉ SSL tự ký mặc định cho máy chủ..."
     S_IP=$(curl -s4 --max-time 2 https://api.ipify.org 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")
     [ -z "$S_IP" ] && S_IP="127.0.0.1"
@@ -570,16 +598,22 @@ if [ ! -s "/etc/ssl/wpc/selfsigned.crt" ] || [ ! -s "/etc/ssl/wpc/selfsigned.key
     [ -z "$S_HOST" ] && S_HOST="localhost"
 
     openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-        -keyout "/etc/ssl/wpc/selfsigned.key" \
-        -out "/etc/ssl/wpc/selfsigned.crt" \
-        -subj "/CN=$S_HOST/O=WPCloud/C=VN" \
+        -keyout "/etc/ssl/presspanel/selfsigned.key" \
+        -out "/etc/ssl/presspanel/selfsigned.crt" \
+        -subj "/CN=$S_HOST/O=PressPanel/C=VN" \
         -addext "subjectAltName=DNS:$S_HOST,DNS:localhost,IP:$S_IP,IP:127.0.0.1" 2>/dev/null || \
     openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-        -keyout "/etc/ssl/wpc/selfsigned.key" \
-        -out "/etc/ssl/wpc/selfsigned.crt" \
-        -subj "/CN=$S_HOST/O=WPCloud/C=VN" 2>/dev/null || true
+        -keyout "/etc/ssl/presspanel/selfsigned.key" \
+        -out "/etc/ssl/presspanel/selfsigned.crt" \
+        -subj "/CN=$S_HOST/O=PressPanel/C=VN" 2>/dev/null || true
 
-    chmod 755 /etc/ssl/wpc 2>/dev/null || true
+    chmod 755 /etc/ssl/presspanel 2>/dev/null || true
+    chmod 644 /etc/ssl/presspanel/selfsigned.crt /etc/ssl/presspanel/selfsigned.key 2>/dev/null || true
+fi
+
+# Đồng bộ symlink sang /etc/ssl/wpc
+ln -sf /etc/ssl/presspanel/selfsigned.key /etc/ssl/wpc/selfsigned.key 2>/dev/null || true
+ln -sf /etc/ssl/presspanel/selfsigned.crt /etc/ssl/wpc/selfsigned.crt 2>/dev/null || true
     chmod 644 /etc/ssl/wpc/selfsigned.crt /etc/ssl/wpc/selfsigned.key 2>/dev/null || true
 fi
 
@@ -695,12 +729,12 @@ for u_conf in /etc/php/*/fpm/users/*.conf; do
     u_name=$(basename "$u_conf" .conf)
     p_ver=$(echo "$u_conf" | awk -F'/' '{print $(NF-3)}')
     if [ -n "$p_ver" ] && [ -n "$u_name" ]; then
-        bash /opt/wpc/scripts/php_fpm_service.sh create "$u_name" "$p_ver" 2>/dev/null || true
+        bash "$INSTALL_DIR/scripts/php_fpm_service.sh" create "$u_name" "$p_ver" 2>/dev/null || true
     fi
 done
 
 # Bổ sung EnvironmentFile vào các file systemd template service nếu còn thiếu
-for tpl in /etc/systemd/system/wpc-php*-fpm@.service; do
+for tpl in /etc/systemd/system/presspanel-php*-fpm@.service /etc/systemd/system/wpc-php*-fpm@.service; do
     [ -f "$tpl" ] || continue
     pver=$(echo "$tpl" | grep -o -E '[0-9]+\.[0-9]+' | head -1)
     if [ -n "$pver" ] && ! grep -q "EnvironmentFile" "$tpl"; then
@@ -713,15 +747,15 @@ if systemctl is-active --quiet nginx 2>/dev/null || systemctl is-active --quiet 
     systemctl reload openresty 2>/dev/null || systemctl reload nginx 2>/dev/null || true
 fi
 
-# 8.2 Cấu hình dịch vụ giám sát Cgroups v2 thời gian thực (wpc-cgroup)
-cat << 'EOF_CGSVC' > /etc/systemd/system/wpc-cgroup.service
+# 8.2 Cấu hình dịch vụ giám sát Cgroups v2 thời gian thực (presspanel-cgroup / wpc-cgroup)
+cat << 'EOF_CGSVC' > /etc/systemd/system/presspanel-cgroup.service
 [Unit]
-Description=WPCloud Cgroups v2 Realtime Process Enforcer
+Description=PressPanel Cgroups v2 Realtime Process Enforcer
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/bin/bash /opt/wpc/scripts/cgroup_attach.sh daemon
+ExecStart=/bin/bash /opt/presspanel/scripts/cgroup_attach.sh daemon
 Restart=always
 RestartSec=3
 
@@ -730,9 +764,10 @@ WantedBy=multi-user.target
 EOF_CGSVC
 
 systemctl daemon-reload 2>/dev/null || true
-systemctl enable wpc-cgroup.service 2>/dev/null || true
-systemctl restart wpc-cgroup.service 2>/dev/null || true
-/bin/bash /opt/wpc/scripts/cgroup_attach.sh once 2>/dev/null || true
+ln -sf /etc/systemd/system/presspanel-cgroup.service /etc/systemd/system/wpc-cgroup.service 2>/dev/null || true
+systemctl enable presspanel-cgroup.service 2>/dev/null || true
+systemctl restart presspanel-cgroup.service 2>/dev/null || true
+/bin/bash "$INSTALL_DIR/scripts/cgroup_attach.sh" once 2>/dev/null || true
 
 # Kích hoạt Cgroups v2 cho OpenLiteSpeed nếu có tiện ích lsns
 if [ -x "/usr/local/lsws/lsns/bin/lssetup" ]; then
@@ -748,17 +783,18 @@ fi
 rm -rf "$TMP_DIR"
 
 NEW_VER=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "latest")
-PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
+PANEL_PORT=$(grep -E "^port=" "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || grep -E "^port=" "$INSTALL_DIR/conf/wpc.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
 
 echo "=========================================================="
 echo "   CẬP NHẬT THÀNH CÔNG LÊN PHIÊN BẢN: $NEW_VER           "
-echo "   Trạng thái dịch vụ: $(systemctl is-active wpc 2>/dev/null) "
+echo "   Trạng thái dịch vụ: $(systemctl is-active presspanel 2>/dev/null || systemctl is-active wpc 2>/dev/null) "
 echo "   Giao diện quản trị: http://<IP_MAY_CHU>:$PANEL_PORT   "
 echo "[+] Hoàn tất toàn bộ tiến trình cập nhật 100%!"
-echo "[+] Đang khởi động lại dịch vụ WPCloud Control Panel (wpc.service)..."
+echo "[+] Đang khởi động lại dịch vụ PressPanel Control Panel (presspanel.service)..."
 systemctl daemon-reload 2>/dev/null || true
-systemctl restart wpc 2>/dev/null || true
-echo "[+] Dịch vụ WPCloud đã được khởi động lại: $(systemctl is-active wpc 2>/dev/null || echo 'active')"
+systemctl stop wpc 2>/dev/null || true
+systemctl restart presspanel 2>/dev/null || true
+echo "[+] Dịch vụ PressPanel đã được khởi động lại: $(systemctl is-active presspanel 2>/dev/null || echo 'active')"
 echo "=========================================================="
 echo "Update thành công từ ver${OLD_VER} lên ver${NEW_VER}"
 echo "=========================================================="

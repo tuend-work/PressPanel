@@ -10,7 +10,8 @@ from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/apps", tags=["App Store & Software Manager"])
 
-WPC_BASE = "/opt/wpc"
+PRESSPANEL_BASE = "/opt/presspanel" if os.path.exists("/opt/presspanel") else "/opt/wpc"
+WPC_BASE = PRESSPANEL_BASE
 
 OS_PACKAGE_UPDATE_CMD = (
     "if command -v apt-get >/dev/null 2>&1; then "
@@ -294,7 +295,7 @@ SUPPORTED_APPS = [
         "icon": "🧭",
         "desc": "Giao diện Web trực quan quản lý CSDL MariaDB/MySQL nhanh chóng và an toàn (Port 888).",
         "service": "phpmyadmin",
-        "binary_checks": ["/opt/wpc/apps/phpmyadmin/index.php", "/usr/share/phpmyadmin/index.php"],
+        "binary_checks": ["/opt/presspanel/apps/phpmyadmin/index.php", "/opt/wpc/apps/phpmyadmin/index.php", "/usr/share/phpmyadmin/index.php"],
         "default_version": "5.2.x"
     },
     {
@@ -413,10 +414,14 @@ def get_app_service_candidates(app_id: str) -> List[str]:
         return APP_SERVICE_CANDIDATES[app_id]
     if app_id == "phpmyadmin":
         return [
-            "wpc-php8.5-fpm@phpmyadmin", "wpc-php8.4-fpm@phpmyadmin",
-            "wpc-php8.3-fpm@phpmyadmin", "wpc-php8.2-fpm@phpmyadmin",
-            "wpc-php8.1-fpm@phpmyadmin", "wpc-php8.0-fpm@phpmyadmin",
-            "wpc-php7.4-fpm@phpmyadmin", "lsws", "lshttpd", "nginx", "openresty"
+            "presspanel-php8.5-fpm@phpmyadmin", "wpc-php8.5-fpm@phpmyadmin",
+            "presspanel-php8.4-fpm@phpmyadmin", "wpc-php8.4-fpm@phpmyadmin",
+            "presspanel-php8.3-fpm@phpmyadmin", "wpc-php8.3-fpm@phpmyadmin",
+            "presspanel-php8.2-fpm@phpmyadmin", "wpc-php8.2-fpm@phpmyadmin",
+            "presspanel-php8.1-fpm@phpmyadmin", "wpc-php8.1-fpm@phpmyadmin",
+            "presspanel-php8.0-fpm@phpmyadmin", "wpc-php8.0-fpm@phpmyadmin",
+            "presspanel-php7.4-fpm@phpmyadmin", "wpc-php7.4-fpm@phpmyadmin",
+            "lsws", "lshttpd", "nginx", "openresty"
         ]
     # Các phiên bản PHP chỉ là runtime binary, không quản lý theo service toàn cục
     return []
@@ -681,19 +686,21 @@ def check_app_status(app: Dict[str, Any], primary_ws: Optional[str] = None) -> D
                 # Nginx: Kiểm tra PHP-FPM Service riêng của pma/phpmyadmin
                 for pver in ["8.5", "8.4", "8.3", "8.2", "8.1", "8.0", "7.4"]:
                     for u in ["pma", "phpmyadmin"]:
-                        svc_cand = f"wpc-php{pver}-fpm@{u}"
-                        sock_cand = f"/run/php/php{pver}-fpm-{u}.sock"
-                        try:
-                            r = subprocess.run(["systemctl", "is-active", "--quiet", svc_cand], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                            if r.returncode == 0:
-                                pma_info["fpm_service"] = f"{svc_cand}.service"
-                                pma_info["fpm_sock"] = sock_cand
-                                pma_info["webserver"] = "Nginx"
-                                active_service = f"{svc_cand}.service"
-                                running = True
-                                break
-                        except Exception:
-                            pass
+                        for svc_cand in [f"presspanel-php{pver}-fpm@{u}", f"wpc-php{pver}-fpm@{u}"]:
+                            sock_cand = f"/run/php/php{pver}-fpm-{u}.sock"
+                            try:
+                                r = subprocess.run(["systemctl", "is-active", "--quiet", svc_cand], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                if r.returncode == 0:
+                                    pma_info["fpm_service"] = f"{svc_cand}.service"
+                                    pma_info["fpm_sock"] = sock_cand
+                                    pma_info["webserver"] = "Nginx"
+                                    active_service = f"{svc_cand}.service"
+                                    running = True
+                                    break
+                            except Exception:
+                                pass
+                        if running:
+                            break
                     if running:
                         break
                 if not running:
@@ -778,7 +785,7 @@ def check_app_status(app: Dict[str, Any], primary_ws: Optional[str] = None) -> D
             "mariadb": "/etc/my.cnf.d",
             "redis": "/etc/redis",
             "pure-ftpd": "/etc/pure-ftpd",
-            "phpmyadmin": "/opt/wpc/apps/phpmyadmin",
+            "phpmyadmin": f"{PRESSPANEL_BASE}/apps/phpmyadmin",
             "log-analyzer": "/etc/goaccess",
             "nvm": "/root/.nvm",
             "certbot": "/etc/letsencrypt",
@@ -1564,7 +1571,7 @@ async def toggle_autorestart(req: AutorestartRequest, current_user: dict = Depen
     raise HTTPException(status_code=500, detail=f"Lỗi: {last_error}")
 
 # ==========================================
-# CẤU HÌNH NÂNG CAO PHP (WPC Style: Extensions, Directives, Logs, phpinfo)
+# CẤU HÌNH NÂNG CAO PHP (PressPanel Style: Extensions, Directives, Logs, phpinfo)
 # ==========================================
 PHP_EXTENSIONS_LIST = [
     {"name": "ionCube", "pkg": "ioncube-loader", "type": "Script decryption", "desc": "Used to decrypt ZendOptimizer/ionCube encryption scripts"},
@@ -1839,8 +1846,8 @@ async def rewrite_webserver_config(
         # 2.4. Dọn dẹp tiến trình khi chuyển đổi Web Server
         if ws == "ols":
             try:
-                subprocess.run(["sudo", "systemctl", "stop", "wpc-php*-fpm@*"], check=False)
-                subprocess.run(["sudo", "systemctl", "disable", "wpc-php*-fpm@*"], check=False)
+                subprocess.run(["sudo", "systemctl", "stop", "presspanel-php*-fpm@*", "wpc-php*-fpm@*"], check=False)
+                subprocess.run(["sudo", "systemctl", "disable", "presspanel-php*-fpm@*", "wpc-php*-fpm@*"], check=False)
                 for pver in ["5.6", "7.0", "7.1", "7.2", "7.3", "7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"]:
                     subprocess.run(["sudo", "systemctl", "stop", f"php{pver}-fpm"], check=False)
                     subprocess.run(["sudo", "systemctl", "disable", f"php{pver}-fpm"], check=False)
@@ -1949,8 +1956,13 @@ async def rewrite_webserver_config(
             except Exception as ols_e:
                 backup_notes.append(f"Lỗi khởi động OLS: {str(ols_e)}")
 
-        # 5. Cập nhật default_webserver trong /opt/wpc/conf/wpc.conf
-        for cfg_file in ["/opt/wpc/conf/wpc.conf", os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../conf/wpc.conf"))]:
+        # 5. Cập nhật default_webserver trong presspanel.conf / wpc.conf
+        for cfg_file in [
+            "/opt/presspanel/conf/presspanel.conf",
+            "/opt/wpc/conf/wpc.conf",
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../conf/presspanel.conf")),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../conf/wpc.conf")),
+        ]:
             if os.path.isfile(cfg_file):
                 try:
                     with open(cfg_file, "r", encoding="utf-8") as f:
@@ -2366,7 +2378,7 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
                 shutil.copy2(proto_file, proto_bak)
             
             p_lines = [
-                "# WPCloud Modern Protocols Configuration (Nginx 1.26 - 1.31+)",
+                "# PressPanel Modern Protocols Configuration (Nginx 1.26 - 1.31+)",
                 f"http2 {'on' if req.http2Enabled else 'off'};",
                 f"http3 {'on' if req.http3Enabled else 'off'};",
                 f"early_hints {'on' if req.earlyHintsEnabled else 'off'};",
@@ -2423,7 +2435,7 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
                 fcgi_rate = req.fastcgiLimitRate.strip() if req.fastcgiLimitRate else "$limit_rate"
                 proxy_rate = req.proxyLimitRate.strip() if req.proxyLimitRate else "$limit_rate"
                 rate_body = (
-                    "# WPCloud Dynamic Rate Limiting & User Bandwidth Shaping (Nginx 1.28 - 1.31+)\n"
+                    "# PressPanel Dynamic Rate Limiting & User Bandwidth Shaping (Nginx 1.28 - 1.31+)\n"
                     f"{user_map}\n\n"
                     f"fastcgi_limit_rate {fcgi_rate};\n"
                     f"proxy_limit_rate {proxy_rate};\n"
@@ -2564,7 +2576,9 @@ async def get_app_build_settings(app_id: str, current_user: dict = Depends(get_c
         def_key = clean_id
 
     default_args = DEFAULT_BUILD_ARGS.get(def_key, "--prefix=/usr/local")
-    args_file = f"/opt/wpc/config/build/{clean_id}.args"
+    args_file = f"{PRESSPANEL_BASE}/config/build/{clean_id}.args"
+    if not os.path.exists(args_file) and os.path.exists(f"/opt/wpc/config/build/{clean_id}.args"):
+        args_file = f"/opt/wpc/config/build/{clean_id}.args"
     custom_args = ""
     if os.path.exists(args_file):
         try:
@@ -2600,7 +2614,7 @@ async def save_app_build_settings(app_id: str, req: AppBuildSettingsRequest, cur
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền cập nhật cấu hình build.")
 
     clean_id = app_id.lower()
-    build_dir = "/opt/wpc/config/build"
+    build_dir = f"{PRESSPANEL_BASE}/config/build"
     os.makedirs(build_dir, exist_ok=True)
     args_file = f"{build_dir}/{clean_id}.args"
 
@@ -2642,7 +2656,9 @@ async def trigger_app_build(app_id: str, background_tasks: BackgroundTasks, curr
 @router.get("/system-websites")
 async def get_system_websites(current_user: dict = Depends(get_current_user)):
     """Lấy danh sách các ứng dụng Web hệ thống (phpMyAdmin, pgAdmin, Roundcube, etc.) dưới dạng Website độc lập"""
-    pma_doc_root = "/home/pma/public_html" if os.path.exists("/home/pma/public_html") else "/opt/wpc/apps/phpmyadmin"
+    pma_doc_root = "/home/pma/public_html" if os.path.exists("/home/pma/public_html") else (
+        f"{PRESSPANEL_BASE}/apps/phpmyadmin" if os.path.exists(f"{PRESSPANEL_BASE}/apps/phpmyadmin") else "/opt/wpc/apps/phpmyadmin"
+    )
     pma_installed = os.path.exists(f"{pma_doc_root}/index.php") or os.path.exists("/usr/share/phpmyadmin/index.php")
     pma_running = False
     pma_cpu = 0.0
@@ -2658,7 +2674,9 @@ async def get_system_websites(current_user: dict = Depends(get_current_user)):
                 if r2.returncode == 0:
                     pma_running = True
                 else:
-                    r3 = subprocess.run(["systemctl", "is-active", "wpc-php8.2-fpm@pma"], capture_output=True, text=True, check=False)
+                    r3 = subprocess.run(["systemctl", "is-active", "presspanel-php8.2-fpm@pma"], capture_output=True, text=True, check=False)
+                    if "active" not in r3.stdout:
+                        r3 = subprocess.run(["systemctl", "is-active", "wpc-php8.2-fpm@pma"], capture_output=True, text=True, check=False)
                     if "active" in r3.stdout:
                         pma_running = True
             
@@ -2682,7 +2700,11 @@ async def get_system_websites(current_user: dict = Depends(get_current_user)):
         except Exception:
             pass
 
-    rc_installed = os.path.exists("/opt/wpc/apps/roundcube/index.php") or os.path.exists("/var/lib/roundcube/index.php")
+    rc_installed = (
+        os.path.exists(f"{PRESSPANEL_BASE}/apps/roundcube/index.php") or
+        os.path.exists("/opt/wpc/apps/roundcube/index.php") or
+        os.path.exists("/var/lib/roundcube/index.php")
+    )
     rc_running = False
     if rc_installed:
         try:
@@ -2756,7 +2778,7 @@ async def get_system_websites(current_user: dict = Depends(get_current_user)):
             "site_title": "Roundcube Webmail",
             "icon": "✉️",
             "url_port": 8800,
-            "doc_root": "/opt/wpc/apps/roundcube",
+            "doc_root": f"{PRESSPANEL_BASE}/apps/roundcube" if os.path.exists(f"{PRESSPANEL_BASE}/apps/roundcube") else "/opt/wpc/apps/roundcube",
             "owner_username": "roundcube",
             "owner_group": "roundcube",
             "webserver": "OLS" if ols_active else "NGINX",

@@ -1,5 +1,5 @@
-#ifndef WPC_COMMON_H
-#define WPC_COMMON_H
+#ifndef PRESSPANEL_COMMON_H
+#define PRESSPANEL_COMMON_H
 
 #define _GNU_SOURCE
 #include <stdio.h>
@@ -13,8 +13,8 @@
 #include <grp.h>
 #include <errno.h>
 
-#define PANEL_USER  "wpc"
-#define PANEL_GROUP "wpc"
+#define PANEL_USER  "presspanel"
+#define PANEL_GROUP "presspanel"
 #define SAFE_PATH   "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 #define IGNORE_RESULT(fn) do { if (fn) {} } while (0)
@@ -119,6 +119,7 @@ static inline int is_safe_config_path(const char *path) {
         strncmp(path, "/etc/redis.conf", 15) == 0 ||
         strncmp(path, "/etc/pure-ftpd", 14) == 0 ||
         strncmp(path, "/etc/fail2ban/", 14) == 0 ||
+        strncmp(path, "/opt/presspanel/templates/", 26) == 0 ||
         strncmp(path, "/opt/wpc/templates/", 19) == 0
     );
     if (!is_allowed_dir) return 0;
@@ -128,6 +129,7 @@ static inline int is_safe_config_path(const char *path) {
         strstr(path, "/etc/passwd") || strstr(path, "/etc/cron") ||
         strstr(path, "/etc/pam.d") || strstr(path, "/etc/security") ||
         strstr(path, "/etc/ld.so") || strstr(path, "/root") ||
+        strstr(path, "/opt/presspanel/data") || strstr(path, "/opt/presspanel/conf") ||
         strstr(path, "/opt/wpc/data") || strstr(path, "/opt/wpc/conf")) {
         return 0;
     }
@@ -161,7 +163,7 @@ static inline int is_safe_url(const char *url) {
 static inline int is_system_user(const char *username) {
     if (!username || !*username) return 1;
     const char *sys_users[] = {
-        "root", "wpc", "nobody", "www-data", "bin", "daemon", "sys", "sync",
+        "root", "presspanel", "wpc", "nobody", "www-data", "bin", "daemon", "sys", "sync",
         "games", "man", "lp", "mail", "news", "uucp", "proxy", "backup",
         "list", "irc", "gnats", "systemd", "mysql", "mariadb", "nginx",
         "lsadm", "redis", "postfix", "dovecot", "bind", "named", "sshd", NULL
@@ -193,4 +195,4 @@ static inline void init_security_env(void) {
 }
 
 
-#endif // WPC_COMMON_H
+#endif // PRESSPANEL_COMMON_H

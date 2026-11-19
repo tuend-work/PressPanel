@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# WPCloud: wp_manager.sh - Bộ điều khiển WordPress Manager chuyên sâu
+# PressPanel: wp_manager.sh - Bộ điều khiển WordPress Manager chuyên sâu
 # Thực thi các tác vụ WordPress: Cài đặt, Bảo mật, Dọn dẹp, Tải Zip trực tiếp, SSO
-# Được thực thi an toàn bởi C Gatekeeper SUID: /opt/wpc/bin/wp
+# Được thực thi an toàn bởi C Gatekeeper SUID: /opt/presspanel/bin/wp
 # ==============================================================================
 
 set -uo pipefail
@@ -266,7 +266,7 @@ define('NONCE_SALT',       '$(head -c 32 /dev/urandom | base64)');"
 <?php
 /**
  * The base configuration for WordPress
- * Generated automatically by WPC
+ * Generated automatically by PressPanel
  */
 
 define( 'DB_NAME', '$DB_NAME' );
@@ -280,7 +280,7 @@ $SALT_KEYS
 
 \$table_prefix = '$DB_PREFIX';
 
-/* WPC Security & Performance Defaults */
+/* PressPanel Security & Performance Defaults */
 define( 'WP_DEBUG', false );
 define( 'WP_DEBUG_LOG', false );
 define( 'WP_DEBUG_DISPLAY', false );
@@ -378,10 +378,12 @@ EOF_SCHEMA
             fi
         fi
 
-        # 6. CÀI ĐẶT BỘ MU-PLUGINS WPC OPTIMIZE NẾU CÓ
+        # 6. CÀI ĐẶT BỘ MU-PLUGINS PRESSPANEL OPTIMIZE NẾU CÓ
         mkdir -p "$TARGET_DIR/wp-content/mu-plugins"
-        if [ -d "/opt/wpc/templates/mu-plugins" ]; then
-            cp -f /opt/wpc/templates/mu-plugins/*.php "$TARGET_DIR/wp-content/mu-plugins/" 2>/dev/null || true
+        MU_TPL_DIR="/opt/presspanel/templates/mu-plugins"
+        [ ! -d "$MU_TPL_DIR" ] && [ -d "/opt/wpc/templates/mu-plugins" ] && MU_TPL_DIR="/opt/wpc/templates/mu-plugins"
+        if [ -d "$MU_TPL_DIR" ]; then
+            cp -f "$MU_TPL_DIR"/*.php "$TARGET_DIR/wp-content/mu-plugins/" 2>/dev/null || true
         fi
 
         # 7. XÓA HOẶC ĐỔI TÊN CÁC FILE INDEX.HTML CŨ ĐỂ ƯU TIÊN INDEX.PHP WORDPRESS
@@ -427,7 +429,7 @@ EOF_SCHEMA
         fi
 
         echo "[+] Dang tai $TYPE [$SLUG] tu: $ZIP_URL..."
-        TEMP_ZIP="/tmp/wpc_dl_${TYPE}_${SLUG}_$$.zip"
+        TEMP_ZIP="/tmp/presspanel_dl_${TYPE}_${SLUG}_$$.zip"
         curl -fsSL --connect-timeout 15 --max-time 180 "$ZIP_URL" -o "$TEMP_ZIP" || {
             echo "[-] Khong the tai file ZIP tu URL: $ZIP_URL"
             rm -f "$TEMP_ZIP"
@@ -475,7 +477,7 @@ EOF_SCHEMA
             echo "[+] Lam sach va cai dat Theme [$SLUG] thanh cong!"
 
         elif [ "$TYPE" = "core" ]; then
-            TEMP_CORE="/tmp/wpc_core_extract_$$"
+            TEMP_CORE="/tmp/presspanel_core_extract_$$"
             mkdir -p "$TEMP_CORE"
             unzip -q -o "$TEMP_ZIP" -d "$TEMP_CORE"
             echo "[+] Chep de ma nguon Core WordPress sach (bao ve wp-config.php va wp-content)..."
@@ -578,18 +580,19 @@ EOF_SCHEMA
 
         MU_DIR="$TARGET_DIR/wp-content/mu-plugins"
         mkdir -p "$MU_DIR"
-        SSO_FILE="$MU_DIR/wpc_sso_${TOKEN}.php"
+        SSO_FILE="$MU_DIR/presspanel_sso_${TOKEN}.php"
 
         cat <<EOF > "$SSO_FILE"
 <?php
 /**
- * WPC Magic Login Single-Use MU-Plugin
+ * PressPanel Magic Login Single-Use MU-Plugin
  * Tu dong huy sach khoi he thong ngay sau khi dang nhap hoac het han (60s)
  */
-if (isset(\$_GET['wpc_sso_token']) && \$_GET['wpc_sso_token'] === '$TOKEN') {
+if ((isset(\$_GET['presspanel_sso_token']) && \$_GET['presspanel_sso_token'] === '$TOKEN') ||
+    (isset(\$_GET['wpc_sso_token']) && \$_GET['wpc_sso_token'] === '$TOKEN')) {
     if (time() - $NOW_TS > 60) {
         @unlink(__FILE__);
-        wp_die('Lien ket Magic Login da het han (60 giay). Vui long tao lai tu WPC.');
+        wp_die('Lien ket Magic Login da het han (60 giay). Vui long tao lai tu PressPanel.');
     }
     add_action('init', function() {
         @unlink(__FILE__);
@@ -621,15 +624,17 @@ EOF
             chown "$USERNAME:$USERNAME" "$SSO_FILE" 2>/dev/null || true
             chmod 644 "$SSO_FILE" 2>/dev/null || true
         fi
-        echo "[+] Da tao SSO MU-Plugin thanh cong: wpc_sso_${TOKEN}.php"
+        ln -sf "$SSO_FILE" "$MU_DIR/wpc_sso_${TOKEN}.php" 2>/dev/null || true
+        echo "[+] Da tao SSO MU-Plugin thanh cong: presspanel_sso_${TOKEN}.php"
         exit 0
         ;;
 
-    wpc_optimize)
+    presspanel_optimize|wpc_optimize)
         FILE_NAME="${4:-}"
         ENABLE="${5:-1}"
         MU_DIR="$TARGET_DIR/wp-content/mu-plugins"
-        SRC_FILE="/opt/wpc/templates/mu-plugins/$FILE_NAME"
+        SRC_FILE="/opt/presspanel/templates/mu-plugins/$FILE_NAME"
+        [ ! -f "$SRC_FILE" ] && SRC_FILE="/opt/wpc/templates/mu-plugins/$FILE_NAME"
 
         if [ -z "$FILE_NAME" ]; then
             echo "[-] File name khong hop le"
@@ -644,14 +649,14 @@ EOF
                     chown "$USERNAME:$USERNAME" "$MU_DIR/$FILE_NAME" 2>/dev/null || true
                     chmod 644 "$MU_DIR/$FILE_NAME" 2>/dev/null || true
                 fi
-                echo "[+] Da kich hoat WPC Optimize: $FILE_NAME"
+                echo "[+] Da kich hoat PressPanel Optimize: $FILE_NAME"
             else
                 echo "[-] Khong tim thay file mau: $SRC_FILE"
                 exit 1
             fi
         else
             rm -f "$MU_DIR/$FILE_NAME"
-            echo "[+] Da go bo WPC Optimize: $FILE_NAME"
+            echo "[+] Da go bo PressPanel Optimize: $FILE_NAME"
         fi
         exit 0
         ;;

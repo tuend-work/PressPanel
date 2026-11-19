@@ -100,7 +100,7 @@ async def start_metrics_collector():
 
             # Tự động gửi cảnh báo Telegram nếu Server CPU / RAM vượt 90%
             srv_ram_pct = float(sys_stats.get("ram", {}).get("percent", 0.0))
-            srv_hostname = sys_stats.get("hostname") or platform.node() or "wpc-server"
+            srv_hostname = sys_stats.get("hostname") or platform.node() or "presspanel-server"
             asyncio.create_task(_check_and_send_resource_alert(raw_srv_cpu, srv_ram_pct, srv_hostname))
 
             batch_records.append((

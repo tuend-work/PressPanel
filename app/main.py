@@ -3,10 +3,10 @@ from contextlib import asynccontextmanager
 
 # Đảm bảo tiến trình không bị kẹt ở thư mục /root gây lỗi PermissionError khi gọi subprocess
 try:
-    if os.path.isdir("/opt/wpc") and os.access("/opt/wpc", os.R_OK):
-        os.chdir("/opt/wpc")
-    elif os.path.isdir("/tmp"):
-        os.chdir("/tmp")
+    for cand_dir in ["/opt/presspanel", "/opt/wpc", "/tmp"]:
+        if os.path.isdir(cand_dir) and os.access(cand_dir, os.R_OK):
+            os.chdir(cand_dir)
+            break
 except Exception:
     pass
 
@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     await init_database()
     # Khởi động tiến trình ngầm ghi nhận chỉ số tài nguyên mỗi phút vào SQLite DB
     metrics_task = asyncio.create_task(start_metrics_collector())
-    # Khởi động WPC MySQL Resource Controller Worker (chu kỳ 10s: Telemetry, Active Sniper, Circuit Breaker)
+    # Khởi động PressPanel MySQL Resource Controller Worker (chu kỳ 10s: Telemetry, Active Sniper, Circuit Breaker)
     mysql_controller_task = asyncio.create_task(start_mysql_controller_worker())
     yield
     # Tắt dịch vụ: cleanup nếu cần
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="WPC: Control Panel Tối Ưu WordPress Cho Linux (FastAPI + C Gatekeepers)",
+    description="PressPanel: Control Panel Tối Ưu WordPress Cho Linux (FastAPI + C Gatekeepers)",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan

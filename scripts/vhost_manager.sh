@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# WPCloud: vhost_manager.sh - Quản lý Vhost OpenLiteSpeed / Nginx & Let's Encrypt
-# Được thực thi an toàn bởi C Gatekeeper SUID: /opt/wpc/bin/vhost
+# PressPanel: vhost_manager.sh - Quản lý Vhost OpenLiteSpeed / Nginx & Let's Encrypt
+# Được thực thi an toàn bởi C Gatekeeper SUID: /opt/presspanel/bin/vhost
 # ==============================================================================
 
 set -uo pipefail
@@ -13,7 +13,12 @@ WEBSERVER="${4:-ols}"
 PHP_VER="${5:-8.2}"
 HOSTING_USER="${6:-$USERNAME}"
 
-WPC_DIR="/opt/wpc"
+if [ -d "/opt/presspanel" ]; then
+    PRESSPANEL_DIR="/opt/presspanel"
+else
+    PRESSPANEL_DIR="/opt/wpc"
+fi
+WPC_DIR="$PRESSPANEL_DIR"
 
 # 1. Đảm bảo Linux user tồn tại trên hệ thống (Khóa SSH bằng nologin)
 ensure_linux_user() {
@@ -111,7 +116,7 @@ setup_ols_vhost_php() {
     fi
 
     # Cấu hình chuẩn LSAPI cho OpenLiteSpeed từ template extprocessor.tpl
-    local ols_tpl="/opt/wpc/templates/vhost_ols/extprocessor.tpl"
+    local ols_tpl="$WPC_DIR/templates/vhost_ols/extprocessor.tpl"
     [ ! -f "$ols_tpl" ] && ols_tpl="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/templates/vhost_ols/extprocessor.tpl"
 
     echo "" >> "$vh_conf"
@@ -185,8 +190,8 @@ EOF_SH
 
     # Dọn dẹp các service PHP-FPM riêng của user khi chạy OLS
     for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
-        systemctl stop "wpc-php${pver}-fpm@${username}.service" 2>/dev/null || true
-        systemctl disable "wpc-php${pver}-fpm@${username}.service" 2>/dev/null || true
+        systemctl stop "presspanel-php${pver}-fpm@${username}.service" "wpc-php${pver}-fpm@${username}.service" 2>/dev/null || true
+        systemctl disable "presspanel-php${pver}-fpm@${username}.service" "wpc-php${pver}-fpm@${username}.service" 2>/dev/null || true
         rm -f "/etc/php/${pver}/fpm/users/${username}.conf" "/run/php/php${pver}-fpm-${username}.sock" "/run/php/php${pver}-fpm-${username}.pid" 2>/dev/null || true
     done
 }
@@ -205,9 +210,10 @@ ensure_firewall_ports() {
 }
 
 ensure_server_default_ssl() {
-    mkdir -p /etc/ssl/wpc 2>/dev/null || true
-    if [ ! -s "/etc/ssl/wpc/selfsigned.crt" ] || [ ! -s "/etc/ssl/wpc/selfsigned.key" ]; then
-        echo "[+] Tao chung chi SSL tu ky mac dinh cho may chu (/etc/ssl/wpc)..."
+    mkdir -p /etc/ssl/presspanel 2>/dev/null || true
+    ln -sfn /etc/ssl/presspanel /etc/ssl/wpc 2>/dev/null || true
+    if [ ! -s "/etc/ssl/presspanel/selfsigned.crt" ] || [ ! -s "/etc/ssl/presspanel/selfsigned.key" ]; then
+        echo "[+] Tao chung chi SSL tu ky mac dinh cho may chu (/etc/ssl/presspanel)..."
         local s_ip
         s_ip=$(curl -s4 --max-time 2 https://api.ipify.org 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")
         [ -z "$s_ip" ] && s_ip="127.0.0.1"
@@ -216,18 +222,18 @@ ensure_server_default_ssl() {
         [ -z "$s_host" ] && s_host="localhost"
 
         openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-            -keyout "/etc/ssl/wpc/selfsigned.key" \
-            -out "/etc/ssl/wpc/selfsigned.crt" \
-            -subj "/CN=$s_host/O=WPCloud/C=VN" \
+            -keyout "/etc/ssl/presspanel/selfsigned.key" \
+            -out "/etc/ssl/presspanel/selfsigned.crt" \
+            -subj "/CN=$s_host/O=PressPanel/C=VN" \
             -addext "subjectAltName=DNS:$s_host,DNS:localhost,IP:$s_ip,IP:127.0.0.1" 2>/dev/null || \
         openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-            -keyout "/etc/ssl/wpc/selfsigned.key" \
-            -out "/etc/ssl/wpc/selfsigned.crt" \
-            -subj "/CN=$s_host/O=WPCloud/C=VN" 2>/dev/null || true
+            -keyout "/etc/ssl/presspanel/selfsigned.key" \
+            -out "/etc/ssl/presspanel/selfsigned.crt" \
+            -subj "/CN=$s_host/O=PressPanel/C=VN" 2>/dev/null || true
 
-        chmod 755 /etc/ssl/wpc 2>/dev/null || true
-        chmod 644 /etc/ssl/wpc/selfsigned.crt 2>/dev/null || true
-        chmod 644 /etc/ssl/wpc/selfsigned.key 2>/dev/null || true
+        chmod 755 /etc/ssl/presspanel 2>/dev/null || true
+        chmod 644 /etc/ssl/presspanel/selfsigned.crt 2>/dev/null || true
+        chmod 644 /etc/ssl/presspanel/selfsigned.key 2>/dev/null || true
     fi
 }
 
@@ -259,12 +265,12 @@ ensure_ssl_certs() {
         openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
             -keyout "$privkey" \
             -out "$fullchain" \
-            -subj "/CN=$domain/O=WPCloud/C=VN" \
+            -subj "/CN=$domain/O=PressPanel/C=VN" \
             -addext "subjectAltName=$san_ext" 2>/dev/null || \
         openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
             -keyout "$privkey" \
             -out "$fullchain" \
-            -subj "/CN=$domain/O=WPCloud/C=VN" 2>/dev/null || true
+            -subj "/CN=$domain/O=PressPanel/C=VN" 2>/dev/null || true
     fi
 
     # Phân quyền chuẩn để cả OpenLiteSpeed (nobody) và Nginx (www-data) đều đọc được
@@ -285,13 +291,17 @@ setup_ols_https_listener() {
     # Kiểm tra xem listener HTTPS_443 hoặc HTTPS đã tồn tại chưa
     if ! grep -qE "listener[[:space:]]+(HTTPS_443|HTTPS)[[:space:]]*\{" "$conf"; then
         echo "[+] Bo sung listener HTTPS_443 (HTTP/2 & HTTP/3 QUIC) vao OpenLiteSpeed..."
-        cat << 'EOF_OLS_HTTPS' >> "$conf"
+        local default_ssl_key="/etc/ssl/presspanel/selfsigned.key"
+        [ ! -f "$default_ssl_key" ] && default_ssl_key="/etc/ssl/wpc/selfsigned.key"
+        local default_ssl_crt="/etc/ssl/presspanel/selfsigned.crt"
+        [ ! -f "$default_ssl_crt" ] && default_ssl_crt="/etc/ssl/wpc/selfsigned.crt"
+        cat << EOF_OLS_HTTPS >> "$conf"
 
 listener HTTPS_443 {
   address                 *:443
   secure                  1
-  keyFile                 /etc/ssl/wpc/selfsigned.key
-  certFile                /etc/ssl/wpc/selfsigned.crt
+  keyFile                 $default_ssl_key
+  certFile                $default_ssl_crt
   certChain               1
   sslProtocol             24
   enableQuic              1
@@ -348,15 +358,17 @@ case "$ACTION" in
 
         if id "$USERNAME" &>/dev/null; then
             chown -R "$USERNAME:$target_grp" "/home/$USERNAME" 2>/dev/null || true
-            # Thêm wpc (panel), nobody (OLS), www-data (Nginx) vào group của Web User để có thể phục vụ web
-            for svc_u in wpc nobody www-data; do
+            # Thêm presspanel/wpc (panel), nobody (OLS), www-data (Nginx) vào group của Web User để có thể phục vụ web
+            for svc_u in presspanel wpc nobody www-data; do
                 if id "$svc_u" &>/dev/null; then
                     usermod -a -G "$USERNAME" "$svc_u" 2>/dev/null || true
                     [ "$target_grp" != "$USERNAME" ] && usermod -a -G "$target_grp" "$svc_u" 2>/dev/null || true
                 fi
             done
         else
-            chown -R wpc:wpc "/home/$USERNAME" 2>/dev/null || true
+            PANEL_U="presspanel"
+            id "presspanel" &>/dev/null || PANEL_U="wpc"
+            chown -R ${PANEL_U}:${PANEL_U} "/home/$USERNAME" 2>/dev/null || true
         fi
 
         # PHÂN QUYỀN CHUẨN SHARED HOSTING (cPanel / CyberPanel / OLS suEXEC standard):
@@ -396,7 +408,7 @@ case "$ACTION" in
         # 3.2 Khóa chống thực thi PHP webshell trong thư mục Uploads
         if [ -d "$DOC_ROOT/wp-content/uploads" ] && [ ! -f "$DOC_ROOT/wp-content/uploads/.htaccess" ]; then
             cat << 'EOF_UPLOADS' > "$DOC_ROOT/wp-content/uploads/.htaccess"
-# WPCloud Security Hardening: Chặn đứng thực thi mã độc PHP trong thư mục Uploads
+# PressPanel Security Hardening: Chặn đứng thực thi mã độc PHP trong thư mục Uploads
 <FilesMatch "\.(php|php[0-9]|phtml|phar|pl|py|jsp|asp|sh|cgi)$">
     <IfModule mod_authz_core.c>
         Require all denied
@@ -424,7 +436,7 @@ EOF_UPLOADS
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chào mừng tới $DOMAIN - WPCloud</title>
+    <title>Chào mừng tới $DOMAIN - PressPanel</title>
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
         .card { background: #1e293b; padding: 2.5rem; border-radius: 1.25rem; border: 1px solid #334155; text-align: center; max-width: 520px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
@@ -436,7 +448,7 @@ EOF_UPLOADS
 </head>
 <body>
     <div class="card">
-        <span class="badge">WPCloud Powered</span>
+        <span class="badge">PressPanel Powered</span>
         <h1>$DOMAIN</h1>
         <p>Website đã được khởi tạo thành công trên máy chủ Linux tối ưu WordPress.</p>
         <p>Tải mã nguồn lên thư mục: <code>/home/$USERNAME/domains/$DOMAIN/public_html</code> (hoặc <code>/home/$USERNAME/public_html</code>) để bắt đầu.</p>
@@ -547,7 +559,7 @@ EOF
 
                 /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
                 TARGET_CG_USER="${HOSTING_USER:-$USERNAME}"
-                (sleep 1 && /opt/wpc/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || true
+                (sleep 1 && (/opt/presspanel/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || /opt/wpc/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || true)
                 for lscg in /usr/local/lsws/lsns/bin/lscgctl /usr/local/lsws/bin/lscgctl; do
                     [ -x "$lscg" ] && "$lscg" set "$TARGET_CG_USER" --cpu=200 2>/dev/null || true
                 done) &>/dev/null &
@@ -590,8 +602,10 @@ EOF
                     SSL_KEY="/home/$USERNAME/domains/$DOMAIN/ssl/privkey.pem"
                     if [ ! -s "$SSL_CERT" ] || [ ! -s "$SSL_KEY" ]; then
                         ensure_server_default_ssl
-                        SSL_CERT="/etc/ssl/wpc/selfsigned.crt"
-                        SSL_KEY="/etc/ssl/wpc/selfsigned.key"
+                        SSL_CERT="/etc/ssl/presspanel/selfsigned.crt"
+                        [ ! -f "$SSL_CERT" ] && SSL_CERT="/etc/ssl/wpc/selfsigned.crt"
+                        SSL_KEY="/etc/ssl/presspanel/selfsigned.key"
+                        [ ! -f "$SSL_KEY" ] && SSL_KEY="/etc/ssl/wpc/selfsigned.key"
                     fi
 
                     VHOST_RATE="${RATE_LIMIT:-}"
@@ -638,8 +652,8 @@ EOF
         if [ "$WEBSERVER" = "ols" ]; then
             rm -f "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
             for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
-                systemctl stop "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
-                systemctl disable "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+                systemctl stop "presspanel-php${pver}-fpm@${USERNAME}.service" "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+                systemctl disable "presspanel-php${pver}-fpm@${USERNAME}.service" "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
                 rm -f "/etc/php/${pver}/fpm/users/${USERNAME}.conf" "/run/php/php${pver}-fpm-${USERNAME}.sock" "/run/php/php${pver}-fpm-${USERNAME}.pid" 2>/dev/null || true
             done
         fi
@@ -680,8 +694,8 @@ EOF
         rm -f "/etc/nginx/conf.d/$DOMAIN.conf" 2>/dev/null || true
         # Xoá pool & dừng các standalone PHP-FPM service riêng của user trên tất cả các phiên bản PHP
         for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
-            systemctl stop "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
-            systemctl disable "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+            systemctl stop "presspanel-php${pver}-fpm@${USERNAME}.service" "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+            systemctl disable "presspanel-php${pver}-fpm@${USERNAME}.service" "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
             rm -f "/etc/php/${pver}/fpm/users/${USERNAME}.conf" "/run/php/php${pver}-fpm-${USERNAME}.pid" "/run/php/php${pver}-fpm-${USERNAME}.sock" 2>/dev/null || true
         done
         for pdir in /etc/php/*/fpm/pool.d; do
@@ -691,7 +705,7 @@ EOF
         nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
         systemctl reload "php*-fpm" 2>/dev/null || true
         # Neu la user linux rieng biet cua domain (hoac user doc lap), xoa user va thu muc home neu can
-        if [ "$USERNAME" != "root" ] && [ "$USERNAME" != "wpc" ] && id "$USERNAME" &>/dev/null; then
+        if [ "$USERNAME" != "root" ] && [ "$USERNAME" != "presspanel" ] && [ "$USERNAME" != "wpc" ] && id "$USERNAME" &>/dev/null; then
             userdel -r "$USERNAME" 2>/dev/null || true
             rm -rf "/home/$USERNAME" 2>/dev/null || true
         fi
@@ -826,8 +840,10 @@ EOF_VH
                 SSL_KEY="/home/$USERNAME/domains/$NEW_DOMAIN/ssl/privkey.pem"
                 if [ ! -s "$SSL_CERT" ] || [ ! -s "$SSL_KEY" ]; then
                     ensure_server_default_ssl
-                    SSL_CERT="/etc/ssl/wpc/selfsigned.crt"
-                    SSL_KEY="/etc/ssl/wpc/selfsigned.key"
+                    SSL_CERT="/etc/ssl/presspanel/selfsigned.crt"
+                    [ ! -f "$SSL_CERT" ] && SSL_CERT="/etc/ssl/wpc/selfsigned.crt"
+                    SSL_KEY="/etc/ssl/presspanel/selfsigned.key"
+                    [ ! -f "$SSL_KEY" ] && SSL_KEY="/etc/ssl/wpc/selfsigned.key"
                 fi
                 VHOST_RATE="${RATE_LIMIT:-}"
                 if [ -z "$VHOST_RATE" ] && [ -f "$WPC_DIR/data/panel.db" ]; then
@@ -944,7 +960,7 @@ EOF_RW
                 # Khởi động lại OLS để nhận cấu hình tức thì
                 /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
                 TARGET_CG_USER="${HOSTING_USER:-$USERNAME}"
-                (sleep 1 && /opt/wpc/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || true
+                (sleep 1 && (/opt/presspanel/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || /opt/wpc/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || true)
                 for lscg in /usr/local/lsws/lsns/bin/lscgctl /usr/local/lsws/bin/lscgctl; do
                     [ -x "$lscg" ] && "$lscg" set "$TARGET_CG_USER" --cpu=200 2>/dev/null || true
                 done) &>/dev/null &
@@ -963,8 +979,8 @@ EOF_RW
             # Xoá pool cũ ở các phiên bản khác
             for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
                 if [ "$pver" != "$PHP_VER" ]; then
-                    systemctl stop "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
-                    systemctl disable "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+                    systemctl stop "presspanel-php${pver}-fpm@${USERNAME}.service" "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+                    systemctl disable "presspanel-php${pver}-fpm@${USERNAME}.service" "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
                     rm -f "/etc/php/${pver}/fpm/users/${USERNAME}.conf" "/run/php/php${pver}-fpm-${USERNAME}.sock" "/run/php/php${pver}-fpm-${USERNAME}.pid" 2>/dev/null || true
                 fi
             done
@@ -995,7 +1011,7 @@ EOF_RW
     suspend)
         echo "[+] Tam khoa website $DOMAIN cua user $USERNAME ($WEBSERVER)..."
         # 1. Khoa tai khoan Linux user va dung tien trinh
-        if [ "$USERNAME" != "root" ] && [ "$USERNAME" != "wpc" ] && id "$USERNAME" &>/dev/null; then
+        if [ "$USERNAME" != "root" ] && [ "$USERNAME" != "presspanel" ] && [ "$USERNAME" != "wpc" ] && id "$USERNAME" &>/dev/null; then
             usermod -L "$USERNAME" 2>/dev/null || true
             pkill -9 -u "$USERNAME" 2>/dev/null || true
         fi
@@ -1026,7 +1042,7 @@ EOF_SUSP_HTML
         # Phân quyền chuẩn xác: User sở hữu thư mục suspended_html, các webserver worker có quyền đọc
         if id "$USERNAME" &>/dev/null; then
             chown -R "$USERNAME:$USERNAME" "$SUSPENDED_DIR" 2>/dev/null || true
-            for svc_u in wpc nobody www-data; do
+            for svc_u in presspanel wpc nobody www-data; do
                 if id "$svc_u" &>/dev/null; then
                     usermod -a -G "$USERNAME" "$svc_u" 2>/dev/null || true
                 fi
@@ -1093,7 +1109,7 @@ server {
 }
 EOF_NGX_SUSP
             nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true)
-            systemctl stop "wpc-php*-fpm@${USERNAME}.service" 2>/dev/null || true
+            systemctl stop "presspanel-php*-fpm@${USERNAME}.service" "wpc-php*-fpm@${USERNAME}.service" 2>/dev/null || true
         fi
 
         echo "[+] Da tam khoa website $DOMAIN thanh cong!"
@@ -1103,7 +1119,7 @@ EOF_NGX_SUSP
     unsuspend)
         echo "[+] Mo khoa website $DOMAIN cua user $USERNAME ($WEBSERVER)..."
         # 1. Mo khoa tai khoan Linux user
-        if [ "$USERNAME" != "root" ] && [ "$USERNAME" != "wpc" ] && id "$USERNAME" &>/dev/null; then
+        if [ "$USERNAME" != "root" ] && [ "$USERNAME" != "presspanel" ] && [ "$USERNAME" != "wpc" ] && id "$USERNAME" &>/dev/null; then
             usermod -U "$USERNAME" 2>/dev/null || true
         fi
 
@@ -1145,7 +1161,7 @@ EOF_NGX_SUSP
             fi
             if id "$USERNAME" &>/dev/null; then
                 chown -R "$USERNAME:$USERNAME" "$DOMAIN_DIR" 2>/dev/null || true
-                for svc_u in wpc nobody www-data; do
+                for svc_u in presspanel wpc nobody www-data; do
                     if id "$svc_u" &>/dev/null; then
                         usermod -a -G "$USERNAME" "$svc_u" 2>/dev/null || true
                     fi
@@ -1164,7 +1180,7 @@ EOF_NGX_SUSP
             if [ -f "$NGX_CONF.active" ]; then
                 mv -f "$NGX_CONF.active" "$NGX_CONF" 2>/dev/null || true
             fi
-            systemctl start "wpc-php*-fpm@${USERNAME}.service" 2>/dev/null || true
+            systemctl start "presspanel-php*-fpm@${USERNAME}.service" "wpc-php*-fpm@${USERNAME}.service" 2>/dev/null || true
             nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true)
         fi
 
@@ -1191,7 +1207,7 @@ EOF_NGX_SUSP
 
         if id "$USERNAME" &>/dev/null; then
             chown -R "$USERNAME:$USERNAME" "$DOMAIN_DIR" 2>/dev/null || true
-            for svc_u in wpc nobody www-data; do
+            for svc_u in presspanel wpc nobody www-data; do
                 if id "$svc_u" &>/dev/null; then
                     usermod -a -G "$USERNAME" "$svc_u" 2>/dev/null || true
                 fi
@@ -1435,9 +1451,9 @@ EOF_NGX_SUSP
                 U_CONF="/etc/php/${pver}/fpm/users/${USERNAME}.conf"
                 if [ -f "$U_CONF" ] && [ -f "$DOC_ROOT/.user.ini" ]; then
                     # Xóa block extension cũ nếu có
-                    sed -i '/; --- WPC PHP EXTENSIONS CONFIGURATION ---/,/; --- END WPC PHP EXTENSIONS CONFIGURATION ---/d' "$U_CONF" 2>/dev/null || true
+                    sed -i -E '/; --- (PRESSPANEL|WPC) PHP EXTENSIONS CONFIGURATION ---/,/; --- END (PRESSPANEL|WPC) PHP EXTENSIONS CONFIGURATION ---/d' "$U_CONF" 2>/dev/null || true
 
-                    EXT_BLOCK="\n; --- WPC PHP EXTENSIONS CONFIGURATION ---"
+                    EXT_BLOCK="\n; --- PRESSPANEL PHP EXTENSIONS CONFIGURATION ---"
                     OP_ENABLE=$(grep -E "^opcache.enable" "$DOC_ROOT/.user.ini" 2>/dev/null | awk -F'=' '{print $2}' | tr -d ' ' || true)
                     if [ "$OP_ENABLE" = "1" ] || [ "$OP_ENABLE" = "On" ] || [ "$OP_ENABLE" = "on" ]; then
                         EXT_BLOCK="${EXT_BLOCK}\nphp_admin_flag[opcache.enable] = on"
@@ -1458,11 +1474,11 @@ EOF_NGX_SUSP
                     else
                         EXT_BLOCK="${EXT_BLOCK}\nphp_admin_value[disable_classes] = \"\""
                     fi
-                    EXT_BLOCK="${EXT_BLOCK}\n; --- END WPC PHP EXTENSIONS CONFIGURATION ---"
+                    EXT_BLOCK="${EXT_BLOCK}\n; --- END PRESSPANEL PHP EXTENSIONS CONFIGURATION ---"
 
                     printf '%b\n' "$EXT_BLOCK" >> "$U_CONF"
                 fi
-                systemctl restart "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
+                systemctl restart "presspanel-php${pver}-fpm@${USERNAME}.service" "wpc-php${pver}-fpm@${USERNAME}.service" 2>/dev/null || true
             done
             nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
         fi
@@ -1479,11 +1495,11 @@ EOF_NGX_SUSP
         if [ "$WEBSERVER" = "ols" ]; then
             # 1. Dọn dẹp và dừng TOÀN BỘ tiến trình / service PHP-FPM riêng của user VÀ hệ thống
             echo "[+] Dang chuyen sang OLS: Tat cac service PHP-FPM nguoi dung va he thong..."
-            systemctl stop "wpc-php*-fpm@*" 2>/dev/null || true
-            systemctl disable "wpc-php*-fpm@*" 2>/dev/null || true
+            systemctl stop "presspanel-php*-fpm@*" "wpc-php*-fpm@*" 2>/dev/null || true
+            systemctl disable "presspanel-php*-fpm@*" "wpc-php*-fpm@*" 2>/dev/null || true
             for pver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
-                systemctl stop "wpc-php${pver}-fpm@*.service" 2>/dev/null || true
-                systemctl disable "wpc-php${pver}-fpm@*.service" 2>/dev/null || true
+                systemctl stop "presspanel-php${pver}-fpm@*.service" "wpc-php${pver}-fpm@*.service" 2>/dev/null || true
+                systemctl disable "presspanel-php${pver}-fpm@*.service" "wpc-php${pver}-fpm@*.service" 2>/dev/null || true
                 systemctl stop "php${pver}-fpm" 2>/dev/null || true
                 systemctl disable "php${pver}-fpm" 2>/dev/null || true
             done
@@ -1503,7 +1519,7 @@ EOF_NGX_SUSP
             for udir in /home/*; do
                 if [ -d "$udir" ]; then
                     u=$(basename "$udir")
-                    if [ "$u" != "wpc" ]; then
+                    if [ "$u" != "presspanel" ] && [ "$u" != "wpc" ]; then
                         chmod 711 "$udir" 2>/dev/null || true
                         [ -d "$udir/domains" ] && chmod 711 "$udir/domains" 2>/dev/null || true
                         for ddir in "$udir/domains"/*; do
@@ -1651,8 +1667,8 @@ EOF_VHSSL
                             p_ver=$(echo "$sock_line" | sed -nE 's/.*php([0-9.]+)-fpm-.*/\1/p')
                             p_user=$(echo "$sock_line" | sed -nE 's/.*-fpm-([^.]+)\.sock/\1/p')
                             if [ -n "$p_ver" ] && [ -n "$p_user" ]; then
-                                systemctl enable "wpc-php${p_ver}-fpm@${p_user}.service" 2>/dev/null || true
-                                systemctl start "wpc-php${p_ver}-fpm@${p_user}.service" 2>/dev/null || true
+                                systemctl enable "presspanel-php${p_ver}-fpm@${p_user}.service" "wpc-php${p_ver}-fpm@${p_user}.service" 2>/dev/null || true
+                                systemctl start "presspanel-php${p_ver}-fpm@${p_user}.service" "wpc-php${p_ver}-fpm@${p_user}.service" 2>/dev/null || true
                                 [ -S "/run/php/php${p_ver}-fpm-${p_user}.sock" ] && chmod 666 "/run/php/php${p_ver}-fpm-${p_user}.sock" 2>/dev/null || true
                             fi
                         fi
@@ -1679,7 +1695,7 @@ EOF_VHSSL
             for udir in /home/*; do
                 if [ -d "$udir" ]; then
                     u=$(basename "$udir")
-                    if [ "$u" != "wpc" ]; then
+                    if [ "$u" != "presspanel" ] && [ "$u" != "wpc" ]; then
                         chmod 711 "$udir" 2>/dev/null || true
                         [ -d "$udir/domains" ] && chmod 711 "$udir/domains" 2>/dev/null || true
                         for ddir in "$udir/domains"/*; do
@@ -1704,8 +1720,8 @@ EOF_VHSSL
                 u_name=$(basename "$u_conf" .conf)
                 p_ver=$(echo "$u_conf" | awk -F'/' '{print $(NF-3)}')
                 if [ -n "$p_ver" ] && [ -n "$u_name" ]; then
-                    systemctl enable "wpc-php${p_ver}-fpm@${u_name}.service" 2>/dev/null || true
-                    systemctl restart "wpc-php${p_ver}-fpm@${u_name}.service" 2>/dev/null || true
+                    systemctl enable "presspanel-php${p_ver}-fpm@${u_name}.service" "wpc-php${p_ver}-fpm@${u_name}.service" 2>/dev/null || true
+                    systemctl restart "presspanel-php${p_ver}-fpm@${u_name}.service" "wpc-php${p_ver}-fpm@${u_name}.service" 2>/dev/null || true
                     # Đảm bảo symlink fallback nếu pool riêng chưa kịp sinh socket
                     if [ ! -S "/run/php/php${p_ver}-fpm-${u_name}.sock" ] && [ -S "/run/php/php${p_ver}-fpm.sock" ]; then
                         ln -sf "/run/php/php${p_ver}-fpm.sock" "/run/php/php${p_ver}-fpm-${u_name}.sock" 2>/dev/null || true

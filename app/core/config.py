@@ -27,22 +27,27 @@ def parse_wpc_conf(conf_path: str) -> Dict[str, str]:
 
 def get_conf_path() -> str:
     # 1. Từ biến môi trường
-    if "WPC_CONF_PATH" in os.environ and os.path.isfile(os.environ["WPC_CONF_PATH"]):
-        return os.environ["WPC_CONF_PATH"]
-    # 2. Vị trí chính thức trên máy chủ Linux (/opt/wpc)
-    if os.path.isfile("/opt/wpc/conf/wpc.conf"):
-        return "/opt/wpc/conf/wpc.conf"
+    for env_k in ["PRESSPANEL_CONF_PATH", "WPC_CONF_PATH"]:
+        if env_k in os.environ and os.path.isfile(os.environ[env_k]):
+            return os.environ[env_k]
+    # 2. Vị trí chính thức trên máy chủ Linux (/opt/presspanel hoặc /opt/wpc)
+    for sys_cand in ["/opt/presspanel/conf/presspanel.conf", "/opt/wpc/conf/wpc.conf"]:
+        if os.path.isfile(sys_cand):
+            return sys_cand
     # 3. Vị trí trong thư mục dự án khi dev
     base_proj = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    local_conf = os.path.join(base_proj, "conf", "wpc.conf")
-    if os.path.isfile(local_conf):
-        return local_conf
-    return "/opt/wpc/conf/wpc.conf"
+    for local_cand in [
+        os.path.join(base_proj, "conf", "presspanel.conf"),
+        os.path.join(base_proj, "conf", "wpc.conf")
+    ]:
+        if os.path.isfile(local_cand):
+            return local_cand
+    return "/opt/presspanel/conf/presspanel.conf"
 
 CONF_DATA = parse_wpc_conf(get_conf_path())
 
 def get_or_create_secret_key() -> str:
-    env_key = os.getenv("WPC_SECRET_KEY")
+    env_key = os.getenv("PRESSPANEL_SECRET_KEY") or os.getenv("WPC_SECRET_KEY")
     if env_key and len(env_key) >= 16 and "change-this" not in env_key and "change-me" not in env_key:
         return env_key
     conf_key = CONF_DATA.get("secret_key", "")
@@ -50,7 +55,7 @@ def get_or_create_secret_key() -> str:
         return conf_key
 
     # Tự động sinh và lưu khóa an toàn ngẫu nhiên nếu chưa có hoặc đang dùng khóa mặc định
-    key_file = os.path.join(CONF_DATA.get("data_dir", "/opt/wpc/data"), ".secret_key")
+    key_file = os.path.join(CONF_DATA.get("data_dir", "/opt/presspanel/data"), ".secret_key")
     if not os.path.isdir(os.path.dirname(key_file)):
         base_proj = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         key_file = os.path.join(base_proj, "data", ".secret_key")
@@ -72,10 +77,11 @@ def get_or_create_secret_key() -> str:
             pass
         return new_k
     except Exception:
-        return conf_key or "wpc-fallback-secret-key-32-chars-long-minimum!!"
+        return conf_key or "presspanel-fallback-secret-key-32-chars-long-minimum!!"
 
 def get_current_panel_version() -> str:
     for cand in [
+        "/opt/presspanel/VERSION",
         "/opt/wpc/VERSION",
         os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "VERSION")
     ]:
@@ -87,16 +93,16 @@ def get_current_panel_version() -> str:
                         return v
             except Exception:
                 pass
-    return "0.5.94"
+    return "0.5.205"
 
 class Settings:
-    PROJECT_NAME: str = "WPCloud"
+    PROJECT_NAME: str = "PressPanel"
     VERSION: str = get_current_panel_version()
     API_V1_STR: str = "/api/v1"
     
     # Mạng & Cổng kết nối
-    HOST: str = os.getenv("WPC_HOST", CONF_DATA.get("bind_address", "0.0.0.0"))
-    PORT: int = int(os.getenv("WPC_PORT", CONF_DATA.get("port", 8888)))
+    HOST: str = os.getenv("PRESSPANEL_HOST", os.getenv("WPC_HOST", CONF_DATA.get("bind_address", "0.0.0.0")))
+    PORT: int = int(os.getenv("PRESSPANEL_PORT", os.getenv("WPC_PORT", CONF_DATA.get("port", 8888))))
     SERVERNAME: str = CONF_DATA.get("servername", "localhost")
     
     # Bảo mật & JWT (Tự sinh ngẫu nhiên nếu chưa cấu hình)
@@ -107,20 +113,20 @@ class Settings:
     
     # SSL Panel
     ENABLE_SSL: bool = CONF_DATA.get("ssl", "0") in ("1", "true", "yes")
-    SSL_CERT: str = CONF_DATA.get("ssl_cert", f"{CONF_DATA.get('base_dir', '/opt/wpc')}/data/ssl/panel.crt")
-    SSL_KEY: str = CONF_DATA.get("ssl_key", f"{CONF_DATA.get('base_dir', '/opt/wpc')}/data/ssl/panel.key")
+    SSL_CERT: str = CONF_DATA.get("ssl_cert", f"{CONF_DATA.get('base_dir', '/opt/presspanel')}/data/ssl/panel.crt")
+    SSL_KEY: str = CONF_DATA.get("ssl_key", f"{CONF_DATA.get('base_dir', '/opt/presspanel')}/data/ssl/panel.key")
     
     # Dịch vụ mặc định
     DEFAULT_WEBSERVER: str = CONF_DATA.get("default_webserver", "ols")
     DEFAULT_PHP: str = CONF_DATA.get("default_php", "8.2")
     
-    # Đường dẫn hệ thống (/opt/wpc)
-    BASE_DIR: str = CONF_DATA.get("base_dir", "/opt/wpc")
+    # Đường dẫn hệ thống (/opt/presspanel)
+    BASE_DIR: str = CONF_DATA.get("base_dir", "/opt/presspanel")
     BIN_DIR: str = CONF_DATA.get("bin_dir", f"{BASE_DIR}/bin")
     DATA_DIR: str = CONF_DATA.get("data_dir", f"{BASE_DIR}/data")
     
-    # DB_PATH: Luôn là /opt/wpc/data/panel.db
-    DB_PATH: str = os.getenv("WPC_DB_PATH", CONF_DATA.get("database_path", f"{BASE_DIR}/data/panel.db"))
+    # DB_PATH: Mặc định /opt/presspanel/data/panel.db
+    DB_PATH: str = os.getenv("PRESSPANEL_DB_PATH", os.getenv("WPC_DB_PATH", CONF_DATA.get("database_path", f"{BASE_DIR}/data/panel.db")))
     LOGS_DIR: str = CONF_DATA.get("logs_dir", f"{BASE_DIR}/logs")
     STATIC_DIR: str = CONF_DATA.get("static_dir", f"{BASE_DIR}/static")
     BACKUP_DIR: str = CONF_DATA.get("backup_storage_path", f"{BASE_DIR}/data/backups")

@@ -1,9 +1,14 @@
 /*
- * WPCloud: vhost.c - Quản lý VirtualHost OpenLiteSpeed/Nginx & SSL
- * SUID Binary (chmod 4750 root:wpc)
+ * PressPanel: vhost.c - Quản lý VirtualHost OpenLiteSpeed/Nginx & SSL
+ * SUID Binary (chmod 4750 root:presspanel)
  */
 
 #include "common.h"
+
+static const char* get_vhost_script(void) {
+    if (access("/opt/presspanel/scripts/vhost_manager.sh", X_OK) == 0) return "/opt/presspanel/scripts/vhost_manager.sh";
+    return "/opt/wpc/scripts/vhost_manager.sh";
+}
 
 int main(int argc, char *argv[]) {
     init_security_env();
@@ -22,7 +27,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         char cmd[512];
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh rewrite-all all all %s", webserver);
+        snprintf(cmd, sizeof(cmd), "%s rewrite-all all all %s", get_vhost_script(), webserver);
         int ret = system(cmd);
         if (ret == 0) {
             send_json_ok("\"action\":\"rewrite-all\"");
@@ -59,8 +64,8 @@ int main(int argc, char *argv[]) {
             send_json_error("vhost", "Hosting user khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh add %s %s %s %s %s",
-                 username, domain, webserver, php_ver, hosting_user);
+        snprintf(cmd, sizeof(cmd), "%s add %s %s %s %s %s",
+                 get_vhost_script(), username, domain, webserver, php_ver, hosting_user);
     }
     else if (strcmp(action, "remove") == 0) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
@@ -68,8 +73,8 @@ int main(int argc, char *argv[]) {
             send_json_error("vhost", "Webserver khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh remove %s %s %s",
-                 username, domain, webserver);
+        snprintf(cmd, sizeof(cmd), "%s remove %s %s %s",
+                 get_vhost_script(), username, domain, webserver);
     }
     else if (strcmp(action, "set-php") == 0 || strcmp(action, "change-php") == 0) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
@@ -83,12 +88,12 @@ int main(int argc, char *argv[]) {
             send_json_error("vhost", "Hosting user khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh set-php %s %s %s %s %s",
-                 username, domain, webserver, php_ver, hosting_user);
+        snprintf(cmd, sizeof(cmd), "%s set-php %s %s %s %s %s",
+                 get_vhost_script(), username, domain, webserver, php_ver, hosting_user);
     }
     else if (strcmp(action, "ssl") == 0) {
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh ssl %s %s",
-                 username, domain);
+        snprintf(cmd, sizeof(cmd), "%s ssl %s %s",
+                 get_vhost_script(), username, domain);
     }
     else if (strcmp(action, "apply-php-ini") == 0) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
@@ -96,8 +101,8 @@ int main(int argc, char *argv[]) {
             send_json_error("vhost", "Webserver khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh apply-php-ini %s %s %s",
-                 username, domain, webserver);
+        snprintf(cmd, sizeof(cmd), "%s apply-php-ini %s %s %s",
+                 get_vhost_script(), username, domain, webserver);
     }
     else if (strcmp(action, "suspend") == 0) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
@@ -105,8 +110,8 @@ int main(int argc, char *argv[]) {
             send_json_error("vhost", "Webserver khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh suspend %s %s %s",
-                 username, domain, webserver);
+        snprintf(cmd, sizeof(cmd), "%s suspend %s %s %s",
+                 get_vhost_script(), username, domain, webserver);
     }
     else if (strcmp(action, "unsuspend") == 0) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
@@ -114,8 +119,8 @@ int main(int argc, char *argv[]) {
             send_json_error("vhost", "Webserver khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh unsuspend %s %s %s",
-                 username, domain, webserver);
+        snprintf(cmd, sizeof(cmd), "%s unsuspend %s %s %s",
+                 get_vhost_script(), username, domain, webserver);
     }
     else if (strcmp(action, "reload-vhost") == 0) {
         const char *webserver = (argc > 4) ? argv[4] : "ols";
@@ -128,8 +133,8 @@ int main(int argc, char *argv[]) {
             send_json_error("vhost", "PHP version khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh reload-vhost %s %s %s %s",
-                 username, domain, webserver, php_ver);
+        snprintf(cmd, sizeof(cmd), "%s reload-vhost %s %s %s %s",
+                 get_vhost_script(), username, domain, webserver, php_ver);
     }
     else if (strcmp(action, "rename") == 0) {
         if (argc < 5) {
@@ -152,8 +157,8 @@ int main(int argc, char *argv[]) {
             send_json_error("vhost", "Hosting user khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/vhost_manager.sh rename %s %s %s %s %s %s",
-                 username, domain, new_domain, webserver, php_ver, hosting_user);
+        snprintf(cmd, sizeof(cmd), "%s rename %s %s %s %s %s %s",
+                 get_vhost_script(), username, domain, new_domain, webserver, php_ver, hosting_user);
     }
     else {
         send_json_error("vhost", "Hanh dong khong hop le");

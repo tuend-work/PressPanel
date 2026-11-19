@@ -1032,7 +1032,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                         <label class="font-bold text-slate-300 block mb-1">Mật Khẩu Root Hiện Tại (Tùy chọn):</label>
                                         <input type="password" v-model="rootPasswordForm.current_password" placeholder="Bỏ trống nếu đang dùng socket hoặc không nhớ"
                                             class="w-full px-3.5 py-2.5 rounded-xl bg-[#1e293b] border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-emerald-500">
-                                        <p class="text-[10px] text-slate-400 mt-1">Hệ thống sẽ tự nhận diện qua /root/.my.cnf, wpc.conf hoặc debian.cnf nếu để trống.</p>
+                                        <p class="text-[10px] text-slate-400 mt-1">Hệ thống sẽ tự nhận diện qua /root/.my.cnf, presspanel.conf hoặc debian.cnf nếu để trống.</p>
                                     </div>
 
                                     <div>
@@ -1352,7 +1352,7 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                 <!-- Modal Footer -->
                                 <div class="flex justify-between items-center pt-3 mt-3 border-t border-slate-800 flex-shrink-0 text-xs">
                                     <span class="text-slate-400 text-[11px]">
-                                        WPC MySQL Resource Controller &bull; Chu kỳ quét: 10 giây &bull; Ngưỡng cào: 40,000 rows/s | 75 QPS
+                                        PressPanel MySQL Resource Controller &bull; Chu kỳ quét: 10 giây &bull; Ngưỡng cào: 40,000 rows/s | 75 QPS
                                     </span>
                                     <button type="button" @click="showMySQLControllerModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-medium hover:bg-slate-700 transition">
                                         Đóng

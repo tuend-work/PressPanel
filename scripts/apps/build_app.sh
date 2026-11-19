@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# WPCloud: build_app.sh - Bộ điều phối biên dịch ứng dụng từ mã nguồn với đối số tùy chỉnh
+# PressPanel: build_app.sh - Bộ điều phối biên dịch ứng dụng từ mã nguồn với đối số tùy chỉnh
 set -euo pipefail
 
 APP_ID="${1:-nginx}"
-WPC_BASE="/opt/wpc"
+WPC_BASE="/opt/presspanel"
+[ ! -d "$WPC_BASE" ] && [ -d "/opt/wpc" ] && WPC_BASE="/opt/wpc"
 
-mkdir -p "$WPC_BASE/config/build" /var/log/wpc 2>/dev/null || true
-LOG_FILE="/var/log/wpc/build_${APP_ID}.log"
+mkdir -p "$WPC_BASE/config/build" /var/log/presspanel /var/log/wpc 2>/dev/null || true
+LOG_FILE="/var/log/presspanel/build_${APP_ID}.log"
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] [BUILD] Bắt đầu tác vụ biên dịch ứng dụng: $APP_ID" | tee "$LOG_FILE"
 

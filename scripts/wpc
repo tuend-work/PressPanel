@@ -1,13 +1,20 @@
 #!/bin/bash
 # ==============================================================================
-# WPCloud Control Panel CLI Management Tool
-# Cài đặt tại: /usr/local/bin/wpc
-# Cách dùng: wpc <update|reinstall|status|restart|stop|start|logs|version|password|port>
+# PressPanel / WPCloud Control Panel CLI (Backwards-Compatible Wrapper)
 # ==============================================================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -x "$SCRIPT_DIR/presspanel" ]; then
+    exec "$SCRIPT_DIR/presspanel" "$@"
+fi
+if [ -x "/usr/local/bin/presspanel" ]; then
+    exec "/usr/local/bin/presspanel" "$@"
+fi
 
 set -euo pipefail
 
-INSTALL_DIR="/opt/wpc"
+INSTALL_DIR="/opt/presspanel"
+[ ! -d "$INSTALL_DIR" ] && [ -d "/opt/wpc" ] && INSTALL_DIR="/opt/wpc"
 CONF_FILE="$INSTALL_DIR/conf/wpc.conf"
 
 function show_help() {

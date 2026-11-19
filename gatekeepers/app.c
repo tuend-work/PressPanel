@@ -1,9 +1,14 @@
 /*
- * WPCloud: app.c - Quản lý Cài đặt Ứng dụng & Dịch vụ (App Store)
- * SUID Binary (chmod 4750 root:wpc)
+ * PressPanel: app.c - Quản lý Cài đặt Ứng dụng & Dịch vụ (App Store)
+ * SUID Binary (chmod 4750 root:presspanel)
  */
 
 #include "common.h"
+
+static const char* get_presspanel_dir(void) {
+    if (access("/opt/presspanel", F_OK) == 0) return "/opt/presspanel";
+    return "/opt/wpc";
+}
 
 static const char* detect_os_family(void) {
     FILE *fp = fopen("/etc/os-release", "r");
@@ -47,7 +52,7 @@ int main(int argc, char *argv[]) {
             send_json_error("app", "Version khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/apps/%s.sh install %s", app_name, version);
+        snprintf(cmd, sizeof(cmd), "%s/scripts/apps/%s.sh install %s", get_presspanel_dir(), app_name, version);
     }
     else if (strcmp(action, "update") == 0 || strcmp(action, "upgrade") == 0) {
         if (!is_safe_id(app_name)) {
@@ -59,14 +64,14 @@ int main(int argc, char *argv[]) {
             send_json_error("app", "Version khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/apps/%s.sh update %s", app_name, version);
+        snprintf(cmd, sizeof(cmd), "%s/scripts/apps/%s.sh update %s", get_presspanel_dir(), app_name, version);
     }
     else if (strcmp(action, "remove") == 0) {
         if (!is_safe_id(app_name)) {
             send_json_error("app", "Ten app khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/apps/%s.sh remove", app_name);
+        snprintf(cmd, sizeof(cmd), "%s/scripts/apps/%s.sh remove", get_presspanel_dir(), app_name);
     }
     else if (strcmp(action, "status") == 0) {
         if (!is_safe_id(app_name)) {
@@ -105,7 +110,7 @@ int main(int argc, char *argv[]) {
             send_json_error("app", "Tham so php-ext khong hop le");
             return 1;
         }
-        snprintf(cmd, sizeof(cmd), "/opt/wpc/scripts/apps/php.sh %s-ext %s %s", op, php_ver, ext);
+        snprintf(cmd, sizeof(cmd), "%s/scripts/apps/php.sh %s-ext %s %s", get_presspanel_dir(), op, php_ver, ext);
     }
     else if (strcmp(action, "config-read") == 0) {
         // Doc file cau hinh an toan bang dac quyen root qua whitelist

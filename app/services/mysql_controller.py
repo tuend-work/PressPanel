@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.db.session import get_db_connection
 from app.executor.gatekeeper import run_gatekeeper
 
-logger = logging.getLogger("wpc.mysql_controller")
+logger = logging.getLogger("presspanel.mysql_controller")
 
 RESERVED_DB_USERS = {
     "root", "debian-sys-maint", "mysql.sys", "mysql.session",
@@ -27,7 +27,7 @@ _total_sniped_count: int = 0
 _controller_initialized: bool = False
 
 def get_mysql_root_password() -> Optional[str]:
-    """Tìm mật khẩu root MariaDB/MySQL từ /root/.my.cnf hoặc /opt/wpc/conf/wpc.conf"""
+    """Tìm mật khẩu root MariaDB/MySQL từ /root/.my.cnf hoặc presspanel.conf / wpc.conf"""
     try:
         if os.path.exists("/root/.my.cnf"):
             with open("/root/.my.cnf", "r", encoding="utf-8") as f:
@@ -36,14 +36,15 @@ def get_mysql_root_password() -> Optional[str]:
                         return line.split("=", 1)[1].strip().strip('"\'')
     except Exception:
         pass
-    try:
-        if os.path.exists("/opt/wpc/conf/wpc.conf"):
-            with open("/opt/wpc/conf/wpc.conf", "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.strip().startswith("mysql_root_password"):
-                        return line.split("=", 1)[1].strip().strip('"\'')
-    except Exception:
-        pass
+    for cand_conf in ["/opt/presspanel/conf/presspanel.conf", "/opt/wpc/conf/wpc.conf"]:
+        try:
+            if os.path.exists(cand_conf):
+                with open(cand_conf, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip().startswith("mysql_root_password"):
+                            return line.split("=", 1)[1].strip().strip('"\'')
+        except Exception:
+            pass
     return None
 
 def execute_mysql_direct(sql: str) -> tuple[bool, str]:
@@ -81,8 +82,8 @@ def execute_mysql_direct(sql: str) -> tuple[bool, str]:
 
 def ensure_mysql_controller_settings() -> bool:
     """
-    Kích hoạt cấu hình chuẩn của WPC MySQL Resource Controller:
-    1. Ghi file /etc/mysql/mariadb.conf.d/99-wpc-mysql-controller.cnf
+    Kích hoạt cấu hình chuẩn của PressPanel MySQL Resource Controller:
+    1. Ghi file /etc/mysql/mariadb.conf.d/99-presspanel-mysql-controller.cnf
     2. Kích hoạt runtime: userstat=1, innodb_old_blocks_pct=37, innodb_old_blocks_time=1000
     """
     global _controller_initialized
@@ -92,7 +93,7 @@ def ensure_mysql_controller_settings() -> bool:
 
     cnf_content = (
         "[mysqld]\n"
-        "# Managed by WPC MySQL Resource Controller\n"
+        "# Managed by PressPanel MySQL Resource Controller\n"
         "userstat = 1\n"
         "max_statement_time = 15\n"
         "innodb_old_blocks_pct = 37\n"
@@ -103,9 +104,9 @@ def ensure_mysql_controller_settings() -> bool:
 
     written = False
     for target in [
-        "/etc/mysql/mariadb.conf.d/99-wpc-mysql-controller.cnf",
-        "/etc/my.cnf.d/99-wpc-mysql-controller.cnf",
-        "/etc/mysql/conf.d/99-wpc-mysql-controller.cnf"
+        "/etc/mysql/mariadb.conf.d/99-presspanel-mysql-controller.cnf",
+        "/etc/my.cnf.d/99-presspanel-mysql-controller.cnf",
+        "/etc/mysql/conf.d/99-presspanel-mysql-controller.cnf"
     ]:
         pdir = os.path.dirname(target)
         if os.path.isdir(pdir):

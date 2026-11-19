@@ -1,5 +1,5 @@
 """
-WPCloud: fail2ban_manager.py - Hệ thống Quản Lý Fail2ban Brute-Force Shield
+PressPanel: fail2ban_manager.py - Hệ thống Quản Lý Fail2ban Brute-Force Shield
 Tương tác với fail2ban-client để theo dõi các cuộc tấn công dò mật khẩu SSH/Panel
 và tự động khóa IP kẻ tấn công.
 """

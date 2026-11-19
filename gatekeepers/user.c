@@ -1,6 +1,6 @@
 /*
- * WPCloud: user.c - Quản lý tài khoản Linux & Disk Quota
- * SUID Binary (chmod 4750 root:wpc)
+ * PressPanel: user.c - Quản lý tài khoản Linux & Disk Quota
+ * SUID Binary (chmod 4750 root:presspanel)
  */
 
 #include "common.h"
@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Bảo vệ tuyệt đối tài khoản hệ thống (root, wpc, nobody, www-data, UID < 1000)
+    // Bảo vệ tuyệt đối tài khoản hệ thống (root, presspanel, wpc, nobody, www-data, UID < 1000)
     if (is_system_user(username)) {
         send_json_error("user", "Tu choi thao tac: Khong duoc phep thao tac tren tai khoan he thong");
         return 1;

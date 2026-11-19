@@ -9,9 +9,9 @@
                 <div>
                     <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                         <span>WordPress Manager</span>
-                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-950/40 text-blue-400 border border-blue-800/60 font-semibold">WPCloud Engine</span>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-950/40 text-blue-400 border border-blue-800/60 font-semibold">PressPanel Engine</span>
                     </h2>
-                    <p class="text-[12px] text-slate-500 dark:text-slate-400">Quản trị vòng đời WordPress chuyên sâu: 1-Click Magic Login SSO, Direct ZIP Reinstall diệt mã độc, Lockdown & WPC Optimize</p>
+                    <p class="text-[12px] text-slate-500 dark:text-slate-400">Quản trị vòng đời WordPress chuyên sâu: 1-Click Magic Login SSO, Direct ZIP Reinstall diệt mã độc, Lockdown & PressPanel Optimize</p>
                 </div>
             </div>
         </div>
@@ -255,7 +255,7 @@
             </button>
             <button @click="wpSubTab = 'optimize'" :class="['px-3.5 py-2 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', wpSubTab === 'optimize' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-100 dark:hover:text-slate-200']">
                 <i data-lucide="zap" class="w-3.5 h-3.5"></i>
-                <span>4. WPC Optimize (7 MU-Plugins)</span>
+                <span>4. PressPanel Optimize (7 MU-Plugins)</span>
             </button>
             <button @click="openWpPluginsTab()" :class="['px-3.5 py-2 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', wpSubTab === 'plugins' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-100 dark:hover:text-slate-200']">
                 <i data-lucide="plug" class="w-3.5 h-3.5"></i>
@@ -437,13 +437,13 @@
             </div>
         </div>
 
-        <!-- TAB 4: WPC OPTIMIZE (7 MU-PLUGINS) -->
+        <!-- TAB 4: PRESSPANEL OPTIMIZE (7 MU-PLUGINS) -->
         <div v-if="wpSubTab === 'optimize'" class="space-y-4">
             <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-5 shadow-sm space-y-4">
                 <div class="border-b border-slate-800/80 pb-3">
                     <h3 class="text-sm font-bold text-white flex items-center gap-2">
                         <i data-lucide="zap" class="w-4 h-4 text-amber-500"></i>
-                        <span>Bộ Tối Ưu Hóa WordPress Độc Quyền (WPC Optimize MU-Plugins)</span>
+                        <span>Bộ Tối Ưu Hóa WordPress Độc Quyền (PressPanel Optimize MU-Plugins)</span>
                     </h3>
                     <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Các module tối ưu được nạp dưới dạng Must-Use Plugins (chạy tự động trước mọi plugin khác, không bị tắt bởi user trong wp-admin, không sinh database rác).</p>
                 </div>

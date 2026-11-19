@@ -1,6 +1,6 @@
 /*
- * WPCloud: db.c - Quản lý MariaDB/MySQL Database & MySQL Resource Controller
- * SUID Binary (chmod 4750 root:wpc)
+ * PressPanel: db.c - Quản lý MariaDB/MySQL Database & MySQL Resource Controller
+ * SUID Binary (chmod 4750 root:presspanel)
  */
 
 #include "common.h"
@@ -23,11 +23,11 @@ int main(int argc, char *argv[]) {
 
     const char *action = argv[1];
 
-    /* --- Action: ensure-controller (Kích hoạt WPC MySQL Resource Controller) --- */
+    /* --- Action: ensure-controller (Kích hoạt PressPanel MySQL Resource Controller) --- */
     if (strcmp(action, "ensure-controller") == 0) {
         const char *cnf_content = 
             "[mysqld]\n"
-            "# Managed by WPC MySQL Resource Controller\n"
+            "# Managed by PressPanel MySQL Resource Controller\n"
             "userstat = 1\n"
             "max_statement_time = 15\n"
             "innodb_old_blocks_pct = 37\n"
@@ -38,11 +38,14 @@ int main(int argc, char *argv[]) {
         struct stat st;
         const char *target_file = NULL;
         if (stat("/etc/mysql/mariadb.conf.d", &st) == 0 && S_ISDIR(st.st_mode)) {
-            target_file = "/etc/mysql/mariadb.conf.d/99-wpc-mysql-controller.cnf";
+            unlink("/etc/mysql/mariadb.conf.d/99-wpc-mysql-controller.cnf");
+            target_file = "/etc/mysql/mariadb.conf.d/99-presspanel-mysql-controller.cnf";
         } else if (stat("/etc/my.cnf.d", &st) == 0 && S_ISDIR(st.st_mode)) {
-            target_file = "/etc/my.cnf.d/99-wpc-mysql-controller.cnf";
+            unlink("/etc/my.cnf.d/99-wpc-mysql-controller.cnf");
+            target_file = "/etc/my.cnf.d/99-presspanel-mysql-controller.cnf";
         } else if (stat("/etc/mysql/conf.d", &st) == 0 && S_ISDIR(st.st_mode)) {
-            target_file = "/etc/mysql/conf.d/99-wpc-mysql-controller.cnf";
+            unlink("/etc/mysql/conf.d/99-wpc-mysql-controller.cnf");
+            target_file = "/etc/mysql/conf.d/99-presspanel-mysql-controller.cnf";
         }
 
         if (target_file) {

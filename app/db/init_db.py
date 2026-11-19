@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS databases (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- 6. Bảng Quản Lý Ứng Dụng Đã Cài (WPC App Store)
+-- 6. Bảng Quản Lý Ứng Dụng Đã Cài (PressPanel App Store)
 CREATE TABLE IF NOT EXISTS installed_apps (
     app_name TEXT NOT NULL,
     version TEXT NOT NULL,
@@ -255,7 +255,7 @@ CREATE TABLE IF NOT EXISTS resource_metrics (
 CREATE INDEX IF NOT EXISTS idx_metrics_target_created ON resource_metrics(target_type, target_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_metrics_created_at ON resource_metrics(created_at);
 
--- 15. Bảng Nhật Ký WPC MySQL Resource Controller
+-- 15. Bảng Nhật Ký PressPanel MySQL Resource Controller
 CREATE TABLE IF NOT EXISTS mysql_controller_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_type TEXT NOT NULL,  -- 'snipe', 'shield_on', 'shield_off', 'limit_update'
@@ -506,7 +506,7 @@ async def init_database():
                 VALUES (4, 0, 'Starter Mini', 'user', 'user', 50, 512, 2048, 80, 50, 1, 1, 0, '0')
             """)
 
-        # Seed các gói Website Plans chuẩn WPC (plan_type = 'website')
+        # Seed các gói Website Plans chuẩn PressPanel (plan_type = 'website')
         website_default_plans = [
             (101, 'Website Starter Mini', 50, 512, 2048, 80, 50, 1, 1, 1, '512k'),
             (102, 'Website Standard', 100, 1024, 5120, 100, 100, 1, 5, 1, '1m'),
@@ -538,7 +538,7 @@ async def init_database():
             admin_pass_hash = get_password_hash("admin123456")
             await db.execute("""
                 INSERT INTO users (username, password_hash, email, role, package_id, cpu_pct, mem_mb, disk_mb, io_weight, pids_max)
-                VALUES ('admin', ?, 'admin@wpc.local', 'admin', 1, 400, 8192, 102400, 100, 500)
+                VALUES ('admin', ?, 'admin@presspanel.local', 'admin', 1, 400, 8192, 102400, 100, 500)
             """, (admin_pass_hash,))
 
         await db.commit()
@@ -548,7 +548,7 @@ async def init_database():
 
     print("[+] SQLite Database initialized successfully with 12 tables!")
 
-    # Đảm bảo phân quyền đọc/ghi cho user wpc trên database và thư mục data
+    # Đảm bảo phân quyền đọc/ghi cho user presspanel trên database và thư mục data
     try:
         import shutil, glob
         data_dir = os.path.dirname(settings.DB_PATH)
@@ -559,15 +559,19 @@ async def init_database():
             except Exception:
                 pass
         if hasattr(os, "geteuid") and os.geteuid() == 0:
-            try:
-                shutil.chown(data_dir, user="wpc", group="wpc")
-                for f in glob.glob(f"{data_dir}/panel.db*"):
-                    try:
-                        shutil.chown(f, user="wpc", group="wpc")
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+            for u in ["presspanel", "wpc"]:
+                try:
+                    shutil.chown(data_dir, user=u, group=u)
+                    for f in glob.glob(f"{data_dir}/panel.db*"):
+                        try:
+                            shutil.chown(f, user=u, group=u)
+                        except Exception:
+                            pass
+                    break
+                except Exception:
+                    pass
+    except Exception:
+        pass
     except Exception:
         pass
 

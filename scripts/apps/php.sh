@@ -117,8 +117,8 @@ case "$ACTION" in
             mkdir -p "$PHP_OVERRIDE_DIR"
             cat << 'EOF' > "$PHP_OVERRIDE_DIR/cgroup_attach.conf"
 [Service]
-ExecStartPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
-ExecReloadPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
+ExecStartPost=-/bin/bash -c '(sleep 1 && (/opt/presspanel/scripts/cgroup_attach.sh 2>/dev/null || /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true)) &'
+ExecReloadPost=-/bin/bash -c '(sleep 1 && (/opt/presspanel/scripts/cgroup_attach.sh 2>/dev/null || /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true)) &'
 EOF
 
             # Không bật service FPM toàn cục để tiết kiệm RAM; FPM được quản lý độc lập theo từng website/user
@@ -224,14 +224,14 @@ EOF
             mkdir -p "$PHP_OVERRIDE_DIR"
             cat << 'EOF' > "$PHP_OVERRIDE_DIR/cgroup_attach.conf"
 [Service]
-ExecStartPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
-ExecReloadPost=-/bin/bash -c '(sleep 1 && /opt/wpc/scripts/cgroup_attach.sh) &'
+ExecStartPost=-/bin/bash -c '(sleep 1 && (/opt/presspanel/scripts/cgroup_attach.sh 2>/dev/null || /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true)) &'
+ExecReloadPost=-/bin/bash -c '(sleep 1 && (/opt/presspanel/scripts/cgroup_attach.sh 2>/dev/null || /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true)) &'
 EOF
 
             systemctl daemon-reload 2>/dev/null || true
             systemctl enable "${PHP_PKG_PREFIX}-php-fpm" 2>/dev/null || systemctl enable "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
             systemctl restart "${PHP_PKG_PREFIX}-php-fpm" 2>/dev/null || systemctl restart "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
-            /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true
+            (/opt/presspanel/scripts/cgroup_attach.sh 2>/dev/null || /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true)
 
             # 8. Xác thực cài đặt thực tế
             INSTALLED_OK=0
@@ -413,6 +413,7 @@ EOF
             apt-get install -y --only-upgrade "php${VERSION_CLEAN}-fpm" "php${VERSION_CLEAN}-cli" "php${VERSION_CLEAN}-common" || true
             
             systemctl restart "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
+            systemctl restart "presspanel-php${VERSION_CLEAN}-fpm@*" 2>/dev/null || true
             systemctl restart "wpc-php${VERSION_CLEAN}-fpm@*" 2>/dev/null || true
             pkill -9 -f "lsphp${LSPHP_NUM}" 2>/dev/null || true
             /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || true
@@ -425,12 +426,13 @@ EOF
             
             systemctl restart "${PHP_PKG_PREFIX}-php-fpm" 2>/dev/null || true
             systemctl restart "php${VERSION_CLEAN}-fpm" 2>/dev/null || true
+            systemctl restart "presspanel-php${VERSION_CLEAN}-fpm@*" 2>/dev/null || true
             systemctl restart "wpc-php${VERSION_CLEAN}-fpm@*" 2>/dev/null || true
             pkill -9 -f "lsphp${LSPHP_NUM}" 2>/dev/null || true
             /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || true
         fi
         
-        /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true
+        (/opt/presspanel/scripts/cgroup_attach.sh 2>/dev/null || /opt/wpc/scripts/cgroup_attach.sh 2>/dev/null || true)
         echo "[+] Đã cập nhật PHP ${VERSION_CLEAN} lên phiên bản mới nhất hoàn tất!"
         ;;
 

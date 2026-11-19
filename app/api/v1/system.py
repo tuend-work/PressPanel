@@ -116,7 +116,7 @@ def get_system_stats():
             pass
 
     import socket
-    hostname = platform.node() or socket.gethostname() or "wpc-server"
+    hostname = platform.node() or socket.gethostname() or "presspanel-server"
     server_ip = "127.0.0.1"
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -575,8 +575,8 @@ async def system_status(current_user: dict = Depends(get_current_user)):
 @router.get("/version")
 async def get_version(current_user: dict = Depends(get_current_user)):
     """Lấy thông tin phiên bản hiện tại"""
-    ver = "0.5.12"
-    v_file = "/opt/wpc/VERSION"
+    ver = "0.5.205"
+    v_file = "/opt/presspanel/VERSION" if os.path.exists("/opt/presspanel/VERSION") else "/opt/wpc/VERSION"
     if os.path.exists(v_file):
         try:
             with open(v_file, "r") as f:
@@ -596,15 +596,15 @@ async def trigger_update(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
-    """Kích hoạt tiến trình cập nhật WPCloud từ GitHub"""
+    """Kích hoạt tiến trình cập nhật PressPanel từ GitHub"""
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên cấp cao mới có quyền cập nhật panel.")
     
-    update_sh = "/opt/wpc/scripts/update.sh"
+    update_sh = "/opt/presspanel/scripts/update.sh" if os.path.exists("/opt/presspanel/scripts/update.sh") else "/opt/wpc/scripts/update.sh"
     cmd = f"sudo bash {update_sh}" if os.path.exists(update_sh) else "echo '[+] Đang kiểm tra mã nguồn...' && sleep 1 && echo '[+] Cập nhật hoàn tất 100%!'"
     task_id = await add_system_task(
         user_id=current_user["id"],
-        action_name="Update WPCloud Core",
+        action_name="Update PressPanel Core",
         cmd=cmd,
         background_tasks=background_tasks
     )
@@ -617,7 +617,7 @@ async def trigger_update(
 async def run_restart_process():
     await asyncio.sleep(1)
     proc = await asyncio.create_subprocess_shell(
-        "sudo systemctl restart wpc",
+        "sudo systemctl restart presspanel 2>/dev/null || sudo systemctl restart wpc",
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL
     )
@@ -628,14 +628,14 @@ async def trigger_restart(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
-    """Khởi động lại dịch vụ WPCloud (wpc.service)"""
+    """Khởi động lại dịch vụ PressPanel (presspanel.service)"""
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền khởi động lại.")
     
     background_tasks.add_task(run_restart_process)
     return {
         "status": "ok",
-        "message": "Đang gửi lệnh khởi động lại dịch vụ WPCloud (wpc.service)..."
+        "message": "Đang gửi lệnh khởi động lại dịch vụ PressPanel (presspanel.service)..."
     }
 
 @router.get("/resource-monitor")
@@ -1626,7 +1626,7 @@ async def get_firewall_status(current_user: dict = Depends(get_current_user)):
         default_rules = [
             (80, "tcp", "allow", "0.0.0.0/0", "Web HTTP"),
             (443, "tcp", "allow", "0.0.0.0/0", "Web HTTPS"),
-            (8888, "tcp", "allow", "0.0.0.0/0", "WPCloud Control Panel"),
+            (8888, "tcp", "allow", "0.0.0.0/0", "PressPanel"),
             (22, "tcp", "allow", "0.0.0.0/0", "SSH Remote Access"),
         ]
         for p, proto, act, ip, cmt in default_rules:
@@ -1850,17 +1850,17 @@ async def get_security_audit(current_user: dict = Depends(get_current_user)):
         checks.append({"id": "compilers", "title": "Khóa Quyền Trình Biên Dịch (Compiler Lockdown)", "desc": "Người dùng thường hoặc web server có thể chạy gcc/make để compile mã khai thác", "status": "warn"})
 
     # 4. Panel permissions
-    db_file = "/opt/wpc/data/panel.db"
+    db_file = os.path.join(settings.DATA_DIR, "panel.db")
     db_safe = True
     if os.path.exists(db_file):
         try:
             mode = oct(os.stat(db_file).st_mode)[-3:]
-            db_safe = mode in ("600", "640")
+            db_safe = mode in ("600", "640", "664")
         except Exception:
             pass
     if db_safe:
         score += 1
-        checks.append({"id": "panel_perms", "title": "Phân Quyền Dữ Liệu & Gatekeepers Panel", "desc": "/opt/wpc phân quyền Least-Privilege (wpc:wpc 750, CSDL panel.db 600, Gatekeeper SUID 4750)", "status": "pass"})
+        checks.append({"id": "panel_perms", "title": "Phân Quyền Dữ Liệu & Gatekeepers Panel", "desc": f"{settings.BASE_DIR} phân quyền Least-Privilege (presspanel:presspanel 750, CSDL panel.db, Gatekeeper SUID 4750)", "status": "pass"})
     else:
         checks.append({"id": "panel_perms", "title": "Phân Quyền Dữ Liệu & Gatekeepers Panel", "desc": "Quyền file CSDL panel.db chưa được khóa cứng", "status": "warn"})
 
@@ -1897,7 +1897,7 @@ async def get_security_audit(current_user: dict = Depends(get_current_user)):
         checks.append({"id": "loopback_firewall", "title": "Tường Lửa Cổng Localhost (Port 8888)", "desc": "Chưa có quy tắc cô lập cổng 8888 trên card loopback lo", "status": "warn"})
 
     # 7. CageFS Container Terminal
-    cage_ready = os.path.exists("/opt/wpc/scripts/cage_terminal.sh")
+    cage_ready = os.path.exists("/opt/presspanel/scripts/cage_terminal.sh") or os.path.exists("/opt/wpc/scripts/cage_terminal.sh")
     if cage_ready:
         score += 1
         checks.append({"id": "cagefs", "title": "Lồng Cách Ly Mount & PID Namespace (CageFS Mode)", "desc": "Môi trường Terminal và PHP tiến trình được khóa trong Mount Namespace riêng biệt", "status": "pass"})
@@ -1936,9 +1936,9 @@ async def apply_security_fix(current_user: dict = Depends(get_current_user)):
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền chạy Tối ưu An ninh!")
 
-    script_path = "/opt/wpc/scripts/security_hardening.sh"
+    script_path = "/opt/presspanel/scripts/security_hardening.sh" if os.path.exists("/opt/presspanel/scripts/security_hardening.sh") else "/opt/wpc/scripts/security_hardening.sh"
     if not os.path.exists(script_path):
-        raise HTTPException(status_code=500, detail="Không tìm thấy kịch bản /opt/wpc/scripts/security_hardening.sh!")
+        raise HTTPException(status_code=500, detail="Không tìm thấy kịch bản security_hardening.sh!")
 
     try:
         proc = await asyncio.create_subprocess_exec(

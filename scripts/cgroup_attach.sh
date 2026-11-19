@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# WPCloud: cgroup_attach.sh - Cgroups v2 Realtime Process Enforcer
+# PressPanel: cgroup_attach.sh - Cgroups v2 Realtime Process Enforcer
 # Khóa trần tài nguyên nghiêm ngặt cấp Hosting User (Single Tenant Ceiling):
 # - Gom toàn bộ tiến trình của tất cả website con (isolated_user) vào Cgroup
-#   duy nhất của Hosting User cha (/sys/fs/cgroup/wpc/reseller_*/user_<hosting_user>)
+#   duy nhất của Hosting User cha (/sys/fs/cgroup/presspanel/reseller_*/user_<hosting_user>)
 # - Đảm bảo tổng mọi website của user chỉ được dùng tối đa CPU, RAM của gói hosting.
 # - Tự động dọn dẹp và xóa các cgroup rác độc lập của website con để tránh x2/x3 hạn mức.
 # ==============================================================================
 
 set -u
 
-WPC_DB="/opt/wpc/data/panel.db"
-PYTHON_BIN="/opt/wpc/venv/bin/python"
+PANEL_DIR="/opt/presspanel"
+[ ! -d "$PANEL_DIR" ] && [ -d "/opt/wpc" ] && PANEL_DIR="/opt/wpc"
+WPC_DB="$PANEL_DIR/data/panel.db"
+PYTHON_BIN="$PANEL_DIR/venv/bin/python"
 [ -x "$PYTHON_BIN" ] || PYTHON_BIN="/usr/bin/python3"
 
 # Hàm lấy mapping từ SQLite DB:
@@ -22,12 +24,15 @@ fetch_user_mappings() {
         return
     fi
 
-    "$PYTHON_BIN" - << 'EOF' 2>/dev/null || true
-import sqlite3, os, re
+    "$PYTHON_BIN" - "$WPC_DB" << 'EOF' 2>/dev/null || true
+import sqlite3, os, re, sys
 
-db_path = "/opt/wpc/data/panel.db"
+db_path = sys.argv[1] if len(sys.argv) > 1 else "/opt/presspanel/data/panel.db"
 if not os.path.exists(db_path):
-    exit(0)
+    if os.path.exists("/opt/wpc/data/panel.db"):
+        db_path = "/opt/wpc/data/panel.db"
+    else:
+        exit(0)
 
 try:
     conn = sqlite3.connect(db_path)
@@ -81,9 +86,10 @@ EOF
 
 # Đảm bảo cấu trúc Cgroup gốc
 init_cgroup_root() {
-    mkdir -p /sys/fs/cgroup/wpc 2>/dev/null || true
+    mkdir -p /sys/fs/cgroup/presspanel /sys/fs/cgroup/wpc 2>/dev/null || true
     for c in cpu memory io pids; do
         echo "+$c" > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true
+        echo "+$c" > /sys/fs/cgroup/presspanel/cgroup.subtree_control 2>/dev/null || true
         echo "+$c" > /sys/fs/cgroup/wpc/cgroup.subtree_control 2>/dev/null || true
     done
 }
@@ -96,30 +102,29 @@ enforce_hosting_user() {
     local mem_mb="$4"
     local child_sites="$5"
 
-    local cg_dir="/sys/fs/cgroup/wpc/reseller_${reseller_id}/user_${h_user}"
-    local cg_flat="/sys/fs/cgroup/wpc/user_${h_user}"
+    local cg_dir="/sys/fs/cgroup/presspanel/reseller_${reseller_id}/user_${h_user}"
+    local cg_flat="/sys/fs/cgroup/presspanel/user_${h_user}"
+    local cg_wpc_dir="/sys/fs/cgroup/wpc/reseller_${reseller_id}/user_${h_user}"
+    local cg_wpc_flat="/sys/fs/cgroup/wpc/user_${h_user}"
 
     # 1. Tạo thư mục Cgroup trần cha của Hosting User
-    mkdir -p "$cg_dir" "$cg_flat" 2>/dev/null || true
+    mkdir -p "$cg_dir" "$cg_flat" "$cg_wpc_dir" "$cg_wpc_flat" 2>/dev/null || true
 
     # 2. Thiết lập trần cha (Hard Ceiling của gói Hosting): CPU và RAM
     local cpu_max="$((cpu_pct * 1000)) 100000"
     local mem_max="$((mem_mb * 1024 * 1024))"
 
-    [ -f "$cg_dir/cpu.max" ] && echo "$cpu_max" > "$cg_dir/cpu.max" 2>/dev/null || true
-    [ -f "$cg_dir/memory.max" ] && echo "$mem_max" > "$cg_dir/memory.max" 2>/dev/null || true
-    [ -f "$cg_dir/pids.max" ] && echo "150" > "$cg_dir/pids.max" 2>/dev/null || true
-    [ -f "$cg_flat/cpu.max" ] && echo "$cpu_max" > "$cg_flat/cpu.max" 2>/dev/null || true
-    [ -f "$cg_flat/memory.max" ] && echo "$mem_max" > "$cg_flat/memory.max" 2>/dev/null || true
-    [ -f "$cg_flat/pids.max" ] && echo "150" > "$cg_flat/pids.max" 2>/dev/null || true
-
-    # Kích hoạt controller cho cây con bên trong Cgroup của Hosting User
-    for c in cpu memory io pids; do
-        echo "+$c" > "$cg_dir/cgroup.subtree_control" 2>/dev/null || true
-        echo "+$c" > "$cg_flat/cgroup.subtree_control" 2>/dev/null || true
+    for d in "$cg_dir" "$cg_flat" "$cg_wpc_dir" "$cg_wpc_flat"; do
+        [ -f "$d/cpu.max" ] && echo "$cpu_max" > "$d/cpu.max" 2>/dev/null || true
+        [ -f "$d/memory.max" ] && echo "$mem_max" > "$d/memory.max" 2>/dev/null || true
+        [ -f "$d/pids.max" ] && echo "150" > "$d/pids.max" 2>/dev/null || true
+        for c in cpu memory io pids; do
+            echo "+$c" > "$d/cgroup.subtree_control" 2>/dev/null || true
+        done
     done
 
     # Thiết lập Systemd Slice tương ứng
+    systemctl set-property "presspanel-hosting_${h_user}.slice" CPUQuota="${cpu_pct}%" MemoryMax="${mem_mb}M" TasksMax=150 2>/dev/null || true
     systemctl set-property "wpc-hosting_${h_user}.slice" CPUQuota="${cpu_pct}%" MemoryMax="${mem_mb}M" TasksMax=150 2>/dev/null || true
 
     # 3. Quản lý tiến trình của chính Hosting User (nếu có SSH/cron)
@@ -177,7 +182,11 @@ enforce_hosting_user() {
             done
 
             # 5. Xóa bỏ / Dọn sạch cgroup rác ngang hàng của website con ngoài root nếu lỡ bị tạo trước đó
-            for stray_cg in "/sys/fs/cgroup/wpc/reseller_${reseller_id}/user_${s_user}" "/sys/fs/cgroup/wpc/user_${s_user}"; do
+            for stray_cg in \
+                "/sys/fs/cgroup/presspanel/reseller_${reseller_id}/user_${s_user}" \
+                "/sys/fs/cgroup/presspanel/user_${s_user}" \
+                "/sys/fs/cgroup/wpc/reseller_${reseller_id}/user_${s_user}" \
+                "/sys/fs/cgroup/wpc/user_${s_user}"; do
                 if [ -d "$stray_cg" ] && [ "$stray_cg" != "$cg_dir" ] && [ "$stray_cg" != "$cg_flat" ]; then
                     if [ -f "$stray_cg/cgroup.procs" ]; then
                         while read -r stray_pid; do
@@ -205,7 +214,11 @@ sync_all_cgroups() {
         done <<< "$mappings"
     else
         # Fallback nếu DB chưa sẵn sàng: quét theo thư mục cgroup hiện có
-        for user_cg in /sys/fs/cgroup/wpc/reseller_*/user_* /sys/fs/cgroup/wpc/user_*; do
+        for user_cg in \
+            /sys/fs/cgroup/presspanel/reseller_*/user_* \
+            /sys/fs/cgroup/presspanel/user_* \
+            /sys/fs/cgroup/wpc/reseller_*/user_* \
+            /sys/fs/cgroup/wpc/user_*; do
             [ -d "$user_cg" ] || continue
             local cg_name
             cg_name=$(basename "$user_cg")

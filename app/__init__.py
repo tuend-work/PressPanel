@@ -1,2 +1,2 @@
-"""WPC Application Package"""
-__version__ = "0.2.0"
+"""PressPanel Application Package"""
+__version__ = "0.5.206"

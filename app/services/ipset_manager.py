@@ -1,5 +1,5 @@
 """
-WPCloud: ipset_manager.py - Hệ thống Quản Lý IP Blocklists Danh Sách Đen Diện Rộng
+PressPanel: ipset_manager.py - Hệ thống Quản Lý IP Blocklists Danh Sách Đen Diện Rộng
 Sử dụng công nghệ Linux Kernel ipset (Atomic Swap) để chặn hàng trăm nghìn IP độc hại
 với độ phức tạp O(1), không tiêu tốn CPU máy chủ.
 """
@@ -16,8 +16,8 @@ from app.db.session import get_db_connection
 
 logger = logging.getLogger(__name__)
 
-IPSET_NAME = "wpc-block4"
-SWAP_NAME = "wpc-swap"
+IPSET_NAME = "presspanel-block4"
+SWAP_NAME = "presspanel-swap"
 
 def is_valid_ip_or_cidr(line: str) -> bool:
     """Kiểm tra chuỗi có phải IPv4 hoặc CIDR hợp lệ không"""
@@ -98,7 +98,7 @@ def sync_all_blocklists_sync() -> Dict[str, Any]:
         for s_id, s_name, s_url in sources:
             count = 0
             try:
-                req = urllib.request.Request(s_url, headers={"User-Agent": "WPCloud-Firewall-Sync/1.0"})
+                req = urllib.request.Request(s_url, headers={"User-Agent": "PressPanel-Firewall-Sync/1.0"})
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     lines = resp.read().decode("utf-8", errors="ignore").splitlines()
                     for line in lines:

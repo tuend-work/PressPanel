@@ -127,9 +127,10 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
         # 5. Cách ly /dev/shm: Ảo hóa riêng biệt có cờ noexec
         mount -t tmpfs -o mode=1777,nodev,nosuid,noexec,size=64M tmpfs /dev/shm 2>/dev/null || true
 
-        # 6. Cách ly /root & /opt/wpc: Ẩn hoàn toàn thư mục quản trị và database
+        # 6. Cách ly /root, /opt/presspanel & /opt/wpc: Ẩn hoàn toàn thư mục quản trị và database
         mount -t tmpfs -o mode=700,size=1M tmpfs /root 2>/dev/null || true
-        mount -t tmpfs -o mode=700,size=1M tmpfs /opt/wpc 2>/dev/null || true
+        [ -d /opt/presspanel ] && mount -t tmpfs -o mode=700,size=1M tmpfs /opt/presspanel 2>/dev/null || true
+        [ -d /opt/wpc ] && mount -t tmpfs -o mode=700,size=1M tmpfs /opt/wpc 2>/dev/null || true
 
         # 7. Ảo hóa /etc/passwd & /etc/group (Chuẩn CloudLinux CageFS: Tuyệt đối không để lộ danh sách user khác)
         MNT_TMP_ETC="/run/cage_etc_$$"

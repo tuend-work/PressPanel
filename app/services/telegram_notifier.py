@@ -1,5 +1,5 @@
 """
-WPCloud: telegram_notifier.py - Hệ thống Gửi Cảnh Báo Đa Kênh qua Telegram Bot
+PressPanel: telegram_notifier.py - Hệ thống Gửi Cảnh Báo Đa Kênh qua Telegram Bot
 Hỗ trợ gửi thông báo tức thì khi máy chủ gặp sự cố quá tải CPU/RAM, dịch vụ dừng,
 tấn công Brute-force hoặc sao lưu thất bại.
 """

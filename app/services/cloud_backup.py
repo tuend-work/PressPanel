@@ -1,5 +1,5 @@
 """
-WPCloud: cloud_backup.py - Hệ thống Sao Lưu Đám Mây & Điểm Lưu Trữ Từ Xa
+PressPanel: cloud_backup.py - Hệ thống Sao Lưu Đám Mây & Điểm Lưu Trữ Từ Xa
 Hỗ trợ sao lưu toàn diện Website & Database nén .tar.gz, tự động đẩy lên:
 AWS S3, Cloudflare R2, Wasabi, MinIO hoặc máy chủ SFTP từ xa kèm xoay vòng Retention.
 """
@@ -17,12 +17,17 @@ from app.db.session import get_db_connection
 
 logger = logging.getLogger(__name__)
 
-BACKUP_LOCAL_DIR = "/opt/wpc/data/backups"
+BACKUP_LOCAL_DIR = getattr(settings, "BACKUP_DIR", "/opt/presspanel/data/backups")
 
 def ensure_backup_dir():
     os.makedirs(BACKUP_LOCAL_DIR, exist_ok=True)
     try:
-        shutil.chown(BACKUP_LOCAL_DIR, user="wpc", group="wpc")
+        for u in ["presspanel", "wpc"]:
+            try:
+                shutil.chown(BACKUP_LOCAL_DIR, user=u, group=u)
+                break
+            except Exception:
+                pass
         os.chmod(BACKUP_LOCAL_DIR, 0o750)
     except Exception:
         pass
