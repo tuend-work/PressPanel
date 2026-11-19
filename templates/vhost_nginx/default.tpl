@@ -71,6 +71,7 @@ server {
     # 3. Rate Limit & Băng Thông Theo Gói Dịch Vụ (Service Plan)
     # ========================================================
     set $limit_rate {{RATE_LIMIT}};
+    limit_rate $limit_rate;
     fastcgi_limit_rate $limit_rate;
 
     location / {

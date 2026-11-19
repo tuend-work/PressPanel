@@ -479,7 +479,7 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
                     if "set $limit_rate" in v_txt:
                         v_txt = re.sub(r"set \$limit_rate [^;]+;", f"set $limit_rate {pkg_rate_limit};", v_txt)
                     else:
-                        v_txt = re.sub(r"location / \{", f"set $limit_rate {pkg_rate_limit};\n    fastcgi_limit_rate $limit_rate;\n\n    location / {{", v_txt, count=1)
+                        v_txt = re.sub(r"location / \{", f"set $limit_rate {pkg_rate_limit};\n    limit_rate $limit_rate;\n    fastcgi_limit_rate $limit_rate;\n\n    location / {{", v_txt, count=1)
                     with open(vhost_path, "w", encoding="utf-8") as vf:
                         vf.write(v_txt)
                     subprocess.run(["nginx", "-s", "reload"], check=False)
@@ -560,7 +560,7 @@ async def change_domain_plan(domain_id: int, req: DomainChangePlanRequest, curre
             if "set $limit_rate" in v_txt:
                 v_txt = re.sub(r"set \$limit_rate [^;]+;", f"set $limit_rate {u_rate_limit};", v_txt)
             else:
-                v_txt = re.sub(r"location / \{", f"set $limit_rate {u_rate_limit};\n    fastcgi_limit_rate $limit_rate;\n\n    location / {{", v_txt, count=1)
+                v_txt = re.sub(r"location / \{", f"set $limit_rate {u_rate_limit};\n    limit_rate $limit_rate;\n    fastcgi_limit_rate $limit_rate;\n\n    location / {{", v_txt, count=1)
             with open(vhost_path, "w", encoding="utf-8") as vf:
                 vf.write(v_txt)
             subprocess.run(["nginx", "-s", "reload"], check=False)

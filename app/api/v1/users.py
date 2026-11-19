@@ -648,7 +648,7 @@ async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict 
                         if "set $limit_rate" in v_txt:
                             v_txt = re.sub(r"set \$limit_rate [^;]+;", f"set $limit_rate {clean_rate};", v_txt)
                         else:
-                            v_txt = re.sub(r"location / \{", f"set $limit_rate {clean_rate};\n    fastcgi_limit_rate $limit_rate;\n\n    location / {{", v_txt, count=1)
+                            v_txt = re.sub(r"location / \{", f"set $limit_rate {clean_rate};\n    limit_rate $limit_rate;\n    fastcgi_limit_rate $limit_rate;\n\n    location / {{", v_txt, count=1)
                         with open(vhost_path, "w", encoding="utf-8") as vf:
                             vf.write(v_txt)
                         reloaded = True
