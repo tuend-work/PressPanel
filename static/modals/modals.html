@@ -1683,8 +1683,8 @@
                                     <select v-model="newCustomer.package_id"
                                         class="w-full px-3.5 py-2.5 rounded-xl bg-[#1a212d] border border-[#2c3647] text-white focus:outline-none focus:border-blue-500 text-xs shadow-inner cursor-pointer">
                                         <option :value="null">-- Mặc định (Tùy chỉnh Quota tài nguyên bên dưới) --</option>
-                                        <option v-for="plan in servicePlans" :key="plan.id" :value="plan.id">
-                                            {{ plan.name }} ({{ (plan.disk_mb / 1024).toFixed(1) }} GB Disk{{ plan.plan_type === 'website' ? '' : ', ' + plan.max_domains + ' Sites' }})
+                                        <option v-for="plan in userPlans" :key="plan.id" :value="plan.id">
+                                            {{ plan.name }} ({{ (plan.disk_mb / 1024).toFixed(1) }} GB Disk, {{ plan.max_domains }} Sites)
                                         </option>
                                     </select>
                                 </div>
@@ -2149,9 +2149,9 @@
                             <label class="block font-medium text-slate-300 mb-1.5">Chọn Gói Dịch Vụ Mới</label>
                             <select v-model="targetPlanId" required
                                 class="w-full px-3.5 py-2.5 rounded-xl bg-[#1a212d] border border-[#2c3647] text-white font-medium text-xs focus:outline-none focus:border-blue-500 shadow-inner cursor-pointer">
-                                <option :value="null" disabled>-- Chọn một Service Plan --</option>
-                                <option v-for="plan in servicePlans" :key="'chg_' + plan.id" :value="plan.id">
-                                    {{ plan.name }} ({{ (plan.disk_mb / 1024).toFixed(1) }}GB Disk, {{ plan.mem_mb }}MB RAM, {{ plan.cpu_pct }}% CPU)
+                                <option :value="null" disabled>-- Chọn một User Package --</option>
+                                <option v-for="plan in userPlans" :key="'chg_' + plan.id" :value="plan.id">
+                                    {{ plan.name }} ({{ (plan.disk_mb / 1024).toFixed(1) }}GB Disk, {{ plan.mem_mb }}MB RAM, {{ plan.cpu_pct }}% CPU, {{ plan.max_domains }} Sites)
                                 </option>
                             </select>
                         </div>
@@ -4632,10 +4632,13 @@
                             <select v-model="editDomainForm.package_id"
                                 class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-medium text-xs focus:outline-none focus:border-blue-500 shadow-sm">
                                 <option :value="null">-- Kế thừa gói mặc định của User --</option>
-                                <option v-for="plan in (websitePlans.length > 0 ? websitePlans : servicePlans)" :key="'edit_plan_' + plan.id" :value="plan.id">
-                                    {{ plan.name }} ({{ plan.cpu_pct }}% CPU, {{ plan.mem_mb }}M RAM, {{ (plan.disk_mb / 1024).toFixed(1) }}G Disk)
+                                <option v-for="plan in websitePlans" :key="'edit_plan_' + plan.id" :value="plan.id">
+                                    {{ plan.name }} ({{ plan.cpu_pct }}% CPU, {{ plan.mem_mb }}M RAM, {{ (plan.disk_mb / 1024).toFixed(1) }}G Disk{{ plan.rate_limit && plan.rate_limit !== '0' ? ', ' + plan.rate_limit.toUpperCase() + '/s Rate' : '' }})
                                 </option>
                             </select>
+                            <p v-if="websitePlans.length === 0" class="text-[11px] text-amber-500 dark:text-amber-400 mt-1.5 flex items-center gap-1">
+                                <span>⚠️ Hiện chưa có Website Plan nào. Website đang dùng hạn mức Hosting User.</span>
+                            </p>
                         </div>
 
                         <!-- 3. SSH Access -->
@@ -4771,21 +4774,25 @@
                         <!-- Select new plan -->
                         <div>
                             <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Chọn Website Plan Mới</label>
-                            <select v-model="targetDomainPlanId" required
+                            <select v-model="targetDomainPlanId"
                                 class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-medium text-xs focus:outline-none focus:border-amber-500 shadow-sm">
-                                <option :value="null" disabled>-- Chọn một Service Plan --</option>
-                                <option v-for="plan in (websitePlans.length > 0 ? websitePlans : servicePlans)" :key="'chg_dom_' + plan.id" :value="plan.id">
-                                    {{ plan.name }} ({{ (plan.disk_mb / 1024).toFixed(1) }}GB Disk, {{ plan.mem_mb }}MB RAM, {{ plan.cpu_pct }}% CPU{{ plan.rate_limit && plan.rate_limit !== '0' ? ', ' + plan.rate_limit.toUpperCase() + '/s Rate' : '' }})
+                                <option :value="null">-- Mặc định (Theo hạn mức Hosting User) --</option>
+                                <option v-for="plan in websitePlans" :key="'chg_dom_' + plan.id" :value="plan.id">
+                                    {{ plan.name }} ({{ (plan.disk_mb / 1024).toFixed(1) }}GB Disk, {{ plan.mem_mb }}MB RAM, {{ plan.cpu_pct }}% CPU{{ plan.rate_limit && plan.rate_limit !== '0' ? ', ' + plan.rate_limit.toUpperCase() + '/s Rate' : ', Băng thông Unlimited' }})
                                 </option>
                             </select>
+                            <p v-if="websitePlans.length === 0" class="text-[11px] text-amber-500 dark:text-amber-400 mt-1.5 flex items-center gap-1">
+                                <span>⚠️ Hiện chưa có Website Plan nào. Website đang dùng hạn mức Hosting User. Bạn có thể tạo thêm Website Plan tại trang Gói Dịch Vụ.</span>
+                            </p>
                         </div>
 
                         <!-- Preview plan specs -->
                         <div v-if="selectedDomainPlanPreview" class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
-                            <div class="font-semibold text-slate-700 dark:text-slate-300 text-[11px] flex items-center gap-1.5">
-                                <span>💡 Thông số kỹ thuật gói mới sẽ áp dụng:</span>
+                            <div class="font-semibold text-slate-700 dark:text-slate-300 text-[11px] flex items-center justify-between">
+                                <span class="flex items-center gap-1.5">💡 Thông số kỹ thuật gói sẽ áp dụng:</span>
+                                <span class="font-mono text-[10px] text-amber-500">{{ selectedDomainPlanPreview.name }}</span>
                             </div>
-                            <div class="grid grid-cols-3 gap-2 text-center">
+                            <div class="grid grid-cols-4 gap-2 text-center">
                                 <div class="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                                     <div class="text-[10px] text-slate-400">Dung lượng</div>
                                     <div class="font-bold text-slate-800 dark:text-white font-mono mt-0.5">{{ (selectedDomainPlanPreview.disk_mb / 1024).toFixed(1) }} GB</div>
@@ -4798,6 +4805,12 @@
                                     <div class="text-[10px] text-slate-400">Giới hạn CPU</div>
                                     <div class="font-bold text-slate-800 dark:text-white font-mono mt-0.5">{{ selectedDomainPlanPreview.cpu_pct }}%</div>
                                 </div>
+                                <div class="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-[10px] text-slate-400">Băng thông</div>
+                                    <div class="font-bold font-mono mt-0.5" :class="selectedDomainPlanPreview.rate_limit && selectedDomainPlanPreview.rate_limit !== '0' ? 'text-amber-500' : 'text-emerald-500'">
+                                        {{ !selectedDomainPlanPreview.rate_limit || selectedDomainPlanPreview.rate_limit === '0' ? 'Vô hạn' : selectedDomainPlanPreview.rate_limit.toUpperCase() + '/s' }}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -4805,7 +4818,7 @@
                         <div class="flex justify-end space-x-2 pt-2 border-t border-slate-150 dark:border-slate-800">
                             <button type="button" @click="showDomainChangePlanModal = false" 
                                 class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium transition">Hủy</button>
-                            <button type="submit" :disabled="changingDomainPlan || !targetDomainPlanId"
+                            <button type="submit" :disabled="changingDomainPlan"
                                 class="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-md shadow-amber-500/20 flex items-center space-x-1.5 transition">
                                 <span v-if="changingDomainPlan" class="animate-spin">⏳</span>
                                 <span v-else>✓</span>

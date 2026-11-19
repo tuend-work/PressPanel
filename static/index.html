@@ -1183,6 +1183,9 @@ function showAlert(message) {
 
                 // Gói Dịch Vụ Lưu Trữ (Service Plans: Loại 1 User Plan, Loại 2 Website Plan)
                 const servicePlans = ref([]);
+                const userPlans = computed(() => {
+                    return servicePlans.value.filter(p => (p.plan_type || 'user') === 'user');
+                });
                 const websitePlans = computed(() => {
                     return servicePlans.value.filter(p => p.plan_type === 'website');
                 });
@@ -3302,14 +3305,22 @@ geo $limit_rate {
                 const changingDomainPlan = ref(false);
 
                 const selectedDomainPlanPreview = computed(() => {
-                    if (!targetDomainPlanId.value) return null;
-                    return (websitePlans.value.find(p => p.id === targetDomainPlanId.value) || 
-                            servicePlans.value.find(p => p.id === targetDomainPlanId.value)) || null;
+                    if (targetDomainPlanId.value === null) {
+                        return {
+                            is_default: true,
+                            name: 'Mặc định (Theo hạn mức Hosting User)',
+                            disk_mb: selectedDomainForPlan.value?.disk_mb || 5120,
+                            mem_mb: selectedDomainForPlan.value?.mem_mb || 1024,
+                            cpu_pct: selectedDomainForPlan.value?.cpu_pct || 100,
+                            rate_limit: '0'
+                        };
+                    }
+                    return websitePlans.value.find(p => p.id === targetDomainPlanId.value) || null;
                 });
 
                 const openChangeDomainPlanModal = (domain) => {
                     selectedDomainForPlan.value = domain;
-                    targetDomainPlanId.value = domain.package_id || (websitePlans.value[0]?.id || servicePlans.value[0]?.id || null);
+                    targetDomainPlanId.value = domain.package_id || null;
                     showDomainChangePlanModal.value = true;
                     if (servicePlans.value.length === 0) {
                         fetchServicePlans();
@@ -3317,7 +3328,7 @@ geo $limit_rate {
                 };
 
                 const confirmChangeDomainPlan = async () => {
-                    if (!selectedDomainForPlan.value || !targetDomainPlanId.value) return;
+                    if (!selectedDomainForPlan.value) return;
                     changingDomainPlan.value = true;
                     try {
                         const res = await fetch(`/api/v1/domains/${selectedDomainForPlan.value.id}/plan`, {
@@ -9266,7 +9277,7 @@ if ($host ~* ^www\\.(.*)$) {
                     isAllSubsSelected, toggleSelectAllSubs, handleSetCustomerStatus, handleBatchDeleteCustomers, handleBatchDeleteDomains,
                     fetchCustomers, handleAddCustomer, impersonateUser, impersonateWebsiteUser, exitImpersonation, loadHomePage,
                     servicePlans, showAddPlanModal, creatingPlan, newPlan, fetchServicePlans, handleAddPlan,
-                    selectedPlanTab, filteredServicePlans, websitePlans,
+                    selectedPlanTab, filteredServicePlans, websitePlans, userPlans,
                     customersSubTab, showEditPlanModal, editingPlan, editPlanForm, updatingPlan, openEditPlanModal, handleUpdatePlan, handleDeletePlan,
                     showChangePlanModal, selectedCustomerForPlan, targetPlanId, changingPlan, selectedPlanPreview,
                     openChangePlanModal, confirmChangePlan,

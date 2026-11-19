@@ -493,10 +493,9 @@ async def list_service_plans(
         query += " WHERE p.plan_type = 'website' AND (p.owner_id = ? OR p.owner_id = 0)"
         params.append(current_user["id"])
     elif current_user["role"] == "admin":
-        # Admin chỉ xem các gói của User (plan_type='user')
-        target_pt = plan_type or "user"
-        query += " WHERE p.plan_type = ?"
-        params.append(target_pt)
+        if plan_type:
+            query += " WHERE p.plan_type = ?"
+            params.append(plan_type)
     elif plan_type:
         query += " WHERE p.plan_type = ?"
         params.append(plan_type)

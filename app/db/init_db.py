@@ -497,14 +497,39 @@ async def init_database():
                 VALUES (3, 0, 'Pro WordPress Turbo', 'user', 200, 2048, 20480, 150, 200, 15, 15, 1)
             """)
 
-        # Gói 4: Starter Mini Plan
+        # Gói 4: Starter Mini Plan (User Package)
         cursor = await db.execute("SELECT id FROM packages WHERE id = 4")
         pkg4 = await cursor.fetchone()
         if not pkg4:
             await db.execute("""
-                INSERT INTO packages (id, owner_id, name, package_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases, allow_ssh)
-                VALUES (4, 0, 'Starter Mini', 'user', 50, 512, 2048, 80, 50, 1, 1, 0)
+                INSERT INTO packages (id, owner_id, name, package_type, plan_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases, allow_ssh, rate_limit)
+                VALUES (4, 0, 'Starter Mini', 'user', 'user', 50, 512, 2048, 80, 50, 1, 1, 0, '0')
             """)
+
+        # Seed các gói Website Plans chuẩn WPC (plan_type = 'website')
+        website_default_plans = [
+            (101, 'Website Starter Mini', 50, 512, 2048, 80, 50, 1, 1, 1, '512k'),
+            (102, 'Website Standard', 100, 1024, 5120, 100, 100, 1, 5, 1, '1m'),
+            (103, 'Website Pro Turbo', 200, 2048, 20480, 150, 200, 1, 15, 1, '2m'),
+            (104, 'Website Unlimited', 400, 4096, 40960, 150, 300, 1, 50, 1, '0'),
+        ]
+        for wpid, wpname, wpcpu, wpmem, wpdisk, wpio, wppids, wpdoms, wpdbs, wpssh, wprate in website_default_plans:
+            w_cur = await db.execute("SELECT id FROM packages WHERE id = ?", (wpid,))
+            if not await w_cur.fetchone():
+                await db.execute("""
+                    INSERT INTO packages (id, owner_id, name, package_type, plan_type, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_domains, max_databases, allow_ssh, rate_limit)
+                    VALUES (?, 0, ?, 'user', 'website', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (wpid, wpname, wpcpu, wpmem, wpdisk, wpio, wppids, wpdoms, wpdbs, wpssh, wprate))
+
+        # Migration: Gỡ bỏ toàn bộ User Package bị gán nhầm vào bảng domains
+        try:
+            await db.execute("""
+                UPDATE domains 
+                SET package_id = NULL 
+                WHERE package_id IN (SELECT id FROM packages WHERE plan_type = 'user')
+            """)
+        except Exception:
+            pass
 
         # Tạo tài khoản Admin mặc định nếu chưa có
         cursor = await db.execute("SELECT id FROM users WHERE username = 'admin'")

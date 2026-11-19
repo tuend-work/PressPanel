@@ -51,6 +51,17 @@ if (isset($_GET['download']) || (isset($_GET['action']) && $_GET['action'] === '
     exit;
 }
 
+// Tự động phát hiện cấu hình Rate Limit thực tế từ VirtualHost Nginx
+$detected_rate = '0';
+$server_domain = $_SERVER['SERVER_NAME'] ?? 'presspanel.local';
+$vhost_file = "/etc/nginx/conf.d/{$server_domain}.conf";
+if (file_exists($vhost_file) && is_readable($vhost_file)) {
+    $vhost_content = @file_get_contents($vhost_file);
+    if ($vhost_content && preg_match('/set\s+\$limit_rate\s+([^;]+);/i', $vhost_content, $matches)) {
+        $detected_rate = strtolower(trim($matches[1]));
+    }
+}
+
 // Chế độ API trả về thông tin cấu hình server & tình trạng file static
 if (isset($_GET['action']) && $_GET['action'] === 'info') {
     header('Content-Type: application/json; charset=utf-8');
@@ -63,6 +74,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'info') {
         'has_1mb'         => file_exists(__DIR__ . '/test1mb.bin'),
         'has_2mb'         => file_exists(__DIR__ . '/test2mb.bin'),
         'has_5mb'         => file_exists(__DIR__ . '/test5mb.bin'),
+        'detected_rate'   => $detected_rate,
         'time'            => date('Y-m-d H:i:s'),
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     exit;
@@ -108,6 +120,24 @@ if (isset($_GET['action']) && $_GET['action'] === 'info') {
                 <div class="text-right font-mono text-[11px] text-slate-400 hidden sm:block">
                     <div class="text-white font-bold"><?= htmlspecialchars($_SERVER['SERVER_NAME'] ?? 'presspanel.local') ?></div>
                     <div class="text-slate-500"><?= htmlspecialchars($_SERVER['SERVER_PROTOCOL'] ?? 'HTTP/2') ?> • PHP <?= PHP_VERSION ?></div>
+                </div>
+            </div>
+
+            <!-- Live Nginx Rate Limit Banner -->
+            <div class="mb-4 p-3 rounded-xl bg-slate-900/90 border border-slate-700/80 flex items-center justify-between text-xs shadow-inner">
+                <div class="flex items-center space-x-2.5">
+                    <span class="text-lg"><?= ($detected_rate === '0') ? '🚀' : '⚡' ?></span>
+                    <div>
+                        <div class="text-[11px] text-slate-400">Cấu hình Nginx đang áp dụng trên server:</div>
+                        <div class="font-bold text-white font-mono mt-0.5">
+                            <?= ($detected_rate === '0') ? 'Băng thông Không Giới Hạn (Unlimited)' : 'Rate Limit: ' . strtoupper($detected_rate) . '/s' ?>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span class="px-2.5 py-1 rounded-lg font-mono text-[11px] font-bold border <?= ($detected_rate === '0') ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/15 text-amber-400 border-amber-500/30' ?>">
+                        <?= ($detected_rate === '0') ? 'set $limit_rate 0;' : 'set $limit_rate ' . $detected_rate . ';' ?>
+                    </span>
                 </div>
             </div>
 
@@ -259,18 +289,19 @@ if (isset($_GET['action']) && $_GET['action'] === 'info') {
     </div>
 
     <script>
-        let selectedMb = 1;
-        let selectedMode = 'php'; // 'php' or 'static'
-        let targetRate = '256k';
-        let abortController = null;
-        let isRunning = false;
-
         const rateProfiles = {
             '256k': { bw: '256 KB/s', mbps: '≈ 2.05 Mbps', t1: '≈ 4.0 giây', t2: '≈ 8.0 giây', minKb: 200, maxKb: 320 },
             '512k': { bw: '512 KB/s', mbps: '≈ 4.10 Mbps', t1: '≈ 2.0 giây', t2: '≈ 4.0 giây', minKb: 450, maxKb: 600 },
             '1m':   { bw: '1.0 MB/s', mbps: '≈ 8.00 Mbps', t1: '≈ 1.0 giây', t2: '≈ 2.0 giây', minKb: 900, maxKb: 1200 },
             '0':    { bw: 'Không Giới Hạn', mbps: 'Tối Đa Cổng Mạng', t1: '< 0.05 giây', t2: '< 0.1 giây', minKb: 5000, maxKb: 9999999 }
         };
+
+        let selectedMb = 1;
+        let selectedMode = 'php'; // 'php' or 'static'
+        const detectedServerRate = '<?= $detected_rate ?>';
+        let targetRate = rateProfiles[detectedServerRate] ? detectedServerRate : '0';
+        let abortController = null;
+        let isRunning = false;
 
         function setTargetRate(rate) {
             targetRate = rate;
@@ -484,6 +515,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'info') {
             navigator.clipboard.writeText(text);
             alert('Đã sao chép lệnh cURL vào clipboard!');
         }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            setTargetRate(targetRate);
+        });
     </script>
 </body>
 </html>

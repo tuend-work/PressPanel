@@ -3,25 +3,47 @@
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                             <div>
                                 <h2 class="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                                    <i v-if="currentUser.role === 'admin'" data-lucide="package" class="w-5 h-5 text-blue-400 mr-1"></i>
+                                    <i v-if="currentUser.role === 'admin'" data-lucide="layers" class="w-5 h-5 text-blue-400 mr-1"></i>
                                     <i v-else data-lucide="globe" class="w-5 h-5 text-emerald-400 mr-1"></i>
-                                    <span v-if="currentUser.role === 'admin'">Quản Lý User Packages</span>
+                                    <span v-if="currentUser.role === 'admin'">Quản Lý Gói Dịch Vụ (Service Plans)</span>
                                     <span v-else>Quản Lý Website Plans</span>
                                 </h2>
                                 <p class="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                    <span v-if="currentUser.role === 'admin'">Quản lý các gói User Package cấp phát tài nguyên cho người dùng hosting.</span>
+                                    <span v-if="currentUser.role === 'admin'">Quản lý User Packages (cấp cho Hosting Users) và Website Plans (cấp riêng cho từng Website con).</span>
                                     <span v-else>Tạo và quản lý các gói tài nguyên Website Plan để phân bổ cho từng website của bạn (mỗi gói áp dụng 1 website).</span>
                                 </p>
                             </div>
-                            <button @click="showAddPlanModal = true" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-950/40 text-blue-400 border border-blue-800/600 font-medium text-xs text-white shadow-sm transition flex items-center space-x-1.5">
-                                <span v-if="currentUser.role === 'admin'">➕ Thêm User Package</span>
+                            <button @click="showAddPlanModal = true" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-medium text-xs text-white shadow-sm transition flex items-center space-x-1.5">
+                                <span v-if="currentUser.role === 'admin'">➕ Thêm Gói Dịch Vụ Mới</span>
                                 <span v-else>➕ Tạo Website Plan Mới</span>
                             </button>
                         </div>
 
+                        <!-- Sub-Tabs cho Admin: Tất cả vs User Packages vs Website Plans -->
+                        <div v-if="currentUser.role === 'admin'" class="flex items-center space-x-2 border-b border-slate-800 pb-3">
+                            <button @click="selectedPlanTab = 'all'"
+                                :class="selectedPlanTab === 'all' ? 'bg-blue-600 text-white font-bold shadow' : 'bg-slate-800/80 text-slate-400 hover:text-white'"
+                                class="px-3 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                                <span>Tất Cả</span>
+                                <span class="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{{ servicePlans.length }}</span>
+                            </button>
+                            <button @click="selectedPlanTab = 'user'"
+                                :class="selectedPlanTab === 'user' ? 'bg-blue-600 text-white font-bold shadow' : 'bg-slate-800/80 text-slate-400 hover:text-white'"
+                                class="px-3 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                                <span>📦 Gói Hosting User</span>
+                                <span class="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{{ userPlans.length }}</span>
+                            </button>
+                            <button @click="selectedPlanTab = 'website'"
+                                :class="selectedPlanTab === 'website' ? 'bg-blue-600 text-white font-bold shadow' : 'bg-slate-800/80 text-slate-400 hover:text-white'"
+                                class="px-3 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
+                                <span>🌐 Gói Website</span>
+                                <span class="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{{ websitePlans.length }}</span>
+                            </button>
+                        </div>
+
                         <!-- Grid các gói Hosting Mẫu chuẩn WPC -->
-                        <div v-if="servicePlans.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                            <div v-for="plan in servicePlans" :key="plan.id"
+                        <div v-if="filteredServicePlans.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                            <div v-for="plan in filteredServicePlans" :key="plan.id"
                                 class="bg-slate-900/60/90 rounded-2xl p-5 flex flex-col justify-between border border-slate-800/80 hover:border-blue-500/80 dark:hover:border-blue-500/80 transition shadow-sm hover:shadow-lg space-y-4">
                                 <div>
                                     <div class="flex justify-between items-start mb-3">
@@ -132,17 +154,17 @@
 
                         <!-- Empty State khi chưa có gói nào -->
                         <div v-else class="bg-slate-900/60 rounded-2xl p-12 text-center border border-slate-800/80 shadow-sm space-y-3">
-                            <div class="w-16 h-16 rounded-2xl bg-blue-950/40 text-blue-400 border border-blue-800/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-3xl mx-auto shadow-inner">
-                                {{ currentUser.role === 'admin' ? '📦' : '🌐' }}
+                            <div class="w-16 h-16 rounded-2xl bg-blue-950/40 text-blue-400 border border-blue-800/60 flex items-center justify-center text-3xl mx-auto shadow-inner">
+                                {{ selectedPlanTab === 'website' || currentUser.role !== 'admin' ? '🌐' : '📦' }}
                             </div>
                             <h3 class="text-base font-bold text-white">
-                                {{ currentUser.role === 'admin' ? 'Chưa có User Package nào' : 'Chưa có Website Plan nào' }}
+                                {{ selectedPlanTab === 'website' ? 'Chưa có Website Plan nào' : (selectedPlanTab === 'user' ? 'Chưa có User Package nào' : 'Chưa có Gói Dịch Vụ nào') }}
                             </h3>
-                            <p class="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                                {{ currentUser.role === 'admin' ? 'Hãy tạo gói User Package đầu tiên để cấp phát tài nguyên cho người dùng.' : 'Bạn chưa tạo gói Website Plan nào để phân bổ tài nguyên cho từng website của mình.' }}
+                            <p class="text-xs text-slate-400 max-w-md mx-auto">
+                                {{ selectedPlanTab === 'website' ? 'Tạo Website Plan để gán hạn mức cgroup, RAM, CPU và Rate Limit riêng cho từng website.' : 'Hãy tạo gói dịch vụ để cấp phát tài nguyên hệ thống.' }}
                             </p>
-                            <button @click="showAddPlanModal = true" class="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-950/40 text-blue-400 border border-blue-800/600 text-white text-xs font-semibold shadow transition inline-flex items-center space-x-1.5">
-                                <span>➕ {{ currentUser.role === 'admin' ? 'Thêm User Package' : 'Tạo Website Plan Mới' }}</span>
+                            <button @click="showAddPlanModal = true" class="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition inline-flex items-center space-x-1.5">
+                                <span>➕ Thêm Gói Dịch Vụ Mới</span>
                             </button>
                         </div>
                     </div>

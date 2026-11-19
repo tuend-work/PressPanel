@@ -282,7 +282,7 @@ class DomainRenameRequest(BaseModel):
     new_domain_name: str
 
 class DomainChangePlanRequest(BaseModel):
-    package_id: int
+    package_id: Optional[int] = None
 
 class DomainUpdateRequest(BaseModel):
     php_version: Optional[str] = None
@@ -325,11 +325,12 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
         SELECT d.*, 
                u.username as owner_username, 
                u.email as owner_email, 
-               COALESCE(p_dom.name, p.name, 'Website Plan') as plan_name,
+               COALESCE(p_dom.name, 'Mặc định (Theo Hosting User)') as plan_name,
+               p.name as user_plan_name,
                COALESCE(p_dom.cpu_pct, p.cpu_pct, 100) as cpu_pct,
                COALESCE(p_dom.mem_mb, p.mem_mb, 1024) as mem_mb,
                COALESCE(p_dom.disk_mb, p.disk_mb, 5120) as disk_mb,
-               COALESCE(d.rate_limit, p_dom.rate_limit, p.rate_limit, '0') as rate_limit,
+               COALESCE(d.rate_limit, p_dom.rate_limit, '0') as rate_limit,
                COALESCE(d.status, 'active') as status,
                COALESCE(d.is_system, 0) as is_system,
                (SELECT COUNT(*) FROM databases db_sub WHERE db_sub.domain_id = d.id OR db_sub.db_name LIKE '%' || REPLACE(REPLACE(d.domain_name, '.', '_'), '-', '_') || '%') as db_count
@@ -495,9 +496,11 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
         pkg_rate_limit = "0"
 
         if req.package_id:
-            p_cur = await db.execute("SELECT cpu_pct, mem_mb, disk_mb, allow_ssh, rate_limit FROM packages WHERE id = ?", (req.package_id,))
+            p_cur = await db.execute("SELECT cpu_pct, mem_mb, disk_mb, allow_ssh, rate_limit, plan_type FROM packages WHERE id = ?", (req.package_id,))
             wpkg = await p_cur.fetchone()
             if wpkg:
+                if wpkg.get("plan_type") != "website":
+                    raise HTTPException(status_code=400, detail="Không thể gán gói Hosting User cho Website! Vui lòng chọn một Website Plan.")
                 u_cpu = min(u_cpu, wpkg["cpu_pct"])
                 u_mem = min(u_mem, wpkg["mem_mb"])
                 pkg_allow_ssh = wpkg["allow_ssh"]
@@ -562,6 +565,7 @@ async def change_domain_plan(domain_id: int, req: DomainChangePlanRequest, curre
     if not dom:
         await db.close()
         raise HTTPException(status_code=404, detail="Không tìm thấy website")
+    dom = dict(dom)
 
     # Kiểm tra quyền: Admin, Reseller (cha), hoặc chính chủ sở hữu
     if current_user["role"] == "reseller" and dom["user_id"] != current_user["id"] and dom["parent_id"] != current_user["id"]:
@@ -571,51 +575,92 @@ async def change_domain_plan(domain_id: int, req: DomainChangePlanRequest, curre
         await db.close()
         raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
 
-    pkg_cur = await db.execute("SELECT id, name, cpu_pct, mem_mb, disk_mb, allow_ssh, rate_limit FROM packages WHERE id = ?", (req.package_id,))
-    pkg = await pkg_cur.fetchone()
-    if not pkg:
-        await db.close()
-        raise HTTPException(status_code=404, detail="Không tìm thấy Website Plan đã chọn")
-
-    u_cpu = pkg["cpu_pct"]
-    u_mem = pkg["mem_mb"]
-    u_rate_limit = pkg.get("rate_limit", "0") or "0"
-    if dom["owner_role"] == "user" and dom["parent_cpu"]:
-        u_cpu = min(u_cpu, dom["parent_cpu"])
-        u_mem = min(u_mem, dom["parent_mem"])
-
-    await db.execute("UPDATE domains SET package_id = ?, allow_ssh = ?, rate_limit = ? WHERE id = ?", (pkg["id"], pkg["allow_ssh"], u_rate_limit, domain_id))
-    await db.commit()
-    await db.close()
-
     isolated_user = domain_to_linux_user(dom["domain_name"])
     reseller_id = str(dom["parent_id"] or 1)
-
-    # Cập nhật Rate Limit tức thì vào Nginx VirtualHost của website này
-    if dom.get("webserver") == "nginx" or os.path.exists(f"/etc/nginx/conf.d/{dom['domain_name']}.conf"):
-        if sync_nginx_vhost_rate_limit(dom["domain_name"], u_rate_limit):
-            reload_nginx_service()
-
     hosting_username = dom.get("owner_username", isolated_user)
-    try:
-        if hosting_username != isolated_user:
-            await run_gatekeeper("cgroup", "attach-child", hosting_username, isolated_user)
-            await run_gatekeeper("cgroup", "sync", hosting_username)
-        else:
-            await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
-    except Exception as e:
-        print(f"Warning: Failed to update cgroup for {isolated_user}: {e}")
 
-    try:
-        await run_gatekeeper("user", "set-quota", isolated_user, str(pkg["disk_mb"]))
-    except Exception as e:
-        print(f"Warning: Failed to update quota for {isolated_user}: {e}")
+    if req.package_id is None:
+        # Website dùng hạn mức dùng chung của Hosting User (mặc định)
+        u_cpu = dom.get("parent_cpu", 100) or 100
+        u_mem = dom.get("parent_mem", 1024) or 1024
+        u_disk = dom.get("parent_disk", 5120) or 5120
+        u_rate_limit = "0"
+        pkg_name = "Mặc định (Theo Hosting User)"
 
-    return {
-        "status": "ok",
-        "message": f"Đã đổi gói dịch vụ cho website '{dom['domain_name']}' sang '{pkg['name']}' thành công!",
-        "plan_name": pkg["name"]
-    }
+        await db.execute("UPDATE domains SET package_id = NULL, rate_limit = ? WHERE id = ?", (u_rate_limit, domain_id))
+        await db.commit()
+        await db.close()
+
+        if dom.get("webserver") == "nginx" or os.path.exists(f"/etc/nginx/conf.d/{dom['domain_name']}.conf"):
+            if sync_nginx_vhost_rate_limit(dom["domain_name"], u_rate_limit):
+                reload_nginx_service()
+
+        try:
+            if hosting_username != isolated_user:
+                await run_gatekeeper("cgroup", "attach-child", hosting_username, isolated_user)
+                await run_gatekeeper("cgroup", "sync", hosting_username)
+            else:
+                await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
+        except Exception as e:
+            print(f"Warning: Failed to update cgroup for {isolated_user}: {e}")
+
+        try:
+            await run_gatekeeper("user", "set-quota", isolated_user, str(u_disk))
+        except Exception as e:
+            print(f"Warning: Failed to update quota for {isolated_user}: {e}")
+
+        return {
+            "status": "ok",
+            "message": f"Đã chuyển website '{dom['domain_name']}' về hạn mức mặc định của Hosting User thành công!",
+            "plan_name": pkg_name
+        }
+    else:
+        pkg_cur = await db.execute("SELECT id, name, plan_type, cpu_pct, mem_mb, disk_mb, allow_ssh, rate_limit FROM packages WHERE id = ?", (req.package_id,))
+        pkg = await pkg_cur.fetchone()
+        if not pkg:
+            await db.close()
+            raise HTTPException(status_code=404, detail="Không tìm thấy Website Plan đã chọn")
+        pkg = dict(pkg)
+
+        if pkg.get("plan_type") != "website":
+            await db.close()
+            raise HTTPException(status_code=400, detail=f"Gói '{pkg['name']}' là User Package dành cho tài khoản Hosting, không thể gán cho Website con. Vui lòng chọn một Website Plan hợp lệ.")
+
+        u_cpu = pkg["cpu_pct"]
+        u_mem = pkg["mem_mb"]
+        u_rate_limit = pkg.get("rate_limit", "0") or "0"
+        if dom["owner_role"] == "user" and dom["parent_cpu"]:
+            u_cpu = min(u_cpu, dom["parent_cpu"])
+            u_mem = min(u_mem, dom["parent_mem"])
+
+        await db.execute("UPDATE domains SET package_id = ?, allow_ssh = ?, rate_limit = ? WHERE id = ?", (pkg["id"], pkg["allow_ssh"], u_rate_limit, domain_id))
+        await db.commit()
+        await db.close()
+
+        # Cập nhật Rate Limit tức thì vào Nginx VirtualHost của website này
+        if dom.get("webserver") == "nginx" or os.path.exists(f"/etc/nginx/conf.d/{dom['domain_name']}.conf"):
+            if sync_nginx_vhost_rate_limit(dom["domain_name"], u_rate_limit):
+                reload_nginx_service()
+
+        try:
+            if hosting_username != isolated_user:
+                await run_gatekeeper("cgroup", "attach-child", hosting_username, isolated_user)
+                await run_gatekeeper("cgroup", "sync", hosting_username)
+            else:
+                await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
+        except Exception as e:
+            print(f"Warning: Failed to update cgroup for {isolated_user}: {e}")
+
+        try:
+            await run_gatekeeper("user", "set-quota", isolated_user, str(pkg["disk_mb"]))
+        except Exception as e:
+            print(f"Warning: Failed to update quota for {isolated_user}: {e}")
+
+        return {
+            "status": "ok",
+            "message": f"Đã đổi gói dịch vụ cho website '{dom['domain_name']}' sang '{pkg['name']}' thành công!",
+            "plan_name": pkg["name"]
+        }
 
 @router.put("/{domain_id}")
 async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: dict = Depends(get_current_user)):
@@ -638,6 +683,7 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
     if not dom:
         await db.close()
         raise HTTPException(status_code=404, detail="Không tìm thấy website")
+    dom = dict(dom)
 
     if current_user["role"] == "reseller" and dom["user_id"] != current_user["id"] and dom["parent_id"] != current_user["id"]:
         await db.close()
@@ -672,9 +718,12 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
 
     new_rate_limit = dom.get("rate_limit", "0") or "0"
     if req.package_id and req.package_id != dom["package_id"]:
-        pkg_cur = await db.execute("SELECT id, name, cpu_pct, mem_mb, disk_mb, allow_ssh, rate_limit FROM packages WHERE id = ?", (req.package_id,))
+        pkg_cur = await db.execute("SELECT id, name, plan_type, cpu_pct, mem_mb, disk_mb, allow_ssh, rate_limit FROM packages WHERE id = ?", (req.package_id,))
         pkg = await pkg_cur.fetchone()
         if pkg:
+            if pkg.get("plan_type") != "website":
+                await db.close()
+                raise HTTPException(status_code=400, detail=f"Gói '{pkg['name']}' là User Package dành cho tài khoản Hosting, không thể gán cho Website con. Vui lòng chọn một Website Plan hợp lệ.")
             new_pkg_id = pkg["id"]
             new_rate_limit = pkg.get("rate_limit", "0") or "0"
             u_cpu = pkg["cpu_pct"]
