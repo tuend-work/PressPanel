@@ -1729,10 +1729,76 @@ function showAlert(message) {
                     // Modules
                     lscacheEnabled: true,
                     modSecurityEnabled: true,
+                    http1Enabled: true,
                     http2Enabled: true,
                     http3Enabled: true,
+                    earlyHintsEnabled: true,
+                    echEnabled: false,
+                    headerInheritEnabled: true,
+                    dynamicRateLimitEnabled: true,
+                    rateLimitVar: '$limit_rate',
+                    defaultRateLimit: '0',
+                    fastcgiLimitRate: '$limit_rate',
+                    proxyLimitRate: '$limit_rate',
+                    userGroupRateMap: `# Bảng phân loại tốc độ theo Nhóm User (User Group Bandwidth Shaping)
+map $http_x_user_group $limit_rate {
+    default         0;      # Không giới hạn mặc định
+    guest           256k;   # Khách vãng lai: 256 KB/s
+    free            512k;   # Tài khoản Free: 512 KB/s
+    member          2m;     # Thành viên đăng ký: 2 MB/s
+    vip             0;      # Khách VIP: Không giới hạn tốc độ
+}
+`,
                     rewriteRules: ''
                 });
+
+                const applyRateLimitPreset = (type) => {
+                    if (type === 'header_group') {
+                        wsServerConfig.value.userGroupRateMap = `# Phân loại theo Header X-User-Group do ứng dụng/backend gửi hoặc CDN gắn
+map $http_x_user_group $limit_rate {
+    default         0;      # Không giới hạn mặc định
+    guest           256k;   # Khách vãng lai: 256 KB/s
+    free            512k;   # Tài khoản Free: 512 KB/s
+    member          2m;     # Thành viên đăng ký: 2 MB/s
+    vip             0;      # Khách VIP: Không giới hạn tốc độ
+}`;
+                        wsServerConfig.value.rateLimitVar = '$limit_rate';
+                        wsServerConfig.value.fastcgiLimitRate = '$limit_rate';
+                        wsServerConfig.value.proxyLimitRate = '$limit_rate';
+                    } else if (type === 'cookie_tier') {
+                        wsServerConfig.value.userGroupRateMap = `# Phân loại theo Cookie 'user_tier' của khách hàng
+map $cookie_user_tier $limit_rate {
+    default         0;      # Không có cookie: Tốc độ bình thường
+    anonymous       300k;   # Chưa đăng nhập: 300 KB/s
+    free            500k;   # Bậc miễn phí: 500 KB/s
+    basic           1500k;  # Bậc cơ bản: 1.5 MB/s
+    pro             0;      # Bậc Pro / Doanh nghiệp: Tối đa đường truyền
+}`;
+                        wsServerConfig.value.rateLimitVar = '$limit_rate';
+                        wsServerConfig.value.fastcgiLimitRate = '$limit_rate';
+                        wsServerConfig.value.proxyLimitRate = '$limit_rate';
+                    } else if (type === 'wp_login') {
+                        wsServerConfig.value.userGroupRateMap = `# Phân biệt khách vãng lai và thành viên đã đăng nhập WordPress
+map $cookie_wordpress_logged_in $limit_rate {
+    default         350k;   # Khách chưa login: Bóp 350 KB/s chống crawl/scrape
+    ~.+             0;      # Đã đăng nhập WordPress: Không giới hạn tốc độ
+}`;
+                        wsServerConfig.value.rateLimitVar = '$limit_rate';
+                        wsServerConfig.value.fastcgiLimitRate = '$limit_rate';
+                        wsServerConfig.value.proxyLimitRate = '$limit_rate';
+                    } else if (type === 'ip_binary') {
+                        wsServerConfig.value.userGroupRateMap = `# Phân loại bóp băng thông theo dải địa chỉ IP (Binary Remote Addr)
+geo $limit_rate {
+    default         0;
+    127.0.0.1       0;      # Localhost không bóp
+    10.0.0.0/8      0;      # Mạng nội bộ không bóp
+    # 192.168.1.100 200k;   # IP cụ thể: 200 KB/s
+}`;
+                        wsServerConfig.value.rateLimitVar = '$limit_rate';
+                        wsServerConfig.value.fastcgiLimitRate = '$limit_rate';
+                        wsServerConfig.value.proxyLimitRate = '$limit_rate';
+                    }
+                };
 
                 const handleRewriteWebserverConfig = async (webserver) => {
                     const wsName = webserver.toUpperCase();
@@ -9218,7 +9284,7 @@ if ($host ~* ^www\\.(.*)$) {
                     primaryWebserver, switchingWebserver, handleSwitchPrimaryWebserver,
                     showAppSettingModal, selectedSettingApp, appSettingTab, appConfigPath, selectedSwitchVersion, handleSwitchAppVersion,
                     appConfigContent, savingConfig, rewritingConfig, handleRewriteWebserverConfig,
-                    wsServerTab, wsServerConfig, savingWsServerConfig, fetchWsServerSettings, saveWsServerSettings,
+                    wsServerTab, wsServerConfig, savingWsServerConfig, fetchWsServerSettings, saveWsServerSettings, applyRateLimitPreset,
                     appBuildArgs, appBuildInfo, savingBuildSettings, buildingApp, openAppBuildSettings, saveAppBuildSettings, triggerAppBuild, appendBuildArg, resetAppBuildArgsToDefault, appendNginxRewritePreset,
                     openAppSettings, loadAppConfig,
                     saveCurrentAppConfig, toggleAppAutorestart,

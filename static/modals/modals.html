@@ -2310,9 +2310,11 @@
                                     <div class="flex items-center space-x-1 overflow-x-auto custom-scrollbar pt-1">
                                         <button v-for="tab in (selectedSettingApp?.id === 'nginx' ? [
                                             { id: 'general', label: 'General' },
-                                            { id: 'log', label: 'Log' },
+                                            { id: 'protocols', label: '🌐 Giao Thức (HTTP/1,2,3)' },
+                                            { id: 'rate_limiting', label: '⚡ Bóp Băng Thông & Rate Limit' },
                                             { id: 'tuning', label: 'Tuning' },
-                                            { id: 'security', label: 'Security' }
+                                            { id: 'security', label: 'Security' },
+                                            { id: 'log', label: 'Log' }
                                         ] : [
                                             { id: 'general', label: 'General' },
                                             { id: 'log', label: 'Log' },
@@ -2365,6 +2367,214 @@
                                                     <label class="text-slate-400 text-[11px] block mb-1">Graceful Restart Timeout (seconds):</label>
                                                     <input type="number" v-model="wsServerConfig.gracefulTimeout" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs">
                                                 </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- TAB: PROTOCOLS & MODERN NGINX (1.26 - 1.31) -->
+                                    <div v-if="wsServerTab === 'protocols'" class="space-y-4">
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
+                                            <div class="flex items-center justify-between border-b border-[#232b36] pb-3">
+                                                <div>
+                                                    <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                                                        <span class="text-sky-400">🌐</span>
+                                                        <span>Cấu Hình Giao Thức Truyền Tải & Tính Năng Hiện Đại</span>
+                                                    </h4>
+                                                    <p class="text-[11px] text-slate-400 mt-0.5">Bật/tắt các giao thức HTTP/1.1, HTTP/2, HTTP/3 QUIC và các công nghệ tăng tốc Nginx 1.26 - 1.31</p>
+                                                </div>
+                                                <span class="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-sky-500/10 text-sky-400 border border-sky-500/30">Nginx 1.30+ Native</span>
+                                            </div>
+
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                                <!-- 1. HTTP/1.1 Protocol -->
+                                                <div class="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-start justify-between space-x-3">
+                                                    <div class="space-y-1">
+                                                        <div class="font-bold text-white text-xs flex items-center gap-1.5">
+                                                            <span class="text-amber-400">⚡</span>
+                                                            <span>HTTP/1.1 Fallback & Keep-Alive</span>
+                                                        </div>
+                                                        <p class="text-[11px] text-slate-400 leading-relaxed">
+                                                            Duy trì tương thích cho các thiết bị cũ, web crawler và bot tìm kiếm. Giữ kết nối liên tục giảm độ trễ TCP.
+                                                        </p>
+                                                    </div>
+                                                    <input type="checkbox" v-model="wsServerConfig.http1Enabled" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer shrink-0 mt-0.5">
+                                                </div>
+
+                                                <!-- 2. HTTP/2 Protocol -->
+                                                <div class="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-start justify-between space-x-3">
+                                                    <div class="space-y-1">
+                                                        <div class="font-bold text-white text-xs flex items-center gap-1.5">
+                                                            <span class="text-emerald-400">🚀</span>
+                                                            <span>HTTP/2 Multiplexing (http2 on)</span>
+                                                        </div>
+                                                        <p class="text-[11px] text-slate-400 leading-relaxed">
+                                                            Gửi song song hàng trăm request trên cùng 1 kết nối TCP. Tăng tốc độ load ảnh, CSS, JS cho trình duyệt.
+                                                        </p>
+                                                    </div>
+                                                    <input type="checkbox" v-model="wsServerConfig.http2Enabled" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer shrink-0 mt-0.5">
+                                                </div>
+
+                                                <!-- 3. HTTP/3 & QUIC Protocol -->
+                                                <div class="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-start justify-between space-x-3">
+                                                    <div class="space-y-1">
+                                                        <div class="font-bold text-white text-xs flex items-center gap-1.5">
+                                                            <span class="text-cyan-400">✨</span>
+                                                            <span>HTTP/3 & QUIC (UDP Port 443)</span>
+                                                        </div>
+                                                        <p class="text-[11px] text-slate-400 leading-relaxed">
+                                                            Giao thức thế hệ 3 chạy trên nền UDP, chống nghẽn đường truyền (HOL blocking) và tải siêu tốc trên mạng di động.
+                                                        </p>
+                                                    </div>
+                                                    <input type="checkbox" v-model="wsServerConfig.http3Enabled" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer shrink-0 mt-0.5">
+                                                </div>
+
+                                                <!-- 4. HTTP 103 Early Hints -->
+                                                <div class="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-start justify-between space-x-3">
+                                                    <div class="space-y-1">
+                                                        <div class="font-bold text-white text-xs flex items-center gap-1.5">
+                                                            <span class="text-purple-400">💡</span>
+                                                            <span>HTTP 103 Early Hints (early_hints on)</span>
+                                                        </div>
+                                                        <p class="text-[11px] text-slate-400 leading-relaxed">
+                                                            Gửi trước chỉ thị tải trước (Preload CSS/Font) về trình duyệt trong lúc PHP-FPM/DB đang xử lý, cải thiện FCP & LCP.
+                                                        </p>
+                                                    </div>
+                                                    <input type="checkbox" v-model="wsServerConfig.earlyHintsEnabled" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer shrink-0 mt-0.5">
+                                                </div>
+
+                                                <!-- 5. Header Inheritance Control -->
+                                                <div class="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-start justify-between space-x-3">
+                                                    <div class="space-y-1">
+                                                        <div class="font-bold text-white text-xs flex items-center gap-1.5">
+                                                            <span class="text-indigo-400">🔗</span>
+                                                            <span>Kế Thừa Header (add_header_inherit on)</span>
+                                                        </div>
+                                                        <p class="text-[11px] text-slate-400 leading-relaxed">
+                                                            Khắc phục lỗi kinh điển của Nginx: Giữ lại toàn bộ Security Headers ở block cha khi khai báo thêm header ở location con.
+                                                        </p>
+                                                    </div>
+                                                    <input type="checkbox" v-model="wsServerConfig.headerInheritEnabled" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer shrink-0 mt-0.5">
+                                                </div>
+
+                                                <!-- 6. Encrypted ClientHello (ECH) -->
+                                                <div class="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-start justify-between space-x-3 opacity-90">
+                                                    <div class="space-y-1">
+                                                        <div class="font-bold text-white text-xs flex items-center gap-1.5">
+                                                            <span class="text-rose-400">🛡️</span>
+                                                            <span>Encrypted ClientHello (ECH SNI)</span>
+                                                        </div>
+                                                        <p class="text-[11px] text-slate-400 leading-relaxed">
+                                                            Mã hóa trường SNI chống nghe lén tên miền trên đường truyền (Yêu cầu OpenSSL 3.4+ hoặc BoringSSL tương thích).
+                                                        </p>
+                                                    </div>
+                                                    <input type="checkbox" v-model="wsServerConfig.echEnabled" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer shrink-0 mt-0.5">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- TAB: DYNAMIC RATE LIMITING & USER-BASED BANDWIDTH SHAPING -->
+                                    <div v-if="wsServerTab === 'rate_limiting'" class="space-y-4">
+                                        <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
+                                            <div class="flex items-center justify-between border-b border-[#232b36] pb-3">
+                                                <div>
+                                                    <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                                                        <span class="text-amber-400">⚡</span>
+                                                        <span>Bóp Băng Thông Động & Giới Hạn Tốc Độ Theo Nhóm User</span>
+                                                    </h4>
+                                                    <p class="text-[11px] text-slate-400 mt-0.5">Truyền biến vào <code>fastcgi_limit_rate</code> & <code>proxy_limit_rate</code> (Nginx 1.28+) để kiểm soát băng thông theo từng nhóm khách hàng</p>
+                                                </div>
+                                                <div class="flex items-center space-x-2">
+                                                    <span class="text-xs text-slate-400 font-semibold">Kích hoạt:</span>
+                                                    <input type="checkbox" v-model="wsServerConfig.dynamicRateLimitEnabled" class="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer">
+                                                </div>
+                                            </div>
+
+                                            <div v-if="wsServerConfig.dynamicRateLimitEnabled" class="space-y-4">
+                                                <!-- 3 Directives Configuration Cards -->
+                                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                    <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                                                        <label class="text-[11px] font-semibold text-slate-300 block">Biến Tốc Độ (Rate Variable):</label>
+                                                        <input type="text" v-model="wsServerConfig.rateLimitVar" placeholder="$limit_rate"
+                                                            class="w-full px-3 py-1.5 rounded-lg bg-[#141921] border border-slate-700 text-amber-300 font-mono text-xs focus:outline-none focus:border-amber-400">
+                                                        <span class="text-[10px] text-slate-500 block">Biến Nginx lưu giới hạn (Bytes/giây)</span>
+                                                    </div>
+
+                                                    <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                                                        <label class="text-[11px] font-semibold text-slate-300 block">FastCGI Limit Rate (PHP-FPM):</label>
+                                                        <input type="text" v-model="wsServerConfig.fastcgiLimitRate" placeholder="$limit_rate"
+                                                            class="w-full px-3 py-1.5 rounded-lg bg-[#141921] border border-slate-700 text-emerald-300 font-mono text-xs focus:outline-none focus:border-emerald-400">
+                                                        <span class="text-[10px] text-slate-500 block">Áp dụng cho WordPress & PHP (VD: <code>$limit_rate</code>, <code>512k</code>)</span>
+                                                    </div>
+
+                                                    <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                                                        <label class="text-[11px] font-semibold text-slate-300 block">Proxy Limit Rate (Node/Upstream):</label>
+                                                        <input type="text" v-model="wsServerConfig.proxyLimitRate" placeholder="$limit_rate"
+                                                            class="w-full px-3 py-1.5 rounded-lg bg-[#141921] border border-slate-700 text-sky-300 font-mono text-xs focus:outline-none focus:border-sky-400">
+                                                        <span class="text-[10px] text-slate-500 block">Áp dụng cho Reverse Proxy (VD: <code>$limit_rate</code>, <code>1m</code>)</span>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Quick Presets -->
+                                                <div class="space-y-1.5">
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="text-xs font-semibold text-slate-300">Chọn mẫu quy tắc phân nhóm User (Click áp dụng nhanh):</span>
+                                                        <span class="text-[10px] text-slate-500">Tự động điền cú pháp <code>map</code> chuẩn</span>
+                                                    </div>
+                                                    <div class="flex items-center gap-2 flex-wrap">
+                                                        <button type="button" @click="applyRateLimitPreset('header_group')"
+                                                            class="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-[11px] font-medium border border-amber-500/30 transition flex items-center space-x-1">
+                                                            <span>📌</span>
+                                                            <span>Mẫu 1: Theo Header X-User-Group</span>
+                                                        </button>
+                                                        <button type="button" @click="applyRateLimitPreset('cookie_tier')"
+                                                            class="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-[11px] font-medium border border-emerald-500/30 transition flex items-center space-x-1">
+                                                            <span>🍪</span>
+                                                            <span>Mẫu 2: Theo Cookie user_tier</span>
+                                                        </button>
+                                                        <button type="button" @click="applyRateLimitPreset('wp_login')"
+                                                            class="px-2.5 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 text-[11px] font-medium border border-sky-500/30 transition flex items-center space-x-1">
+                                                            <span>🔑</span>
+                                                            <span>Mẫu 3: Theo Cookie Đăng Nhập WordPress</span>
+                                                        </button>
+                                                        <button type="button" @click="applyRateLimitPreset('ip_binary')"
+                                                            class="px-2.5 py-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 text-[11px] font-medium border border-purple-500/30 transition flex items-center space-x-1">
+                                                            <span>🌐</span>
+                                                            <span>Mẫu 4: Theo Địa Chỉ IP (CIDR)</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Code Editor for Map Rules -->
+                                                <div class="space-y-1.5">
+                                                    <div class="flex items-center justify-between">
+                                                        <label class="text-[11px] font-mono text-slate-400">Quy tắc phân nhóm Nginx (Lưu tại: <code class="text-amber-400">/etc/nginx/conf.d/00_wp_rate_limiting.conf</code>):</label>
+                                                        <span class="text-[10px] text-slate-500">0 = Không giới hạn | 256k = 256KB/s | 1m = 1MB/s</span>
+                                                    </div>
+                                                    <textarea v-model="wsServerConfig.userGroupRateMap"
+                                                        rows="8"
+                                                        placeholder="map $http_x_user_group $limit_rate { ... }"
+                                                        class="w-full p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-amber-300 font-mono text-xs focus:outline-none focus:border-amber-500 resize-y h-48 custom-scrollbar leading-relaxed">
+                                                    </textarea>
+                                                </div>
+
+                                                <!-- Helpful Guide Box -->
+                                                <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1.5 text-[11px] text-slate-400">
+                                                    <div class="font-bold text-slate-300 flex items-center gap-1.5">
+                                                        <span>💡</span>
+                                                        <span>Cách kích hoạt bóp băng thông từ Website WordPress / PHP:</span>
+                                                    </div>
+                                                    <p class="leading-relaxed">
+                                                        Trong mã nguồn PHP hoặc plugin WordPress, chỉ cần gửi header:
+                                                        <code class="text-emerald-400 font-mono bg-slate-900 px-1.5 py-0.5 rounded">header('X-User-Group: guest');</code> hoặc đặt cookie
+                                                        <code class="text-sky-400 font-mono bg-slate-900 px-1.5 py-0.5 rounded">setcookie('user_tier', 'free');</code>.
+                                                        Nginx 1.30 sẽ tự động bắt giá trị này và bóp tốc độ truyền tải response xuống đúng mức quy định tương ứng mà không tiêu tốn thêm tài nguyên máy chủ!
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div v-else class="p-6 rounded-xl bg-slate-950/40 border border-dashed border-slate-800 text-center space-y-2">
+                                                <span class="text-2xl">⚡</span>
+                                                <p class="text-xs text-slate-400">Tính năng bóp băng thông động đang TẮT. Đánh dấu tích vào "Kích hoạt" ở trên để thiết lập quy tắc bóp tốc độ theo nhóm User.</p>
                                             </div>
                                         </div>
                                     </div>

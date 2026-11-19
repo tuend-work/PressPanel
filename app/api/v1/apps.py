@@ -2044,6 +2044,20 @@ class WebserverSettingsUpdateRequest(BaseModel):
     rateLimitReqSec: Optional[int] = None
     rateLimitBurst: Optional[int] = None
     rewriteRules: Optional[str] = None
+    # Modern Protocols (HTTP/1, HTTP/2, HTTP/3, Early Hints, ECH, Header Inherit)
+    http1Enabled: Optional[bool] = None
+    http2Enabled: Optional[bool] = None
+    http3Enabled: Optional[bool] = None
+    earlyHintsEnabled: Optional[bool] = None
+    echEnabled: Optional[bool] = None
+    headerInheritEnabled: Optional[bool] = None
+    # Dynamic Rate Limiting & User-based Bandwidth Shaping
+    dynamicRateLimitEnabled: Optional[bool] = None
+    rateLimitVar: Optional[str] = None
+    defaultRateLimit: Optional[str] = None
+    fastcgiLimitRate: Optional[str] = None
+    proxyLimitRate: Optional[str] = None
+    userGroupRateMap: Optional[str] = None
 
 
 @router.get("/webserver-settings")
@@ -2102,12 +2116,78 @@ async def get_webserver_settings(webserver: str = "ols", current_user: dict = De
         "rateLimitBurst": 40,
         "lscacheEnabled": True,
         "modSecurityEnabled": True,
+        "http1Enabled": True,
         "http2Enabled": True,
         "http3Enabled": True,
+        "earlyHintsEnabled": True,
+        "echEnabled": False,
+        "headerInheritEnabled": True,
+        "dynamicRateLimitEnabled": True,
+        "rateLimitVar": "$limit_rate",
+        "defaultRateLimit": "0",
+        "fastcgiLimitRate": "$limit_rate",
+        "proxyLimitRate": "$limit_rate",
+        "userGroupRateMap": "",
         "rewriteRules": ""
     }
 
     if ws == "nginx":
+        # 1. Đọc file cấu hình Protocols (HTTP/1, 2, 3, Early Hints, Header Inherit)
+        proto_file = "/etc/nginx/conf.d/00_wp_protocols.conf"
+        if os.path.exists(proto_file):
+            try:
+                with open(proto_file, "r", encoding="utf-8", errors="ignore") as pf:
+                    p_txt = pf.read()
+                    settings["http2Enabled"] = "http2 on;" in p_txt
+                    settings["http3Enabled"] = "http3 on;" in p_txt
+                    settings["earlyHintsEnabled"] = "early_hints on;" in p_txt
+                    settings["headerInheritEnabled"] = "add_header_inherit on;" in p_txt
+                    settings["echEnabled"] = "ssl_ech on;" in p_txt
+            except Exception:
+                pass
+        else:
+            settings["http1Enabled"] = True
+            settings["http2Enabled"] = True
+            settings["http3Enabled"] = True
+            settings["earlyHintsEnabled"] = True
+            settings["headerInheritEnabled"] = True
+            settings["echEnabled"] = False
+
+        # 2. Đọc file cấu hình Dynamic Rate Limiting & User Bandwidth Shaping
+        rate_file = "/etc/nginx/conf.d/00_wp_rate_limiting.conf"
+        if os.path.exists(rate_file):
+            try:
+                with open(rate_file, "r", encoding="utf-8", errors="ignore") as rf:
+                    r_txt = rf.read()
+                    settings["dynamicRateLimitEnabled"] = not r_txt.strip().startswith("# DISABLED") and len(r_txt.strip()) > 0
+                    m_fcgi = re.search(r"fastcgi_limit_rate\s+([^;]+);", r_txt)
+                    if m_fcgi:
+                        settings["fastcgiLimitRate"] = m_fcgi.group(1).strip()
+                    m_prx = re.search(r"proxy_limit_rate\s+([^;]+);", r_txt)
+                    if m_prx:
+                        settings["proxyLimitRate"] = m_prx.group(1).strip()
+                    m_map = re.search(r"(map\s+.*?\{.*?\})", r_txt, flags=re.DOTALL)
+                    if m_map:
+                        settings["userGroupRateMap"] = m_map.group(1).strip()
+                    else:
+                        settings["userGroupRateMap"] = r_txt.strip()
+            except Exception:
+                pass
+        
+        if not settings.get("userGroupRateMap"):
+            settings["userGroupRateMap"] = (
+                "# Bảng phân loại tốc độ theo Nhóm User (User Group Bandwidth Shaping)\n"
+                "# 0 = không giới hạn, 256k = 256 KB/s, 1m = 1 MB/s\n"
+                "map $http_x_user_group $limit_rate {\n"
+                "    default         0;      # Không giới hạn mặc định\n"
+                "    guest           256k;   # Khách vãng lai: 256 KB/s\n"
+                "    free            512k;   # Tài khoản Free: 512 KB/s\n"
+                "    member          2m;     # Thành viên đăng ký: 2 MB/s\n"
+                "    vip             0;      # Khách VIP: Không giới hạn tốc độ\n"
+                "}\n"
+            )
+
+        # 3. Đọc file Rewrite
         rewrite_file = "/etc/nginx/conf.d/00_rewrite.conf"
         rewrite_content = ""
         if os.path.exists(rewrite_file):
@@ -2277,6 +2357,75 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Lỗi lưu file Nginx URL Rewrite: {str(e)}")
 
+    # 2. Lưu file cấu hình Protocols (HTTP/1.1, HTTP/2, HTTP/3, Early Hints, Header Inherit, ECH)
+    proto_file = "/etc/nginx/conf.d/00_wp_protocols.conf"
+    proto_bak = "/tmp/wpc_nginx_proto.bak"
+    if ws == "nginx" and (req.http2Enabled is not None or req.http3Enabled is not None or req.earlyHintsEnabled is not None or req.headerInheritEnabled is not None):
+        try:
+            if os.path.exists(proto_file):
+                shutil.copy2(proto_file, proto_bak)
+            
+            p_lines = [
+                "# WPCloud Modern Protocols Configuration (Nginx 1.26 - 1.31+)",
+                f"http2 {'on' if req.http2Enabled else 'off'};",
+                f"http3 {'on' if req.http3Enabled else 'off'};",
+                f"early_hints {'on' if req.earlyHintsEnabled else 'off'};",
+                f"add_header_inherit {'on' if req.headerInheritEnabled else 'off'};"
+            ]
+            if req.echEnabled:
+                p_lines.append("ssl_ech on;")
+            
+            proto_tmp = "/tmp/wpc_nginx_proto.tmp"
+            with open(proto_tmp, "w", encoding="utf-8") as pf:
+                pf.write("\n".join(p_lines) + "\n")
+            try:
+                shutil.move(proto_tmp, proto_file)
+            except Exception:
+                subprocess.run(["sudo", "mv", proto_tmp, proto_file], check=True)
+            subprocess.run(["sudo", "chmod", "644", proto_file], check=False)
+        except Exception as pe:
+            logger.error(f"Lỗi lưu 00_wp_protocols.conf: {pe}")
+
+    # 3. Lưu file cấu hình Dynamic Rate Limiting & User Bandwidth Shaping
+    rate_file = "/etc/nginx/conf.d/00_wp_rate_limiting.conf"
+    rate_bak = "/tmp/wpc_nginx_rate.bak"
+    if ws == "nginx" and (req.dynamicRateLimitEnabled is not None or req.userGroupRateMap is not None or req.fastcgiLimitRate is not None or req.proxyLimitRate is not None):
+        try:
+            if os.path.exists(rate_file):
+                shutil.copy2(rate_file, rate_bak)
+            
+            if req.dynamicRateLimitEnabled is False:
+                rate_body = "# DISABLED: Dynamic Rate Limiting is turned off\n"
+            else:
+                user_map = req.userGroupRateMap.strip() if req.userGroupRateMap else (
+                    "map $http_x_user_group $limit_rate {\n"
+                    "    default         0;\n"
+                    "    guest           256k;\n"
+                    "    free            512k;\n"
+                    "    member          2m;\n"
+                    "    vip             0;\n"
+                    "}"
+                )
+                fcgi_rate = req.fastcgiLimitRate.strip() if req.fastcgiLimitRate else "$limit_rate"
+                proxy_rate = req.proxyLimitRate.strip() if req.proxyLimitRate else "$limit_rate"
+                rate_body = (
+                    "# WPCloud Dynamic Rate Limiting & User Bandwidth Shaping (Nginx 1.28 - 1.31+)\n"
+                    f"{user_map}\n\n"
+                    f"fastcgi_limit_rate {fcgi_rate};\n"
+                    f"proxy_limit_rate {proxy_rate};\n"
+                )
+
+            rate_tmp = "/tmp/wpc_nginx_rate.tmp"
+            with open(rate_tmp, "w", encoding="utf-8") as rf:
+                rf.write(rate_body)
+            try:
+                shutil.move(rate_tmp, rate_file)
+            except Exception:
+                subprocess.run(["sudo", "mv", rate_tmp, rate_file], check=True)
+            subprocess.run(["sudo", "chmod", "644", rate_file], check=False)
+        except Exception as re_err:
+            logger.error(f"Lỗi lưu 00_wp_rate_limiting.conf: {re_err}")
+
     # Ghi file cấu hình an toàn
     tmp_path = f"/tmp/wpc_{ws}_main_conf.tmp"
     try:
@@ -2298,6 +2447,10 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
             subprocess.run(["/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
             subprocess.run(["sudo", "systemctl", "reload", "lshttpd"], check=False)
         else:
+            test_proc = subprocess.run(["sudo", "nginx", "-t"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if test_proc.returncode != 0:
+                err_msg = test_proc.stderr or test_proc.stdout or "Lỗi cú pháp Nginx."
+                raise HTTPException(status_code=400, detail=f"Cấu hình Nginx không hợp lệ (Kiểm tra nginx -t thất bại):\n{err_msg}")
             if os.path.exists("/usr/local/openresty/nginx/sbin/nginx"):
                 subprocess.run(["sudo", "/usr/local/openresty/nginx/sbin/nginx", "-s", "reload"], check=False)
             else:
