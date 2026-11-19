@@ -1787,7 +1787,7 @@ map $cookie_wordpress_logged_in $limit_rate {
                         wsServerConfig.value.fastcgiLimitRate = '$limit_rate';
                         wsServerConfig.value.proxyLimitRate = '$limit_rate';
                     } else if (type === 'ip_binary') {
-                        wsServerConfig.value.userGroupRateMap = `# Phân loại bóp băng thông theo dải địa chỉ IP (Binary Remote Addr)
+                        wsServerConfig.value.userGroupRateMap = `# Phân loại Rate Limit theo dải địa chỉ IP (Binary Remote Addr)
 geo $limit_rate {
     default         0;
     127.0.0.1       0;      # Localhost không bóp

@@ -2311,7 +2311,7 @@
                                         <button v-for="tab in (selectedSettingApp?.id === 'nginx' ? [
                                             { id: 'general', label: 'General' },
                                             { id: 'protocols', label: '🌐 Giao Thức (HTTP/1,2,3)' },
-                                            { id: 'rate_limiting', label: '⚡ Bóp Băng Thông & Rate Limit' },
+                                            { id: 'rate_limiting', label: 'Rate Limit' },
                                             { id: 'tuning', label: 'Tuning' },
                                             { id: 'security', label: 'Security' },
                                             { id: 'log', label: 'Log' }
@@ -2480,7 +2480,7 @@
                                                 <div>
                                                     <h4 class="font-bold text-white text-sm flex items-center gap-2">
                                                         <span class="text-amber-400">⚡</span>
-                                                        <span>Bóp Băng Thông Động & Giới Hạn Tốc Độ Theo Nhóm User</span>
+                                                        <span>Rate Limit & Giới Hạn Tốc Độ Băng Thông Theo Nhóm User</span>
                                                     </h4>
                                                     <p class="text-[11px] text-slate-400 mt-0.5">Truyền biến vào <code>fastcgi_limit_rate</code> & <code>proxy_limit_rate</code> (Nginx 1.28+) để kiểm soát băng thông theo từng nhóm khách hàng</p>
                                                 </div>
@@ -2562,19 +2562,19 @@
                                                 <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1.5 text-[11px] text-slate-400">
                                                     <div class="font-bold text-slate-300 flex items-center gap-1.5">
                                                         <span>💡</span>
-                                                        <span>Cách kích hoạt bóp băng thông từ Website WordPress / PHP:</span>
+                                                        <span>Cách kích hoạt Rate Limit từ Website WordPress / PHP:</span>
                                                     </div>
                                                     <p class="leading-relaxed">
                                                         Trong mã nguồn PHP hoặc plugin WordPress, chỉ cần gửi header:
                                                         <code class="text-emerald-400 font-mono bg-slate-900 px-1.5 py-0.5 rounded">header('X-User-Group: guest');</code> hoặc đặt cookie
                                                         <code class="text-sky-400 font-mono bg-slate-900 px-1.5 py-0.5 rounded">setcookie('user_tier', 'free');</code>.
-                                                        Nginx 1.30 sẽ tự động bắt giá trị này và bóp tốc độ truyền tải response xuống đúng mức quy định tương ứng mà không tiêu tốn thêm tài nguyên máy chủ!
+                                                        Nginx 1.30 sẽ tự động bắt giá trị này và giới hạn tốc độ truyền tải response xuống đúng mức quy định tương ứng mà không tiêu tốn thêm tài nguyên máy chủ!
                                                     </p>
                                                 </div>
                                             </div>
                                             <div v-else class="p-6 rounded-xl bg-slate-950/40 border border-dashed border-slate-800 text-center space-y-2">
                                                 <span class="text-2xl">⚡</span>
-                                                <p class="text-xs text-slate-400">Tính năng bóp băng thông động đang TẮT. Đánh dấu tích vào "Kích hoạt" ở trên để thiết lập quy tắc bóp tốc độ theo nhóm User.</p>
+                                                <p class="text-xs text-slate-400">Tính năng Rate Limit động đang TẮT. Đánh dấu tích vào "Kích hoạt" ở trên để thiết lập quy tắc giới hạn tốc độ theo nhóm User.</p>
                                             </div>
                                         </div>
                                     </div>
