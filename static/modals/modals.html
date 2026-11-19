@@ -1889,6 +1889,31 @@
                             </div>
                         </div>
 
+                        <!-- Rate Limit / Giới hạn tốc độ mạng Nginx -->
+                        <div class="p-3 rounded-xl bg-slate-900 border border-slate-700/80 space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <label class="font-semibold text-slate-200 text-xs flex items-center gap-1.5">
+                                    <span class="text-amber-400">⚡</span>
+                                    <span>Tốc Độ Băng Thông / Rate Limit (Nginx FastCGI)</span>
+                                </label>
+                                <span class="text-[10px] text-slate-400 font-mono">{{ !newPlan.rate_limit || newPlan.rate_limit === '0' ? 'Không giới hạn' : newPlan.rate_limit.toUpperCase() + '/s' }}</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <select v-model="newPlan.rate_limit" class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                    <option value="0">0 — Không giới hạn (Mặc định)</option>
+                                    <option value="256k">256k — 256 KB/giây (Tiết kiệm)</option>
+                                    <option value="512k">512k — 512 KB/giây (Gói Cơ bản)</option>
+                                    <option value="1m">1m — 1 MB/giây (Gói Tiêu chuẩn)</option>
+                                    <option value="2m">2m — 2 MB/giây (Gói Phổ thông)</option>
+                                    <option value="5m">5m — 5 MB/giây (Gói Nâng cao)</option>
+                                    <option value="10m">10m — 10 MB/giây (Gói VIP/Doanh nghiệp)</option>
+                                </select>
+                                <input type="text" v-model="newPlan.rate_limit" placeholder="Nhập tùy chỉnh (vd: 3m, 500k)"
+                                    class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-amber-300 font-mono text-xs focus:outline-none focus:border-amber-400">
+                            </div>
+                            <p class="text-[10px] text-slate-400">Tự động cấu hình <code>set $limit_rate</code> và <code>fastcgi_limit_rate</code> vào Nginx vhost của website khi gán gói này.</p>
+                        </div>
+
                         <!-- Quyền Terminal SSH -->
                         <div class="p-3 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-between">
                             <div>
@@ -2032,6 +2057,31 @@
                                 <input type="number" v-model.number="editPlanForm.max_ftp_accounts" min="0" max="1000" required
                                     class="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
                             </div>
+                        </div>
+
+                        <!-- Rate Limit / Giới hạn tốc độ mạng Nginx -->
+                        <div class="p-3 rounded-xl bg-slate-900 border border-slate-700/80 space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <label class="font-semibold text-slate-200 text-xs flex items-center gap-1.5">
+                                    <span class="text-amber-400">⚡</span>
+                                    <span>Tốc Độ Băng Thông / Rate Limit (Nginx FastCGI)</span>
+                                </label>
+                                <span class="text-[10px] text-slate-400 font-mono">{{ !editPlanForm.rate_limit || editPlanForm.rate_limit === '0' ? 'Không giới hạn' : editPlanForm.rate_limit.toUpperCase() + '/s' }}</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <select v-model="editPlanForm.rate_limit" class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-500">
+                                    <option value="0">0 — Không giới hạn (Mặc định)</option>
+                                    <option value="256k">256k — 256 KB/giây (Tiết kiệm)</option>
+                                    <option value="512k">512k — 512 KB/giây (Gói Cơ bản)</option>
+                                    <option value="1m">1m — 1 MB/giây (Gói Tiêu chuẩn)</option>
+                                    <option value="2m">2m — 2 MB/giây (Gói Phổ thông)</option>
+                                    <option value="5m">5m — 5 MB/giây (Gói Nâng cao)</option>
+                                    <option value="10m">10m — 10 MB/giây (Gói VIP/Doanh nghiệp)</option>
+                                </select>
+                                <input type="text" v-model="editPlanForm.rate_limit" placeholder="Nhập tùy chỉnh (vd: 3m, 500k)"
+                                    class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-amber-300 font-mono text-xs focus:outline-none focus:border-amber-400">
+                            </div>
+                            <p class="text-[10px] text-slate-400">Tự động cập nhật <code>set $limit_rate</code> vào Nginx vhost của các website con đang sử dụng gói này.</p>
                         </div>
 
                         <!-- Quyền Terminal SSH -->
@@ -4725,7 +4775,7 @@
                                 class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-medium text-xs focus:outline-none focus:border-amber-500 shadow-sm">
                                 <option :value="null" disabled>-- Chọn một Service Plan --</option>
                                 <option v-for="plan in (websitePlans.length > 0 ? websitePlans : servicePlans)" :key="'chg_dom_' + plan.id" :value="plan.id">
-                                    {{ plan.name }} ({{ (plan.disk_mb / 1024).toFixed(1) }}GB Disk, {{ plan.mem_mb }}MB RAM, {{ plan.cpu_pct }}% CPU)
+                                    {{ plan.name }} ({{ (plan.disk_mb / 1024).toFixed(1) }}GB Disk, {{ plan.mem_mb }}MB RAM, {{ plan.cpu_pct }}% CPU{{ plan.rate_limit && plan.rate_limit !== '0' ? ', ' + plan.rate_limit.toUpperCase() + '/s Rate' : '' }})
                                 </option>
                             </select>
                         </div>

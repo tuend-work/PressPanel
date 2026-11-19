@@ -85,6 +85,12 @@
                                             <span class="text-slate-500 dark:text-slate-400">📶 Băng thông / FTP:</span>
                                             <span class="font-bold text-slate-300 dark:text-slate-200 font-mono">{{ plan.bandwidth_mb > 0 ? (plan.bandwidth_mb/1024).toFixed(0)+'GB' : '∞' }} / {{ plan.max_ftp_accounts ?? 5 }} FTP</span>
                                         </div>
+                                        <div class="flex justify-between pt-2 text-slate-600 dark:text-slate-300">
+                                            <span class="text-slate-500 dark:text-slate-400">⚡ Rate Limit:</span>
+                                            <span class="font-bold font-mono" :class="plan.rate_limit && plan.rate_limit !== '0' ? 'text-amber-400' : 'text-emerald-400'">
+                                                {{ !plan.rate_limit || plan.rate_limit === '0' ? 'Không giới hạn' : plan.rate_limit.toUpperCase() + '/s' }}
+                                            </span>
+                                        </div>
                                         <div v-if="currentUser.role === 'admin'" class="flex justify-between items-center pt-2 text-slate-600 dark:text-slate-300">
                                             <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1">
                                                 <i data-lucide="terminal" class="w-3.5 h-3.5 text-emerald-500"></i>

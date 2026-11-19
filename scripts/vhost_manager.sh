@@ -601,6 +601,7 @@ EOF
                         -e "s|{{PHP_SOCK}}|$PHP_SOCK|g" \
                         -e "s|{{SSL_CERT}}|$SSL_CERT|g" \
                         -e "s|{{SSL_KEY}}|$SSL_KEY|g" \
+                        -e "s/{{RATE_LIMIT}}/${RATE_LIMIT:-0}/g" \
                         "$WPC_DIR/templates/vhost_nginx/default.tpl" > "/etc/nginx/conf.d/$DOMAIN.conf"
 
                     # Kiểm tra tính tương thích QUIC / HTTP3 và HTTP2 với phiên bản Nginx hiện tại
@@ -829,6 +830,7 @@ EOF_VH
                     -e "s|{{PHP_SOCK}}|$PHP_SOCK|g" \
                     -e "s|{{SSL_CERT}}|$SSL_CERT|g" \
                     -e "s|{{SSL_KEY}}|$SSL_KEY|g" \
+                    -e "s/{{RATE_LIMIT}}/${RATE_LIMIT:-0}/g" \
                     "$WPC_DIR/templates/vhost_nginx/default.tpl" > "/etc/nginx/conf.d/$NEW_DOMAIN.conf"
             fi
         fi

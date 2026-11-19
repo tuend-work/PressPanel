@@ -1212,7 +1212,8 @@ function showAlert(message) {
                     max_mysql_dbs: 10,
                     max_mongo_dbs: 2,
                     bandwidth_mb: 0,
-                    max_ftp_accounts: 5
+                    max_ftp_accounts: 5,
+                    rate_limit: '0'
                 });
                 const newPlan = ref({
                     name: '',
@@ -1233,7 +1234,8 @@ function showAlert(message) {
                     max_mysql_dbs: 10,
                     max_mongo_dbs: 2,
                     bandwidth_mb: 0,
-                    max_ftp_accounts: 5
+                    max_ftp_accounts: 5,
+                    rate_limit: '0'
                 });
 
                 watch(() => newPlan.value.plan_type, (val) => {
@@ -3444,7 +3446,8 @@ geo $limit_rate {
                                 max_mysql_dbs: 10,
                                 max_mongo_dbs: 2,
                                 bandwidth_mb: 0,
-                                max_ftp_accounts: 5
+                                max_ftp_accounts: 5,
+                                rate_limit: '0'
                             };
                             fetchServicePlans();
                         } else {
@@ -3478,7 +3481,8 @@ geo $limit_rate {
                         max_mysql_dbs: plan.max_mysql_dbs ?? plan.max_databases ?? 10,
                         max_mongo_dbs: plan.max_mongo_dbs ?? 2,
                         bandwidth_mb: plan.bandwidth_mb || 0,
-                        max_ftp_accounts: plan.max_ftp_accounts ?? 5
+                        max_ftp_accounts: plan.max_ftp_accounts ?? 5,
+                        rate_limit: plan.rate_limit || '0'
                     };
                     showEditPlanModal.value = true;
                 };

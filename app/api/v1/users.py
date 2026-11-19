@@ -445,6 +445,7 @@ class PlanCreate(BaseModel):
     max_mongo_dbs: int = Field(2, ge=0, le=1000)
     bandwidth_mb: int = Field(0, ge=0)
     max_ftp_accounts: int = Field(5, ge=0, le=1000)
+    rate_limit: str = Field("0", max_length=32)
 
 class PlanUpdate(BaseModel):
     name: Optional[str] = None
@@ -465,6 +466,7 @@ class PlanUpdate(BaseModel):
     max_mongo_dbs: Optional[int] = None
     bandwidth_mb: Optional[int] = None
     max_ftp_accounts: Optional[int] = None
+    rate_limit: Optional[str] = None
 
 @router.get("/plans")
 async def list_service_plans(
@@ -529,13 +531,14 @@ async def create_service_plan(req: PlanCreate, current_user: dict = Depends(requ
                 owner_id, name, package_type, plan_type, cpu_pct, mem_mb, disk_mb,
                 io_weight, pids_max, max_domains, max_databases, allow_ssh,
                 max_php_sites, max_wp_sites, max_nodejs_sites, max_python_sites, max_go_sites,
-                max_inodes, max_mysql_dbs, max_mongo_dbs, bandwidth_mb, max_ftp_accounts
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 100, 100, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                max_inodes, max_mysql_dbs, max_mongo_dbs, bandwidth_mb, max_ftp_accounts, rate_limit
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 100, 100, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             current_user["id"], req.name, req.package_type, actual_plan_type, req.cpu_pct, req.mem_mb, req.disk_mb,
             actual_max_domains, req.max_databases, 1 if req.allow_ssh else 0,
             req.max_php_sites, req.max_wp_sites, req.max_nodejs_sites, req.max_python_sites, req.max_go_sites,
-            req.max_inodes, req.max_mysql_dbs, req.max_mongo_dbs, req.bandwidth_mb, req.max_ftp_accounts
+            req.max_inodes, req.max_mysql_dbs, req.max_mongo_dbs, req.bandwidth_mb, req.max_ftp_accounts,
+            (req.rate_limit or "0").strip()
         ))
         await db.commit()
     except HTTPException:
@@ -621,11 +624,38 @@ async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict 
     if req.max_ftp_accounts is not None:
         updates.append("max_ftp_accounts = ?")
         params.append(req.max_ftp_accounts)
+    if req.rate_limit is not None:
+        updates.append("rate_limit = ?")
+        params.append(req.rate_limit.strip() or "0")
 
     if updates:
         params.append(plan_id)
         await db.execute(f"UPDATE packages SET {', '.join(updates)} WHERE id = ?", params)
         await db.commit()
+
+        # Tự động đồng bộ Rate Limit vào Nginx VirtualHost của các website đang dùng gói này
+        if req.rate_limit is not None:
+            clean_rate = req.rate_limit.strip() or "0"
+            try:
+                dom_cur = await db.execute("SELECT domain_name FROM domains WHERE package_id = ? AND webserver = 'nginx'", (plan_id,))
+                dom_rows = await dom_cur.fetchall()
+                reloaded = False
+                for d_row in dom_rows:
+                    vhost_path = f"/etc/nginx/conf.d/{d_row['domain_name']}.conf"
+                    if os.path.exists(vhost_path):
+                        with open(vhost_path, "r", encoding="utf-8") as vf:
+                            v_txt = vf.read()
+                        if "set $limit_rate" in v_txt:
+                            v_txt = re.sub(r"set \$limit_rate [^;]+;", f"set $limit_rate {clean_rate};", v_txt)
+                        else:
+                            v_txt = re.sub(r"location / \{", f"set $limit_rate {clean_rate};\n    fastcgi_limit_rate $limit_rate;\n\n    location / {{", v_txt, count=1)
+                        with open(vhost_path, "w", encoding="utf-8") as vf:
+                            vf.write(v_txt)
+                        reloaded = True
+                if reloaded:
+                    subprocess.run(["nginx", "-s", "reload"], check=False)
+            except Exception as e:
+                print(f"Warning: Failed to sync nginx rate limit for plan {plan_id}: {e}")
 
     await db.close()
     return {"status": "ok", "message": "Đã cập nhật gói dịch vụ thành công!"}

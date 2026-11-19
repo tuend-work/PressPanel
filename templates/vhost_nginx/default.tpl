@@ -67,6 +67,12 @@ server {
         return 405;
     }
 
+    # ========================================================
+    # 3. Rate Limit & Băng Thông Theo Gói Dịch Vụ (Service Plan)
+    # ========================================================
+    set $limit_rate {{RATE_LIMIT}};
+    fastcgi_limit_rate $limit_rate;
+
     location / {
         try_files $uri $uri/ /index.php?$args;
     }

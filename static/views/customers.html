@@ -396,6 +396,16 @@
                                                 </span>
                                             </div>
 
+                                            <div class="flex justify-between items-center">
+                                                <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                                    <i data-lucide="gauge" class="w-3.5 h-3.5 text-amber-500"></i>
+                                                    <span>Rate Limit:</span>
+                                                </span>
+                                                <span class="font-bold font-mono text-xs" :class="plan.rate_limit && plan.rate_limit !== '0' ? 'text-amber-500 dark:text-amber-400' : 'text-emerald-500 dark:text-emerald-400'">
+                                                    {{ !plan.rate_limit || plan.rate_limit === '0' ? 'Không giới hạn' : plan.rate_limit.toUpperCase() + '/s' }}
+                                                </span>
+                                            </div>
+
                                             <div class="flex justify-between items-center pt-1">
                                                 <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                                                     <i data-lucide="terminal" class="w-3.5 h-3.5 text-slate-400"></i>

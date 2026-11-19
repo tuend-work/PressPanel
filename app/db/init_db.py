@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS packages (
     max_mongo_dbs INTEGER NOT NULL DEFAULT 2,
     bandwidth_mb INTEGER NOT NULL DEFAULT 0,
     max_ftp_accounts INTEGER NOT NULL DEFAULT 5,
+    rate_limit TEXT NOT NULL DEFAULT '0',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -58,6 +59,7 @@ CREATE TABLE IF NOT EXISTS users (
     disk_mb INTEGER NOT NULL DEFAULT 5120,
     io_weight INTEGER NOT NULL,
     pids_max INTEGER NOT NULL,
+    rate_limit TEXT NOT NULL DEFAULT '0',
     status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'suspended')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (package_id) REFERENCES packages(id),
@@ -76,6 +78,7 @@ CREATE TABLE IF NOT EXISTS domains (
     ssl_expires_at DATETIME,
     allow_ssh INTEGER NOT NULL DEFAULT 1,
     is_system INTEGER NOT NULL DEFAULT 0,
+    rate_limit TEXT NOT NULL DEFAULT '0',
     status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'suspended')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

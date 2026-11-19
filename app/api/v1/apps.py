@@ -2375,6 +2375,20 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
             if req.echEnabled:
                 p_lines.append("ssl_ech on;")
             
+            if req.http3Enabled:
+                p_lines.extend([
+                    "",
+                    "# Default QUIC / HTTP3 Socket Listener (reuseport)",
+                    "server {",
+                    "    listen 443 quic reuseport default_server;",
+                    "    listen [::]:443 quic reuseport default_server;",
+                    "    listen 443 ssl default_server;",
+                    "    listen [::]:443 ssl default_server;",
+                    "    server_name _;",
+                    "    ssl_reject_handshake on;",
+                    "}"
+                ])
+            
             proto_tmp = "/tmp/wpc_nginx_proto.tmp"
             with open(proto_tmp, "w", encoding="utf-8") as pf:
                 pf.write("\n".join(p_lines) + "\n")

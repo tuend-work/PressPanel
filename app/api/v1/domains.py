@@ -277,6 +277,7 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
                COALESCE(p_dom.cpu_pct, p.cpu_pct, 100) as cpu_pct,
                COALESCE(p_dom.mem_mb, p.mem_mb, 1024) as mem_mb,
                COALESCE(p_dom.disk_mb, p.disk_mb, 5120) as disk_mb,
+               COALESCE(d.rate_limit, p_dom.rate_limit, p.rate_limit, '0') as rate_limit,
                COALESCE(d.status, 'active') as status,
                COALESCE(d.is_system, 0) as is_system,
                (SELECT COUNT(*) FROM databases db_sub WHERE db_sub.domain_id = d.id OR db_sub.db_name LIKE '%' || REPLACE(REPLACE(d.domain_name, '.', '_'), '-', '_') || '%') as db_count
@@ -439,14 +440,16 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
         u_mem = current_user.get("mem_mb", 1024) or 1024
         pkg_id = req.package_id
         pkg_allow_ssh = 1
+        pkg_rate_limit = "0"
 
         if req.package_id:
-            p_cur = await db.execute("SELECT cpu_pct, mem_mb, disk_mb, allow_ssh FROM packages WHERE id = ?", (req.package_id,))
+            p_cur = await db.execute("SELECT cpu_pct, mem_mb, disk_mb, allow_ssh, rate_limit FROM packages WHERE id = ?", (req.package_id,))
             wpkg = await p_cur.fetchone()
             if wpkg:
                 u_cpu = min(u_cpu, wpkg["cpu_pct"])
                 u_mem = min(u_mem, wpkg["mem_mb"])
                 pkg_allow_ssh = wpkg["allow_ssh"]
+                pkg_rate_limit = wpkg.get("rate_limit", "0") or "0"
 
         # Áp dụng khóa trần Cgroups v2 cho Hosting User và gom website con vào chung Cgroup
         reseller_id = str(current_user.get("parent_id", 1) or 1)
@@ -461,10 +464,27 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
             await run_gatekeeper("cgroup", "sync", hosting_username)
 
         await db.execute("""
-            INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version, package_id, allow_ssh)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (current_user["id"], clean_domain, doc_root, active_ws, req.php_version, pkg_id, pkg_allow_ssh))
+            INSERT INTO domains (user_id, domain_name, document_root, webserver, php_version, package_id, allow_ssh, rate_limit)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (current_user["id"], clean_domain, doc_root, active_ws, req.php_version, pkg_id, pkg_allow_ssh, pkg_rate_limit))
         await db.commit()
+
+        # Cập nhật Rate Limit vào Nginx VirtualHost nếu chạy Nginx
+        if active_ws == "nginx" and pkg_rate_limit != "0":
+            vhost_path = f"/etc/nginx/conf.d/{clean_domain}.conf"
+            if os.path.exists(vhost_path):
+                try:
+                    with open(vhost_path, "r", encoding="utf-8") as vf:
+                        v_txt = vf.read()
+                    if "set $limit_rate" in v_txt:
+                        v_txt = re.sub(r"set \$limit_rate [^;]+;", f"set $limit_rate {pkg_rate_limit};", v_txt)
+                    else:
+                        v_txt = re.sub(r"location / \{", f"set $limit_rate {pkg_rate_limit};\n    fastcgi_limit_rate $limit_rate;\n\n    location / {{", v_txt, count=1)
+                    with open(vhost_path, "w", encoding="utf-8") as vf:
+                        vf.write(v_txt)
+                    subprocess.run(["nginx", "-s", "reload"], check=False)
+                except Exception as r_err:
+                    print(f"Warning: Failed to inject initial rate_limit for {clean_domain}: {r_err}")
 
         # Tự động khởi tạo WordPress nếu được yêu cầu
         if req.install_wp:
@@ -511,7 +531,7 @@ async def change_domain_plan(domain_id: int, req: DomainChangePlanRequest, curre
         await db.close()
         raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
 
-    pkg_cur = await db.execute("SELECT id, name, cpu_pct, mem_mb, disk_mb, allow_ssh FROM packages WHERE id = ?", (req.package_id,))
+    pkg_cur = await db.execute("SELECT id, name, cpu_pct, mem_mb, disk_mb, allow_ssh, rate_limit FROM packages WHERE id = ?", (req.package_id,))
     pkg = await pkg_cur.fetchone()
     if not pkg:
         await db.close()
@@ -519,16 +539,33 @@ async def change_domain_plan(domain_id: int, req: DomainChangePlanRequest, curre
 
     u_cpu = pkg["cpu_pct"]
     u_mem = pkg["mem_mb"]
+    u_rate_limit = pkg.get("rate_limit", "0") or "0"
     if dom["owner_role"] == "user" and dom["parent_cpu"]:
         u_cpu = min(u_cpu, dom["parent_cpu"])
         u_mem = min(u_mem, dom["parent_mem"])
 
-    await db.execute("UPDATE domains SET package_id = ?, allow_ssh = ? WHERE id = ?", (pkg["id"], pkg["allow_ssh"], domain_id))
+    await db.execute("UPDATE domains SET package_id = ?, allow_ssh = ?, rate_limit = ? WHERE id = ?", (pkg["id"], pkg["allow_ssh"], u_rate_limit, domain_id))
     await db.commit()
     await db.close()
 
     isolated_user = domain_to_linux_user(dom["domain_name"])
     reseller_id = str(dom["parent_id"] or 1)
+
+    # Cập nhật Rate Limit tức thì vào Nginx VirtualHost của website này
+    vhost_path = f"/etc/nginx/conf.d/{dom['domain_name']}.conf"
+    if os.path.exists(vhost_path):
+        try:
+            with open(vhost_path, "r", encoding="utf-8") as vf:
+                v_txt = vf.read()
+            if "set $limit_rate" in v_txt:
+                v_txt = re.sub(r"set \$limit_rate [^;]+;", f"set $limit_rate {u_rate_limit};", v_txt)
+            else:
+                v_txt = re.sub(r"location / \{", f"set $limit_rate {u_rate_limit};\n    fastcgi_limit_rate $limit_rate;\n\n    location / {{", v_txt, count=1)
+            with open(vhost_path, "w", encoding="utf-8") as vf:
+                vf.write(v_txt)
+            subprocess.run(["nginx", "-s", "reload"], check=False)
+        except Exception as r_err:
+            print(f"Warning: Failed to update nginx rate limit: {r_err}")
 
     hosting_username = dom.get("owner_username", isolated_user)
     try:
