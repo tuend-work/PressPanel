@@ -3331,8 +3331,12 @@ geo $limit_rate {
                 });
 
                 const openChangeDomainPlanModal = (domain) => {
+                    if (isWebUser.value) {
+                        showAlert('Tài khoản Website User chỉ có quyền quản trị website, không được phép thay đổi gói dịch vụ!');
+                        return;
+                    }
                     selectedDomainForPlan.value = domain;
-                    targetDomainPlanId.value = domain.package_id || null;
+                    targetDomainPlanId.value = (domain.package_id && websitePlans.value.some(p => p.id === domain.package_id)) ? domain.package_id : null;
                     showDomainChangePlanModal.value = true;
                     if (servicePlans.value.length === 0) {
                         fetchServicePlans();

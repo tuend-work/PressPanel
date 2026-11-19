@@ -490,8 +490,8 @@ async def list_service_plans(
         FROM packages p
     """
     params = []
-    if current_user["role"] in ("reseller", "user") and current_user["username"] != "admin":
-        # Hosting user CHỈ nhìn thấy Website Plan
+    if (current_user["role"] in ("reseller", "user", "web_user") or current_user.get("web_domain_id")) and current_user["username"] != "admin":
+        # Hosting user / Web user CHỈ nhìn thấy Website Plan
         query += " WHERE p.plan_type = 'website' AND (p.owner_id = ? OR p.owner_id = 0)"
         params.append(current_user["id"])
     elif current_user["role"] == "admin":

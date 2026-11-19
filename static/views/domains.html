@@ -199,7 +199,11 @@
 
                                         <!-- Package -->
                                         <td class="py-2.5 px-1 text-center w-24">
-                                            <button @click="openChangeDomainPlanModal(d)" title="Bấm để đổi Website Package"
+                                            <span v-if="isWebUser" :title="d.plan_name"
+                                                class="px-2 py-0.5 rounded-md text-[10px] font-mono font-medium bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 truncate max-w-[90px] inline-block cursor-default">
+                                                {{ d.plan_name || 'Mặc định' }}
+                                            </span>
+                                            <button v-else @click="openChangeDomainPlanModal(d)" title="Bấm để đổi Website Package"
                                                 class="px-2 py-0.5 rounded-md text-[10px] font-mono font-medium bg-slate-100 dark:bg-slate-800/80 text-blue-600 dark:text-blue-400 border border-slate-800/80 dark:border-slate-700 hover:border-amber-400 transition truncate max-w-[90px] inline-block">
                                                 {{ d.plan_name || 'Website Starter' }}
                                             </button>

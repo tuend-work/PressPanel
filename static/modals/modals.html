@@ -4766,7 +4766,7 @@
                             <div class="text-right">
                                 <div class="text-[10px] text-slate-400">Gói hiện tại</div>
                                 <span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500 dark:text-amber-400 font-semibold text-[11px]">
-                                    {{ selectedDomainForPlan?.plan_name || 'Website Starter' }}
+                                    {{ selectedDomainForPlan?.plan_name || 'Mặc định (Theo Hosting User)' }}
                                 </span>
                             </div>
                         </div>
@@ -4777,7 +4777,7 @@
                             <select v-model="targetDomainPlanId"
                                 class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-medium text-xs focus:outline-none focus:border-amber-500 shadow-sm">
                                 <option :value="null">-- Mặc định (Theo hạn mức Hosting User) --</option>
-                                <option v-for="plan in websitePlans" :key="'chg_dom_' + plan.id" :value="plan.id">
+                                <option v-for="plan in websitePlans.filter(p => p.plan_type === 'website')" :key="'chg_dom_' + plan.id" :value="plan.id">
                                     {{ plan.name }} ({{ (plan.disk_mb / 1024).toFixed(1) }}GB Disk, {{ plan.mem_mb }}MB RAM, {{ plan.cpu_pct }}% CPU{{ plan.rate_limit && plan.rate_limit !== '0' ? ', ' + plan.rate_limit.toUpperCase() + '/s Rate' : ', Băng thông Unlimited' }})
                                 </option>
                             </select>

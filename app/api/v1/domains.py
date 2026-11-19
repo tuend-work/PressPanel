@@ -327,7 +327,10 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
         SELECT d.*, 
                u.username as owner_username, 
                u.email as owner_email, 
-               COALESCE(p_dom.name, 'Mặc định (Theo Hosting User)') as plan_name,
+               CASE 
+                   WHEN p_dom.id IS NOT NULL AND p_dom.plan_type = 'website' THEN p_dom.name
+                   ELSE 'Mặc định (Theo Hosting User)'
+               END as plan_name,
                p.name as user_plan_name,
                COALESCE(p_dom.cpu_pct, p.cpu_pct, 100) as cpu_pct,
                COALESCE(p_dom.mem_mb, p.mem_mb, 1024) as mem_mb,
@@ -569,7 +572,12 @@ async def change_domain_plan(domain_id: int, req: DomainChangePlanRequest, curre
         raise HTTPException(status_code=404, detail="Không tìm thấy website")
     dom = dict(dom)
 
-    # Kiểm tra quyền: Admin, Reseller (cha), hoặc chính chủ sở hữu
+    # Website User không có quyền đổi gói dịch vụ
+    if current_user.get("role") == "web_user" or current_user.get("web_domain_id"):
+        await db.close()
+        raise HTTPException(status_code=403, detail="Website User chỉ có quyền quản trị website, không được phép thay đổi gói dịch vụ!")
+
+    # Kiểm tra quyền: Admin, Reseller (cha), hoặc chính chủ sở hữu (Hosting User)
     if current_user["role"] == "reseller" and dom["user_id"] != current_user["id"] and dom["parent_id"] != current_user["id"]:
         await db.close()
         raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
