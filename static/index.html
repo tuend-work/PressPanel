@@ -81,6 +81,17 @@ function showAlert(message) {
         })();
     </script>
     <style>
+        html {
+            zoom: 0.8;
+        }
+        @supports not (zoom: 1) {
+            html {
+                transform: scale(0.8);
+                transform-origin: 0 0;
+                width: 125%;
+                height: 125%;
+            }
+        }
         body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -0.01em; }
         code, pre { font-family: 'JetBrains Mono', monospace; }
 
