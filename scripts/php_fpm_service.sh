@@ -273,10 +273,16 @@ After=network.target
 
 [Service]
 Type=notify
+RuntimeDirectory=php
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+ExecStartPre=/usr/bin/mkdir -p /run/php /tmp/lshttpd
 PIDFile=/run/php/php${PHP_VER}-fpm-%i.pid
 EnvironmentFile=-/etc/php/${PHP_VER}/fpm/users/%i.env
 ExecStart=${ACTUAL_BIN} --nodaemonize --fpm-config /etc/php/${PHP_VER}/fpm/users/%i.conf
 ExecReload=/bin/kill -USR2 \$MAINPID
+Restart=always
+RestartSec=3
 TimeoutSec=15
 Slice=presspanel-user-%i.slice
 
@@ -326,6 +332,7 @@ EOF
         ;;
 
     start|restart)
+        mkdir -p /run/php /tmp/lshttpd 2>/dev/null || true
         # Tự động vá lại ExecStart trong systemd template nếu trỏ nhầm binary PHP-FPM cũ
         HEALED_BIN=$(resolve_fpm_bin "$PHP_VER")
         for TEMPLATE_FILE in "/etc/systemd/system/presspanel-php${PHP_VER}-fpm@.service" "/etc/systemd/system/wpc-php${PHP_VER}-fpm@.service"; do
@@ -334,6 +341,10 @@ EOF
                     sed -i -E "s|^ExecStart=[^ ]+|ExecStart=${HEALED_BIN}|" "$TEMPLATE_FILE" 2>/dev/null || true
                     systemctl daemon-reload 2>/dev/null || true
                 fi
+            fi
+            if [ -f "$TEMPLATE_FILE" ] && ! grep -q "RuntimeDirectory=" "$TEMPLATE_FILE" 2>/dev/null; then
+                sed -i "/\[Service\]/a RuntimeDirectory=php\nRuntimeDirectoryMode=0755\nRuntimeDirectoryPreserve=yes\nExecStartPre=/usr/bin/mkdir -p /run/php /tmp/lshttpd\nRestart=always\nRestartSec=3" "$TEMPLATE_FILE" 2>/dev/null || true
+                systemctl daemon-reload 2>/dev/null || true
             fi
         done
         case "$PHP_VER" in

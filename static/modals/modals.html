@@ -2878,18 +2878,21 @@
 
                                     <!-- Top Actions & Summary -->
                                     <div class="flex items-center justify-between bg-[#141922] p-3 rounded-xl border border-[#222834]">
-                                        <div class="text-xs text-slate-300">
+                                        <div class="text-xs text-slate-300 flex items-center space-x-2">
                                             <span>Số lượng Website Pools: </span>
-                                            <span class="font-bold text-emerald-400">{{ getUserAppPools(selectedSettingApp).length }}</span>
+                                            <span class="font-bold text-emerald-400">{{ phpAppPools.length }}</span>
+                                            <button @click="fetchUserAppPools(selectedSettingApp)" :disabled="loadingPhpPools"
+                                                class="ml-2 text-slate-400 hover:text-white transition text-xs" title="Làm mới trạng thái">
+                                                <span :class="{'inline-block animate-spin': loadingPhpPools}">🔄</span>
+                                            </button>
                                         </div>
-                                        <button @click="restartAllUserAppPools(selectedSettingApp)"
-                                            class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition flex items-center space-x-1.5 shadow-sm">
-                                            <span>🔄</span>
-                                            <span>Khởi Động Lại Tất Cả Pools</span>
+                                        <button @click="restartAllUserAppPools(selectedSettingApp)" :disabled="restartingPools"
+                                            class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium text-xs transition flex items-center space-x-1.5 shadow-sm">
+                                            <span :class="{'inline-block animate-spin': restartingPools}">🔄</span>
+                                            <span>{{ restartingPools ? 'Đang Khởi Động Lại...' : 'Khởi Động Lại Tất Cả Pools' }}</span>
                                         </button>
                                     </div>
 
-                                    <!-- Danh sách Service Pools & Load Status gộp chung -->
                                     <div class="bg-[#12161f] rounded-xl border border-[#222834] overflow-hidden flex-1 flex flex-col min-h-[220px]">
                                         <div class="overflow-y-auto custom-scrollbar flex-1">
                                             <table class="w-full text-left text-xs table-fixed">
@@ -2899,12 +2902,12 @@
                                                         <th class="py-2.5 px-2 w-28">Linux User</th>
                                                         <th class="py-2.5 px-3">Service / Socket Path</th>
                                                         <th class="py-2.5 px-2 w-20 text-center">RAM</th>
-                                                        <th class="py-2.5 px-2 w-24 text-center">Trạng Thái</th>
-                                                        <th class="py-2.5 px-3 w-32 text-right">Thao Tác</th>
+                                                        <th class="py-2.5 px-2 w-28 text-center">Trạng Thái</th>
+                                                        <th class="py-2.5 px-3 w-40 text-right">Thao Tác</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody class="divide-y divide-[#1e2430] text-[11.5px]">
-                                                    <tr v-for="pool in getUserAppPools(selectedSettingApp)" :key="pool.domain" class="hover:bg-[#161c28] transition">
+                                                    <tr v-for="pool in phpAppPools" :key="pool.domain" class="hover:bg-[#161c28] transition">
                                                         <td class="py-2.5 px-3 font-medium text-slate-200 truncate" :title="pool.domain">
                                                             🌐 {{ pool.domain }}
                                                         </td>
@@ -2912,24 +2915,40 @@
                                                             👤 {{ pool.user }}
                                                         </td>
                                                         <td class="py-2.5 px-3 text-slate-400 font-mono text-[10.5px] truncate" :title="pool.socket">
-                                                            {{ pool.socket }}
+                                                            <div class="truncate">{{ pool.service }}</div>
+                                                            <div class="text-[10px] text-slate-500 truncate">{{ pool.socket }}</div>
                                                         </td>
                                                         <td class="py-2.5 px-2 text-center text-slate-300 font-mono text-[11px]">
                                                             {{ pool.memory }}
                                                         </td>
                                                         <td class="py-2.5 px-2 text-center">
-                                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                                                ● {{ pool.status }}
+                                                            <span v-if="pool.status === 'active'" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                                ● Active (Running)
+                                                            </span>
+                                                            <span v-else-if="pool.status === 'failed'" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20 animate-pulse">
+                                                                ✕ Failed
+                                                            </span>
+                                                            <span v-else class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                                                ⏹ {{ pool.status_text || 'Stopped' }}
                                                             </span>
                                                         </td>
-                                                        <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                                                        <td class="py-2.5 px-3 text-right whitespace-nowrap space-x-1.5">
+                                                            <button @click="restartSinglePool(selectedSettingApp, pool)"
+                                                                class="px-2 py-1 rounded bg-[#1e2634] hover:bg-slate-700 text-slate-300 text-[11px] font-medium transition" title="Khởi động lại pool này">
+                                                                🔄
+                                                            </button>
                                                             <button @click="navigateToWebsiteFpm(pool.domain)"
                                                                 class="px-2.5 py-1 rounded bg-[#1e2634] hover:bg-emerald-600 hover:text-white text-emerald-400 border border-emerald-500/30 text-[11px] font-medium transition">
                                                                 ⚙️ FPM Setting
                                                             </button>
                                                         </td>
                                                     </tr>
-                                                    <tr v-if="getUserAppPools(selectedSettingApp).length === 0">
+                                                    <tr v-if="loadingPhpPools && phpAppPools.length === 0">
+                                                        <td colspan="6" class="py-8 text-center text-slate-400 text-xs">
+                                                            ⏳ Đang kiểm tra trạng thái tiến trình thực tế...
+                                                        </td>
+                                                    </tr>
+                                                    <tr v-else-if="phpAppPools.length === 0">
                                                         <td colspan="6" class="py-8 text-center text-slate-500 text-xs">
                                                             Chưa có website nào được gán hoặc cấu hình chạy với runtime/dịch vụ này.
                                                         </td>

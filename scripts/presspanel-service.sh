@@ -16,6 +16,8 @@ fi
 
 cd "$INSTALL_DIR" 2>/dev/null || cd /opt/presspanel 2>/dev/null || cd /opt/wpc 2>/dev/null || true
 
+mkdir -p /run/php /tmp/lshttpd 2>/dev/null || true
+
 # Đọc cổng cấu hình từ presspanel.conf hoặc wpc.conf (mặc định 8888)
 PANEL_PORT=""
 if [ -f "$INSTALL_DIR/conf/presspanel.conf" ]; then

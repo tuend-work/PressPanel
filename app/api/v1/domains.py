@@ -1900,18 +1900,25 @@ def sync_user_php_scan_dir(isolated_user: str, php_ver: str, extensions: dict) -
                 elif os.path.exists(os.path.join(mdir, "20-pdo_mysql.ini")):
                     subprocess.run(["sudo", "ln", "-sf", os.path.join(mdir, "20-pdo_mysql.ini"), os.path.join(user_conf_d, "20-pdo_mysql.ini")], check=False)
 
-        # 4. Đảm bảo Systemd Template Service có EnvironmentFile
+        # 4. Đảm bảo Systemd Template Service có EnvironmentFile, RuntimeDirectory, Restart
         for tpl_service in [f"/etc/systemd/system/presspanel-php{clean_ver}-fpm@.service", f"/etc/systemd/system/wpc-php{clean_ver}-fpm@.service"]:
             if os.path.exists(tpl_service):
                 content = read_file_privileged(tpl_service)
-                if content and "EnvironmentFile" not in content:
-                    content = content.replace("[Service]\n", f"[Service]\nEnvironmentFile=-/etc/php/{clean_ver}/fpm/users/%i.env\n")
-                    tmp_s = f"/tmp/presspanel_svc_tpl_{int(time.time())}.service"
-                    with open(tmp_s, "w", encoding="utf-8") as tf:
-                        tf.write(content)
-                    subprocess.run(["sudo", "mv", "-f", tmp_s, tpl_service], check=False)
-                    subprocess.run(["sudo", "chmod", "644", tpl_service], check=False)
-                    subprocess.run(["sudo", "systemctl", "daemon-reload"], check=False)
+                if content:
+                    updated = False
+                    if "EnvironmentFile" not in content:
+                        content = content.replace("[Service]\n", f"[Service]\nEnvironmentFile=-/etc/php/{clean_ver}/fpm/users/%i.env\n")
+                        updated = True
+                    if "RuntimeDirectory=" not in content:
+                        content = content.replace("[Service]\n", "[Service]\nRuntimeDirectory=php\nRuntimeDirectoryMode=0755\nRuntimeDirectoryPreserve=yes\nExecStartPre=/usr/bin/mkdir -p /run/php /tmp/lshttpd\nRestart=always\nRestartSec=3\n")
+                        updated = True
+                    if updated:
+                        tmp_s = f"/tmp/presspanel_svc_tpl_{int(time.time())}.service"
+                        with open(tmp_s, "w", encoding="utf-8") as tf:
+                            tf.write(content)
+                        subprocess.run(["sudo", "mv", "-f", tmp_s, tpl_service], check=False)
+                        subprocess.run(["sudo", "chmod", "644", tpl_service], check=False)
+                        subprocess.run(["sudo", "systemctl", "daemon-reload"], check=False)
 
         return True
     except Exception as e:

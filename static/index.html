@@ -1519,6 +1519,56 @@ function showAlert(message) {
                     return app.category === 'php' || app.id === 'redis';
                 };
 
+                const phpAppPools = ref([]);
+                const loadingPhpPools = ref(false);
+                const restartingPools = ref(false);
+
+                const fetchUserAppPools = async (app) => {
+                    if (!app) return;
+                    loadingPhpPools.value = true;
+                    try {
+                        const cleanVer = app.id.replace('php', '');
+                        const dotVer = (cleanVer.length >= 2) ? `${cleanVer[0]}.${cleanVer.slice(1)}` : (app.default_version || cleanVer);
+                        if (app.category === 'php') {
+                            const res = await fetch(`/api/v1/apps/php/${dotVer}/pools`, {
+                                headers: { 'Authorization': `Bearer ${token.value}` }
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                phpAppPools.value = data.pools || [];
+                                return;
+                            }
+                        }
+                        phpAppPools.value = getUserAppPools(app);
+                    } catch (e) {
+                        phpAppPools.value = getUserAppPools(app);
+                    } finally {
+                        loadingPhpPools.value = false;
+                    }
+                };
+
+                const restartSinglePool = async (app, pool) => {
+                    if (!app || !pool) return;
+                    try {
+                        const cleanVer = app.id.replace('php', '');
+                        const dotVer = (cleanVer.length >= 2) ? `${cleanVer[0]}.${cleanVer.slice(1)}` : (app.default_version || cleanVer);
+                        const res = await fetch(`/api/v1/apps/php/${dotVer}/pool/${pool.user}/action`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token.value}` },
+                            body: JSON.stringify({ action: 'restart' })
+                        });
+                        const result = await res.json();
+                        if (res.ok) {
+                            showAlert(`Đã khởi động lại pool của user ${pool.user} thành công!`);
+                            await fetchUserAppPools(app);
+                        } else {
+                            showAlert(`Lỗi: ${result.detail || 'Không thể restart pool'}`, 'error');
+                        }
+                    } catch (e) {
+                        showAlert(`Lỗi: ${e.message}`, 'error');
+                    }
+                };
+
                 const getUserAppPools = (app) => {
                     if (!app || !domains.value) return [];
                     if (app.category === 'php') {
@@ -1531,11 +1581,12 @@ function showAlert(message) {
                                 return {
                                     domain: d.domain_name,
                                     user: u,
-                                    service: `wpc-php${dotVer}-fpm@${u}.service`,
+                                    service: `presspanel-php${dotVer}-fpm@${u}.service`,
                                     socket: `/run/php/php${dotVer}-fpm-${u}.sock`,
-                                    status: d.status === 'suspended' ? 'Suspended' : 'Active (Running)',
-                                    memory: d.mem_usage_mb ? `${d.mem_usage_mb} MB` : '22.8 MB',
-                                    cpu: d.cpu_usage_pct ? `${d.cpu_usage_pct}%` : '0.1%'
+                                    status: d.status === 'suspended' ? 'stopped' : 'active',
+                                    status_text: d.status === 'suspended' ? 'Suspended' : 'Active (Running)',
+                                    memory: d.mem_usage_mb ? `${d.mem_usage_mb} MB` : '0 MB',
+                                    cpu: d.cpu_usage_pct ? `${d.cpu_usage_pct}%` : '0.0%'
                                 };
                             });
                     } else if (app.id === 'redis') {
@@ -1544,10 +1595,11 @@ function showAlert(message) {
                             return {
                                 domain: d.domain_name,
                                 user: u,
-                                service: `wpc-redis@${u}.service`,
+                                service: `presspanel-redis@${u}.service`,
                                 socket: `/run/redis/redis-${u}.sock`,
-                                status: d.status === 'suspended' ? 'Suspended' : 'Active (Running)',
-                                memory: '8.4 MB',
+                                status: d.status === 'suspended' ? 'stopped' : 'active',
+                                status_text: d.status === 'suspended' ? 'Suspended' : 'Active (Running)',
+                                memory: '0 MB',
                                 cpu: '0.0%'
                             };
                         });
@@ -1569,14 +1621,27 @@ function showAlert(message) {
 
                 const restartAllUserAppPools = async (app) => {
                     if (!app) return;
-                    showAlert(`Đã gửi lệnh khởi động lại toàn bộ User Pools của ${app.name}!`);
+                    restartingPools.value = true;
+                    showAlert(`Đang khởi động lại toàn bộ Website Pools của ${app.name}...`);
                     try {
-                        await fetch(`/api/v1/apps/action`, {
+                        const cleanVer = app.id.replace('php', '');
+                        const dotVer = (cleanVer.length >= 2) ? `${cleanVer[0]}.${cleanVer.slice(1)}` : (app.default_version || cleanVer);
+                        const res = await fetch(`/api/v1/apps/php/${dotVer}/restart-pools`, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token.value}` },
-                            body: JSON.stringify({ app_id: app.id, action: 'restart' })
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token.value}` }
                         });
-                    } catch (e) {}
+                        const data = await res.json();
+                        if (res.ok) {
+                            showAlert(data.message || `Đã khởi động lại toàn bộ Website Pools của ${app.name} thành công!`);
+                        } else {
+                            showAlert(`Lỗi: ${data.detail || 'Không thể restart pools'}`, 'error');
+                        }
+                        await fetchUserAppPools(app);
+                    } catch (e) {
+                        showAlert(`Lỗi: ${e.message}`, 'error');
+                    } finally {
+                        restartingPools.value = false;
+                    }
                 };
 
                 // Dữ liệu Messages Box & Task List
@@ -2072,6 +2137,9 @@ geo $limit_rate {
                     if (app.category === 'php') {
                         fetchPhpExtensions(app.id);
                         fetchPhpDirectives(app.id);
+                        fetchUserAppPools(app);
+                    } else if (isUserIsolatedApp(app)) {
+                        fetchUserAppPools(app);
                     }
                 };
 
@@ -9341,6 +9409,7 @@ if ($host ~* ^www\\.(.*)$) {
                     appLoadStatus, loadingServiceStatus, fetchAppLoadStatus, showAlarmSettingModal,
                     truncateText, showInstallModal, selectedAppToInstall, selectedInstallVersion, openInstallAppModal, confirmInstallApp,
                     isUserIsolatedApp, getUserAppPools, navigateToWebsiteFpm, restartAllUserAppPools,
+                    phpAppPools, loadingPhpPools, restartingPools, fetchUserAppPools, restartSinglePool,
                     installingAppId, installedAppsCount, filteredApps,
                     activeInstallingAppIds, isAppInstalling,
                     getApp, fetchAppsList, handleAppAction, handleCheckPhpUpdate, checkingPhpUpdateId, openPhpMyAdmin, appVersions,

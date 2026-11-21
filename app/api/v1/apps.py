@@ -1347,6 +1347,11 @@ async def app_action(
                     pass
             return {"status": "ok", "message": f"Đã {req.action} và nạp lại cấu hình phpMyAdmin (Port 888) thành công!"}
 
+        if app.get("category") == "php":
+            clean_ver = req.app_id.replace("php", "")
+            dot_ver = f"{clean_ver[0]}.{clean_ver[1:]}" if len(clean_ver) >= 2 else (app.get("default_version") or clean_ver)
+            return await _action_all_php_pools(dot_ver, req.action)
+
         srv = resolve_app_service(req.app_id)
         candidates = get_app_service_candidates(req.app_id)
         if not srv and not candidates and not app.get("service"):
@@ -1769,6 +1774,272 @@ async def get_phpinfo(version: str = "8.2", current_user: dict = Depends(get_cur
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+async def _inspect_php_fpm_pool(user: str, dot_ver: str, domain_name: str, domain_status: str = "active") -> dict:
+    svc_primary = f"presspanel-php{dot_ver}-fpm@{user}.service"
+    svc_alt = f"wpc-php{dot_ver}-fpm@{user}.service"
+    sock_path = f"/run/php/php{dot_ver}-fpm-{user}.sock"
+    alt_sock_path = f"/tmp/lshttpd/php{dot_ver}-fpm-{user}.sock"
+
+    active_svc = svc_primary
+    state = "inactive"
+    substate = "dead"
+    mem_mb = "0 MB"
+    cpu_pct = "0.0%"
+
+    if os.name != "nt":
+        for svc in [svc_primary, svc_alt]:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "systemctl", "show", svc, "-p", "ActiveState", "-p", "SubState", "-p", "MemoryCurrent",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout_data, _ = await asyncio.wait_for(proc.communicate(), timeout=1.5)
+                lines = stdout_data.decode("utf-8", errors="ignore").splitlines()
+                vals = dict(l.split("=", 1) for l in lines if "=" in l)
+                act = vals.get("ActiveState", "inactive")
+                sub = vals.get("SubState", "dead")
+                mem_raw = vals.get("MemoryCurrent", "")
+
+                if act in ("active", "failed") or svc == svc_alt:
+                    active_svc = svc
+                    state = act
+                    substate = sub
+                    if mem_raw and mem_raw.isdigit():
+                        mem_mb = f"{round(int(mem_raw) / 1024 / 1024, 1)} MB"
+                    break
+            except Exception:
+                pass
+
+        if state == "active" and mem_mb == "0 MB":
+            try:
+                ps_proc = await asyncio.create_subprocess_exec(
+                    "ps", "-u", user, "-o", "rss,%cpu,comm", "--no-headers",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                ps_out, _ = await asyncio.wait_for(ps_proc.communicate(), timeout=1.0)
+                total_rss_kb = 0
+                total_cpu = 0.0
+                for pl in ps_out.decode("utf-8", errors="ignore").splitlines():
+                    p_parts = pl.strip().split(None, 2)
+                    if len(p_parts) >= 2 and ("php-fpm" in pl or "lsphp" in pl):
+                        total_rss_kb += int(p_parts[0]) if p_parts[0].isdigit() else 0
+                        try:
+                            total_cpu += float(p_parts[1])
+                        except ValueError:
+                            pass
+                if total_rss_kb > 0:
+                    mem_mb = f"{round(total_rss_kb / 1024, 1)} MB"
+                if total_cpu > 0:
+                    cpu_pct = f"{round(total_cpu, 1)}%"
+            except Exception:
+                pass
+
+    sock_exists = os.path.exists(sock_path) or os.path.exists(alt_sock_path)
+
+    if state == "active":
+        normalized_status = "active"
+        status_text = "Active (Running)"
+    elif state == "failed" or substate == "failed":
+        normalized_status = "failed"
+        status_text = "Failed"
+    elif domain_status == "suspended":
+        normalized_status = "stopped"
+        status_text = "Suspended"
+    else:
+        normalized_status = "stopped"
+        status_text = "Stopped"
+
+    return {
+        "domain": domain_name,
+        "user": user,
+        "service": active_svc,
+        "socket": sock_path,
+        "socket_exists": sock_exists,
+        "status": normalized_status,
+        "status_text": status_text,
+        "memory": mem_mb,
+        "cpu": cpu_pct
+    }
+
+async def _action_all_php_pools(dot_ver: str, action: str) -> dict:
+    from app.db.session import get_db_connection
+    from app.api.v1.domains import domain_to_linux_user
+
+    if os.name != "nt":
+        subprocess.run(["sudo", "mkdir", "-p", "/run/php", "/tmp/lshttpd"], check=False)
+        subprocess.run(["sudo", "chmod", "755", "/run/php"], check=False)
+        subprocess.run(["sudo", "chmod", "1777", "/tmp/lshttpd"], check=False)
+
+    db = await get_db_connection()
+    try:
+        cursor = await db.execute("SELECT domain_name, php_version FROM domains")
+        rows = await cursor.fetchall()
+    finally:
+        await db.close()
+
+    executed = []
+    seen = set()
+    num_v = dot_ver.replace(".", "")
+
+    for r in rows:
+        d_php = str(r["php_version"] or "").strip()
+        if d_php in (dot_ver, num_v, f"php{num_v}"):
+            u = domain_to_linux_user(r["domain_name"])
+            if u not in seen:
+                seen.add(u)
+                svc = f"presspanel-php{dot_ver}-fpm@{u}.service"
+                alt_svc = f"wpc-php{dot_ver}-fpm@{u}.service"
+                if os.name != "nt":
+                    res = subprocess.run(["sudo", "systemctl", action, svc], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    if res.returncode != 0:
+                        subprocess.run(["sudo", "systemctl", action, alt_svc], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                executed.append(u)
+
+    conf_dir = f"/etc/php/{dot_ver}/fpm/users"
+    if os.path.isdir(conf_dir):
+        for entry in os.listdir(conf_dir):
+            if entry.endswith(".conf"):
+                u = entry[:-5]
+                if u not in seen:
+                    seen.add(u)
+                    svc = f"presspanel-php{dot_ver}-fpm@{u}.service"
+                    alt_svc = f"wpc-php{dot_ver}-fpm@{u}.service"
+                    if os.name != "nt":
+                        res = subprocess.run(["sudo", "systemctl", action, svc], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        if res.returncode != 0:
+                            subprocess.run(["sudo", "systemctl", action, alt_svc], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    executed.append(u)
+
+    action_label = {"restart": "khởi động lại", "start": "khởi động", "stop": "dừng", "reload": "tải lại"}.get(action, action)
+    return {
+        "status": "ok",
+        "message": f"Đã {action_label} thành công {len(executed)} Website Pools của PHP {dot_ver}!",
+        "count": len(executed)
+    }
+
+class PoolActionRequest(BaseModel):
+    action: str = "restart"
+
+@router.get("/php/{version}/pools")
+async def get_php_pools(version: str, current_user: dict = Depends(get_current_user)):
+    clean_ver = version.lower().replace("php", "").strip()
+    if "." not in clean_ver and len(clean_ver) >= 2:
+        dot_ver = f"{clean_ver[0]}.{clean_ver[1:]}"
+    else:
+        dot_ver = clean_ver
+    num_ver = dot_ver.replace(".", "")
+
+    from app.db.session import get_db_connection
+    from app.api.v1.domains import domain_to_linux_user
+
+    db = await get_db_connection()
+    try:
+        if current_user.get("role") == "admin":
+            cursor = await db.execute("SELECT domain_name, php_version, status, user_id FROM domains ORDER BY id ASC")
+        elif current_user.get("role") == "reseller":
+            cursor = await db.execute(
+                "SELECT d.domain_name, d.php_version, d.status, d.user_id FROM domains d JOIN users u ON d.user_id = u.id WHERE u.id = ? OR u.parent_id = ? ORDER BY d.id ASC",
+                (current_user["id"], current_user["id"])
+            )
+        elif current_user.get("web_domain_id"):
+            cursor = await db.execute("SELECT domain_name, php_version, status, user_id FROM domains WHERE id = ?", (current_user["web_domain_id"],))
+        else:
+            cursor = await db.execute("SELECT domain_name, php_version, status, user_id FROM domains WHERE user_id = ? ORDER BY id ASC", (current_user["id"],))
+        rows = await cursor.fetchall()
+    finally:
+        await db.close()
+
+    matched_domains = []
+    seen_users = set()
+    for r in rows:
+        d_php = str(r["php_version"] or "").strip()
+        if d_php in (dot_ver, num_ver, f"php{num_ver}"):
+            matched_domains.append(r)
+
+    pools_data = []
+    for d in matched_domains:
+        d_name = d["domain_name"]
+        u = domain_to_linux_user(d_name)
+        seen_users.add(u)
+        pool_info = await _inspect_php_fpm_pool(u, dot_ver, d_name, d["status"])
+        pools_data.append(pool_info)
+
+    if current_user.get("role") == "admin":
+        conf_dir = f"/etc/php/{dot_ver}/fpm/users"
+        if os.path.isdir(conf_dir):
+            for entry in os.listdir(conf_dir):
+                if entry.endswith(".conf"):
+                    u = entry[:-5]
+                    if u not in seen_users:
+                        seen_users.add(u)
+                        pool_info = await _inspect_php_fpm_pool(u, dot_ver, u, "active")
+                        pools_data.append(pool_info)
+
+    return {
+        "status": "ok",
+        "version": dot_ver,
+        "total_pools": len(pools_data),
+        "pools": pools_data
+    }
+
+@router.post("/php/{version}/restart-pools")
+async def restart_php_pools(version: str, current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ quản trị viên mới có quyền khởi động lại toàn bộ pools.")
+
+    clean_ver = version.lower().replace("php", "").strip()
+    if "." not in clean_ver and len(clean_ver) >= 2:
+        dot_ver = f"{clean_ver[0]}.{clean_ver[1:]}"
+    else:
+        dot_ver = clean_ver
+
+    return await _action_all_php_pools(dot_ver, "restart")
+
+@router.post("/php/{version}/pool/{user}/action")
+async def action_php_single_pool(version: str, user: str, req: PoolActionRequest, current_user: dict = Depends(get_current_user)):
+    clean_ver = version.lower().replace("php", "").strip()
+    if "." not in clean_ver and len(clean_ver) >= 2:
+        dot_ver = f"{clean_ver[0]}.{clean_ver[1:]}"
+    else:
+        dot_ver = clean_ver
+
+    if current_user.get("role") != "admin":
+        from app.db.session import get_db_connection
+        db = await get_db_connection()
+        try:
+            cursor = await db.execute("SELECT id, user_id FROM domains WHERE domain_name = ? OR domain_name LIKE ?", (user, f"%{user}%"))
+            dom = await cursor.fetchone()
+            if not dom or dom["user_id"] != current_user["id"]:
+                raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý pool này.")
+        finally:
+            await db.close()
+
+    if os.name != "nt":
+        subprocess.run(["sudo", "mkdir", "-p", "/run/php", "/tmp/lshttpd"], check=False)
+
+    svc = f"presspanel-php{dot_ver}-fpm@{user}.service"
+    alt_svc = f"wpc-php{dot_ver}-fpm@{user}.service"
+
+    action = req.action.lower()
+    if action not in ("restart", "start", "stop", "reload"):
+        raise HTTPException(status_code=400, detail="Hành động không hợp lệ")
+
+    if os.name != "nt":
+        res = subprocess.run(["sudo", "systemctl", action, svc], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode != 0:
+            res2 = subprocess.run(["sudo", "systemctl", action, alt_svc], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if res2.returncode != 0:
+                raise HTTPException(status_code=500, detail=f"Lỗi thao tác {action} service {svc}: {res.stderr.strip() or res2.stderr.strip()}")
+
+    pool_info = await _inspect_php_fpm_pool(user, dot_ver, user)
+    return {
+        "status": "ok",
+        "message": f"Đã thực hiện {action} pool {user} thành công.",
+        "pool": pool_info
+    }
 
 # ==========================================
 # REWRITE WEBSERVER CONFIG (TÁI TẠO CẤU HÌNH TỪ TEMPLATE & DATABASE)

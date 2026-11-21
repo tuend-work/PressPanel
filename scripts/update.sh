@@ -315,10 +315,16 @@ After=network.target
 
 [Service]
 Type=notify
+RuntimeDirectory=php
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+ExecStartPre=/usr/bin/mkdir -p /run/php /tmp/lshttpd
 PIDFile=/run/php/php${pver}-fpm-%i.pid
 EnvironmentFile=-/etc/php/${pver}/fpm/users/%i.env
 ExecStart=${FPM_BIN_FOUND} --nodaemonize --fpm-config /etc/php/${pver}/fpm/users/%i.conf
 ExecReload=/bin/kill -USR2 \$MAINPID
+Restart=always
+RestartSec=3
 TimeoutSec=15
 Slice=presspanel-user-%i.slice
 
@@ -329,6 +335,14 @@ EOF
         ln -sf "$TPL" "/etc/systemd/system/wpc-php${pver}-fpm@.service" 2>/dev/null || true
     fi
 done
+
+# Đảm bảo tmpfiles.d tự động tạo thư mục runtime khi reboot
+cat << 'EOF_TMP' > /etc/tmpfiles.d/php-fpm.conf
+d /run/php 0755 root root -
+d /tmp/lshttpd 1777 root root -
+EOF_TMP
+systemd-tmpfiles --create /etc/tmpfiles.d/php-fpm.conf 2>/dev/null || true
+mkdir -p /run/php /tmp/lshttpd 2>/dev/null || true
 systemctl daemon-reload 2>/dev/null || true
 
 # Tự động sửa lỗi 'cannot get uid for user www-data' trong pool config trên RHEL/AlmaLinux/CentOS
@@ -628,8 +642,7 @@ fi
 # Đồng bộ symlink sang /etc/ssl/wpc
 ln -sf /etc/ssl/presspanel/selfsigned.key /etc/ssl/wpc/selfsigned.key 2>/dev/null || true
 ln -sf /etc/ssl/presspanel/selfsigned.crt /etc/ssl/wpc/selfsigned.crt 2>/dev/null || true
-    chmod 644 /etc/ssl/wpc/selfsigned.crt /etc/ssl/wpc/selfsigned.key 2>/dev/null || true
-fi
+chmod 644 /etc/ssl/wpc/selfsigned.crt /etc/ssl/wpc/selfsigned.key 2>/dev/null || true
 
 # Restart Webserver để nạp lại danh sách supplementary groups cho nobody & www-data
 if systemctl is-active --quiet lsws 2>/dev/null; then
@@ -747,12 +760,17 @@ for u_conf in /etc/php/*/fpm/users/*.conf; do
     fi
 done
 
-# Bổ sung EnvironmentFile vào các file systemd template service nếu còn thiếu
+# Bổ sung EnvironmentFile, RuntimeDirectory, Restart vào các file systemd template service nếu còn thiếu
 for tpl in /etc/systemd/system/presspanel-php*-fpm@.service /etc/systemd/system/wpc-php*-fpm@.service; do
     [ -f "$tpl" ] || continue
     pver=$(echo "$tpl" | grep -o -E '[0-9]+\.[0-9]+' | head -1)
-    if [ -n "$pver" ] && ! grep -q "EnvironmentFile" "$tpl"; then
-        sed -i "/\[Service\]/a EnvironmentFile=-\/etc\/php\/${pver}\/fpm\/users\/%i.env" "$tpl" 2>/dev/null || true
+    if [ -n "$pver" ]; then
+        if ! grep -q "EnvironmentFile" "$tpl"; then
+            sed -i "/\[Service\]/a EnvironmentFile=-\/etc\/php\/${pver}\/fpm\/users\/%i.env" "$tpl" 2>/dev/null || true
+        fi
+        if ! grep -q "RuntimeDirectory=" "$tpl"; then
+            sed -i "/\[Service\]/a RuntimeDirectory=php\nRuntimeDirectoryMode=0755\nRuntimeDirectoryPreserve=yes\nExecStartPre=/usr/bin/mkdir -p /run/php /tmp/lshttpd\nRestart=always\nRestartSec=3" "$tpl" 2>/dev/null || true
+        fi
     fi
 done
 systemctl daemon-reload 2>/dev/null || true
