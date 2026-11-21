@@ -415,6 +415,15 @@ echo "[+] Kiểm tra và cấu hình cách ly tiến trình /proc (hidepid=2)...
 groupadd -r procview 2>/dev/null || true
 usermod -aG procview "$PANEL_USER" 2>/dev/null || true
 usermod -aG procview root 2>/dev/null || true
+for admin_u in almalinux ubuntu rocky centos; do
+    id "$admin_u" &>/dev/null && usermod -aG procview "$admin_u" 2>/dev/null || true
+done
+for u in $(getent group wheel 2>/dev/null | cut -d: -f4 | tr ',' ' '); do
+    [ -n "$u" ] && usermod -aG procview "$u" 2>/dev/null || true
+done
+for u in $(getent group sudo 2>/dev/null | cut -d: -f4 | tr ',' ' '); do
+    [ -n "$u" ] && usermod -aG procview "$u" 2>/dev/null || true
+done
 PROCVIEW_GID=$(getent group procview 2>/dev/null | cut -d: -f3 || echo "")
 if [ -n "$PROCVIEW_GID" ]; then
     mount -o remount,rw,hidepid=2,gid="$PROCVIEW_GID" /proc 2>/dev/null || true
@@ -468,13 +477,18 @@ for user_home in /home/*; do
         find "$user_home/public_html" -type f -exec chmod 644 {} + 2>/dev/null || true
     fi
 
-    # 4. Khóa quyền Linux SSH cho Hosting User này (chỉ cho phép thao tác web)
+    # 4. Khóa quyền Linux SSH cho Hosting User thuần túy (bỏ qua tài khoản hệ thống / admin / wheel / sudo)
+    if [ "$u_name" = "root" ] || [ "$u_name" = "almalinux" ] || [ "$u_name" = "ubuntu" ] || [ "$u_name" = "rocky" ] || [ "$u_name" = "centos" ]; then
+        continue
+    fi
+    if id -nG "$u_name" 2>/dev/null | grep -qE '\b(wheel|sudo)\b'; then
+        usermod -aG procview "$u_name" 2>/dev/null || true
+        continue
+    fi
     NOLOGIN_SHELL="/usr/sbin/nologin"
     [ -x "$NOLOGIN_SHELL" ] || NOLOGIN_SHELL="/sbin/nologin"
     [ -x "$NOLOGIN_SHELL" ] || NOLOGIN_SHELL="/bin/false"
-    if [ "$u_name" != "root" ]; then
-        usermod -s "$NOLOGIN_SHELL" "$u_name" 2>/dev/null || true
-    fi
+    usermod -s "$NOLOGIN_SHELL" "$u_name" 2>/dev/null || true
 done
 
 # Khóa quyền SSH của tài khoản linux admin nếu tồn tại

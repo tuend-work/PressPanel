@@ -199,6 +199,15 @@ echo "[+] Thiết lập cách ly tiến trình /proc (hidepid=2) cho user thư�
 groupadd -r procview 2>/dev/null || true
 usermod -aG procview "$PANEL_USER" 2>/dev/null || true
 usermod -aG procview root 2>/dev/null || true
+for admin_u in almalinux ubuntu rocky centos; do
+    id "$admin_u" &>/dev/null && usermod -aG procview "$admin_u" 2>/dev/null || true
+done
+for u in $(getent group wheel 2>/dev/null | cut -d: -f4 | tr ',' ' '); do
+    [ -n "$u" ] && usermod -aG procview "$u" 2>/dev/null || true
+done
+for u in $(getent group sudo 2>/dev/null | cut -d: -f4 | tr ',' ' '); do
+    [ -n "$u" ] && usermod -aG procview "$u" 2>/dev/null || true
+done
 PROCVIEW_GID=$(getent group procview 2>/dev/null | cut -d: -f3 || echo "")
 if [ -n "$PROCVIEW_GID" ]; then
     mount -o remount,rw,hidepid=2,gid="$PROCVIEW_GID" /proc 2>/dev/null || true
@@ -402,6 +411,15 @@ echo "[+] Cấu hình bảo mật cách ly tiến trình (/proc hidepid=2)..."
 groupadd -r procview 2>/dev/null || true
 usermod -aG procview "$PANEL_USER" 2>/dev/null || true
 usermod -aG procview root 2>/dev/null || true
+for admin_u in almalinux ubuntu rocky centos; do
+    id "$admin_u" &>/dev/null && usermod -aG procview "$admin_u" 2>/dev/null || true
+done
+for u in $(getent group wheel 2>/dev/null | cut -d: -f4 | tr ',' ' '); do
+    [ -n "$u" ] && usermod -aG procview "$u" 2>/dev/null || true
+done
+for u in $(getent group sudo 2>/dev/null | cut -d: -f4 | tr ',' ' '); do
+    [ -n "$u" ] && usermod -aG procview "$u" 2>/dev/null || true
+done
 PROCVIEW_GID=$(getent group procview 2>/dev/null | cut -d: -f3 || echo "")
 if [ -n "$PROCVIEW_GID" ]; then
     mount -o remount,rw,hidepid=2,gid="$PROCVIEW_GID" /proc 2>/dev/null || true
@@ -423,11 +441,18 @@ NOLOGIN_SHELL="/usr/sbin/nologin"
 [ -x "$NOLOGIN_SHELL" ] || NOLOGIN_SHELL="/sbin/nologin"
 [ -x "$NOLOGIN_SHELL" ] || NOLOGIN_SHELL="/bin/false"
 
-# Khóa Linux SSH cho tất cả hosting users trong /home
+# Khóa Linux SSH cho tất cả hosting users trong /home (bỏ qua tài khoản hệ thống / admin / wheel / sudo)
 for user_home in /home/*; do
     [ -d "$user_home" ] || continue
     u_name=$(basename "$user_home")
-    if id "$u_name" &>/dev/null && [ "$u_name" != "root" ]; then
+    if [ "$u_name" = "root" ] || [ "$u_name" = "almalinux" ] || [ "$u_name" = "ubuntu" ] || [ "$u_name" = "rocky" ] || [ "$u_name" = "centos" ]; then
+        continue
+    fi
+    if id -nG "$u_name" 2>/dev/null | grep -qE '\b(wheel|sudo)\b'; then
+        usermod -aG procview "$u_name" 2>/dev/null || true
+        continue
+    fi
+    if id "$u_name" &>/dev/null; then
         usermod -s "$NOLOGIN_SHELL" "$u_name" 2>/dev/null || true
     fi
 done
