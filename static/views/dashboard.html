@@ -296,7 +296,7 @@
                         <!-- B. GIAO DIỆN TỔNG QUAN DÀNH CHO ADMIN CẤP CAO -->
                         <!-- ========================================== -->
                         <div v-else class="space-y-6">
-                            <!-- 1. HÀNG 4 CIRCLE GAUGE WIDGETS CHUẨN WPC -->
+                            <!-- 1. HÀNG 4 CIRCLE GAUGE WIDGETS -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                 <!-- Gauge 1: Load Status -->
                                 <div class="wp-card p-5 flex flex-col justify-between hover:shadow-md transition">
@@ -420,7 +420,7 @@
                                 </div>
                             </div>
 
-                            <!-- 2. CARD OVERVIEW (TỔNG QUAN TÀI NGUYÊN WPC CHO ADMIN) -->
+                            <!-- 2. CARD OVERVIEW (TỔNG QUAN TÀI NGUYÊN CHO ADMIN) -->
                             <div class="wp-card p-5">
                                 <div class="flex justify-between items-center pb-3 mb-4 border-b border-slate-800/60">
                                     <h3 class="text-sm font-bold text-white">Overview (Tổng Quan Toàn Máy Chủ)</h3>
@@ -497,7 +497,7 @@
 
                         <!-- 3. HÀNG 2 CỘT: SOFTWARE & TRAFFIC (CHỈ ADMIN MỚI CẦN XEM/QUẢN LÝ APP STORE SERVER) -->
                         <div v-if="currentUser.role === 'admin'" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <!-- Cột Trái: Software (WPC Style) -->
+                            <!-- Cột Trái: Software -->
                             <div class="wp-card p-5 flex flex-col justify-between">
                                 <div>
                                     <div class="flex justify-between items-center pb-3 mb-4 border-b border-slate-800/60">
@@ -652,7 +652,7 @@
                                 </div>
                             </div>
 
-                            <!-- Cột Phải: Traffic Realtime Graph (WPC Style) -->
+                            <!-- Cột Phải: Traffic Realtime Graph -->
                             <div class="wp-card p-5">
                                 <div class="flex justify-between items-center pb-3 mb-3 border-b border-slate-800/60">
                                     <div class="flex items-center space-x-3 text-xs">

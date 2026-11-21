@@ -81,18 +81,12 @@ function showAlert(message) {
         })();
     </script>
     <style>
-        /* ========================================================================== */
-        /* NATIVE 80% DENSITY / SCALE SYSTEM (W3C Standard Root REM Scaling)          */
-        /* Thay vì dùng CSS hack zoom: 0.8, toàn bộ hệ thống giao diện được scale      */
-        /* tự nhiên 80% dựa trên chuẩn Root REM (1rem = 12.8px = 80% của 16px).       */
-        /* Tất cả typography, padding, margin, width, height, radius, modal đều chuẩn */
-        /* ========================================================================== */
+        /* Core Layout & Typography Scale */
         html {
-            font-size: 80% !important; /* 12.8px base (80% of standard 16px) */
+            font-size: 80% !important;
             -webkit-text-size-adjust: 100%;
         }
 
-        /* Native proportional scaling for arbitrary typography */
         .text-\[8px\], [class*="text-[8px]"]       { font-size: 0.5rem !important; }
         .text-\[8\.5px\], [class*="text-[8.5px]"] { font-size: 0.53125rem !important; }
         .text-\[9px\], [class*="text-[9px]"]       { font-size: 0.5625rem !important; }
@@ -103,7 +97,6 @@ function showAlert(message) {
         .text-\[14px\], [class*="text-[14px]"]     { font-size: 0.875rem !important; }
         .text-\[15px\], [class*="text-[15px]"]     { font-size: 0.9375rem !important; }
 
-        /* Native proportional scaling for sidebar and layout widths */
         .md\:w-\[220px\], [class*="md:w-[220px]"] { width: 13.75rem !important; }
         .w-\[70px\], [class*="w-[70px]"]           { width: 4.375rem !important; }
         .min-w-\[700px\], [class*="min-w-[700px]"] { min-width: 43.75rem !important; }
@@ -633,13 +626,13 @@ function showAlert(message) {
             </footer>
         </div>
 
-        <!-- 2. GIAO DIỆN CHÍNH WPCLOUD CONTROL PANEL (KHI ĐÃ AUTH) -->
+        <!-- 2. GIAO DIỆN CHÍNH (KHI ĐÃ AUTH) -->
         <div v-else class="min-h-screen flex flex-col md:flex-row transition-colors duration-200" :class="isDarkMode ? 'bg-[#0c1017]' : 'bg-[#f3f6fa]'">
-            <!-- Sidebar Trái PressPanel (Dark Navy #0d1624, responsive native rem width 13.75rem = 176px at 80%) -->
+            <!-- Sidebar -->
             <aside class="w-full md:w-[13.75rem] bg-[#0d1624] text-slate-300 flex flex-col justify-between shrink-0 shadow-xl z-20">
                 <div class="overflow-y-auto sidebar-scrollbar flex-1 flex flex-col justify-between">
                     <div>
-                        <!-- Logo Header WPCloud (Bấm vào để nạp lại trang chính) -->
+                        <!-- Logo Header (Bấm vào để nạp lại trang chính) -->
                         <div class="h-16 px-5 flex items-center space-x-3 border-b border-slate-800/80 bg-[#0a111c] cursor-pointer hover:bg-slate-800/50 transition group select-none"
                              @click="loadHomePage" title="Về trang chính Tổng quan">
                             <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/30 font-bold group-hover:scale-105 transition-transform">
@@ -1190,7 +1183,7 @@ function showAlert(message) {
                     return list;
                 });
 
-                // Selection & Batch Action State (WPC Style)
+                // Selection & Batch Action State
                 const selectedCustomerIds = ref([]);
                 const selectedDomainIds = ref([]);
                 const selectedSubIds = ref([]);
@@ -1323,7 +1316,7 @@ function showAlert(message) {
 
                 const newDomain = ref({ domain_name: '', webserver: 'ols', php_version: '8.2', install_wp: true, package_id: null });
 
-                // WPC 360 UI: Tabs chi tiết cho Website & Modal đổi PHP
+                // Tabs chi tiết cho Website & Modal đổi PHP
                 const activeDomainSubTab = ref({});
                 const showChangePhpModal = ref(false);
                 const targetPhpDomain = ref(null);
@@ -1586,7 +1579,7 @@ function showAlert(message) {
                     } catch (e) {}
                 };
 
-                // Dữ liệu Messages Box & Task List (WPC Style)
+                // Dữ liệu Messages Box & Task List
                 const showMessagesBox = ref(false);
                 const msgBoxTab = ref('tasks');
                 const runningTasks = ref([]);
@@ -1644,7 +1637,7 @@ function showAlert(message) {
 
                         // Nếu có tác vụ hoàn tất, tự động tải lại App Store và các dịch vụ liên quan!
                         if (taskJustFinished) {
-                            console.log('[WPCloud] Tác vụ nền hoàn tất -> Tự động nạp lại danh sách App Store!');
+                            console.log('[PressPanel] Tác vụ nền hoàn tất -> Tự động nạp lại danh sách App Store!');
                             await fetchAppsList();
                             fetchSystemStatus();
                             fetchDatabasesList();
@@ -1736,7 +1729,7 @@ function showAlert(message) {
 
                 const appVersions = ref({});
 
-                // Dữ liệu Popup Quản lý / Cấu hình App (WPC Manage Setting Modal)
+                // Dữ liệu Popup Quản lý / Cấu hình App
                 const showAppSettingModal = ref(false);
                 const selectedSettingApp = ref(null);
                 const appSettingTab = ref('service');
@@ -1934,7 +1927,7 @@ geo $limit_rate {
                     }
                 };
 
-                // Dữ liệu Cấu hình chi tiết PHP (WPC Style)
+                // Dữ liệu Cấu hình chi tiết PHP
                 const phpExtensions = ref([]);
                 const loadingExtensions = ref(false);
                 const phpDirectives = ref({
@@ -2530,7 +2523,7 @@ geo $limit_rate {
                 });
 
 
-                // Dữ liệu giám sát System WPC Widget
+                // Dữ liệu giám sát System Widget
                 const sysStats = ref({
                     os_name: 'Linux',
                     cpu_cores: 1,
@@ -6344,7 +6337,7 @@ if ($host ~* ^www\\.(.*)$) {
                     max_connections: '150'
                 });
 
-                // WPC MySQL Resource Controller State
+                // MySQL Resource Controller State
                 const showMySQLControllerModal = ref(false);
                 const showDbUserLimitsModal = ref(false);
                 const mysqlControllerLoading = ref(false);
@@ -6628,7 +6621,7 @@ if ($host ~* ^www\\.(.*)$) {
                 };
 
                 // ==========================================
-                // WPC MYSQL RESOURCE CONTROLLER METHODS
+                // MYSQL RESOURCE CONTROLLER METHODS
                 // ==========================================
                 const fetchMySQLControllerData = async () => {
                     mysqlControllerLoading.value = true;
@@ -6929,7 +6922,7 @@ if ($host ~* ^www\\.(.*)$) {
                     isUpdating.value = true;
                     updateCompleted.value = false;
                     updateCountdown.value = 3;
-                    updateLogText.value = "=== Bắt đầu tiến trình cập nhật WPCloud Control Panel ===\n[+] Đang gửi yêu cầu kích hoạt tác vụ cập nhật...\n";
+                    updateLogText.value = "=== Bắt đầu tiến trình cập nhật PressPanel ===\n[+] Đang gửi yêu cầu kích hoạt tác vụ cập nhật...\n";
                     scrollToUpdateTerminal();
 
                     try {
@@ -6995,7 +6988,7 @@ if ($host ~* ^www\\.(.*)$) {
                                         clearInterval(updatePollingTimer);
                                         isUpdating.value = false;
                                         updateCompleted.value = true;
-                                        updateLogText.value += '\n[+] Dịch vụ WPCloud đã nạp mã nguồn mới và đang khởi động lại. Đang làm mới giao diện...\n';
+                                        updateLogText.value += '\n[+] Dịch vụ PressPanel đã nạp mã nguồn mới và đang khởi động lại. Đang làm mới giao diện...\n';
                                         scrollToUpdateTerminal();
                                         setTimeout(() => window.location.reload(), 2000);
                                     }
@@ -7006,7 +6999,7 @@ if ($host ~* ^www\\.(.*)$) {
                                     clearInterval(updatePollingTimer);
                                     isUpdating.value = false;
                                     updateCompleted.value = true;
-                                    updateLogText.value += '\n[+] Dịch vụ WPCloud đã khởi động lại. Đang làm mới giao diện...\n';
+                                    updateLogText.value += '\n[+] Dịch vụ PressPanel đã khởi động lại. Đang làm mới giao diện...\n';
                                     scrollToUpdateTerminal();
                                     setTimeout(() => window.location.reload(), 2500);
                                 }
@@ -7020,7 +7013,7 @@ if ($host ~* ^www\\.(.*)$) {
                 };
 
                 const restartPanel = async () => {
-                    if (!confirm('Bạn có chắc chắn muốn khởi động lại dịch vụ WPCloud?')) return;
+                    if (!confirm('Bạn có chắc chắn muốn khởi động lại dịch vụ PressPanel?')) return;
                     try {
                         const res = await fetch('/api/v1/system/restart', {
                             method: 'POST',
