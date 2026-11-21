@@ -81,17 +81,45 @@ function showAlert(message) {
         })();
     </script>
     <style>
+        /* ========================================================================== */
+        /* NATIVE 80% DENSITY / SCALE SYSTEM (W3C Standard Root REM Scaling)          */
+        /* Thay vì dùng CSS hack zoom: 0.8, toàn bộ hệ thống giao diện được scale      */
+        /* tự nhiên 80% dựa trên chuẩn Root REM (1rem = 12.8px = 80% của 16px).       */
+        /* Tất cả typography, padding, margin, width, height, radius, modal đều chuẩn */
+        /* ========================================================================== */
         html {
-            zoom: 0.8;
+            font-size: 80% !important; /* 12.8px base (80% of standard 16px) */
+            -webkit-text-size-adjust: 100%;
         }
-        @supports not (zoom: 1) {
-            html {
-                transform: scale(0.8);
-                transform-origin: 0 0;
-                width: 125%;
-                height: 125%;
-            }
-        }
+
+        /* Native proportional scaling for arbitrary typography */
+        .text-\[8px\], [class*="text-[8px]"]       { font-size: 0.5rem !important; }
+        .text-\[8\.5px\], [class*="text-[8.5px]"] { font-size: 0.53125rem !important; }
+        .text-\[9px\], [class*="text-[9px]"]       { font-size: 0.5625rem !important; }
+        .text-\[10px\], [class*="text-[10px]"]     { font-size: 0.625rem !important; }
+        .text-\[11px\], [class*="text-[11px]"]     { font-size: 0.6875rem !important; }
+        .text-\[12px\], [class*="text-[12px]"]     { font-size: 0.75rem !important; }
+        .text-\[13px\], [class*="text-[13px]"]     { font-size: 0.8125rem !important; }
+        .text-\[14px\], [class*="text-[14px]"]     { font-size: 0.875rem !important; }
+        .text-\[15px\], [class*="text-[15px]"]     { font-size: 0.9375rem !important; }
+
+        /* Native proportional scaling for sidebar and layout widths */
+        .md\:w-\[220px\], [class*="md:w-[220px]"] { width: 13.75rem !important; }
+        .w-\[70px\], [class*="w-[70px]"]           { width: 4.375rem !important; }
+        .min-w-\[700px\], [class*="min-w-[700px]"] { min-width: 43.75rem !important; }
+        .min-w-\[750px\], [class*="min-w-[750px]"] { min-width: 46.875rem !important; }
+        .min-w-\[760px\], [class*="min-w-[760px]"] { min-width: 47.5rem !important; }
+        .min-w-\[280px\], [class*="min-w-[280px]"] { min-width: 17.5rem !important; }
+        .min-w-\[210px\], [class*="min-w-[210px]"] { min-width: 13.125rem !important; }
+        .min-w-\[190px\], [class*="min-w-[190px]"] { min-width: 11.875rem !important; }
+        .max-w-\[260px\], [class*="max-w-[260px]"] { max-width: 16.25rem !important; }
+        .max-w-\[170px\], [class*="max-w-[170px]"] { max-width: 10.625rem !important; }
+        .max-w-\[150px\], [class*="max-w-[150px]"] { max-width: 9.375rem !important; }
+        .max-w-\[130px\], [class*="max-w-[130px]"] { max-width: 8.125rem !important; }
+        .max-w-\[125px\], [class*="max-w-[125px]"] { max-width: 7.8125rem !important; }
+        .max-w-\[120px\], [class*="max-w-[120px]"] { max-width: 7.5rem !important; }
+        .max-w-\[100px\], [class*="max-w-[100px]"] { max-width: 6.25rem !important; }
+        .max-w-\[90px\], [class*="max-w-[90px]"]   { max-width: 5.625rem !important; }
         body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -0.01em; }
         code, pre { font-family: 'JetBrains Mono', monospace; }
 
@@ -607,8 +635,8 @@ function showAlert(message) {
 
         <!-- 2. GIAO DIỆN CHÍNH WPCLOUD CONTROL PANEL (KHI ĐÃ AUTH) -->
         <div v-else class="min-h-screen flex flex-col md:flex-row transition-colors duration-200" :class="isDarkMode ? 'bg-[#0c1017]' : 'bg-[#f3f6fa]'">
-            <!-- Sidebar Trái WPC Control Panel (Dark Navy #0e1726, width 220px on PC) -->
-            <aside class="w-full md:w-[220px] bg-[#0d1624] text-slate-300 flex flex-col justify-between shrink-0 shadow-xl z-20">
+            <!-- Sidebar Trái PressPanel (Dark Navy #0d1624, responsive native rem width 13.75rem = 176px at 80%) -->
+            <aside class="w-full md:w-[13.75rem] bg-[#0d1624] text-slate-300 flex flex-col justify-between shrink-0 shadow-xl z-20">
                 <div class="overflow-y-auto sidebar-scrollbar flex-1 flex flex-col justify-between">
                     <div>
                         <!-- Logo Header WPCloud (Bấm vào để nạp lại trang chính) -->
