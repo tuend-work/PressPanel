@@ -67,7 +67,7 @@ ensure_acme_sh() {
 update_ssl_db() {
     local provider="$1"
     local auto_renew="$2"
-    /opt/presspanel/venv/bin/python - "$DOMAIN" "$provider" "$FULLCHAIN" "$PRIVKEY" "$auto_renew" << 'PY_SSL_DB' 2>/dev/null || true
+    PYTHONPATH="/opt/presspanel" /opt/presspanel/venv/bin/python - "$DOMAIN" "$provider" "$FULLCHAIN" "$PRIVKEY" "$auto_renew" << 'PY_SSL_DB' || true
 import sqlite3, sys
 from app.core.config import settings
 dom_name, prov, cert_p, key_p, ar = sys.argv[1:6]

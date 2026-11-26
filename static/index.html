@@ -4383,6 +4383,9 @@ geo $limit_rate {
                         });
                         if (res.ok) {
                             sslInfo.value = await res.json();
+                            if (sslInfo.value && selectedSslDomain.value) {
+                                selectedSslDomain.value.ssl_enabled = sslInfo.value.ssl_enabled;
+                            }
                         }
                     } catch (e) {}
                     refreshLucideIcons();

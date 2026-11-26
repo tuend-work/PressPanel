@@ -5009,8 +5009,8 @@
                             <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2">
                                 <div>
                                     <span class="text-slate-400 text-[11px]">Trạng thái:</span>
-                                    <span class="font-bold ml-1.5" :class="selectedSslDomain?.ssl_enabled ? 'text-emerald-400' : 'text-rose-400'">
-                                        {{ selectedSslDomain?.ssl_enabled ? 'Đang hoạt động (Valid)' : 'Chưa cài đặt' }}
+                                    <span class="font-bold ml-1.5" :class="(sslInfo?.ssl_enabled ?? selectedSslDomain?.ssl_enabled) ? 'text-emerald-400' : 'text-rose-400'">
+                                        {{ (sslInfo?.ssl_enabled ?? selectedSslDomain?.ssl_enabled) ? 'Đang hoạt động (Valid)' : 'Chưa cài đặt' }}
                                     </span>
                                 </div>
                                 <div>

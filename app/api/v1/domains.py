@@ -4832,10 +4832,36 @@ async def get_domain_ssl(domain_id: int, current_user: dict = Depends(get_curren
     key_path = cert_row["key_path"] if cert_row and cert_row["key_path"] else f"/home/{iso_u}/domains/{clean_domain}/ssl/privkey.pem"
     parsed = _parse_cert_details(cert_path)
 
+    ssl_enabled = bool(domain["ssl_enabled"])
+    provider = cert_row["provider"] if cert_row else ("letsencrypt" if ssl_enabled else "none")
+
+    # Tự động đồng bộ nếu file chứng chỉ thực tế (Let's Encrypt / ZeroSSL / Custom) đã tồn tại trên ổ đĩa
+    if parsed.get("exists") and parsed.get("issuer") and not ssl_enabled:
+        iss_lower = parsed["issuer"].lower()
+        if "self" not in iss_lower and f"cn = {clean_domain}" not in iss_lower:
+            ssl_enabled = True
+            if "let's encrypt" in iss_lower:
+                provider = "letsencrypt"
+            elif "zerossl" in iss_lower:
+                provider = "zerossl"
+            else:
+                provider = "custom"
+            db_sync = await get_db_connection()
+            try:
+                await db_sync.execute("UPDATE domains SET ssl_enabled = 1 WHERE id = ?", (domain_id,))
+                await db_sync.execute("DELETE FROM ssl_certificates WHERE domain_id = ?", (domain_id,))
+                await db_sync.execute(
+                    "INSERT INTO ssl_certificates (domain_id, provider, cert_path, key_path, auto_renew) VALUES (?, ?, ?, ?, ?)",
+                    (domain_id, "letsencrypt" if provider == "letsencrypt" else "custom", cert_path, key_path, 0 if provider == "custom" else 1)
+                )
+                await db_sync.commit()
+            finally:
+                await db_sync.close()
+
     return {
         "status": "ok",
-        "ssl_enabled": bool(domain["ssl_enabled"]),
-        "provider": cert_row["provider"] if cert_row else ("letsencrypt" if domain["ssl_enabled"] else "none"),
+        "ssl_enabled": ssl_enabled,
+        "provider": provider,
         "cert_path": cert_path,
         "key_path": key_path,
         "auto_renew": bool(cert_row["auto_renew"]) if cert_row else True,
