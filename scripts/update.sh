@@ -186,6 +186,7 @@ fi
 ln -sf /usr/local/bin/presspanel /usr/local/bin/wpc 2>/dev/null || true
 ln -sf /usr/local/bin/presspanel /usr/bin/wpc 2>/dev/null || true
 ln -sf /usr/local/bin/presspanel /usr/local/bin/0 2>/dev/null || true
+ln -sf /usr/local/bin/presspanel /usr/bin/0 2>/dev/null || true
 
 # 3.3 Tự động kiểm tra và phục hồi (Self-Healing) môi trường Python venv
 NEED_REBUILD_VENV=0

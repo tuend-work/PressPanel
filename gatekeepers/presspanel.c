@@ -209,21 +209,21 @@ static void cmd_password(void) {
     }
 
     const char *idir = get_install_dir();
+    setenv("PP_NEW_PASS", pass, 1);
     char cmd[2048];
     snprintf(cmd, sizeof(cmd),
              "PYTHONPATH=\"%s\" \"%s/venv/bin/python\" -c \""
-             "import asyncio, sys, aiosqlite; "
+             "import os, sqlite3; "
              "from app.core.security import get_password_hash; "
              "from app.core.config import settings; "
-             "async def reset_pass(): "
-             "    hashed = get_password_hash(sys.argv[1]); "
-             "    async with aiosqlite.connect(settings.DB_PATH) as db: "
-             "        await db.execute('UPDATE users SET password_hash = ?, token_version = COALESCE(token_version, 1) + 1 WHERE role = ?', (hashed, 'admin')); "
-             "        await db.commit(); "
-             "    print('[+] Đã đổi mật khẩu tài khoản admin thành công!'); "
-             "asyncio.run(reset_pass())\" '%s'",
-             idir, idir, pass);
+             "h = get_password_hash(os.environ['PP_NEW_PASS']); "
+             "c = sqlite3.connect(settings.DB_PATH); "
+             "c.execute('UPDATE users SET password_hash = ?, token_version = COALESCE(token_version, 1) + 1 WHERE role = ?', (h, 'admin')); "
+             "c.commit(); c.close(); "
+             "print('[+] Đã đổi mật khẩu tài khoản admin thành công!')\"",
+             idir, idir);
     int ret = system(cmd);
+    unsetenv("PP_NEW_PASS");
     (void)ret;
 }
 

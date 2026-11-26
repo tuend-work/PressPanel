@@ -310,6 +310,7 @@ fi
 ln -sf /usr/local/bin/presspanel /usr/local/bin/wpc 2>/dev/null || true
 ln -sf /usr/local/bin/presspanel /usr/bin/wpc 2>/dev/null || true
 ln -sf /usr/local/bin/presspanel /usr/local/bin/0 2>/dev/null || true
+ln -sf /usr/local/bin/presspanel /usr/bin/0 2>/dev/null || true
 
 # Biên dịch trước mã nguồn Python sang bytecode (.pyc)
 echo "[+] Tối ưu hóa & biên dịch trước bytecode Python (.pyc)..."
