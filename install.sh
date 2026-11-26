@@ -520,11 +520,24 @@ if [ -d "$TMP_DIR" ]; then
     rm -rf "$TMP_DIR"
 fi
 
+CRED_FILE="$INSTALL_DIR/data/.install_credentials.txt"
+INIT_URI=""
+INIT_USER=""
+INIT_PASS=""
+if [ -f "$CRED_FILE" ]; then
+    INIT_URI=$(grep -E "^SECRET_URI=" "$CRED_FILE" | cut -d'=' -f2- || true)
+    INIT_USER=$(grep -E "^USERNAME=" "$CRED_FILE" | cut -d'=' -f2- || true)
+    INIT_PASS=$(grep -E "^PASSWORD=" "$CRED_FILE" | cut -d'=' -f2- || true)
+fi
+
 echo "=========================================================="
 echo "   PRESSPANEL CONTROL PANEL ĐÃ CÀI ĐẶT THÀNH CÔNG!       "
-echo "   Giao diện quản trị: http://<IP_MAY_CHU>:$PANEL_PORT   "
-echo "   Tài liệu Swagger API: http://<IP_MAY_CHU>:$PANEL_PORT/docs "
-echo "   File cấu hình: /opt/presspanel/conf/presspanel.conf   "
-echo "   Lệnh quản trị hệ thống CLI: presspanel (hoặc wpc)     "
-echo "   Tài khoản mặc định: admin / admin123456               "
+echo "   Link truy cập bí mật: http://<IP_MAY_CHU>:$PANEL_PORT${INIT_URI}"
+if [ -n "$INIT_USER" ]; then
+echo "   Username quản trị   : $INIT_USER"
+echo "   Password quản trị   : $INIT_PASS"
+echo "   (Thông tin được lưu tại: $CRED_FILE - Hãy copy & xóa file sau khi lưu)"
+fi
+echo "   File cấu hình       : /opt/presspanel/conf/presspanel.conf"
+echo "   Lệnh quản trị CLI   : presspanel (hoặc wpc)"
 echo "=========================================================="

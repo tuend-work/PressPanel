@@ -58,68 +58,70 @@ class RedisUserApplyWpRequest(BaseModel):
 async def list_databases(db_type: str = "all", current_user: dict = Depends(get_current_user)):
     """Trả về danh sách database hỗ trợ đa loại (MySQL, SQLServer, MongoDB, Redis, PgSQL) kèm phân quyền RBAC"""
     db = await get_db_connection()
-    
-    # 1. Lọc theo RBAC
-    if current_user["role"] == "admin":
-        cursor = await db.execute("""
-            SELECT db.*, u.username as owner_username, d.domain_name
-            FROM databases db
-            JOIN users u ON db.user_id = u.id
-            LEFT JOIN domains d ON db.domain_id = d.id
-            ORDER BY db.created_at DESC
-        """)
-    elif current_user["role"] == "reseller":
-        cursor = await db.execute("""
-            SELECT db.*, u.username as owner_username, d.domain_name
-            FROM databases db
-            JOIN users u ON db.user_id = u.id
-            LEFT JOIN domains d ON db.domain_id = d.id
-            WHERE u.id = ? OR u.parent_id = ?
-            ORDER BY db.created_at DESC
-        """, (current_user["id"], current_user["id"]))
-    elif current_user.get("web_domain_id"):
-        # Web User chỉ thấy DB của website được phân quyền
-        cursor = await db.execute("""
-            SELECT db.*, u.username as owner_username, d.domain_name
-            FROM databases db
-            JOIN users u ON db.user_id = u.id
-            LEFT JOIN domains d ON db.domain_id = d.id
-            WHERE db.domain_id = ?
-            ORDER BY db.created_at DESC
-        """, (current_user["web_domain_id"],))
-    else:
-        cursor = await db.execute("""
-            SELECT db.*, u.username as owner_username, d.domain_name
-            FROM databases db
-            JOIN users u ON db.user_id = u.id
-            LEFT JOIN domains d ON db.domain_id = d.id
-            WHERE db.user_id = ?
-            ORDER BY db.created_at DESC
-        """, (current_user["id"],))
+    try:
+        # 1. Lọc theo RBAC (3 cấp: admin, user, application)
+        if current_user["role"] == "admin":
+            cursor = await db.execute("""
+                SELECT db.*, u.username as owner_username, d.domain_name
+                FROM databases db
+                JOIN users u ON db.user_id = u.id
+                LEFT JOIN domains d ON db.domain_id = d.id
+                ORDER BY db.created_at DESC
+            """)
+        elif current_user["role"] in ("user", "reseller") and not current_user.get("web_domain_id"):
+            cursor = await db.execute("""
+                SELECT db.*, u.username as owner_username, d.domain_name
+                FROM databases db
+                JOIN users u ON db.user_id = u.id
+                LEFT JOIN domains d ON db.domain_id = d.id
+                WHERE u.id = ? OR u.parent_id = ?
+                ORDER BY db.created_at DESC
+            """, (current_user["id"], current_user["id"]))
+        elif current_user.get("web_domain_id"):
+            # Application chỉ thấy DB của website được phân quyền
+            cursor = await db.execute("""
+                SELECT db.*, u.username as owner_username, d.domain_name
+                FROM databases db
+                JOIN users u ON db.user_id = u.id
+                LEFT JOIN domains d ON db.domain_id = d.id
+                WHERE db.domain_id = ?
+                ORDER BY db.created_at DESC
+            """, (current_user["web_domain_id"],))
+        else:
+            cursor = await db.execute("""
+                SELECT db.*, u.username as owner_username, d.domain_name
+                FROM databases db
+                JOIN users u ON db.user_id = u.id
+                LEFT JOIN domains d ON db.domain_id = d.id
+                WHERE db.user_id = ?
+                ORDER BY db.created_at DESC
+            """, (current_user["id"],))
 
-    rows = await cursor.fetchall()
-    items = []
-    for r in rows:
-        d = dict(r)
-        d_type = d.get("db_type") or "mysql"
-        if db_type == "all" or db_type == d_type:
-            items.append({
-                "id": d["id"],
-                "user_id": d["user_id"],
-                "db_name": d["db_name"],
-                "db_user": d["db_user"],
-                "db_type": d_type,
-                "domain_id": d.get("domain_id"),
-                "domain_name": d.get("domain_name") or "Chưa gán",
-                "owner_username": d.get("owner_username") or "system",
-                "charset": d.get("charset") or "utf8mb4_unicode_ci",
-                "size_mb": 2.4, # Ước tính dung lượng
-                "backup_enabled": bool(d.get("backup_enabled", 0)),
-                "description": d.get("description") or "",
-                "created_at": d.get("created_at")
-            })
+        rows = await cursor.fetchall()
+        items = []
+        for r in rows:
+            d = dict(r)
+            d_type = d.get("db_type") or "mysql"
+            if db_type == "all" or db_type == d_type:
+                items.append({
+                    "id": d["id"],
+                    "user_id": d["user_id"],
+                    "db_name": d["db_name"],
+                    "db_user": d["db_user"],
+                    "db_type": d_type,
+                    "domain_id": d.get("domain_id"),
+                    "domain_name": d.get("domain_name") or "Chưa gán",
+                    "owner_username": d.get("owner_username") or "system",
+                    "charset": d.get("charset") or "utf8mb4_unicode_ci",
+                    "size_mb": 0.0,
+                    "backup_enabled": bool(d.get("backup_enabled", 0)),
+                    "description": d.get("description") or "",
+                    "created_at": d.get("created_at")
+                })
 
-    return {"status": "ok", "databases": items}
+        return {"status": "ok", "databases": items}
+    finally:
+        await db.close()
 
 @router.post("/sync")
 async def sync_all_databases(current_user: dict = Depends(get_current_user)):
@@ -127,8 +129,12 @@ async def sync_all_databases(current_user: dict = Depends(get_current_user)):
     db = await get_db_connection()
     synced_count = 0
     try:
-        # 1. Đọc danh sách website để tìm CSDL WordPress
-        cursor_doms = await db.execute("SELECT id, user_id, domain_name, document_root FROM domains")
+        if current_user["role"] == "admin":
+            cursor_doms = await db.execute("SELECT id, user_id, domain_name, document_root FROM domains")
+        elif current_user.get("web_domain_id"):
+            cursor_doms = await db.execute("SELECT id, user_id, domain_name, document_root FROM domains WHERE id = ?", (current_user["web_domain_id"],))
+        else:
+            cursor_doms = await db.execute("SELECT id, user_id, domain_name, document_root FROM domains WHERE user_id = ?", (current_user["id"],))
         doms = await cursor_doms.fetchall()
         for dom in doms:
             doc_root = dom["document_root"] or f"/home/{dom['domain_name']}/public_html"
@@ -153,7 +159,9 @@ async def sync_all_databases(current_user: dict = Depends(get_current_user)):
                 except Exception:
                     pass
     except Exception as e:
-        logger.warning(f"Lỗi sync CSDL: {e}")
+        pass
+    finally:
+        await db.close()
 
     return {"status": "ok", "message": f"Đã đồng bộ thành công {synced_count} cơ sở dữ liệu!"}
 
@@ -277,80 +285,87 @@ FLUSH PRIVILEGES;
 async def delete_database(db_id: int, current_user: dict = Depends(get_current_user)):
     """Xóa cơ sở dữ liệu (hỗ trợ cả DB thật và DB sinh từ domain)"""
     db = await get_db_connection()
-    cursor = await db.execute("SELECT * FROM databases WHERE id = ?", (db_id,))
-    item = await cursor.fetchone()
+    try:
+        cursor = await db.execute("SELECT * FROM databases WHERE id = ?", (db_id,))
+        item = await cursor.fetchone()
 
-    # 1. Nếu là ID sinh ảo từ domain (id >= 1000)
-    if not item and db_id >= 1000:
-        domain_id = db_id - 1000
-        dom_cur = await db.execute("SELECT * FROM domains WHERE id = ?", (domain_id,))
-        dom = await dom_cur.fetchone()
-        target_db = None
-        target_usr = None
-        if dom:
+        # 1. Nếu là ID sinh ảo từ domain (id >= 1000)
+        if not item and db_id >= 1000:
+            domain_id = db_id - 1000
+            dom_cur = await db.execute("SELECT * FROM domains WHERE id = ?", (domain_id,))
+            dom = await dom_cur.fetchone()
+            if not dom:
+                raise HTTPException(status_code=404, detail="Không tìm thấy cơ sở dữ liệu")
+            if current_user["role"] != "admin" and dom["user_id"] != current_user["id"] and current_user.get("web_domain_id") != dom["id"]:
+                raise HTTPException(status_code=403, detail="Không có quyền xóa database này")
+
             prefix = dom["domain_name"].replace(".", "").replace("-", "")[:8]
             target_db = f"wp_{prefix}"
             target_usr = f"usr_{prefix}"
             await run_gatekeeper("db", "drop", target_db, target_usr)
-            try:
-                subprocess.run(
-                    ["mysql", "-e", f"DROP DATABASE IF EXISTS `{target_db}`; DROP USER IF EXISTS '{target_usr}'@'localhost'; FLUSH PRIVILEGES;"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-                )
-            except Exception:
-                pass
-            # Xóa bản ghi trong SQLite nếu có
+            execute_mysql_sql(
+                f"DROP DATABASE IF EXISTS `{target_db}`; "
+                f"DROP USER IF EXISTS '{target_usr}'@'localhost'; "
+                f"DROP USER IF EXISTS '{target_usr}'@'127.0.0.1'; FLUSH PRIVILEGES;"
+            )
             await db.execute("DELETE FROM databases WHERE db_name = ?", (target_db,))
             await db.commit()
             return {"status": "ok", "message": f"Đã xóa vĩnh viễn database '{target_db}'"}
-        return {"status": "ok", "message": "Đã xóa cơ sở dữ liệu thành công"}
 
-    if not item:
-        return {"status": "ok", "message": "Cơ sở dữ liệu không tồn tại hoặc đã được xóa trước đó"}
+        if not item:
+            raise HTTPException(status_code=404, detail="Cơ sở dữ liệu không tồn tại")
 
-    # Kiểm tra quyền
-    if current_user["role"] != "admin" and item["user_id"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Không có quyền xóa database này")
+        # Kiểm tra quyền
+        if current_user["role"] != "admin" and item["user_id"] != current_user["id"] and current_user.get("web_domain_id") != item["domain_id"]:
+            raise HTTPException(status_code=403, detail="Không có quyền xóa database này")
 
-    db_name = item["db_name"]
-    db_user = item["db_user"]
+        db_name = item["db_name"]
+        db_user = item["db_user"]
 
-    # Xóa thực tế trên MySQL qua Gatekeeper và qua lệnh mysql trực tiếp
-    if item["db_type"] == "mysql":
-        await run_gatekeeper("db", "drop", db_name, db_user)
-        drop_sql = f"""
+        # Xóa thực tế trên MySQL qua Gatekeeper và qua lệnh mysql trực tiếp
+        if item["db_type"] == "mysql":
+            await run_gatekeeper("db", "drop", db_name, db_user)
+            drop_sql = f"""
 DROP DATABASE IF EXISTS `{db_name}`;
 DROP USER IF EXISTS '{db_user}'@'localhost';
 DROP USER IF EXISTS '{db_user}'@'127.0.0.1';
 FLUSH PRIVILEGES;
 """
-        execute_mysql_sql(drop_sql)
+            execute_mysql_sql(drop_sql)
 
-    await db.execute("DELETE FROM databases WHERE id = ?", (db_id,))
-    await db.commit()
-    return {"status": "ok", "message": f"Đã xóa vĩnh viễn database '{db_name}'"}
+        await db.execute("DELETE FROM databases WHERE id = ?", (db_id,))
+        await db.commit()
+        return {"status": "ok", "message": f"Đã xóa vĩnh viễn database '{db_name}'"}
+    finally:
+        await db.close()
 
 @router.post("/{db_id}/backup")
 async def backup_database(db_id: int, current_user: dict = Depends(get_current_user)):
     """Sao lưu dump database"""
     db = await get_db_connection()
-    cursor = await db.execute("SELECT * FROM databases WHERE id = ?", (db_id,))
-    item = await cursor.fetchone()
-    
-    db_name = item["db_name"] if item else f"wp_db_{db_id}"
-    username = current_user["username"]
-    filename = f"backup_{db_name}.sql"
+    try:
+        cursor = await db.execute("SELECT * FROM databases WHERE id = ?", (db_id,))
+        item = await cursor.fetchone()
+        if not item:
+            raise HTTPException(status_code=404, detail="Không tìm thấy cơ sở dữ liệu")
+        if current_user["role"] != "admin" and item["user_id"] != current_user["id"] and current_user.get("web_domain_id") != item["domain_id"]:
+            raise HTTPException(status_code=403, detail="Không có quyền sao lưu database này")
 
-    # Thực thi backup
-    res = await run_gatekeeper("db", "backup", db_name, username, filename)
-    return {
-        "status": "ok",
-        "message": f"Đã sao lưu thành công CSDL '{db_name}' vào thư mục backups của người dùng",
-        "result": res
-    }
+        db_name = item["db_name"]
+        username = current_user["username"]
+        filename = f"backup_{db_name}.sql"
+
+        res = await run_gatekeeper("db", "backup", db_name, username, filename)
+        return {
+            "status": "ok",
+            "message": f"Đã sao lưu thành công CSDL '{db_name}' vào thư mục backups của người dùng",
+            "result": res
+        }
+    finally:
+        await db.close()
 
 @router.get("/status")
-async def get_all_db_status():
+async def get_all_db_status(current_user: dict = Depends(get_current_user)):
     """Lấy trạng thái thực tế của các loại Database trên Linux"""
     services = {
         "mysql": {"service": "mariadb", "alt_service": "mysql", "port": 3306, "name": "MySQL / MariaDB"},

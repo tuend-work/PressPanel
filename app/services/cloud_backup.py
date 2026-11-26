@@ -45,8 +45,10 @@ def upload_to_s3_sync(dest: Dict[str, Any], local_file: str, remote_key: str) ->
     s3_uri = f"s3://{bucket}/{remote_key}"
 
     if shutil.which("aws"):
-        cmd = f"aws s3 cp '{local_file}' '{s3_uri}' {endpoint_arg}"
-        res = subprocess.run(cmd, shell=True, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300)
+        cmd = ["aws", "s3", "cp", local_file, s3_uri]
+        if dest.get("endpoint"):
+            cmd.extend(["--endpoint-url", str(dest["endpoint"]).strip()])
+        res = subprocess.run(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300)
         return res.returncode == 0
 
     # 2. Thử dùng thư viện python boto3 nếu đã cài
@@ -69,8 +71,12 @@ def upload_to_s3_sync(dest: Dict[str, Any], local_file: str, remote_key: str) ->
 
     # 3. Fallback: Dùng rclone nếu có
     if shutil.which("rclone"):
-        rclone_cmd = f"rclone copyto '{local_file}' ':s3,provider=Other,endpoint=\"{dest.get('endpoint')}\",access_key_id=\"{dest.get('access_key')}\",secret_access_key=\"{dest.get('secret_key')}\":{bucket}/{remote_key}'"
-        res = subprocess.run(rclone_cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
+        rclone_remote = (
+            f":s3,provider=Other,endpoint={dest.get('endpoint') or ''},"
+            f"access_key_id={dest.get('access_key') or ''},"
+            f"secret_access_key={dest.get('secret_key') or ''}:{bucket}/{remote_key}"
+        )
+        res = subprocess.run(["rclone", "copyto", local_file, rclone_remote], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
         return res.returncode == 0
 
     logger.error("Không tìm thấy aws cli, boto3 hoặc rclone để tải lên S3!")
@@ -79,19 +85,21 @@ def upload_to_s3_sync(dest: Dict[str, Any], local_file: str, remote_key: str) ->
 def upload_to_sftp_sync(dest: Dict[str, Any], local_file: str, remote_filename: str) -> bool:
     """Tải tệp lên máy chủ SFTP từ xa bằng scp/sftp"""
     host = dest.get("sftp_host", "").strip()
-    port = dest.get("sftp_port", 22)
+    port = str(dest.get("sftp_port", 22))
     user = dest.get("sftp_user", "").strip()
     path = dest.get("sftp_path", "/backups").rstrip("/")
-    remote_target = f"{path}/{remote_filename}"
+    remote_target = f"{user}@{host}:{path}/{remote_filename}"
 
-    # Dùng sshpass + scp nếu có mật khẩu
+    # Dùng sshpass + scp nếu có mật khẩu (truyền mật khẩu qua env SSHPASS tránh lộ trên argv)
     if shutil.which("sshpass") and dest.get("sftp_pass"):
-        cmd = f"sshpass -p '{dest['sftp_pass']}' scp -P {port} -o StrictHostKeyChecking=no '{local_file}' {user}@{host}:'{remote_target}'"
-        res = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300)
+        env = os.environ.copy()
+        env["SSHPASS"] = str(dest["sftp_pass"])
+        cmd = ["sshpass", "-e", "scp", "-P", port, "-o", "StrictHostKeyChecking=no", local_file, remote_target]
+        res = subprocess.run(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300)
         return res.returncode == 0
     elif shutil.which("scp"):
-        cmd = f"scp -P {port} -o StrictHostKeyChecking=no '{local_file}' {user}@{host}:'{remote_target}'"
-        res = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300)
+        cmd = ["scp", "-P", port, "-o", "StrictHostKeyChecking=no", local_file, remote_target]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300)
         return res.returncode == 0
 
     return False
@@ -140,11 +148,14 @@ async def create_website_backup(domain_id: int, user_id: int, destination_id: in
         wp_db = await c_wp.fetchone()
         if wp_db and wp_db[0]:
             db_name = wp_db[0]
-            subprocess.run(f"mysqldump '{db_name}' > '{sql_dump_file}' 2>/dev/null || true", shell=True, timeout=60)
+            with open(sql_dump_file, "wb") as sf:
+                subprocess.run(["mysqldump", db_name], stdout=sf, stderr=subprocess.DEVNULL, timeout=60, check=False)
 
-        # Đóng gói tệp tin bằng tar
-        tar_cmd = f"tar -czf '{local_archive}' -C '{doc_root}' . -C '{tmp_backup_dir}' ."
-        res = subprocess.run(tar_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600)
+        # Đóng gói tệp tin bằng tar (không dùng shell=True)
+        res = subprocess.run(
+            ["tar", "-czf", local_archive, "-C", doc_root, ".", "-C", tmp_backup_dir, "."],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600
+        )
         if res.returncode != 0:
             raise Exception("Lỗi khi nén tệp tin mã nguồn bằng tar")
 

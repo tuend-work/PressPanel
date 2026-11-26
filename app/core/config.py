@@ -77,7 +77,8 @@ def get_or_create_secret_key() -> str:
             pass
         return new_k
     except Exception:
-        return conf_key or "presspanel-fallback-secret-key-32-chars-long-minimum!!"
+        import secrets
+        return conf_key or secrets.token_hex(32)
 
 def get_current_panel_version() -> str:
     for cand in [
@@ -108,7 +109,7 @@ class Settings:
     # Bảo mật & JWT (Tự sinh ngẫu nhiên nếu chưa cấu hình)
     SECRET_KEY: str = get_or_create_secret_key()
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(CONF_DATA.get("access_token_expire_days", 7)) * 24 * 60
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(CONF_DATA.get("access_token_expire_days", 1)) * 24 * 60
     SESSION_TIMEOUT: int = int(CONF_DATA.get("session_timeout", 60))
     
     # SSL Panel

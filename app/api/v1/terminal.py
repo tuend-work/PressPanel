@@ -5,53 +5,86 @@ import select
 import fcntl
 import termios
 import struct
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status
+import secrets
+import time
+from typing import Dict, Any, Optional
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, status
 from app.core.security import decode_token
+from app.api.deps import get_current_user
 from app.db.session import get_db_connection
 
 router = APIRouter(prefix="/terminal", tags=["SSH Web Terminal"])
 
+# Vé một lần (one-time ticket) thời hạn ngắn cho WebSocket Terminal, tránh lộ JWT trên URL
+_WS_TICKETS: Dict[str, Dict[str, Any]] = {}
+
+@router.post("/ticket")
+async def create_terminal_ticket(current_user: dict = Depends(get_current_user)):
+    now = time.time()
+    # Dọn dẹp vé hết hạn
+    for k in [tk for tk, v in _WS_TICKETS.items() if v["exp"] < now]:
+        _WS_TICKETS.pop(k, None)
+    ticket = secrets.token_urlsafe(24)
+    _WS_TICKETS[ticket] = {"user": current_user, "exp": now + 30.0}
+    return {"ticket": ticket, "expires_in": 30}
+
 @router.websocket("/ws")
 async def terminal_websocket(
     websocket: WebSocket,
-    token: str = Query(...),
-    target_user: str = Query(None)
+    ticket: Optional[str] = Query(None),
+    token: Optional[str] = Query(None),
+    target_user: Optional[str] = Query(None)
 ):
     """
-    WebSocket Terminal giả lập PTY an toàn cho từng Hosting User / Web User.
-    - Token bắt buộc phải hợp lệ
-    - Nếu là Admin: Spawn bash dưới user root (hoặc caged website user nếu chỉ định)
-    - Nếu là Website User: Spawn caged shell dưới danh tính Linux của chính website đó (/opt/wpc/scripts/cage_terminal.sh)
-    - Nếu là Hosting User: Tắt hoàn toàn tính năng Terminal SSH vì lý do bảo mật
+    WebSocket Terminal giả lập PTY an toàn:
+    - Admin: Spawn bash dưới user root (hoặc caged application user nếu chỉ định)
+    - Application: Spawn caged shell dưới danh tính Linux của chính website đó
+    - User: Tắt hoàn toàn tính năng Terminal SSH (chỉ quản lý trên Panel)
     """
     await websocket.accept()
 
-    # 1. Xác thực Token
-    payload = decode_token(token)
-    if not payload or "sub" not in payload:
-        await websocket.send_text("\r\n\x1b[31m[Lỗi] Token xác thực không hợp lệ hoặc đã hết hạn!\x1b[0m\r\n")
+    user_id = None
+    is_admin = False
+    is_web_user = False
+    web_domain_id = None
+    web_user_name = None
+
+    if ticket and ticket in _WS_TICKETS:
+        t_data = _WS_TICKETS.pop(ticket)
+        if time.time() <= t_data["exp"]:
+            u_obj = t_data["user"]
+            user_id = u_obj["id"]
+            is_admin = (u_obj["role"] == "admin" or u_obj["username"] == "admin")
+            is_web_user = "web_domain_id" in u_obj and "web_user_name" in u_obj
+            web_domain_id = u_obj.get("web_domain_id")
+            web_user_name = u_obj.get("web_user_name")
+        else:
+            await websocket.send_text("\r\n\x1b[31m[Lỗi] Vé phiên Terminal đã hết hạn!\x1b[0m\r\n")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+    elif token:
+        payload = decode_token(token)
+        if not payload or "sub" not in payload:
+            await websocket.send_text("\r\n\x1b[31m[Lỗi] Token xác thực không hợp lệ hoặc đã hết hạn!\x1b[0m\r\n")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        user_id = int(payload["sub"])
+        db = await get_db_connection()
+        cursor = await db.execute("SELECT id, username, role, status FROM users WHERE id = ?", (user_id,))
+        user = await cursor.fetchone()
+        await db.close()
+        if not user or user["status"] == "suspended":
+            await websocket.send_text("\r\n\x1b[31m[Lỗi] Tài khoản không tồn tại hoặc đã bị tạm khóa!\x1b[0m\r\n")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        is_admin = (user["role"] == "admin" or user["username"] == "admin")
+        is_web_user = "web_domain_id" in payload and "web_user_name" in payload
+        web_domain_id = payload.get("web_domain_id")
+        web_user_name = payload.get("web_user_name")
+    else:
+        await websocket.send_text("\r\n\x1b[31m[Lỗi] Thiếu vé xác thực Terminal!\x1b[0m\r\n")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-
-    user_id = int(payload["sub"])
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT u.id, u.username, u.role, u.status
-        FROM users u
-        WHERE u.id = ?
-    """, (user_id,))
-    user = await cursor.fetchone()
-    await db.close()
-
-    if not user or user["status"] == "suspended":
-        await websocket.send_text("\r\n\x1b[31m[Lỗi] Tài khoản không tồn tại hoặc đã bị tạm khóa!\x1b[0m\r\n")
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-
-    is_admin = (user["role"] == "admin" or user["username"] == "admin")
-    is_web_user = "web_domain_id" in payload and "web_user_name" in payload
-    web_domain_id = payload.get("web_domain_id")
-    web_user_name = payload.get("web_user_name")
 
     # Xác định user mục tiêu trên Linux
     db = await get_db_connection()
@@ -120,10 +153,10 @@ async def terminal_websocket(
     # Mở PTY (Pseudo-Terminal)
     try:
         master_fd, slave_fd = pty.openpty()
-        # Đảm bảo slave_fd có quyền đọc/ghi cho process con bất kể user nào
+        # Đảm bảo slave_fd chỉ có quyền đọc/ghi cho chủ sở hữu (0o600)
         try:
             slave_name = os.ttyname(slave_fd)
-            os.chmod(slave_name, 0o666)
+            os.chmod(slave_name, 0o600)
         except Exception:
             pass
     except Exception as e:
@@ -168,26 +201,12 @@ async def terminal_websocket(
             preexec_fn=_setup_child_terminal(slave_fd),
             close_fds=True
         )
-    except Exception as e:
-        # Fallback chạy bash trực tiếp
-        try:
-            fallback_cmd = ["/bin/bash", "--login"]
-            proc = await asyncio.create_subprocess_exec(
-                *fallback_cmd,
-                stdin=slave_fd,
-                stdout=slave_fd,
-                stderr=slave_fd,
-                cwd=home_dir if os.path.exists(home_dir) else "/",
-                env=env,
-                preexec_fn=_setup_child_terminal(slave_fd),
-                close_fds=True
-            )
-        except Exception as fe:
-            os.close(slave_fd)
-            os.close(master_fd)
-            await websocket.send_text(f"\r\n\x1b[31m[Lỗi] Không thể khởi động Shell: {str(fe)}\x1b[0m\r\n")
-            await websocket.close()
-            return
+    except Exception as fe:
+        os.close(slave_fd)
+        os.close(master_fd)
+        await websocket.send_text(f"\r\n\x1b[31m[Lỗi] Không thể khởi động Shell cách ly: {str(fe)}\x1b[0m\r\n")
+        await websocket.close()
+        return
 
     os.close(slave_fd)
 

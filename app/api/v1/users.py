@@ -95,13 +95,17 @@ async def set_customers_status(req: CustomerStatusRequest, current_user: dict = 
     
     target_users = await user_cur.fetchall()
 
-    # Tìm toàn bộ domain thuộc sở hữu của các user này
-    dom_cur = await db.execute(f"SELECT id, domain_name, webserver, user_id FROM domains WHERE user_id IN ({placeholders})", req.user_ids)
-    user_domains = await dom_cur.fetchall()
+    # Tìm toàn bộ domain thuộc sở hữu của các user hợp lệ này (chống IDOR cho user/reseller)
+    valid_uids = [u["id"] for u in target_users]
+    user_domains = []
+    if valid_uids:
+        v_placeholders = ",".join(["?"] * len(valid_uids))
+        dom_cur = await db.execute(f"SELECT id, domain_name, webserver, user_id FROM domains WHERE user_id IN ({v_placeholders})", valid_uids)
+        user_domains = await dom_cur.fetchall()
 
-    # Cập nhật trạng thái toàn bộ domains của các user này
-    if user_domains:
-        await db.execute(f"UPDATE domains SET status = ? WHERE user_id IN ({placeholders})", [req.status] + req.user_ids)
+        # Cập nhật trạng thái toàn bộ domains của các user hợp lệ này
+        if user_domains:
+            await db.execute(f"UPDATE domains SET status = ? WHERE user_id IN ({v_placeholders})", [req.status] + valid_uids)
 
     await db.commit()
     await db.close()
@@ -222,7 +226,7 @@ async def create_customer(req: CustomerCreate, current_user: dict = Depends(requ
 
         await db.execute("""
             INSERT INTO users (parent_id, username, password_hash, email, role, package_id, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, status)
-            VALUES (?, ?, ?, ?, 'reseller', ?, ?, ?, ?, 100, 100, 'active')
+            VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?, 100, 100, 'active')
         """, (current_user["id"], username, pwd_hash, req.email.strip(), package_id, req.cpu_pct, req.mem_mb, req.disk_mb))
         await db.commit()
 
@@ -889,10 +893,10 @@ async def update_user_profile(req: ProfileUpdateRequest, current_user: dict = De
 @router.put("/change-password")
 async def change_password(req: PasswordChangeRequest, current_user: dict = Depends(get_current_user)):
     """Đổi mật khẩu tài khoản hiện tại"""
-    if current_user.get("web_domain_id"):
+    if current_user.get("web_domain_id") or current_user.get("role") == "application":
         raise HTTPException(
             status_code=400,
-            detail="Tài khoản Website User hoạt động ở chế độ lồng cách ly bảo mật. Mật khẩu được quản trị thông qua Hosting Reseller hoặc Super Admin."
+            detail="Tài khoản Application hoạt động ở chế độ lồng cách ly bảo mật. Mật khẩu được quản trị thông qua User hoặc Admin."
         )
 
     if req.new_password != req.confirm_password:
@@ -903,7 +907,7 @@ async def change_password(req: PasswordChangeRequest, current_user: dict = Depen
     user_id = current_user["id"]
     db = await get_db_connection()
     try:
-        cur = await db.execute("SELECT password_hash FROM users WHERE id = ?", (user_id,))
+        cur = await db.execute("SELECT password_hash, role, parent_id, COALESCE(token_version, 1) as token_version FROM users WHERE id = ?", (user_id,))
         row = await cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản")
@@ -912,10 +916,53 @@ async def change_password(req: PasswordChangeRequest, current_user: dict = Depen
             raise HTTPException(status_code=400, detail="Mật khẩu hiện tại không chính xác")
 
         new_hash = get_password_hash(req.new_password)
-        await db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, user_id))
+        new_tv = int(row["token_version"]) + 1
+        await db.execute("UPDATE users SET password_hash = ?, token_version = ? WHERE id = ?", (new_hash, new_tv, user_id))
         await db.commit()
 
-        return {"status": "ok", "message": "Đã đổi mật khẩu thành công!"}
+        new_token = create_access_token(subject=user_id, role=current_user["role"], parent_id=row["parent_id"], tv=new_tv)
+        return {"status": "ok", "message": "Đã đổi mật khẩu thành công!", "access_token": new_token}
+    finally:
+        await db.close()
+
+class UsernameChangeRequest(BaseModel):
+    new_username: str
+    current_password: str
+
+@router.put("/change-username")
+async def change_username(req: UsernameChangeRequest, current_user: dict = Depends(get_current_user)):
+    """Đổi tên đăng nhập (username) của tài khoản hiện tại"""
+    if current_user.get("web_domain_id") or current_user.get("role") == "application":
+        raise HTTPException(status_code=400, detail="Tài khoản Application không thể tự đổi username")
+
+    new_u = req.new_username.strip().lower()
+    if not re.match(r"^[a-z0-9_-]{3,32}$", new_u):
+        raise HTTPException(status_code=400, detail="Tên đăng nhập mới phải từ 3-32 ký tự (chỉ gồm a-z, 0-9, _, -)")
+
+    reserved = {"root", "wpc", "presspanel", "nobody", "www-data", "mysql", "mariadb", "nginx", "lsadm", "redis", "sshd"}
+    if new_u in reserved:
+        raise HTTPException(status_code=400, detail="Không được phép sử dụng tên đăng nhập hệ thống này")
+
+    user_id = current_user["id"]
+    db = await get_db_connection()
+    try:
+        cur = await db.execute("SELECT username, password_hash, role, parent_id, COALESCE(token_version, 1) as token_version FROM users WHERE id = ?", (user_id,))
+        row = await cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản")
+        if not verify_password(req.current_password, row["password_hash"]):
+            raise HTTPException(status_code=400, detail="Mật khẩu xác nhận không chính xác")
+
+        dup_cur = await db.execute("SELECT id FROM users WHERE username = ? AND id != ?", (new_u, user_id))
+        if await dup_cur.fetchone():
+            raise HTTPException(status_code=400, detail="Tên đăng nhập này đã được sử dụng")
+
+        new_tv = int(row["token_version"]) + 1
+        await db.execute("UPDATE users SET username = ?, token_version = ? WHERE id = ?", (new_u, new_tv, user_id))
+        await db.commit()
+
+        new_token = create_access_token(subject=user_id, role=current_user["role"], parent_id=row["parent_id"], tv=new_tv)
+        return {"status": "ok", "message": f"Đã đổi tên đăng nhập thành '{new_u}'!", "username": new_u, "access_token": new_token}
     finally:
         await db.close()
 

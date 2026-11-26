@@ -172,9 +172,17 @@ async def restore_backup(backup_id: int, current_user: dict = Depends(get_curren
         raise HTTPException(status_code=400, detail="Tệp tin sao lưu cục bộ không tồn tại trên máy chủ!")
 
     try:
-        # Giải nén đè vào Document Root
-        import subprocess
-        subprocess.run(f"tar -xzf '{file_path}' -C '{doc_root}'", shell=True, check=True, timeout=300)
+        # Kiểm tra an toàn file nén chống Tar Slip / Symlink thoát khỏi Document Root
+        import tarfile
+        with tarfile.open(file_path, "r:gz") as tf:
+            base_real = os.path.realpath(doc_root)
+            for member in tf.getmembers():
+                if member.issym() or member.islnk():
+                    raise HTTPException(status_code=400, detail="Tệp sao lưu chứa liên kết symlink không an toàn!")
+                target_path = os.path.realpath(os.path.join(base_real, member.name))
+                if not target_path.startswith(base_real + os.sep) and target_path != base_real:
+                    raise HTTPException(status_code=400, detail="Phát hiện đường dẫn không hợp lệ trong tệp sao lưu (Tar Slip)!")
+            tf.extractall(path=doc_root)
 
         # Nạp lại database nếu có file sql bên trong
         c_wp = await db.execute("SELECT db_name FROM wp_instances WHERE domain_id = ?", (b[1],))
@@ -183,12 +191,18 @@ async def restore_backup(backup_id: int, current_user: dict = Depends(get_curren
             db_name = wp_db[0]
             sql_file = os.path.join(doc_root, f"{domain_name}_database.sql")
             if os.path.exists(sql_file):
-                subprocess.run(f"mysql '{db_name}' < '{sql_file}' 2>/dev/null || true", shell=True, timeout=60)
+                import subprocess
+                with open(sql_file, "rb") as sf:
+                    subprocess.run(["mysql", db_name], stdin=sf, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60, check=False)
                 os.remove(sql_file)
 
         return {"status": "ok", "message": f"Đã khôi phục thành công website {domain_name} từ bản sao lưu!"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi khôi phục: {str(e)}")
+    finally:
+        await db.close()
 
 
 # ==============================================================================

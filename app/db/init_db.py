@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS packages (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Bảng Người Dùng (3 Cấp Phân Quyền RBAC: Admin -> Reseller -> User)
+-- 2. Bảng Người Dùng (3 Cấp Phân Quyền RBAC: admin -> user -> application)
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     parent_id INTEGER DEFAULT NULL,
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS users (
     full_name TEXT DEFAULT '',
     phone TEXT DEFAULT '',
     email TEXT UNIQUE NOT NULL,
-    role TEXT NOT NULL CHECK(role IN ('admin', 'reseller', 'user')),
+    role TEXT NOT NULL CHECK(role IN ('admin', 'user', 'application', 'reseller')),
     system_uid INTEGER UNIQUE,
     package_id INTEGER NOT NULL,
     cpu_pct INTEGER NOT NULL,
@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS users (
     io_weight INTEGER NOT NULL,
     pids_max INTEGER NOT NULL,
     rate_limit TEXT NOT NULL DEFAULT '0',
+    token_version INTEGER NOT NULL DEFAULT 1,
     status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'suspended')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (package_id) REFERENCES packages(id),
@@ -407,8 +408,12 @@ async def init_database():
         except Exception:
             pass
         try:
-            # Chuẩn hoá các tài khoản Hosting User thành role 'reseller'
-            await db.execute("UPDATE users SET role = 'reseller' WHERE role = 'user' AND username != 'admin'")
+            # Chuẩn hoá các tài khoản Hosting User (reseller cũ) thành role 'user' (3 cấp: admin, user, application)
+            await db.execute("UPDATE users SET role = 'user' WHERE role = 'reseller' AND username != 'admin'")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 1")
         except Exception:
             pass
         try:
@@ -531,15 +536,51 @@ async def init_database():
         except Exception:
             pass
 
-        # Tạo tài khoản Admin mặc định nếu chưa có
-        cursor = await db.execute("SELECT id FROM users WHERE username = 'admin'")
+        # Khởi tạo Secret URI bí mật cho Panel nếu chưa có
+        import secrets
+        import string
+        uri_cur = await db.execute("SELECT value FROM system_settings WHERE key = 'panel_secret_uri'")
+        uri_row = await uri_cur.fetchone()
+        if not uri_row or not uri_row[0]:
+            secret_uri = f"pp-{secrets.token_hex(6)}"
+            await db.execute(
+                "INSERT OR REPLACE INTO system_settings (key, value) VALUES ('panel_secret_uri', ?)",
+                (secret_uri,)
+            )
+        else:
+            secret_uri = uri_row[0]
+
+        # Tạo tài khoản Admin ngẫu nhiên lần đầu nếu chưa có admin nào trong hệ thống
+        cursor = await db.execute("SELECT id, username FROM users WHERE role = 'admin' LIMIT 1")
         admin = await cursor.fetchone()
         if not admin:
-            admin_pass_hash = get_password_hash("admin123456")
+            rand_suffix = secrets.token_hex(3)
+            init_username = f"admin_{rand_suffix}"
+            alphabet = string.ascii_letters + string.digits + "!@#%^&*"
+            init_password = "".join(secrets.choice(alphabet) for _ in range(16))
+            admin_pass_hash = get_password_hash(init_password)
             await db.execute("""
-                INSERT INTO users (username, password_hash, email, role, package_id, cpu_pct, mem_mb, disk_mb, io_weight, pids_max)
-                VALUES ('admin', ?, 'admin@presspanel.local', 'admin', 1, 400, 8192, 102400, 100, 500)
-            """, (admin_pass_hash,))
+                INSERT INTO users (username, password_hash, full_name, email, role, package_id, cpu_pct, mem_mb, disk_mb, io_weight, pids_max, token_version)
+                VALUES (?, ?, 'Administrator', 'admin@presspanel.local', 'admin', 1, 400, 8192, 102400, 100, 500, 1)
+            """, (init_username, admin_pass_hash))
+
+            cred_file = os.path.join(os.path.dirname(settings.DB_PATH), ".install_credentials.txt")
+            try:
+                with open(cred_file, "w", encoding="utf-8") as cf:
+                    cf.write(f"SECRET_URI=/{secret_uri}\n")
+                    cf.write(f"USERNAME={init_username}\n")
+                    cf.write(f"PASSWORD={init_password}\n")
+                os.chmod(cred_file, 0o600)
+            except Exception:
+                pass
+
+            print("\n" + "=" * 64)
+            print("  PRESSPANEL - THONG TIN DANG NHAP LAN DAU (HAY LUU LAI!)")
+            print("=" * 64)
+            print(f"  Secret Login URI : /{secret_uri}")
+            print(f"  Username         : {init_username}")
+            print(f"  Password         : {init_password}")
+            print("=" * 64 + "\n")
 
         await db.commit()
 

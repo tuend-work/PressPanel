@@ -10,12 +10,14 @@ try:
 except Exception:
     pass
 
-from fastapi import FastAPI
+import hashlib
+import sqlite3
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 
-from app.core.config import settings
+from app.core.config import settings, CONF_DATA
 from app.db.init_db import init_database
 from app.api.v1.auth import router as auth_router
 from app.api.v1.domains import router as domains_router
@@ -46,22 +48,31 @@ async def lifespan(app: FastAPI):
     metrics_task.cancel()
     mysql_controller_task.cancel()
 
+_ENABLE_DOCS = os.getenv("PRESSPANEL_DEV_DOCS") == "1" or CONF_DATA.get("enable_docs", "0") in ("1", "true", "yes")
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     description="PressPanel: Control Panel Tối Ưu WordPress Cho Linux (FastAPI + C Gatekeepers)",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if _ENABLE_DOCS else None,
+    redoc_url="/redoc" if _ENABLE_DOCS else None,
+    openapi_url="/openapi.json" if _ENABLE_DOCS else None,
     lifespan=lifespan
 )
 
-# CORS Middleware (Bảo mật: Không dùng wildcard kết hợp allow_credentials)
+# CORS Middleware (Siết chặt nguồn gốc, không mở wildcard toàn cục)
+_ALLOWED_ORIGINS = [
+    f"http://{settings.SERVERNAME}:{settings.PORT}",
+    f"https://{settings.SERVERNAME}:{settings.PORT}",
+    f"http://localhost:{settings.PORT}",
+    f"http://127.0.0.1:{settings.PORT}",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Đăng ký các Router REST API
@@ -93,10 +104,31 @@ def get_index_html_path() -> str:
         return local_index
     return ""
 
+def get_panel_secret_uri() -> str:
+    try:
+        if os.path.isfile(settings.DB_PATH):
+            conn = sqlite3.connect(settings.DB_PATH)
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM system_settings WHERE key = 'panel_secret_uri'")
+            row = cur.fetchone()
+            conn.close()
+            if row and row[0]:
+                return row[0].strip().lstrip("/")
+    except Exception:
+        pass
+    return ""
+
+def _portal_cookie_token(secret_uri: str) -> str:
+    return hashlib.sha256(f"{secret_uri}:{settings.SECRET_KEY}".encode("utf-8")).hexdigest()[:24]
+
 @app.middleware("http")
-async def add_no_cache_headers(request, call_next):
+async def add_security_and_cache_headers(request: Request, call_next):
     response = await call_next(request)
     path = request.url.path
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     if path == "/" or path.endswith(".html"):
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         response.headers["Pragma"] = "no-cache"
@@ -108,15 +140,37 @@ if os.path.exists(settings.STATIC_DIR):
     app.mount("/static", StaticFiles(directory=settings.STATIC_DIR), name="static")
 
 @app.get("/", include_in_schema=False)
-async def serve_root():
+async def serve_root(request: Request):
+    secret_uri = get_panel_secret_uri()
+    if secret_uri:
+        cookie_val = request.cookies.get("pp_portal_ok", "")
+        if cookie_val != _portal_cookie_token(secret_uri):
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
     index_path = get_index_html_path()
     if index_path and os.path.isfile(index_path):
         return FileResponse(index_path, media_type="text/html")
-    return RedirectResponse(url="/docs")
+    return JSONResponse(status_code=404, content={"detail": "Not Found"})
 
 @app.get("/{full_path:path}", include_in_schema=False)
-async def serve_spa_fallback(full_path: str):
+async def serve_spa_fallback(full_path: str, request: Request):
     from pathlib import Path
+    clean_path = full_path.strip("/")
+    secret_uri = get_panel_secret_uri()
+
+    # Truy cập đúng đường dẫn bí mật -> cấp cookie phiên truy cập cổng & trả giao diện Panel
+    if secret_uri and clean_path == secret_uri:
+        index_path = get_index_html_path()
+        if index_path and os.path.isfile(index_path):
+            resp = FileResponse(index_path, media_type="text/html")
+            resp.set_cookie(
+                key="pp_portal_ok",
+                value=_portal_cookie_token(secret_uri),
+                httponly=True,
+                samesite="lax",
+                max_age=86400 * 7
+            )
+            return resp
+
     try:
         static_base = Path(settings.STATIC_DIR).resolve()
         candidate = (static_base / full_path).resolve()
@@ -126,10 +180,13 @@ async def serve_spa_fallback(full_path: str):
     except (ValueError, Exception):
         pass
 
+    if secret_uri and request.cookies.get("pp_portal_ok", "") != _portal_cookie_token(secret_uri):
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
     index_path = get_index_html_path()
     if index_path and os.path.isfile(index_path):
         return FileResponse(index_path, media_type="text/html")
-    return RedirectResponse(url="/docs")
+    return JSONResponse(status_code=404, content={"detail": "Not Found"})
 
 if __name__ == "__main__":
     import uvicorn

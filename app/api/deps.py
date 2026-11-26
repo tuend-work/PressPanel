@@ -20,6 +20,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     cursor = await db.execute("""
         SELECT u.id, u.username, u.email, COALESCE(u.full_name, '') as full_name, COALESCE(u.phone, '') as phone,
                u.role, u.parent_id, u.status, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb,
+               COALESCE(u.token_version, 1) as token_version,
                p.name as package_name, p.max_domains, p.max_databases, COALESCE(p.allow_ssh, 1) as allow_ssh
         FROM users u
         LEFT JOIN packages p ON u.package_id = p.id
@@ -32,11 +33,20 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay nguoi dung")
     if user["status"] == "suspended":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tai khoan dang bi khoa")
+    if payload.get("tv") is not None and int(payload.get("tv")) != int(user["token_version"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Phien dang nhap da het han do thay doi thong tin tai khoan",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     user_dict = dict(user)
-    # Nếu token được cấp cho vai trò 'user' (Web User của domain cụ thể)
-    if payload.get("role") == "user":
+    if user_dict.get("role") == "reseller":
         user_dict["role"] = "user"
+
+    # Nếu token được cấp cho vai trò 'application' (Website User của domain cụ thể)
+    if payload.get("role") in ("application", "user") and "web_domain_id" in payload:
+        user_dict["role"] = "application"
         if "web_domain_id" in payload:
             user_dict["web_domain_id"] = payload["web_domain_id"]
             db2 = await get_db_connection()

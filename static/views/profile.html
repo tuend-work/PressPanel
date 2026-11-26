@@ -13,10 +13,10 @@
                     <span class="text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider"
                         :class="{
                             'bg-purple-50 text-purple-700 border border-purple-200': profileData.role === 'admin',
-                            'bg-blue-950/40 text-blue-400 border border-blue-800/60 text-blue-700 border border-blue-200': profileData.role === 'reseller',
-                            'bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-emerald-700 border border-emerald-200': profileData.role === 'user'
+                            'bg-blue-950/40 text-blue-400 border border-blue-800/60': profileData.role === 'user' || profileData.role === 'reseller',
+                            'bg-emerald-950/40 text-emerald-400 border border-emerald-800/60': profileData.role === 'application' || profileData.is_web_user
                         }">
-                        {{ profileData.role === 'admin' ? 'Super Admin' : (profileData.role === 'reseller' ? 'Hosting Reseller' : (profileData.is_web_user ? 'Website User (Isolated)' : 'Website Owner')) }}
+                        {{ profileData.role === 'admin' ? 'Super Admin' : (profileData.is_web_user || profileData.role === 'application' ? 'Application (Isolated)' : 'User (Panel)') }}
                     </span>
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/40 text-emerald-400 border border-emerald-800/60">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-950/40 text-emerald-400 border border-emerald-800/600 animate-pulse"></span>
@@ -440,6 +440,63 @@
                             </button>
                         </div>
                     </form>
+
+                    <!-- Đổi Tên Đăng Nhập (Username) -->
+                    <div class="pt-5 mt-5 border-t border-slate-800/80 space-y-4">
+                        <h4 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                            <i data-lucide="user-cog" class="w-4 h-4 text-blue-500"></i>
+                            <span>Đổi Tên Đăng Nhập (Username)</span>
+                        </h4>
+                        <div v-if="usernameSuccessMsg" class="p-3 rounded-xl bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-xs">{{ usernameSuccessMsg }}</div>
+                        <div v-if="usernameErrorMsg" class="p-3 rounded-xl bg-rose-950/40 text-rose-400 border border-rose-800/60 text-xs">{{ usernameErrorMsg }}</div>
+                        <form @submit.prevent="handleChangeUsername" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-300 mb-1">Username mới:</label>
+                                <input type="text" v-model="usernameForm.new_username" required placeholder="vd: admin_moi"
+                                    class="w-full px-3 py-2 rounded-xl border border-slate-800/80 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-300 mb-1">Mật khẩu xác nhận:</label>
+                                <input type="password" v-model="usernameForm.current_password" required placeholder="Nhập mật khẩu hiện tại..."
+                                    class="w-full px-3 py-2 rounded-xl border border-slate-800/80 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div class="sm:col-span-2 flex justify-end">
+                                <button type="submit" :disabled="savingUsername" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition">
+                                    {{ savingUsername ? 'Đang lưu...' : 'Cập Nhật Username' }}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Cấu Hình Cổng & Đường Dẫn Bí Mật (Chỉ Admin) -->
+                    <div v-if="currentUser.role === 'admin'" class="pt-5 mt-5 border-t border-slate-800/80 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                                <i data-lucide="key-round" class="w-4 h-4 text-amber-400"></i>
+                                <span>Cấu Hình Cổng (Port) & Secret Login URI</span>
+                            </h4>
+                            <button type="button" @click="fetchPanelSettings" class="text-xs text-blue-400 hover:underline">Tải cấu hình</button>
+                        </div>
+                        <div v-if="panelSettingsSuccessMsg" class="p-3 rounded-xl bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-xs">{{ panelSettingsSuccessMsg }}</div>
+                        <div v-if="panelSettingsErrorMsg" class="p-3 rounded-xl bg-rose-950/40 text-rose-400 border border-rose-800/60 text-xs">{{ panelSettingsErrorMsg }}</div>
+                        <form @submit.prevent="handleSavePanelSettings" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-300 mb-1">Cổng Panel (Port):</label>
+                                <input type="number" min="1" max="65535" v-model.number="panelSettingsForm.port" required
+                                    class="w-full px-3 py-2 rounded-xl border border-slate-800/80 text-xs text-slate-100 focus:outline-none focus:border-blue-500 font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-300 mb-1">Secret Login URI (không gồm dấu /):</label>
+                                <input type="text" v-model="panelSettingsForm.secret_uri" required placeholder="vd: pp-9f2a4c8e"
+                                    class="w-full px-3 py-2 rounded-xl border border-slate-800/80 text-xs text-slate-100 focus:outline-none focus:border-blue-500 font-mono">
+                            </div>
+                            <div class="sm:col-span-2 flex justify-end">
+                                <button type="submit" :disabled="savingPanelSettings" class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs transition">
+                                    {{ savingPanelSettings ? 'Đang lưu...' : 'Lưu Port & Secret URI' }}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>

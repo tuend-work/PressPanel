@@ -61,18 +61,18 @@
                                                 <circle cx="56" cy="56" r="44" stroke="#1e293b" stroke-width="6" fill="transparent"/>
                                                 <circle cx="56" cy="56" r="44" stroke="#2563eb" stroke-width="6" fill="transparent"
                                                     :stroke-dasharray="276.4"
-                                                    :stroke-dashoffset="276.4 * (1 - (sysStats.user_cpu?.percent || 5) / 100)"
+                                                    :stroke-dashoffset="276.4 * (1 - (sysStats.user_cpu?.percent ?? 0) / 100)"
                                                     stroke-linecap="round" class="transition-all duration-700"/>
                                             </svg>
                                             <div class="absolute inset-0 flex flex-col items-center justify-center font-extrabold text-white">
-                                                <span class="text-xl">{{ sysStats.user_cpu?.percent || 5 }}%</span>
+                                                <span class="text-xl">{{ sysStats.user_cpu?.percent ?? 0 }}%</span>
                                                 <span class="text-[9px] text-slate-400 font-normal font-mono">mức trần</span>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="text-center pt-2 border-t border-slate-800/60">
                                         <div class="text-xs font-mono">
-                                            <span class="text-blue-400 font-bold">Đang dùng: {{ sysStats.user_cpu?.current_pct || 5 }}%</span>
+                                            <span class="text-blue-400 font-bold">Đang dùng: {{ sysStats.user_cpu?.current_pct ?? 0 }}%</span>
                                             <span class="text-slate-400"> / {{ sysStats.user_cpu?.limit_pct || 100 }}% CPU</span>
                                         </div>
                                     </div>
@@ -90,11 +90,11 @@
                                                 <circle cx="56" cy="56" r="44" stroke="#1e293b" stroke-width="6" fill="transparent"/>
                                                 <circle cx="56" cy="56" r="44" stroke="#10b981" stroke-width="6" fill="transparent"
                                                     :stroke-dasharray="276.4"
-                                                    :stroke-dashoffset="276.4 * (1 - (sysStats.user_ram?.percent || 12) / 100)"
+                                                    :stroke-dashoffset="276.4 * (1 - (sysStats.user_ram?.percent ?? 0) / 100)"
                                                     stroke-linecap="round" class="transition-all duration-700"/>
                                             </svg>
                                             <div class="absolute inset-0 flex flex-col items-center justify-center font-extrabold text-white">
-                                                <span class="text-xl">{{ sysStats.user_ram?.percent || 12 }}%</span>
+                                                <span class="text-xl">{{ sysStats.user_ram?.percent ?? 0 }}%</span>
                                                 <span class="text-[9px] text-slate-400 font-normal font-mono">đã dùng</span>
                                             </div>
                                         </div>

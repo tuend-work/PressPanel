@@ -348,8 +348,8 @@ async def system_status(current_user: dict = Depends(get_current_user)):
             if not active_pids:
                 try:
                     for u in query_users:
-                        pg_proc = await asyncio.create_subprocess_shell(
-                            f"pgrep -f 'pool {u}'",
+                        pg_proc = await asyncio.create_subprocess_exec(
+                            "pgrep", "-f", f"pool {u}",
                             stdout=asyncio.subprocess.PIPE,
                             stderr=asyncio.subprocess.PIPE
                         )
@@ -2236,6 +2236,103 @@ async def test_telegram_message(current_user: dict = Depends(get_current_user)):
     return {
         "status": "ok",
         "message": "Tin nhắn thử nghiệm đã được gửi thành công tới Telegram của bạn!"
+    }
+
+
+class PanelSettingsUpdateRequest(BaseModel):
+    port: Optional[int] = None
+    secret_uri: Optional[str] = None
+
+
+@router.get("/panel-settings")
+async def get_panel_settings(current_user: dict = Depends(get_current_user)):
+    """Lấy cấu hình cổng (Port) và đường dẫn đăng nhập bí mật (Secret URI) của Panel"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền xem cấu hình hệ thống Panel")
+    from app.core.config import settings
+    db = await get_db_connection()
+    try:
+        cur = await db.execute("SELECT value FROM system_settings WHERE key = 'panel_secret_uri'")
+        row = await cur.fetchone()
+        secret_uri = row["value"] if row and row["value"] else ""
+    finally:
+        await db.close()
+    return {
+        "status": "ok",
+        "port": settings.PORT,
+        "secret_uri": secret_uri
+    }
+
+
+@router.post("/panel-settings")
+async def update_panel_settings(req: PanelSettingsUpdateRequest, current_user: dict = Depends(get_current_user)):
+    """Cập nhật cổng (Port) và/hoặc đường dẫn bí mật (Secret URI) của Panel"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền thay đổi cấu hình hệ thống Panel")
+
+    from app.core.config import settings, get_conf_path
+    changed_items = []
+    restart_required = False
+
+    if req.secret_uri is not None:
+        clean_uri = req.secret_uri.strip().lstrip("/")
+        if not re.match(r"^[a-zA-Z0-9_-]{4,64}$", clean_uri):
+            raise HTTPException(status_code=400, detail="Secret URI phải từ 4-64 ký tự (chỉ gồm a-z, A-Z, 0-9, _, -)")
+        reserved_prefixes = {"api", "static", "health", "docs", "redoc", "openapi.json"}
+        if clean_uri.lower() in reserved_prefixes:
+            raise HTTPException(status_code=400, detail="Không được phép dùng đường dẫn hệ thống này làm Secret URI")
+        db = await get_db_connection()
+        try:
+            await db.execute(
+                "INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('panel_secret_uri', ?, CURRENT_TIMESTAMP)",
+                (clean_uri,)
+            )
+            await db.commit()
+        finally:
+            await db.close()
+        changed_items.append(f"Secret URI: /{clean_uri}")
+
+    if req.port is not None:
+        if req.port < 1 or req.port > 65535:
+            raise HTTPException(status_code=400, detail="Số cổng (Port) phải nằm trong khoảng 1 - 65535")
+        if req.port != settings.PORT:
+            conf_file = get_conf_path()
+            for cf in [conf_file, "/opt/presspanel/conf/presspanel.conf", "/opt/wpc/conf/wpc.conf"]:
+                if os.path.isfile(cf):
+                    try:
+                        with open(cf, "r", encoding="utf-8") as f:
+                            lines = f.readlines()
+                        found_port = False
+                        new_lines = []
+                        for ln in lines:
+                            if ln.strip().lower().startswith("port="):
+                                new_lines.append(f"port={req.port}\n")
+                                found_port = True
+                            else:
+                                new_lines.append(ln)
+                        if not found_port:
+                            new_lines.append(f"port={req.port}\n")
+                        with open(cf, "w", encoding="utf-8") as f:
+                            f.writelines(new_lines)
+                    except Exception:
+                        pass
+            if platform.system() == "Linux":
+                for svc_file in ["/etc/systemd/system/presspanel.service", "/etc/systemd/system/wpc.service"]:
+                    if os.path.isfile(svc_file):
+                        try:
+                            subprocess.run(["sudo", "sed", "-i", "-E", f"s/--port [0-9]+/--port {req.port}/g", svc_file], check=False)
+                        except Exception:
+                            pass
+                subprocess.run(["sudo", "systemctl", "daemon-reload"], check=False)
+            settings.PORT = req.port
+            restart_required = True
+            changed_items.append(f"Port: {req.port}")
+
+    return {
+        "status": "ok",
+        "message": ("Đã cập nhật: " + ", ".join(changed_items)) if changed_items else "Không có thay đổi nào được áp dụng",
+        "restart_required": restart_required,
+        "port": settings.PORT
     }
 
 

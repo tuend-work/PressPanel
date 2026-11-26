@@ -164,6 +164,8 @@ async def create_cron_job(
         )
     if not req.command or not req.command.strip():
         raise HTTPException(status_code=400, detail="Câu lệnh thực thi không được để trống")
+    if "\n" in req.command or "\r" in req.command or "\n" in req.schedule or "\r" in req.schedule:
+        raise HTTPException(status_code=400, detail="Lệnh hoặc lịch biểu không được chứa ký tự xuống dòng")
 
     db = await get_db_connection()
     is_admin = (current_user["role"] == "admin" or current_user["username"] == "admin")
@@ -185,11 +187,12 @@ async def create_cron_job(
                 target_user_id = u_found["id"]
                 target_username = u_found["username"]
         elif req.domain_id:
-            # Hosting user chọn một domain
+            # User chọn một domain -> kiểm tra quyền sở hữu
             cursor = await db.execute("SELECT id, user_id FROM domains WHERE id = ?", (req.domain_id,))
             d_found = await cursor.fetchone()
-            if d_found:
-                assigned_domain_id = d_found["id"]
+            if not d_found or (not is_admin and d_found["user_id"] != current_user["id"]):
+                raise HTTPException(status_code=403, detail="Bạn không có quyền tạo Cronjob cho website này")
+            assigned_domain_id = d_found["id"]
 
         cursor = await db.execute("""
             INSERT INTO cron_jobs (user_id, domain_id, name, schedule, command, status)

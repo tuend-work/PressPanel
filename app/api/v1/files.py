@@ -92,8 +92,8 @@ def resolve_target_path(user: dict, target_user: Optional[str], subpath: str) ->
     real_base = os.path.realpath(base_dir)
     real_target = os.path.realpath(os.path.join(real_base, clean_sub))
 
-    # Tự động nhận diện nếu đường dẫn bắt đầu bằng domains/<domain>/... mà thiếu target_user (dành cho Admin hoặc khi target_user rỗng)
-    if not os.path.exists(real_target) and not check_is_file_privileged(real_target) and not check_is_dir_privileged(real_target):
+    # Tự động nhận diện nếu đường dẫn bắt đầu bằng domains/<domain>/... mà thiếu target_user (CHỈ dành cho Admin)
+    if user["role"] == "admin" and not os.path.exists(real_target) and not check_is_file_privileged(real_target) and not check_is_dir_privileged(real_target):
         if clean_sub.startswith("domains/"):
             parts = clean_sub.split("/")
             if len(parts) >= 2:
@@ -132,7 +132,8 @@ def sync_owner(path: str):
         pass
 
 def get_recycle_bin_dir(user: dict, target_user: Optional[str]) -> str:
-    u = target_user if (user["role"] == "admin" and target_user) else user["username"]
+    clean_t = re.sub(r"[^a-zA-Z0-9_-]", "", target_user) if target_user else ""
+    u = clean_t if (user["role"] == "admin" and clean_t) else user["username"]
     r_dir = f"/home/{u}/.recycle_bin"
     os.makedirs(r_dir, exist_ok=True)
     return r_dir

@@ -31,19 +31,19 @@ def ensure_ipset_iptables_chain():
     try:
         # 1. Tạo ipset nếu chưa có
         subprocess.run(
-            f"ipset create {IPSET_NAME} hash:net family inet hashsize 4096 maxelem 1000000 -exist",
-            shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5
+            ["ipset", "create", IPSET_NAME, "hash:net", "family", "inet", "hashsize", "4096", "maxelem", "1000000", "-exist"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5
         )
         # 2. Kiểm tra quy tắc iptables
         res = subprocess.run(
-            f"iptables -C INPUT -m set --match-set {IPSET_NAME} src -j DROP",
-            shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5
+            ["iptables", "-C", "INPUT", "-m", "set", "--match-set", IPSET_NAME, "src", "-j", "DROP"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5
         )
         if res.returncode != 0:
             # Chèn lên đầu bảng INPUT để chặn sớm nhất
             subprocess.run(
-                f"iptables -I INPUT 1 -m set --match-set {IPSET_NAME} src -j DROP",
-                shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5
+                ["iptables", "-I", "INPUT", "1", "-m", "set", "--match-set", IPSET_NAME, "src", "-j", "DROP"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5
             )
         return True
     except Exception as e:
@@ -57,8 +57,8 @@ def get_ipset_stats() -> Dict[str, Any]:
     if shutil.which("ipset"):
         try:
             res = subprocess.run(
-                f"ipset list {IPSET_NAME} -terse",
-                shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5
+                ["ipset", "list", IPSET_NAME, "-terse"],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5
             )
             if res.returncode == 0:
                 active = True
@@ -126,10 +126,10 @@ def sync_all_blocklists_sync() -> Dict[str, Any]:
 
     # 3. Tạo bảng tạm SWAP_NAME và nạp toàn bộ IP vào đó
     try:
-        subprocess.run(f"ipset destroy {SWAP_NAME}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["ipset", "destroy", SWAP_NAME], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         subprocess.run(
-            f"ipset create {SWAP_NAME} hash:net family inet hashsize 4096 maxelem 1000000 -exist",
-            shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            ["ipset", "create", SWAP_NAME, "hash:net", "family", "inet", "hashsize", "4096", "maxelem", "1000000", "-exist"],
+            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
 
         # Ghi các lệnh add vào tiến trình `ipset restore` để nạp siêu tốc hàng triệu dòng
@@ -140,8 +140,8 @@ def sync_all_blocklists_sync() -> Dict[str, Any]:
         stdout, stderr = proc.communicate(input=restore_payload)
 
         # 4. Atomic Swap: Hoán đổi bảng tạm thành bảng chính tức thời không rớt mạng
-        subprocess.run(f"ipset swap {IPSET_NAME} {SWAP_NAME}", shell=True, check=True)
-        subprocess.run(f"ipset destroy {SWAP_NAME}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["ipset", "swap", IPSET_NAME, SWAP_NAME], check=True)
+        subprocess.run(["ipset", "destroy", SWAP_NAME], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         logger.info(f"Đã nạp thành công {len(all_ips)} IP vào ipset {IPSET_NAME} qua cơ chế Atomic Swap!")
         return {

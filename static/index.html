@@ -55,12 +55,27 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <!-- Xterm.js & Addon Fit cho Web Terminal SSH -->
 <script>
-function showAlert(message) {
+function showAlert(message, type = 'info') {
     if (typeof Swal !== 'undefined') {
         Swal.fire({
             text: message,
-            icon: 'info',
+            icon: type,
             confirmButtonText: 'OK',
+        });
+    } else {
+        alert(message);
+    }
+}
+function showToast(message, type = 'success') {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: type,
+            title: message,
+            showConfirmButton: false,
+            timer: 3500,
+            timerProgressBar: true
         });
     } else {
         alert(message);
@@ -81,9 +96,21 @@ function showAlert(message) {
         })();
     </script>
     <style>
-        /* Core Layout & Typography Scale */
+        /* Design Tokens & Core Typography Scale */
+        :root {
+            --bg-app: #f8fafc;
+            --bg-surface: #ffffff;
+            --text-primary: #0f172a;
+            --border-subtle: #e2e8f0;
+        }
+        html.dark {
+            --bg-app: #0b0f17;
+            --bg-surface: #111827;
+            --text-primary: #f1f5f9;
+            --border-subtle: #1f293d;
+        }
         html {
-            font-size: 80% !important;
+            font-size: 93.75%;
             -webkit-text-size-adjust: 100%;
         }
 
@@ -581,9 +608,6 @@ function showAlert(message) {
                         <span class="text-xs text-blue-400 font-semibold tracking-wide">Control Panel</span>
                     </div>
                 </div>
-                <a href="/docs" target="_blank" class="text-xs font-medium text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 transition">
-                    📖 Swagger API
-                </a>
             </header>
 
             <main class="max-w-md w-full mx-auto my-auto py-8">
@@ -606,9 +630,8 @@ function showAlert(message) {
                         <div>
                             <div class="flex justify-between items-center mb-1.5">
                                 <label class="block text-xs font-semibold text-slate-300">Mật Khẩu</label>
-                                <span class="text-[11px] text-slate-500">Mặc định: admin123456</span>
                             </div>
-                            <input type="password" v-model="loginForm.password" required
+                            <input type="password" v-model="loginForm.password" required placeholder="Nhập mật khẩu quản trị..."
                                 class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 transition">
                         </div>
 
@@ -1038,10 +1061,10 @@ function showAlert(message) {
                 'firewall.html', 'backups.html'
             ];
             try {
-                const cacheBuster = Date.now();
+                const assetVer = '0.5.206';
                 const [viewContents, modalsHtml] = await Promise.all([
-                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=' + cacheBuster).then(r => r.text()))),
-                    fetch('/static/modals/modals.html?v=' + cacheBuster).then(r => r.text())
+                    Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=' + assetVer).then(r => r.text()))),
+                    fetch('/static/modals/modals.html?v=' + assetVer).then(r => r.text())
                 ]);
                 const vContainer = document.getElementById('views-container');
                 if (vContainer) vContainer.outerHTML = viewContents.join('\n');
@@ -1102,10 +1125,10 @@ function showAlert(message) {
                 const currentUser = ref(initialUser);
 
                 const isWebUser = computed(() => {
-                    return currentUser.value.role === 'user' && (!!currentUser.value.web_domain_id || !!currentUser.value.domain_name);
+                    return currentUser.value.role === 'application' || (currentUser.value.role === 'user' && (!!currentUser.value.web_domain_id || !!currentUser.value.domain_name));
                 });
                 const isHostingUser = computed(() => {
-                    return (currentUser.value.role === 'reseller' || (currentUser.value.role === 'user' && !isWebUser.value)) && currentUser.value.username !== 'admin';
+                    return (currentUser.value.role === 'user' || currentUser.value.role === 'reseller') && !isWebUser.value && currentUser.value.username !== 'admin';
                 });
                 
                 // Hỗ trợ URI riêng biệt cho từng chức năng (#dashboard, #domains, #files, ...)
@@ -1310,7 +1333,7 @@ function showAlert(message) {
                     return servicePlans.value.find(p => p.id === targetPlanId.value) || null;
                 });
 
-                const loginForm = ref({ username: 'admin', password: 'admin123456' });
+                const loginForm = ref({ username: '', password: '' });
                 const loginError = ref('');
                 const loggingIn = ref(false);
 
@@ -4086,6 +4109,10 @@ geo $limit_rate {
                         });
                         const data = await res.json();
                         if (res.ok) {
+                            if (data.access_token) {
+                                token.value = data.access_token;
+                                localStorage.setItem('wpc_token', data.access_token);
+                            }
                             passwordSuccessMsg.value = data.message || 'Đổi mật khẩu thành công!';
                             passwordForm.value = { current_password: '', new_password: '', confirm_password: '' };
                             setTimeout(() => { passwordSuccessMsg.value = ''; }, 5000);
@@ -4096,6 +4123,99 @@ geo $limit_rate {
                         passwordErrorMsg.value = 'Lỗi kết nối máy chủ: ' + e.message;
                     } finally {
                         savingPassword.value = false;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const usernameForm = ref({ new_username: '', current_password: '' });
+                const savingUsername = ref(false);
+                const usernameSuccessMsg = ref('');
+                const usernameErrorMsg = ref('');
+
+                const handleChangeUsername = async () => {
+                    savingUsername.value = true;
+                    usernameSuccessMsg.value = '';
+                    usernameErrorMsg.value = '';
+                    try {
+                        const res = await fetch('/api/v1/users/change-username', {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify(usernameForm.value)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            if (data.access_token) {
+                                token.value = data.access_token;
+                                localStorage.setItem('wpc_token', data.access_token);
+                            }
+                            if (data.username) {
+                                currentUser.value.username = data.username;
+                                localStorage.setItem('wpc_user', JSON.stringify(currentUser.value));
+                                profileData.value.username = data.username;
+                            }
+                            usernameSuccessMsg.value = data.message || 'Đổi tên đăng nhập thành công!';
+                            usernameForm.value = { new_username: '', current_password: '' };
+                            setTimeout(() => { usernameSuccessMsg.value = ''; }, 5000);
+                        } else {
+                            usernameErrorMsg.value = data.detail || 'Không thể đổi tên đăng nhập';
+                        }
+                    } catch (e) {
+                        usernameErrorMsg.value = 'Lỗi kết nối: ' + e.message;
+                    } finally {
+                        savingUsername.value = false;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const panelSettingsForm = ref({ port: 8888, secret_uri: '' });
+                const savingPanelSettings = ref(false);
+                const panelSettingsSuccessMsg = ref('');
+                const panelSettingsErrorMsg = ref('');
+
+                const fetchPanelSettings = async () => {
+                    if (currentUser.value.role !== 'admin') return;
+                    try {
+                        const res = await fetch('/api/v1/system/panel-settings', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            panelSettingsForm.value.port = data.port || 8888;
+                            panelSettingsForm.value.secret_uri = data.secret_uri || '';
+                        }
+                    } catch (e) {}
+                };
+
+                const handleSavePanelSettings = async () => {
+                    savingPanelSettings.value = true;
+                    panelSettingsSuccessMsg.value = '';
+                    panelSettingsErrorMsg.value = '';
+                    try {
+                        const res = await fetch('/api/v1/system/panel-settings', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                port: Number(panelSettingsForm.value.port),
+                                secret_uri: panelSettingsForm.value.secret_uri
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            panelSettingsSuccessMsg.value = data.message + (data.restart_required ? ' (Cần khởi động lại dịch vụ Panel để áp dụng cổng mới)' : '');
+                            setTimeout(() => { panelSettingsSuccessMsg.value = ''; }, 7000);
+                        } else {
+                            panelSettingsErrorMsg.value = data.detail || 'Không thể lưu cấu hình Panel';
+                        }
+                    } catch (e) {
+                        panelSettingsErrorMsg.value = 'Lỗi kết nối: ' + e.message;
+                    } finally {
+                        savingPanelSettings.value = false;
                         refreshLucideIcons();
                     }
                 };
@@ -6271,9 +6391,24 @@ if ($host ~* ^www\\.(.*)$) {
                     xtermInstance.open(mountEl);
                     fitAddonInstance.fit();
 
-                    // Kết nối WebSocket Terminal
+                    // Xin vé một lần (one-time ticket) cho WebSocket Terminal, tránh lộ JWT trên URL
+                    let wsQuery = `target_user=${encodeURIComponent(terminalTargetUser.value || 'root')}`;
+                    try {
+                        const tRes = await fetch('/api/v1/terminal/ticket', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (tRes.ok) {
+                            const tData = await tRes.json();
+                            wsQuery = `ticket=${encodeURIComponent(tData.ticket)}&` + wsQuery;
+                        } else {
+                            wsQuery = `token=${encodeURIComponent(token.value)}&` + wsQuery;
+                        }
+                    } catch (e) {
+                        wsQuery = `token=${encodeURIComponent(token.value)}&` + wsQuery;
+                    }
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    const wsUrl = `${protocol}//${window.location.host}/api/v1/terminal/ws?token=${token.value}&target_user=${encodeURIComponent(terminalTargetUser.value || 'root')}`;
+                    const wsUrl = `${protocol}//${window.location.host}/api/v1/terminal/ws?${wsQuery}`;
                     
                     xtermInstance.writeln('\x1b[36m⚡ Đang kết nối phiên SSH Terminal an toàn cho tài khoản ' + terminalTargetUser.value + '...\x1b[0m\r\n');
 
@@ -9468,6 +9603,8 @@ if ($host ~* ^www\\.(.*)$) {
                     profileData, profileForm, passwordForm, showCurPass, showNewPass,
                     loadingProfile, savingProfile, savingPassword, profileSuccessMsg, profileErrorMsg,
                     passwordSuccessMsg, passwordErrorMsg, diskPercent, fetchUserProfile, handleUpdateProfile, handleChangePassword,
+                    usernameForm, savingUsername, usernameSuccessMsg, usernameErrorMsg, handleChangeUsername,
+                    panelSettingsForm, savingPanelSettings, panelSettingsSuccessMsg, panelSettingsErrorMsg, fetchPanelSettings, handleSavePanelSettings,
                     dbTypeTab, dbAutoBackup, dbSearchQuery, dbWebsiteFilter, databasesList, fetchingDatabases,
                     selectedDbIds, isAllDbsSelected, toggleSelectAllDbs, filteredDatabases, fetchDatabasesList,
                     showAddDbModal, creatingDb, newDb, openAddDbModal, handleCreateDatabase, handleDeleteDatabase, handleBackupDatabase,
