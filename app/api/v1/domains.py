@@ -4749,6 +4749,232 @@ async def get_domain_logs(domain_id: int, log_type: str = Query("access"), curre
     return {"status": "success", "log_type": log_type, "content": content, "path": found_path}
 
 
+class SSLInstallRequest(BaseModel):
+    provider: str  # "letsencrypt" | "zerossl" | "custom"
+    email: Optional[str] = ""
+    include_www: bool = False
+    eab_kid: Optional[str] = ""
+    eab_hmac_key: Optional[str] = ""
+    certificate: Optional[str] = ""
+    private_key: Optional[str] = ""
+
+
+def _check_domain_access(domain_row, current_user: dict):
+    role = current_user.get("role")
+    if role == "admin":
+        return
+    if current_user.get("web_domain_id"):
+        if int(current_user["web_domain_id"]) != int(domain_row["id"]):
+            raise HTTPException(status_code=403, detail="Bạn không có quyền thao tác website này")
+        return
+    if int(domain_row["user_id"]) != int(current_user["id"]) and domain_row["parent_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Bạn không có quyền thao tác website này")
+
+
+def _parse_cert_details(cert_path: str) -> Dict[str, Any]:
+    info = {"exists": False, "issuer": "", "subject": "", "not_before": "", "not_after": "", "days_left": None}
+    if not cert_path or not os.path.isfile(cert_path):
+        return info
+    info["exists"] = True
+    try:
+        res = subprocess.run(
+            ["openssl", "x509", "-in", cert_path, "-noout", "-subject", "-issuer", "-dates"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5
+        )
+        if res.returncode == 0:
+            from datetime import datetime, timezone
+            for line in res.stdout.splitlines():
+                if line.startswith("issuer="):
+                    info["issuer"] = line.split("=", 1)[1].strip()
+                elif line.startswith("subject="):
+                    info["subject"] = line.split("=", 1)[1].strip()
+                elif line.startswith("notBefore="):
+                    info["not_before"] = line.split("=", 1)[1].strip()
+                elif line.startswith("notAfter="):
+                    na = line.split("=", 1)[1].strip()
+                    info["not_after"] = na
+                    try:
+                        exp_dt = datetime.strptime(na, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+                        info["days_left"] = max(0, (exp_dt - datetime.now(timezone.utc)).days)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    return info
+
+
+@router.get("/{domain_id}/ssl")
+async def get_domain_ssl(domain_id: int, current_user: dict = Depends(get_current_user)):
+    """Lấy thông tin chứng chỉ SSL hiện tại của website"""
+    db = await get_db_connection()
+    try:
+        cur = await db.execute(
+            "SELECT d.*, u.parent_id FROM domains d JOIN users u ON d.user_id = u.id WHERE d.id = ?",
+            (domain_id,)
+        )
+        domain = await cur.fetchone()
+        if not domain:
+            raise HTTPException(status_code=404, detail="Không tìm thấy website")
+        _check_domain_access(domain, current_user)
+
+        cert_cur = await db.execute(
+            "SELECT provider, cert_path, key_path, auto_renew, expires_at FROM ssl_certificates WHERE domain_id = ? ORDER BY id DESC LIMIT 1",
+            (domain_id,)
+        )
+        cert_row = await cert_cur.fetchone()
+    finally:
+        await db.close()
+
+    clean_domain = domain["domain_name"]
+    iso_u = domain_to_linux_user(clean_domain)
+    cert_path = cert_row["cert_path"] if cert_row and cert_row["cert_path"] else f"/home/{iso_u}/domains/{clean_domain}/ssl/fullchain.pem"
+    key_path = cert_row["key_path"] if cert_row and cert_row["key_path"] else f"/home/{iso_u}/domains/{clean_domain}/ssl/privkey.pem"
+    parsed = _parse_cert_details(cert_path)
+
+    return {
+        "status": "ok",
+        "ssl_enabled": bool(domain["ssl_enabled"]),
+        "provider": cert_row["provider"] if cert_row else ("letsencrypt" if domain["ssl_enabled"] else "none"),
+        "cert_path": cert_path,
+        "key_path": key_path,
+        "auto_renew": bool(cert_row["auto_renew"]) if cert_row else True,
+        "details": parsed
+    }
+
+
+@router.post("/{domain_id}/ssl/install")
+async def install_domain_ssl(domain_id: int, req: SSLInstallRequest, current_user: dict = Depends(get_current_user)):
+    """Cài đặt SSL cho website qua Let's Encrypt, ZeroSSL hoặc Custom SSL"""
+    provider = (req.provider or "").strip().lower()
+    if provider not in ("letsencrypt", "zerossl", "custom"):
+        raise HTTPException(status_code=400, detail="Nhà cung cấp SSL không hợp lệ (chỉ hỗ trợ letsencrypt, zerossl, custom)")
+
+    db = await get_db_connection()
+    try:
+        cur = await db.execute(
+            "SELECT d.*, u.parent_id, u.email as owner_email FROM domains d JOIN users u ON d.user_id = u.id WHERE d.id = ?",
+            (domain_id,)
+        )
+        domain = await cur.fetchone()
+        if not domain:
+            raise HTTPException(status_code=404, detail="Không tìm thấy website")
+        _check_domain_access(domain, current_user)
+
+        clean_domain = domain["domain_name"]
+        iso_u = domain_to_linux_user(clean_domain)
+        doc_root = domain["document_root"] or f"/home/{iso_u}/domains/{clean_domain}/public_html"
+        ssl_script = "/opt/presspanel/scripts/ssl_manager.sh"
+        cert_path = f"/home/{iso_u}/domains/{clean_domain}/ssl/fullchain.pem"
+        key_path = f"/home/{iso_u}/domains/{clean_domain}/ssl/privkey.pem"
+
+        if os.name != "nt":
+            if provider == "custom":
+                if not req.certificate or not req.private_key:
+                    raise HTTPException(status_code=400, detail="Vui lòng nhập đầy đủ Private Key và Certificate (CRT/PEM)")
+                tmp_key = f"/tmp/pp_ssl_key_{uuid.uuid4().hex}.pem"
+                tmp_crt = f"/tmp/pp_ssl_crt_{uuid.uuid4().hex}.pem"
+                with open(tmp_key, "w", encoding="utf-8") as fk:
+                    fk.write(req.private_key.strip() + "\n")
+                with open(tmp_crt, "w", encoding="utf-8") as fc:
+                    fc.write(req.certificate.strip() + "\n")
+                cmd = ["sudo", "bash", ssl_script, "custom", clean_domain, iso_u, doc_root, tmp_key, tmp_crt]
+            elif provider == "letsencrypt":
+                email = (req.email or domain["owner_email"] or f"admin@{clean_domain}").strip()
+                cmd = ["sudo", "bash", ssl_script, "letsencrypt", clean_domain, iso_u, doc_root, email, "1" if req.include_www else "0"]
+            else:  # zerossl
+                email = (req.email or domain["owner_email"] or f"admin@{clean_domain}").strip()
+                cmd = ["sudo", "bash", ssl_script, "zerossl", clean_domain, iso_u, doc_root, email, (req.eab_kid or "").strip(), (req.eab_hmac_key or "").strip()]
+
+            proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=180)
+            if proc.returncode != 0:
+                err_msg = (proc.stdout or "").strip().splitlines()[-1] if proc.stdout else "Cấp phát SSL thất bại"
+                raise HTTPException(status_code=400, detail=err_msg)
+
+        # Lưu vào bảng ssl_certificates & domains
+        db_provider = "letsencrypt" if provider == "letsencrypt" else ("custom" if provider == "custom" else "letsencrypt")
+        # Lưu provider thực tế nếu schema cho phép hoặc lưu vào ssl_certificates
+        await db.execute("DELETE FROM ssl_certificates WHERE domain_id = ?", (domain_id,))
+        try:
+            await db.execute(
+                "INSERT INTO ssl_certificates (domain_id, provider, cert_path, key_path, auto_renew) VALUES (?, ?, ?, ?, ?)",
+                (domain_id, provider if provider != "zerossl" else "custom", cert_path, key_path, 0 if provider == "custom" else 1)
+            )
+        except Exception:
+            await db.execute(
+                "INSERT INTO ssl_certificates (domain_id, provider, cert_path, key_path, auto_renew) VALUES (?, ?, ?, ?, ?)",
+                (domain_id, db_provider, cert_path, key_path, 0 if provider == "custom" else 1)
+            )
+        await db.execute("UPDATE domains SET ssl_enabled = 1 WHERE id = ?", (domain_id,))
+        await db.commit()
+
+        return {
+            "status": "ok",
+            "message": f"Đã cài đặt SSL ({provider.upper()}) thành công cho {clean_domain}!"
+        }
+    finally:
+        await db.close()
+
+
+@router.post("/{domain_id}/ssl/renew")
+async def renew_domain_ssl(domain_id: int, current_user: dict = Depends(get_current_user)):
+    """Gia hạn chứng chỉ SSL cho website"""
+    db = await get_db_connection()
+    try:
+        cur = await db.execute(
+            "SELECT d.*, u.parent_id FROM domains d JOIN users u ON d.user_id = u.id WHERE d.id = ?",
+            (domain_id,)
+        )
+        domain = await cur.fetchone()
+        if not domain:
+            raise HTTPException(status_code=404, detail="Không tìm thấy website")
+        _check_domain_access(domain, current_user)
+
+        clean_domain = domain["domain_name"]
+        iso_u = domain_to_linux_user(clean_domain)
+        doc_root = domain["document_root"] or f"/home/{iso_u}/domains/{clean_domain}/public_html"
+        if os.name != "nt":
+            proc = subprocess.run(
+                ["sudo", "bash", "/opt/presspanel/scripts/ssl_manager.sh", "renew", clean_domain, iso_u, doc_root],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=180
+            )
+            if proc.returncode != 0:
+                err_msg = (proc.stdout or "").strip().splitlines()[-1] if proc.stdout else "Gia hạn SSL thất bại"
+                raise HTTPException(status_code=400, detail=err_msg)
+        return {"status": "ok", "message": f"Đã gia hạn chứng chỉ SSL thành công cho {clean_domain}!"}
+    finally:
+        await db.close()
+
+
+@router.post("/{domain_id}/ssl/disable")
+async def disable_domain_ssl(domain_id: int, current_user: dict = Depends(get_current_user)):
+    """Tắt và gỡ bỏ chứng chỉ SSL khỏi website"""
+    db = await get_db_connection()
+    try:
+        cur = await db.execute(
+            "SELECT d.*, u.parent_id FROM domains d JOIN users u ON d.user_id = u.id WHERE d.id = ?",
+            (domain_id,)
+        )
+        domain = await cur.fetchone()
+        if not domain:
+            raise HTTPException(status_code=404, detail="Không tìm thấy website")
+        _check_domain_access(domain, current_user)
+
+        clean_domain = domain["domain_name"]
+        iso_u = domain_to_linux_user(clean_domain)
+        doc_root = domain["document_root"] or f"/home/{iso_u}/domains/{clean_domain}/public_html"
+        if os.name != "nt":
+            subprocess.run(
+                ["sudo", "bash", "/opt/presspanel/scripts/ssl_manager.sh", "disable", clean_domain, iso_u, doc_root],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=60, check=False
+            )
+        await db.execute("DELETE FROM ssl_certificates WHERE domain_id = ?", (domain_id,))
+        await db.execute("UPDATE domains SET ssl_enabled = 0 WHERE id = ?", (domain_id,))
+        await db.commit()
+        return {"status": "ok", "message": f"Đã tắt SSL cho {clean_domain}!"}
+    finally:
+        await db.close()
+
+
 @router.post("/{domain_id}/clear-logs")
 async def clear_domain_logs(domain_id: int, log_type: str = Query("all"), current_user: dict = Depends(get_current_user)):
     """Làm sạch file nhật ký của website"""

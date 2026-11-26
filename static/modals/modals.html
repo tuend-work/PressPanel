@@ -4974,63 +4974,64 @@
                     </div>
 
                     <!-- Tabs -->
-                    <div class="flex items-center gap-0 border-b border-slate-200 dark:border-[#1e2736] px-5 mt-4 text-xs font-semibold">
+                    <div class="flex items-center gap-0 border-b border-slate-200 dark:border-[#1e2736] px-5 mt-4 text-xs font-semibold overflow-x-auto">
                         <button @click="sslTab = 'current'"
                             :class="sslTab === 'current' ? 'text-emerald-400 border-b-2 border-emerald-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
-                            class="mr-5 transition">Current Certs</button>
+                            class="mr-5 transition whitespace-nowrap">Chứng Chỉ Hiện Tại</button>
                         <button @click="sslTab = 'letsencrypt'"
                             :class="sslTab === 'letsencrypt' ? 'text-emerald-400 border-b-2 border-emerald-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
-                            class="mr-5 transition">Let's Encrypt</button>
+                            class="mr-5 transition whitespace-nowrap">Let's Encrypt</button>
+                        <button @click="sslTab = 'zerossl'"
+                            :class="sslTab === 'zerossl' ? 'text-emerald-400 border-b-2 border-emerald-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
+                            class="mr-5 transition whitespace-nowrap">ZeroSSL</button>
                         <button @click="sslTab = 'manual'"
                             :class="sslTab === 'manual' ? 'text-emerald-400 border-b-2 border-emerald-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
-                            class="transition">Certificate Holder</button>
+                            class="transition whitespace-nowrap">Custom SSL</button>
                     </div>
 
                     <!-- Tab: Current Certs -->
                     <div v-if="sslTab === 'current'" class="p-5 space-y-4 text-xs">
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2">
                                 <div>
-                                    <span class="text-slate-400 text-[11px]">Certificate type:</span>
-                                    <span class="font-semibold text-cyan-400 ml-1.5">{{ selectedSslDomain?.ssl_enabled ? "Let's Encrypt" : 'None' }}</span>
+                                    <span class="text-slate-400 text-[11px]">Nhà cung cấp:</span>
+                                    <span class="font-semibold text-cyan-400 ml-1.5 uppercase">{{ sslInfo?.provider || (selectedSslDomain?.ssl_enabled ? "Let's Encrypt" : 'None') }}</span>
                                 </div>
                                 <div>
-                                    <span class="text-slate-400 text-[11px]">Certificate domain(s):</span>
+                                    <span class="text-slate-400 text-[11px]">Tên miền:</span>
                                     <span class="font-mono text-slate-300 ml-1.5">{{ selectedSslDomain?.domain_name }}</span>
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="text-slate-400 text-[11px]">Force HTTPS:</span>
-                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                                        :class="selectedSslDomain?.ssl_enabled ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700 text-slate-400'">
-                                        {{ selectedSslDomain?.ssl_enabled ? 'ON' : 'OFF' }}
-                                    </span>
+                                <div>
+                                    <span class="text-slate-400 text-[11px]">Tổ chức cấp (Issuer):</span>
+                                    <span class="font-mono text-[11px] text-slate-300 block mt-0.5 truncate">{{ sslInfo?.details?.issuer || 'N/A' }}</span>
                                 </div>
                             </div>
                             <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2">
                                 <div>
-                                    <span class="text-slate-400 text-[11px]">Certificate brand:</span>
-                                    <span class="font-semibold text-slate-300 ml-1.5">{{ selectedSslDomain?.ssl_enabled ? "Let's Encrypt" : 'N/A' }}</span>
-                                </div>
-                                <div>
-                                    <span class="text-slate-400 text-[11px]">Status:</span>
+                                    <span class="text-slate-400 text-[11px]">Trạng thái:</span>
                                     <span class="font-bold ml-1.5" :class="selectedSslDomain?.ssl_enabled ? 'text-emerald-400' : 'text-rose-400'">
-                                        {{ selectedSslDomain?.ssl_enabled ? 'Valid' : 'Not installed' }}
+                                        {{ selectedSslDomain?.ssl_enabled ? 'Đang hoạt động (Valid)' : 'Chưa cài đặt' }}
                                     </span>
                                 </div>
                                 <div>
-                                    <span class="text-slate-400 text-[11px]">Cert path:</span>
-                                    <span class="font-mono text-[10px] text-slate-400 block mt-0.5 truncate">/home/{{ (selectedSslDomain?.owner_username || 'user') }}/ssl/fullchain.pem</span>
+                                    <span class="text-slate-400 text-[11px]">Hết hạn:</span>
+                                    <span class="font-mono text-slate-300 ml-1.5">{{ sslInfo?.details?.not_after || 'N/A' }}</span>
+                                    <span v-if="sslInfo?.details?.days_left !== null && sslInfo?.details?.days_left !== undefined" class="ml-1 text-emerald-400 font-bold">({{ sslInfo.details.days_left }} ngày)</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 text-[11px]">Đường dẫn Cert:</span>
+                                    <span class="font-mono text-[10px] text-slate-400 block mt-0.5 truncate">{{ sslInfo?.cert_path || ('/home/' + (selectedSslDomain?.owner_username || 'user') + '/domains/' + selectedSslDomain?.domain_name + '/ssl/fullchain.pem') }}</span>
                                 </div>
                             </div>
                         </div>
                         <div class="flex gap-2 pt-1">
-                            <button @click="handleRenewSSL(selectedSslDomain)"
-                                class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition">
-                                Renewal SSL
+                            <button @click="handleRenewSSL(selectedSslDomain)" :disabled="installingSSL"
+                                class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs transition">
+                                {{ installingSSL ? 'Đang xử lý...' : 'Gia Hạn SSL' }}
                             </button>
-                            <button @click="handleDisableSSL(selectedSslDomain)"
+                            <button @click="handleDisableSSL(selectedSslDomain)" :disabled="installingSSL"
                                 class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition">
-                                Disable SSL
+                                Tắt SSL
                             </button>
                         </div>
                     </div>
@@ -5039,78 +5040,86 @@
                     <div v-if="sslTab === 'letsencrypt'" class="p-5 space-y-4 text-xs">
                         <div class="space-y-3">
                             <div>
-                                <label class="text-slate-400 text-[11px] block mb-1.5 font-semibold uppercase tracking-wider">Application Method</label>
-                                <div class="flex items-center gap-6">
-                                    <label class="flex items-center gap-2 cursor-pointer">
-                                        <input type="radio" v-model="sslVerifyMethod" value="file"
-                                            class="accent-emerald-500 w-4 h-4">
-                                        <span class="text-slate-300 font-semibold">File Verification</span>
-                                    </label>
-                                    <label class="flex items-center gap-2 cursor-pointer">
-                                        <input type="radio" v-model="sslVerifyMethod" value="dns"
-                                            class="accent-emerald-500 w-4 h-4">
-                                        <span class="text-slate-300 font-semibold">DNS Verification <span class="text-slate-500 font-normal">(Wildcard support)</span></span>
-                                    </label>
-                                </div>
+                                <label class="text-slate-400 text-[11px] block mb-1.5 font-semibold uppercase tracking-wider">Email quản trị (Nhận thông báo gia hạn)</label>
+                                <input type="email" v-model="sslForm.email" placeholder="admin@domain.com"
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
                             </div>
-                            <div>
-                                <label class="text-slate-400 text-[11px] block mb-1.5 font-semibold uppercase tracking-wider">Domain name</label>
-                                <div class="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-                                    <div class="px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
-                                        <input type="checkbox" checked class="accent-emerald-500 w-3.5 h-3.5">
-                                        <span class="text-slate-400 text-[11px]">Select All</span>
-                                    </div>
-                                    <div class="px-3 py-2.5 flex items-center gap-2">
-                                        <input type="checkbox" checked class="accent-emerald-500 w-3.5 h-3.5">
-                                        <span class="font-mono text-slate-300 text-[11px]">{{ selectedSslDomain?.domain_name }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="p-3 rounded-xl bg-rose-500/5 border border-rose-500/20 space-y-1.5 text-[11px] text-rose-400">
-                                <p>• Please check whether the A record of the domain points to this server IP. Unresolved will cause applying to fail.</p>
-                                <p>• Please check domain resolution before applying; unresolved domain leads to audit failure.</p>
-                                <p>• If you use CDN or redirect, file verification may fail. Use DNS verification instead.</p>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" v-model="sslForm.include_www" class="accent-emerald-500 w-3.5 h-3.5">
+                                <span class="text-slate-300 text-xs">Cấp kèm cho tiền tố <code class="text-emerald-400">www.{{ selectedSslDomain?.domain_name }}</code></span>
+                            </label>
+                            <div class="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-1 text-[11px] text-amber-300">
+                                <p>• Đảm bảo bản ghi DNS (A Record) của tên miền đã trỏ về IP máy chủ và cổng 80 đang mở.</p>
+                                <p>• Sử dụng Certbot ACME HTTP-01 tự động xác thực và nạp lại Web Server.</p>
                             </div>
                         </div>
                         <button @click="handleInstallLetsEncrypt(selectedSslDomain)"
                             :disabled="installingSSL"
                             class="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold text-xs transition inline-flex items-center gap-2">
                             <i v-if="installingSSL" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
-                            <span>{{ installingSSL ? 'Đang cài SSL...' : 'Apply' }}</span>
+                            <span>{{ installingSSL ? 'Đang cấp SSL...' : 'Cấp SSL Let\'s Encrypt' }}</span>
                         </button>
                     </div>
 
-                    <!-- Tab: Certificate Holder (Manual upload) -->
+                    <!-- Tab: ZeroSSL -->
+                    <div v-if="sslTab === 'zerossl'" class="p-5 space-y-4 text-xs">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-slate-400 text-[11px] block mb-1.5 font-semibold uppercase tracking-wider">Email đăng ký ZeroSSL</label>
+                                <input type="email" v-model="sslForm.email" placeholder="admin@domain.com"
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-emerald-500">
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="text-slate-400 text-[11px] block mb-1 font-semibold">EAB KID (Tùy chọn)</label>
+                                    <input type="text" v-model="sslForm.eab_kid" placeholder="Lấy từ ZeroSSL Dashboard nếu có"
+                                        class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 font-mono text-[11px] focus:outline-none focus:border-emerald-500">
+                                </div>
+                                <div>
+                                    <label class="text-slate-400 text-[11px] block mb-1 font-semibold">EAB HMAC Key (Tùy chọn)</label>
+                                    <input type="text" v-model="sslForm.eab_hmac_key" placeholder="Để trống để tự đăng ký bằng Email"
+                                        class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 font-mono text-[11px] focus:outline-none focus:border-emerald-500">
+                                </div>
+                            </div>
+                            <div class="p-3 rounded-xl bg-blue-500/5 border border-blue-500/20 space-y-1 text-[11px] text-blue-300">
+                                <p>• Cấp chứng chỉ ZeroSSL 90 ngày thông qua giao thức ACME (acme.sh).</p>
+                                <p>• Nếu không nhập EAB Key, hệ thống sẽ tự động đăng ký tài khoản ZeroSSL miễn phí bằng Email ở trên.</p>
+                            </div>
+                        </div>
+                        <button @click="handleInstallZeroSSL(selectedSslDomain)"
+                            :disabled="installingSSL"
+                            class="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold text-xs transition inline-flex items-center gap-2">
+                            <i v-if="installingSSL" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
+                            <span>{{ installingSSL ? 'Đang cấp ZeroSSL...' : 'Cấp SSL ZeroSSL' }}</span>
+                        </button>
+                    </div>
+
+                    <!-- Tab: Custom SSL (Manual upload) -->
                     <div v-if="sslTab === 'manual'" class="p-5 space-y-4 text-xs">
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="text-slate-400 text-[11px] block mb-1.5 font-semibold uppercase tracking-wider">Private key (KEY)</label>
                                 <textarea v-model="sslPrivateKey" rows="10" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
                                     class="w-full px-3 py-2.5 rounded-xl bg-slate-950 dark:bg-[#060a11] border border-slate-700 text-slate-300 font-mono text-[10px] resize-none focus:outline-none focus:border-emerald-500 leading-relaxed"></textarea>
                             </div>
                             <div>
-                                <label class="text-slate-400 text-[11px] block mb-1.5 font-semibold uppercase tracking-wider">Certificate (CRT/PEM)</label>
+                                <label class="text-slate-400 text-[11px] block mb-1.5 font-semibold uppercase tracking-wider">Certificate (CRT / Fullchain PEM)</label>
                                 <textarea v-model="sslCertificate" rows="10" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
                                     class="w-full px-3 py-2.5 rounded-xl bg-slate-950 dark:bg-[#060a11] border border-slate-700 text-slate-300 font-mono text-[10px] resize-none focus:outline-none focus:border-emerald-500 leading-relaxed"></textarea>
                             </div>
                         </div>
                         <div class="flex items-center gap-3 pt-1">
-                            <button @click="handleSaveManualSSL(selectedSslDomain)"
-                                class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition">
-                                Save
+                            <button @click="handleSaveManualSSL(selectedSslDomain)" :disabled="installingSSL"
+                                class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs transition">
+                                {{ installingSSL ? 'Đang lưu...' : 'Lưu & Áp Dụng Custom SSL' }}
                             </button>
-                            <button @click="handleRenewSSL(selectedSslDomain)"
-                                class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition">
-                                Renewal SSL
-                            </button>
-                            <button @click="handleDisableSSL(selectedSslDomain)"
+                            <button @click="handleDisableSSL(selectedSslDomain)" :disabled="installingSSL"
                                 class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition">
-                                Disable SSL
+                                Tắt SSL
                             </button>
                         </div>
                         <div class="space-y-1 text-[11px] text-slate-400 pt-1">
-                            <p>• Paste your KEY and CRT content, and then save it.</p>
-                            <p>• If the browser prompts that the certificate chain is incomplete, please paste the full PEM including the intermediate certificate.</p>
+                            <p>• Dán nội dung Private Key và Certificate (bao gồm Intermediate CA nếu có) rồi bấm Lưu.</p>
                         </div>
                     </div>
                 </div>

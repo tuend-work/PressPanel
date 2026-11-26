@@ -4358,8 +4358,142 @@ geo $limit_rate {
                     }
                 };
 
+                const showSslModal = ref(false);
+                const selectedSslDomain = ref(null);
+                const sslTab = ref('current');
+                const sslVerifyMethod = ref('file');
+                const sslForm = ref({ email: '', include_www: false, eab_kid: '', eab_hmac_key: '' });
+                const sslPrivateKey = ref('');
+                const sslCertificate = ref('');
+                const sslInfo = ref(null);
+                const installingSSL = ref(false);
+
+                const openSslModal = async (domain) => {
+                    selectedSslDomain.value = domain;
+                    sslTab.value = domain.ssl_enabled ? 'current' : 'letsencrypt';
+                    sslForm.value.email = currentUser.value?.email || `admin@${domain.domain_name}`;
+                    sslPrivateKey.value = '';
+                    sslCertificate.value = '';
+                    sslInfo.value = null;
+                    showSslModal.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${domain.id}/ssl`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            sslInfo.value = await res.json();
+                        }
+                    } catch (e) {}
+                    refreshLucideIcons();
+                };
+
                 const installSSL = async (domain) => {
-                    showAlert(`Đang gửi yêu cầu cấp chứng chỉ Let's Encrypt cho ${domain.domain_name}...`);
+                    await openSslModal(domain);
+                };
+
+                const _submitSslInstall = async (domain, payload) => {
+                    if (!domain) return;
+                    installingSSL.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${domain.id}/ssl/install`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify(payload)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showToast(data.message || 'Cài đặt SSL thành công!', 'success');
+                            domain.ssl_enabled = true;
+                            await fetchDomains();
+                            await openSslModal(domain);
+                            sslTab.value = 'current';
+                        } else {
+                            showAlert(data.detail || 'Cài đặt SSL thất bại', 'error');
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối: ' + e.message, 'error');
+                    } finally {
+                        installingSSL.value = false;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const handleInstallLetsEncrypt = async (domain) => {
+                    await _submitSslInstall(domain, {
+                        provider: 'letsencrypt',
+                        email: sslForm.value.email,
+                        include_www: sslForm.value.include_www
+                    });
+                };
+
+                const handleInstallZeroSSL = async (domain) => {
+                    await _submitSslInstall(domain, {
+                        provider: 'zerossl',
+                        email: sslForm.value.email,
+                        eab_kid: sslForm.value.eab_kid,
+                        eab_hmac_key: sslForm.value.eab_hmac_key
+                    });
+                };
+
+                const handleSaveManualSSL = async (domain) => {
+                    if (!sslPrivateKey.value.trim() || !sslCertificate.value.trim()) {
+                        showAlert('Vui lòng nhập đầy đủ Private Key và Certificate (CRT/PEM)', 'warning');
+                        return;
+                    }
+                    await _submitSslInstall(domain, {
+                        provider: 'custom',
+                        private_key: sslPrivateKey.value,
+                        certificate: sslCertificate.value
+                    });
+                };
+
+                const handleRenewSSL = async (domain) => {
+                    if (!domain) return;
+                    installingSSL.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${domain.id}/ssl/renew`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showToast(data.message || 'Gia hạn SSL thành công!', 'success');
+                            await openSslModal(domain);
+                        } else {
+                            showAlert(data.detail || 'Gia hạn SSL thất bại', 'error');
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối: ' + e.message, 'error');
+                    } finally {
+                        installingSSL.value = false;
+                    }
+                };
+
+                const handleDisableSSL = async (domain) => {
+                    if (!domain) return;
+                    installingSSL.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/domains/${domain.id}/ssl/disable`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showToast(data.message || 'Đã tắt SSL!', 'success');
+                            domain.ssl_enabled = false;
+                            await fetchDomains();
+                            await openSslModal(domain);
+                        } else {
+                            showAlert(data.detail || 'Không thể tắt SSL', 'error');
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối: ' + e.message, 'error');
+                    } finally {
+                        installingSSL.value = false;
+                    }
                 };
 
                 const handleWPClone = (d) => showAlert(`Chức năng Clone Staging cho ${d.domain_name}`);
@@ -9567,7 +9701,7 @@ if ($host ~* ^www\\.(.*)$) {
                     showRenameDomainModal, selectedRenameDomain, newDomainNameInput, renamingDomain, openRenameDomainModal, handleRenameDomain,
                     showDomainChangePlanModal, selectedDomainForPlan, targetDomainPlanId, changingDomainPlan, selectedDomainPlanPreview, openChangeDomainPlanModal, confirmChangeDomainPlan,
                     domainSearchQuery, domainCategoryFilter, filteredDomains,
-                    handleWPSSO, installSSL, handleWPClone, handleWPSecure, openFileManager,
+                    handleWPSSO, installSSL, showSslModal, selectedSslDomain, sslTab, sslVerifyMethod, sslForm, sslPrivateKey, sslCertificate, sslInfo, installingSSL, openSslModal, handleInstallLetsEncrypt, handleInstallZeroSSL, handleSaveManualSSL, handleRenewSSL, handleDisableSSL, handleWPClone, handleWPSecure, openFileManager,
                     fetchSystemStatus, restartPanel, refreshLucideIcons,
                     filesList, fileCurrentPath, fileTargetUser, loadingFiles, pathParts,
                     selectedFileNames, isAllFilesSelected, toggleSelectAllFiles,
