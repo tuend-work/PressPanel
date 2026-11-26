@@ -203,28 +203,193 @@ static void cmd_password(void) {
         exit(1);
     }
     char *pass = getpass("Nhập mật khẩu mới cho tài khoản admin: ");
-    if (!pass || strlen(pass) == 0) {
-        fprintf(stderr, "[-] Mật khẩu không được để trống!\n");
-        exit(1);
+    if (!pass || strlen(pass) < 6) {
+        fprintf(stderr, "[-] Mật khẩu phải có ít nhất 6 ký tự!\n");
+        return;
     }
 
-    /* Đổi mật khẩu an toàn qua Python venv */
     const char *idir = get_install_dir();
     char cmd[2048];
     snprintf(cmd, sizeof(cmd),
              "PYTHONPATH=\"%s\" \"%s/venv/bin/python\" -c \""
-             "import asyncio, aiosqlite; "
+             "import asyncio, sys, aiosqlite; "
              "from app.core.security import get_password_hash; "
              "from app.core.config import settings; "
              "async def reset_pass(): "
-             "    hashed = get_password_hash('%s'); "
+             "    hashed = get_password_hash(sys.argv[1]); "
              "    async with aiosqlite.connect(settings.DB_PATH) as db: "
-             "        await db.execute('UPDATE users SET password_hash = ? WHERE username = ?', (hashed, 'admin')); "
+             "        await db.execute('UPDATE users SET password_hash = ?, token_version = COALESCE(token_version, 1) + 1 WHERE role = ?', (hashed, 'admin')); "
              "        await db.commit(); "
              "    print('[+] Đã đổi mật khẩu tài khoản admin thành công!'); "
-             "asyncio.run(reset_pass())\"",
+             "asyncio.run(reset_pass())\" '%s'",
              idir, idir, pass);
     int ret = system(cmd);
+    (void)ret;
+}
+
+static void cmd_username(void) {
+    if (geteuid() != 0) {
+        fprintf(stderr, "[-] Vui lòng chạy lệnh này với quyền root\n");
+        return;
+    }
+    char new_user[64] = {0};
+    printf("Nhập tên đăng nhập (username) mới cho Admin (3-32 ký tự a-z, 0-9, _, -): ");
+    if (!fgets(new_user, sizeof(new_user), stdin)) return;
+    new_user[strcspn(new_user, "\r\n")] = '\0';
+    if (strlen(new_user) < 3 || strlen(new_user) > 32) {
+        fprintf(stderr, "[-] Độ dài username phải từ 3 đến 32 ký tự!\n");
+        return;
+    }
+    for (size_t i = 0; new_user[i]; i++) {
+        char c = new_user[i];
+        if (!isalnum((unsigned char)c) && c != '_' && c != '-') {
+            fprintf(stderr, "[-] Username chỉ được chứa ký tự tiếng Anh, số, _ hoặc -!\n");
+            return;
+        }
+    }
+    const char *idir = get_install_dir();
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+             "PYTHONPATH=\"%s\" \"%s/venv/bin/python\" -c \""
+             "import sqlite3, sys; "
+             "from app.core.config import settings; "
+             "conn = sqlite3.connect(settings.DB_PATH); "
+             "cur = conn.cursor(); "
+             "cur.execute('UPDATE users SET username = ?, token_version = COALESCE(token_version, 1) + 1 WHERE role = ?', (sys.argv[1].lower(), 'admin')); "
+             "conn.commit(); conn.close(); "
+             "print('[+] Đã đổi username admin thành:', sys.argv[1].lower())\" '%s'",
+             idir, idir, new_user);
+    int ret = system(cmd);
+    (void)ret;
+}
+
+static void cmd_mysql_password(void) {
+    if (geteuid() != 0) {
+        fprintf(stderr, "[-] Vui lòng chạy lệnh này với quyền root\n");
+        return;
+    }
+    char *pass = getpass("Nhập mật khẩu mới cho MySQL/MariaDB root: ");
+    if (!pass || strlen(pass) < 6) {
+        fprintf(stderr, "[-] Mật khẩu MySQL root phải có ít nhất 6 ký tự!\n");
+        return;
+    }
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+             "mysql -u root -e \"ALTER USER 'root'@'localhost' IDENTIFIED BY '%s'; FLUSH PRIVILEGES;\" 2>/dev/null || "
+             "mariadb -u root -e \"ALTER USER 'root'@'localhost' IDENTIFIED BY '%s'; FLUSH PRIVILEGES;\" 2>/dev/null; "
+             "printf '[client]\\nuser=root\\npassword=%s\\n' > /root/.my.cnf && chmod 600 /root/.my.cnf && "
+             "echo '[+] Đã cập nhật mật khẩu MySQL root và lưu /root/.my.cnf!'",
+             pass, pass, pass);
+    int ret = system(cmd);
+    (void)ret;
+}
+
+static void cmd_clear_cache(void) {
+    printf("[+] Đang dọn dẹp bộ nhớ đệm và file tạm PressPanel...\n");
+    int ret = system(
+        "find /opt/presspanel/app -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true; "
+        "rm -rf /tmp/presspanel_* /tmp/wpc_* /tmp/vhost_*.conf 2>/dev/null || true; "
+        "echo '[+] Đã xóa sạch bộ nhớ đệm và tệp tạm!'"
+    );
+    (void)ret;
+}
+
+static void cmd_clear_login_limit(void) {
+    printf("[+] Đang mở khóa giới hạn đăng nhập (Brute-force Lockout)...\n");
+    int ret = system(
+        "systemctl restart presspanel 2>/dev/null || systemctl restart wpc 2>/dev/null || true; "
+        "command -v fail2ban-client >/dev/null 2>&1 && fail2ban-client unban --all 2>/dev/null || true; "
+        "echo '[+] Đã xóa toàn bộ giới hạn đăng nhập!'"
+    );
+    (void)ret;
+}
+
+static void cmd_toggle_ssl(void) {
+    if (geteuid() != 0) {
+        fprintf(stderr, "[-] Vui lòng chạy lệnh này với quyền root\n");
+        return;
+    }
+    const char *conf = get_conf_file();
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+             "CUR=$(grep -E '^ssl=' \"%s\" | cut -d'=' -f2 | tr -d ' \\r\\n'); "
+             "if [ \"$CUR\" = \"1\" ] || [ \"$CUR\" = \"true\" ]; then "
+             "  sed -i 's/^ssl=.*/ssl=0/' \"%s\"; echo '[+] Đã TẮT SSL cho Panel (HTTP).'; "
+             "else "
+             "  if grep -q '^ssl=' \"%s\"; then sed -i 's/^ssl=.*/ssl=1/' \"%s\"; else echo 'ssl=1' >> \"%s\"; fi; "
+             "  echo '[+] Đã BẬT SSL cho Panel (HTTPS).'; "
+             "fi; "
+             "systemctl restart presspanel 2>/dev/null || systemctl restart wpc 2>/dev/null || true",
+             conf, conf, conf, conf, conf);
+    int ret = system(cmd);
+    (void)ret;
+}
+
+static void cmd_default_info(void) {
+    const char *idir = get_install_dir();
+    const char *conf = get_conf_file();
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd),
+             "PORT=$(grep -E '^port=' \"%s\" 2>/dev/null | cut -d'=' -f2 | tr -d ' \\r\\n'); [ -z \"$PORT\" ] && PORT=8888; "
+             "SSL=$(grep -E '^ssl=' \"%s\" 2>/dev/null | cut -d'=' -f2 | tr -d ' \\r\\n'); "
+             "SCHEME=http; [ \"$SSL\" = \"1\" ] && SCHEME=https; "
+             "DB_INFO=$(\"%s/venv/bin/python\" -c \"import sqlite3; c=sqlite3.connect('%s/data/panel.db'); cur=c.cursor(); "
+             "cur.execute(\\\"SELECT value FROM system_settings WHERE key='panel_secret_uri'\\\"); r1=cur.fetchone(); "
+             "cur.execute(\\\"SELECT username FROM users WHERE role='admin' ORDER BY id ASC LIMIT 1\\\"); r2=cur.fetchone(); "
+             "print((r1[0] if r1 and r1[0] else '') + '|' + (r2[0] if r2 and r2[0] else 'admin'))\" 2>/dev/null || echo '|admin'); "
+             "URI=$(echo \"$DB_INFO\" | cut -d'|' -f1); USR=$(echo \"$DB_INFO\" | cut -d'|' -f2); "
+             "INT_IP=$(hostname -I 2>/dev/null | awk '{print $1}'); [ -z \"$INT_IP\" ] && INT_IP=127.0.0.1; "
+             "EXT_IP=$(curl -sS --max-time 3 https://api.ipify.org 2>/dev/null || echo \"$INT_IP\"); "
+             "echo '=========================================================='; "
+             "echo '  THÔNG TIN TRUY CẬP PRESSPANEL CONTROL PANEL'; "
+             "echo '=========================================================='; "
+             "echo \"  URL Local (WSL) : ${SCHEME}://localhost:${PORT}/${URI}\"; "
+             "echo \"  URL Mạng Nội Bộ : ${SCHEME}://${INT_IP}:${PORT}/${URI}\"; "
+             "echo \"  URL Công Khai   : ${SCHEME}://${EXT_IP}:${PORT}/${URI}\"; "
+             "echo \"  Username Admin  : ${USR}\"; "
+             "echo '=========================================================='",
+             conf, conf, idir, idir);
+    int ret = system(cmd);
+    (void)ret;
+}
+
+static void cmd_secret_uri(void) {
+    if (geteuid() != 0) {
+        fprintf(stderr, "[-] Vui lòng chạy lệnh này với quyền root\n");
+        return;
+    }
+    char new_uri[80] = {0};
+    printf("Nhập Secret URI mới (4-64 ký tự chỉ gồm chữ tiếng Anh a-z, A-Z và số 0-9, không có dấu /): ");
+    if (!fgets(new_uri, sizeof(new_uri), stdin)) return;
+    new_uri[strcspn(new_uri, "\r\n")] = '\0';
+    if (strlen(new_uri) < 4 || strlen(new_uri) > 64) {
+        fprintf(stderr, "[-] Độ dài Secret URI phải từ 4 đến 64 ký tự!\n");
+        return;
+    }
+    for (size_t i = 0; new_uri[i]; i++) {
+        if (!isalnum((unsigned char)new_uri[i])) {
+            fprintf(stderr, "[-] Secret URI chỉ được phép chứa chữ cái tiếng Anh và số (a-z, A-Z, 0-9)!\n");
+            return;
+        }
+    }
+    const char *idir = get_install_dir();
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+             "PYTHONPATH=\"%s\" \"%s/venv/bin/python\" -c \""
+             "import sqlite3, sys; "
+             "from app.core.config import settings; "
+             "conn = sqlite3.connect(settings.DB_PATH); "
+             "cur = conn.cursor(); "
+             "cur.execute(\\\"INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('panel_secret_uri', ?, CURRENT_TIMESTAMP)\\\", (sys.argv[1],)); "
+             "conn.commit(); conn.close(); "
+             "print('[+] Đã đổi Secret Login URI thành: /' + sys.argv[1])\" '%s'",
+             idir, idir, new_uri);
+    int ret = system(cmd);
+    (void)ret;
+}
+
+static void cmd_error_logs(void) {
+    int ret = system("journalctl -u presspanel -u wpc -n 60 --no-pager 2>/dev/null || tail -n 60 /var/log/presspanel.log 2>/dev/null || echo 'Chưa có log lỗi.'");
     (void)ret;
 }
 
@@ -294,15 +459,82 @@ static void cmd_php(int argc, char *argv[]) {
     (void)ret;
 }
 
+static void show_interactive_menu(void) {
+    while (1) {
+        printf("\n==================== PressPanel CLI ====================\n");
+        printf("(1)  Khởi động lại Panel          (10) Mở khóa giới hạn đăng nhập\n");
+        printf("(2)  Dừng dịch vụ Panel           (11) Bật/Tắt SSL cho Panel\n");
+        printf("(3)  Bật dịch vụ Panel            (12) Xem thông tin truy cập Panel\n");
+        printf("(4)  Kiểm tra trạng thái Panel    (13) Đổi đường dẫn bí mật (Secret URI)\n");
+        printf("(5)  Đổi mật khẩu Admin           (14) Sửa lỗi & Cập nhật Panel\n");
+        printf("(6)  Đổi tên đăng nhập Admin      (15) Xem nhật ký lỗi Panel\n");
+        printf("(7)  Đổi mật khẩu MySQL root      (16) Chuẩn hóa phân quyền (/home/*)\n");
+        printf("(8)  Đổi cổng (Port) Panel        (17) Kiểm tra/Áp dụng bảo mật hệ thống\n");
+        printf("(9)  Xóa bộ nhớ đệm & tệp tạm     (18) Cài đặt lại Panel (Reinstall)\n");
+        printf("(0)  Thoát (Cancel)\n");
+        printf("========================================================\n");
+        printf("Vui lòng nhập số lệnh: ");
+        fflush(stdout);
+
+        char buf[32] = {0};
+        if (!fgets(buf, sizeof(buf), stdin)) break;
+        buf[strcspn(buf, "\r\n")] = '\0';
+        if (strlen(buf) == 0) continue;
+
+        int choice = atoi(buf);
+        if (strcmp(buf, "0") == 0) {
+            printf("Đã thoát PressPanel CLI.\n");
+            break;
+        }
+        switch (choice) {
+            case 1: cmd_restart(); break;
+            case 2: cmd_stop(); break;
+            case 3: cmd_start(); break;
+            case 4: cmd_status(); break;
+            case 5: cmd_password(); break;
+            case 6: cmd_username(); break;
+            case 7: cmd_mysql_password(); break;
+            case 8: {
+                char pbuf[16] = {0};
+                printf("Nhập số cổng mới cho Panel (1 - 65535): ");
+                if (fgets(pbuf, sizeof(pbuf), stdin)) {
+                    pbuf[strcspn(pbuf, "\r\n")] = '\0';
+                    cmd_port(pbuf);
+                }
+                break;
+            }
+            case 9: cmd_clear_cache(); break;
+            case 10: cmd_clear_login_limit(); break;
+            case 11: cmd_toggle_ssl(); break;
+            case 12: cmd_default_info(); break;
+            case 13: cmd_secret_uri(); break;
+            case 14: cmd_update(); break;
+            case 15: cmd_error_logs(); break;
+            case 16: cmd_fix_perms(); break;
+            case 17: {
+                char *s_argv[] = {"presspanel", "security", "fix"};
+                cmd_security(3, s_argv);
+                break;
+            }
+            case 18: cmd_reinstall(); break;
+            default:
+                fprintf(stderr, "[-] Lựa chọn không hợp lệ: %s\n", buf);
+                break;
+        }
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        show_help();
+        show_interactive_menu();
         return 0;
     }
 
     const char *action = argv[1];
 
-    if (strcmp(action, "update") == 0) {
+    if (strcmp(action, "menu") == 0) {
+        show_interactive_menu();
+    } else if (strcmp(action, "update") == 0) {
         cmd_update();
     } else if (strcmp(action, "reinstall") == 0) {
         cmd_reinstall();
