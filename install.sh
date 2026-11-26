@@ -5,6 +5,7 @@
 
 set -euo pipefail
 
+START_TS=$(date +%s)
 INSTALL_DIR="/opt/presspanel"
 PANEL_USER="presspanel"
 PANEL_GROUP="presspanel"
@@ -530,14 +531,53 @@ if [ -f "$CRED_FILE" ]; then
     INIT_PASS=$(grep -E "^PASSWORD=" "$CRED_FILE" | cut -d'=' -f2- || true)
 fi
 
-echo "=========================================================="
-echo "   PRESSPANEL CONTROL PANEL ĐÃ CÀI ĐẶT THÀNH CÔNG!       "
-echo "   Link truy cập bí mật: http://<IP_MAY_CHU>:$PANEL_PORT${INIT_URI}"
-if [ -n "$INIT_USER" ]; then
-echo "   Username quản trị   : $INIT_USER"
-echo "   Password quản trị   : $INIT_PASS"
-echo "   (Thông tin được lưu tại: $CRED_FILE - Hãy copy & xóa file sau khi lưu)"
+if [ -z "$INIT_URI" ] || [ -z "$INIT_USER" ]; then
+    DB_INFO=$("$INSTALL_DIR/venv/bin/python" -c "
+import sqlite3
+conn = sqlite3.connect('$INSTALL_DIR/data/panel.db')
+cur = conn.cursor()
+cur.execute(\"SELECT value FROM system_settings WHERE key='panel_secret_uri'\")
+r1 = cur.fetchone()
+cur.execute(\"SELECT username FROM users WHERE role='admin' ORDER BY id ASC LIMIT 1\")
+r2 = cur.fetchone()
+print((r1[0] if r1 and r1[0] else '') + '|' + (r2[0] if r2 and r2[0] else 'admin'))
+" 2>/dev/null || echo "|admin")
+    DB_URI=$(echo "$DB_INFO" | cut -d'|' -f1)
+    DB_USER=$(echo "$DB_INFO" | cut -d'|' -f2)
+    [ -z "$INIT_URI" ] && [ -n "$DB_URI" ] && INIT_URI="/$DB_URI"
+    [ -z "$INIT_USER" ] && [ -n "$DB_USER" ] && INIT_USER="$DB_USER"
 fi
-echo "   File cấu hình       : /opt/presspanel/conf/presspanel.conf"
-echo "   Lệnh quản trị CLI   : presspanel (hoặc wpc)"
-echo "=========================================================="
+
+[ -z "$INIT_PASS" ] && INIT_PASS="(giữ nguyên mật khẩu hiện tại)"
+
+SSL_FLAG=$(grep -E "^ssl=" "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || echo "0")
+SCHEME="http"
+[ "$SSL_FLAG" = "1" ] || [ "$SSL_FLAG" = "true" ] && SCHEME="https"
+
+INT_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")
+[ -z "$INT_IP" ] && INT_IP="127.0.0.1"
+EXT_IP=$(curl -sS --max-time 3 https://api.ipify.org 2>/dev/null || curl -sS --max-time 3 https://ifconfig.me 2>/dev/null || echo "$INT_IP")
+[ -z "$EXT_IP" ] && EXT_IP="$INT_IP"
+
+END_TS=$(date +%s)
+ELAPSED=$((END_TS - START_TS))
+if [ "$ELAPSED" -ge 60 ]; then
+    MINS=$(( (ELAPSED + 59) / 60 ))
+    TIME_STR="${MINS} Minute(s)!"
+else
+    TIME_STR="${ELAPSED} Seconds!"
+fi
+
+echo "=================================================================="
+echo -e "\033[32mCongratulations! Installed successfully!\033[0m"
+echo "=================================================================="
+echo "PressPanel Internet Address: ${SCHEME}://${EXT_IP}:${PANEL_PORT}${INIT_URI}"
+echo "PressPanel Internal Address: ${SCHEME}://${INT_IP}:${PANEL_PORT}${INIT_URI}"
+echo "username: ${INIT_USER}"
+echo "password: ${INIT_PASS}"
+echo -e "\033[33mWarning:\033[0m"
+echo -e "\033[33mIf you cannot access the panel,\033[0m"
+echo -e "\033[33mrelease the following port (${PANEL_PORT}|80|443|20|21) in the security group\033[0m"
+echo "=================================================================="
+echo -e "Time consumed: \033[32m${TIME_STR}\033[0m"
+echo "=================================================================="
