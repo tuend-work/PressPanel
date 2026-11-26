@@ -9,8 +9,8 @@ set -euo pipefail
 
 if [ -d "/opt/presspanel" ]; then
     INSTALL_DIR="/opt/presspanel"
-elif [ -d "/opt/wpc" ]; then
-    INSTALL_DIR="/opt/wpc"
+elif [ -d "/opt/presspanel" ]; then
+    INSTALL_DIR="/opt/presspanel"
 else
     INSTALL_DIR="/opt/presspanel"
 fi

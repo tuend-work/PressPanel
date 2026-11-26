@@ -120,7 +120,7 @@ static inline int is_safe_config_path(const char *path) {
         strncmp(path, "/etc/pure-ftpd", 14) == 0 ||
         strncmp(path, "/etc/fail2ban/", 14) == 0 ||
         strncmp(path, "/opt/presspanel/templates/", 26) == 0 ||
-        strncmp(path, "/opt/wpc/templates/", 19) == 0
+        strncmp(path, "/opt/presspanel/templates/", 19) == 0
     );
     if (!is_allowed_dir) return 0;
 
@@ -130,7 +130,7 @@ static inline int is_safe_config_path(const char *path) {
         strstr(path, "/etc/pam.d") || strstr(path, "/etc/security") ||
         strstr(path, "/etc/ld.so") || strstr(path, "/root") ||
         strstr(path, "/opt/presspanel/data") || strstr(path, "/opt/presspanel/conf") ||
-        strstr(path, "/opt/wpc/data") || strstr(path, "/opt/wpc/conf")) {
+        strstr(path, "/opt/presspanel/data") || strstr(path, "/opt/presspanel/conf")) {
         return 0;
     }
 

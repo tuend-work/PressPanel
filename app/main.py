@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 # Đảm bảo tiến trình không bị kẹt ở thư mục /root gây lỗi PermissionError khi gọi subprocess
 try:
-    for cand_dir in ["/opt/presspanel", "/opt/wpc", "/tmp"]:
+    for cand_dir in ["/opt/presspanel", "/opt/presspanel", "/tmp"]:
         if os.path.isdir(cand_dir) and os.access(cand_dir, os.R_OK):
             os.chdir(cand_dir)
             break

@@ -123,7 +123,7 @@ async def terminal_websocket(
     await db.close()
 
     # Tìm đường dẫn script cage_terminal
-    cage_script = "/opt/presspanel/scripts/cage_terminal.sh" if os.path.exists("/opt/presspanel/scripts/cage_terminal.sh") else "/opt/wpc/scripts/cage_terminal.sh"
+    cage_script = "/opt/presspanel/scripts/cage_terminal.sh" if os.path.exists("/opt/presspanel/scripts/cage_terminal.sh") else "/opt/presspanel/scripts/cage_terminal.sh"
     if not os.path.exists(cage_script):
         # Thử đường dẫn trong workspace dev
         dev_cage = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "scripts", "cage_terminal.sh")

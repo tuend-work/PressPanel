@@ -17,18 +17,18 @@
 
 static const char* get_install_dir(void) {
     if (access("/opt/presspanel", F_OK) == 0) return "/opt/presspanel";
-    return "/opt/wpc";
+    return "/opt/presspanel";
 }
 
 static const char* get_conf_file(void) {
     if (access("/opt/presspanel/conf/presspanel.conf", F_OK) == 0) return "/opt/presspanel/conf/presspanel.conf";
-    if (access("/opt/wpc/conf/wpc.conf", F_OK) == 0) return "/opt/wpc/conf/wpc.conf";
+    if (access("/opt/presspanel/conf/presspanel.conf", F_OK) == 0) return "/opt/presspanel/conf/presspanel.conf";
     return "/opt/presspanel/conf/presspanel.conf";
 }
 
 static const char* get_version_file(void) {
     if (access("/opt/presspanel/VERSION", F_OK) == 0) return "/opt/presspanel/VERSION";
-    return "/opt/wpc/VERSION";
+    return "/opt/presspanel/VERSION";
 }
 
 static void show_help(void) {

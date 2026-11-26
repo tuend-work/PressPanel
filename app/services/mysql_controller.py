@@ -36,7 +36,7 @@ def get_mysql_root_password() -> Optional[str]:
                         return line.split("=", 1)[1].strip().strip('"\'')
     except Exception:
         pass
-    for cand_conf in ["/opt/presspanel/conf/presspanel.conf", "/opt/wpc/conf/wpc.conf"]:
+    for cand_conf in ["/opt/presspanel/conf/presspanel.conf", "/opt/presspanel/conf/presspanel.conf"]:
         try:
             if os.path.exists(cand_conf):
                 with open(cand_conf, "r", encoding="utf-8") as f:

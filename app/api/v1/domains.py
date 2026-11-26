@@ -17,7 +17,7 @@ from app.executor.gatekeeper import run_gatekeeper
 ALLOWED_PHP_VERSIONS = {"5.6", "7.0", "7.1", "7.2", "7.3", "7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"}
 ALLOWED_WEBSERVERS = {"ols", "nginx"}
 
-PRESSPANEL_BASE = "/opt/presspanel" if os.path.exists("/opt/presspanel") else "/opt/wpc"
+PRESSPANEL_BASE = "/opt/presspanel"
 
 router = APIRouter(prefix="/domains", tags=["Websites & Domains"])
 
@@ -301,7 +301,7 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
         active_ws = detect_running_webserver()
         pma_doc = "/home/pma/public_html"
         legacy_doc = f"{PRESSPANEL_BASE}/apps/phpmyadmin"
-        if os.path.exists(f"{pma_doc}/index.php") or os.path.exists(f"{legacy_doc}/index.php") or os.path.exists("/opt/wpc/apps/phpmyadmin/index.php") or os.path.exists("/usr/local/lsws/conf/vhosts/phpmyadmin") or os.path.exists("/etc/nginx/conf.d/00_phpmyadmin.conf"):
+        if os.path.exists(f"{pma_doc}/index.php") or os.path.exists(f"{legacy_doc}/index.php") or os.path.exists("/opt/presspanel/apps/phpmyadmin/index.php") or os.path.exists("/usr/local/lsws/conf/vhosts/phpmyadmin") or os.path.exists("/etc/nginx/conf.d/00_phpmyadmin.conf"):
             check_pma = await db.execute("SELECT id, webserver FROM domains WHERE domain_name IN ('phpmyadmin.sys', 'phpmyadmin') LIMIT 1")
             has_pma = await check_pma.fetchone()
             if not has_pma:
@@ -2298,7 +2298,7 @@ def get_fpm_pool_template() -> str:
     """Tải nội dung file template php_fpm_pool.tpl từ hệ thống hoặc thư mục mã nguồn"""
     tpl_paths = [
         f"{PRESSPANEL_BASE}/templates/vhost_nginx/php_fpm_pool.tpl",
-        "/opt/wpc/templates/vhost_nginx/php_fpm_pool.tpl",
+        "/opt/presspanel/templates/vhost_nginx/php_fpm_pool.tpl",
         os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../templates/vhost_nginx/php_fpm_pool.tpl")),
         os.path.join(os.getcwd(), "templates", "vhost_nginx", "php_fpm_pool.tpl")
     ]
@@ -2369,7 +2369,7 @@ def get_ols_extprocessor_template() -> str:
     """Tải nội dung file template extprocessor.tpl từ hệ thống hoặc thư mục mã nguồn"""
     tpl_paths = [
         f"{PRESSPANEL_BASE}/templates/vhost_ols/extprocessor.tpl",
-        "/opt/wpc/templates/vhost_ols/extprocessor.tpl",
+        "/opt/presspanel/templates/vhost_ols/extprocessor.tpl",
         os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../templates/vhost_ols/extprocessor.tpl")),
         os.path.join(os.getcwd(), "templates", "vhost_ols", "extprocessor.tpl")
     ]
@@ -3315,7 +3315,7 @@ async def save_domain_lsapi_service(
         if not os.path.exists(tpl_path):
             tpl_path = f"{PRESSPANEL_BASE}/templates/vhost_ols/default.tpl"
         if not os.path.exists(tpl_path):
-            tpl_path = "/opt/wpc/templates/vhost_ols/default.tpl"
+            tpl_path = "/opt/presspanel/templates/vhost_ols/default.tpl"
         if os.path.exists(tpl_path):
             try:
                 with open(tpl_path, "r", encoding="utf-8", errors="ignore") as tf:
@@ -3471,7 +3471,7 @@ async def reset_domain_lsapi_service(
     if not content:
         tpl_path = f"{PRESSPANEL_BASE}/templates/vhost_ols/default.tpl"
         if not os.path.exists(tpl_path):
-            tpl_path = "/opt/wpc/templates/vhost_ols/default.tpl"
+            tpl_path = "/opt/presspanel/templates/vhost_ols/default.tpl"
         if os.path.exists(tpl_path):
             try:
                 with open(tpl_path, "r", encoding="utf-8", errors="ignore") as tf:
@@ -4222,7 +4222,7 @@ async def get_domain_vhost_config(domain_id: int, current_user: dict = Depends(g
             # Tự động nạp template chuẩn nếu chưa có file cấu hình thực tế trên disk
             tpl_path = f"{PRESSPANEL_BASE}/templates/vhost_{ws}/default.tpl"
             if not os.path.exists(tpl_path):
-                tpl_path = f"/opt/wpc/templates/vhost_{ws}/default.tpl"
+                tpl_path = f"/opt/presspanel/templates/vhost_{ws}/default.tpl"
             if not os.path.exists(tpl_path):
                 base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
                 tpl_path = os.path.join(base_dir, f"templates/vhost_{ws}/default.tpl")
@@ -4324,7 +4324,7 @@ async def save_domain_vhost_settings(domain_id: int, req: VHostSettingsUpdateReq
     if not content:
         tpl_path = f"{PRESSPANEL_BASE}/templates/vhost_ols/default.tpl" if ws == "ols" else f"{PRESSPANEL_BASE}/templates/vhost_nginx/default.tpl"
         if not os.path.exists(tpl_path):
-            tpl_path = f"/opt/wpc/templates/vhost_ols/default.tpl" if ws == "ols" else f"/opt/wpc/templates/vhost_nginx/default.tpl"
+            tpl_path = f"/opt/presspanel/templates/vhost_ols/default.tpl" if ws == "ols" else f"/opt/presspanel/templates/vhost_nginx/default.tpl"
         if os.path.exists(tpl_path):
             with open(tpl_path, "r", encoding="utf-8", errors="ignore") as tf:
                 content = tf.read().replace("{{DOMAIN}}", clean_domain).replace("{{USERNAME}}", isolated_user).replace("{{PHP_VERSION}}", php_num).replace("{{PHP_NUM}}", php_num)

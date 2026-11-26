@@ -7,7 +7,7 @@
 
 static const char* get_template_root(void) {
     if (access("/opt/presspanel/templates", F_OK) == 0) return "/opt/presspanel/templates";
-    return "/opt/wpc/templates";
+    return "/opt/presspanel/templates";
 }
 #define TEMPLATE_ROOT get_template_root()
 

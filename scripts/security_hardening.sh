@@ -15,7 +15,7 @@ NC='\033[0m'
 
 SYSCTL_CONF="/etc/sysctl.d/99-presspanel-security.conf"
 PANEL_DIR="/opt/presspanel"
-[ ! -d "$PANEL_DIR" ] && [ -d "/opt/wpc" ] && PANEL_DIR="/opt/wpc"
+[ ! -d "$PANEL_DIR" ] && [ -d "/opt/presspanel" ] && PANEL_DIR="/opt/presspanel"
 
 check_root() {
     if [ "$EUID" -ne 0 ]; then
@@ -287,7 +287,7 @@ audit_security() {
     fi
 
     # 7. Cage Terminal script exists
-    if [ -f "$PANEL_DIR/scripts/cage_terminal.sh" ] || [ -f "/opt/wpc/scripts/cage_terminal.sh" ]; then
+    if [ -f "$PANEL_DIR/scripts/cage_terminal.sh" ] || [ -f "/opt/presspanel/scripts/cage_terminal.sh" ]; then
         echo -e " [${GREEN}PASS${NC}] Lồng cách ly Mount & PID Namespace (CageFS Mode): ${GREEN}Sẵn sàng${NC}"
         ((score++))
     else

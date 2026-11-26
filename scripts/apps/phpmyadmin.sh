@@ -11,9 +11,9 @@ PMA_USER="pma"
 PMA_HOME="/home/$PMA_USER"
 TARGET_DIR="$PMA_HOME/public_html"
 WPC_BASE="/opt/presspanel"
-[ ! -d "$WPC_BASE" ] && [ -d "/opt/wpc" ] && WPC_BASE="/opt/wpc"
+[ ! -d "$WPC_BASE" ] && [ -d "/opt/presspanel" ] && WPC_BASE="/opt/presspanel"
 PRESSPANEL_LEGACY_DIR="/opt/presspanel/apps/phpmyadmin"
-LEGACY_DIR="/opt/wpc/apps/phpmyadmin"
+LEGACY_DIR="/opt/presspanel/apps/phpmyadmin"
 PMA_PORT="888"
 
 detect_php_version() {
@@ -111,8 +111,8 @@ case "$ACTION" in
             rm -rf "$PRESSPANEL_LEGACY_DIR" 2>/dev/null || true
         fi
 
-        # Tạo symlink tương thích: /opt/presspanel/apps/phpmyadmin và /opt/wpc/apps/phpmyadmin -> /home/pma/public_html
-        mkdir -p /opt/presspanel/apps /opt/wpc/apps 2>/dev/null || true
+        # Tạo symlink tương thích: /opt/presspanel/apps/phpmyadmin và /opt/presspanel/apps/phpmyadmin -> /home/pma/public_html
+        mkdir -p /opt/presspanel/apps /opt/presspanel/apps 2>/dev/null || true
         ln -sfn "$TARGET_DIR" "$PRESSPANEL_LEGACY_DIR" 2>/dev/null || true
         ln -sfn "$TARGET_DIR" "$LEGACY_DIR" 2>/dev/null || true
 
@@ -208,7 +208,7 @@ EOF
 
         # Sao chép presspanel_signon.php và wpc_signon.php vào thư mục gốc của phpMyAdmin
         for sso_file in "presspanel_signon.php" "wpc_signon.php"; do
-            for base in "$WPC_BASE" "/opt/presspanel" "/opt/wpc"; do
+            for base in "$WPC_BASE" "/opt/presspanel" "/opt/presspanel"; do
                 if [ -f "$base/templates/apps/phpmyadmin/$sso_file" ]; then
                     cp -f "$base/templates/apps/phpmyadmin/$sso_file" "$TARGET_DIR/$sso_file"
                     break
@@ -350,7 +350,7 @@ EOF
             mkdir -p /etc/nginx/conf.d /etc/nginx/sites-available /etc/nginx/sites-enabled
             ACTIVE_PHP=$(detect_php_version)
             WPC_BASE="/opt/presspanel"
-            [ ! -d "$WPC_BASE" ] && [ -d "/opt/wpc" ] && WPC_BASE="/opt/wpc"
+            [ ! -d "$WPC_BASE" ] && [ -d "/opt/presspanel" ] && WPC_BASE="/opt/presspanel"
             [ ! -d "$WPC_BASE" ] && WPC_BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
             # Tạo Systemd Service PHP-FPM riêng cho user pma
@@ -576,8 +576,8 @@ EOF
         # 9. Gắn tiến trình pma vào Cgroups v2
         if [ -f "/opt/presspanel/scripts/cgroup_attach.sh" ]; then
             /bin/bash /opt/presspanel/scripts/cgroup_attach.sh once 2>/dev/null || true
-        elif [ -f "/opt/wpc/scripts/cgroup_attach.sh" ]; then
-            /bin/bash /opt/wpc/scripts/cgroup_attach.sh once 2>/dev/null || true
+        elif [ -f "/opt/presspanel/scripts/cgroup_attach.sh" ]; then
+            /bin/bash /opt/presspanel/scripts/cgroup_attach.sh once 2>/dev/null || true
         fi
 
         # 10. Đăng ký thông tin Website App hệ thống vào cơ sở dữ liệu panel.db (nếu có python)
@@ -585,7 +585,7 @@ EOF
             python3 - "$ACTIVE_WS" << 'PY_REGISTER' 2>/dev/null || true
 import sqlite3, os, sys
 active_ws = sys.argv[1] if len(sys.argv) > 1 else "nginx"
-candidates = ["/opt/presspanel/data/panel.db", "/opt/wpc/data/panel.db", "/opt/presspanel/panel.db", "/opt/wpc/panel.db", os.path.expanduser("~/PressPanel/panel.db")]
+candidates = ["/opt/presspanel/data/panel.db", "/opt/presspanel/data/panel.db", "/opt/presspanel/panel.db", "/opt/presspanel/panel.db", os.path.expanduser("~/PressPanel/panel.db")]
 db_path = None
 for c in candidates:
     if os.path.isfile(c):
@@ -699,7 +699,7 @@ PY_REGISTER
         if command -v python3 &>/dev/null; then
             python3 - << 'PY_UNREGISTER' 2>/dev/null || true
 import sqlite3, os
-candidates = ["/opt/presspanel/data/panel.db", "/opt/wpc/data/panel.db", "/opt/presspanel/panel.db", "/opt/wpc/panel.db", os.path.expanduser("~/PressPanel/panel.db")]
+candidates = ["/opt/presspanel/data/panel.db", "/opt/presspanel/data/panel.db", "/opt/presspanel/panel.db", "/opt/presspanel/panel.db", os.path.expanduser("~/PressPanel/panel.db")]
 for c in candidates:
     if os.path.isfile(c):
         try:

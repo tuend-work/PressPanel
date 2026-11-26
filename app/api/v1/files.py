@@ -20,7 +20,7 @@ import sqlite3
 
 def is_domain_owner(user_id: int, target_user: str) -> bool:
     try:
-        db_path = "/opt/presspanel/data/panel.db" if os.path.exists("/opt/presspanel/data/panel.db") else "/opt/wpc/data/panel.db"
+        db_path = "/opt/presspanel/data/panel.db" if os.path.exists("/opt/presspanel/data/panel.db") else "/opt/presspanel/data/panel.db"
         if not os.path.exists(db_path):
             base_p = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
             db_path = os.path.join(base_p, "data", "panel.db")

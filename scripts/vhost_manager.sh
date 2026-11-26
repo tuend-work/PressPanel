@@ -16,7 +16,7 @@ HOSTING_USER="${6:-$USERNAME}"
 if [ -d "/opt/presspanel" ]; then
     PRESSPANEL_DIR="/opt/presspanel"
 else
-    PRESSPANEL_DIR="/opt/wpc"
+    PRESSPANEL_DIR="/opt/presspanel"
 fi
 WPC_DIR="$PRESSPANEL_DIR"
 
@@ -559,7 +559,7 @@ EOF
 
                 /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
                 TARGET_CG_USER="${HOSTING_USER:-$USERNAME}"
-                (sleep 1 && (/opt/presspanel/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || /opt/wpc/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || true)
+                (sleep 1 && (/opt/presspanel/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || /opt/presspanel/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || true)
                 for lscg in /usr/local/lsws/lsns/bin/lscgctl /usr/local/lsws/bin/lscgctl; do
                     [ -x "$lscg" ] && "$lscg" set "$TARGET_CG_USER" --cpu=200 2>/dev/null || true
                 done) &>/dev/null &
@@ -960,7 +960,7 @@ EOF_RW
                 # Khởi động lại OLS để nhận cấu hình tức thì
                 /usr/local/lsws/bin/lswsctrl restart 2>/dev/null || systemctl restart lsws 2>/dev/null || systemctl restart lshttpd 2>/dev/null || true
                 TARGET_CG_USER="${HOSTING_USER:-$USERNAME}"
-                (sleep 1 && (/opt/presspanel/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || /opt/wpc/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || true)
+                (sleep 1 && (/opt/presspanel/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || /opt/presspanel/bin/cgroup sync "$TARGET_CG_USER" 2>/dev/null || true)
                 for lscg in /usr/local/lsws/lsns/bin/lscgctl /usr/local/lsws/bin/lscgctl; do
                     [ -x "$lscg" ] && "$lscg" set "$TARGET_CG_USER" --cpu=200 2>/dev/null || true
                 done) &>/dev/null &
@@ -1028,8 +1028,8 @@ EOF_RW
 
         if [ -f "$WPC_DIR/templates/suspended/index.html" ]; then
             cp -f "$WPC_DIR/templates/suspended/index.html" "$SUSPENDED_DIR/index.html" 2>/dev/null || true
-        elif [ -f "/opt/wpc/templates/suspended/index.html" ]; then
-            cp -f "/opt/wpc/templates/suspended/index.html" "$SUSPENDED_DIR/index.html" 2>/dev/null || true
+        elif [ -f "/opt/presspanel/templates/suspended/index.html" ]; then
+            cp -f "/opt/presspanel/templates/suspended/index.html" "$SUSPENDED_DIR/index.html" 2>/dev/null || true
         else
             cat << 'EOF_SUSP_HTML' > "$SUSPENDED_DIR/index.html"
 <!DOCTYPE html>

@@ -9,7 +9,7 @@
 
 static const char* get_attach_script(void) {
     if (access("/opt/presspanel/scripts/cgroup_attach.sh", X_OK) == 0) return "/opt/presspanel/scripts/cgroup_attach.sh";
-    return "/opt/wpc/scripts/cgroup_attach.sh";
+    return "/opt/presspanel/scripts/cgroup_attach.sh";
 }
 
 static void write_cgroup_file(const char *dir, const char *file, const char *val) {

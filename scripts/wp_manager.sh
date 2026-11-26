@@ -381,7 +381,7 @@ EOF_SCHEMA
         # 6. CÀI ĐẶT BỘ MU-PLUGINS PRESSPANEL OPTIMIZE NẾU CÓ
         mkdir -p "$TARGET_DIR/wp-content/mu-plugins"
         MU_TPL_DIR="/opt/presspanel/templates/mu-plugins"
-        [ ! -d "$MU_TPL_DIR" ] && [ -d "/opt/wpc/templates/mu-plugins" ] && MU_TPL_DIR="/opt/wpc/templates/mu-plugins"
+        [ ! -d "$MU_TPL_DIR" ] && [ -d "/opt/presspanel/templates/mu-plugins" ] && MU_TPL_DIR="/opt/presspanel/templates/mu-plugins"
         if [ -d "$MU_TPL_DIR" ]; then
             cp -f "$MU_TPL_DIR"/*.php "$TARGET_DIR/wp-content/mu-plugins/" 2>/dev/null || true
         fi
@@ -634,7 +634,7 @@ EOF
         ENABLE="${5:-1}"
         MU_DIR="$TARGET_DIR/wp-content/mu-plugins"
         SRC_FILE="/opt/presspanel/templates/mu-plugins/$FILE_NAME"
-        [ ! -f "$SRC_FILE" ] && SRC_FILE="/opt/wpc/templates/mu-plugins/$FILE_NAME"
+        [ ! -f "$SRC_FILE" ] && SRC_FILE="/opt/presspanel/templates/mu-plugins/$FILE_NAME"
 
         if [ -z "$FILE_NAME" ]; then
             echo "[-] File name khong hop le"

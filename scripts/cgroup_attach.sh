@@ -11,7 +11,7 @@
 set -u
 
 PANEL_DIR="/opt/presspanel"
-[ ! -d "$PANEL_DIR" ] && [ -d "/opt/wpc" ] && PANEL_DIR="/opt/wpc"
+[ ! -d "$PANEL_DIR" ] && [ -d "/opt/presspanel" ] && PANEL_DIR="/opt/presspanel"
 WPC_DB="$PANEL_DIR/data/panel.db"
 PYTHON_BIN="$PANEL_DIR/venv/bin/python"
 [ -x "$PYTHON_BIN" ] || PYTHON_BIN="/usr/bin/python3"
@@ -29,8 +29,8 @@ import sqlite3, os, re, sys
 
 db_path = sys.argv[1] if len(sys.argv) > 1 else "/opt/presspanel/data/panel.db"
 if not os.path.exists(db_path):
-    if os.path.exists("/opt/wpc/data/panel.db"):
-        db_path = "/opt/wpc/data/panel.db"
+    if os.path.exists("/opt/presspanel/data/panel.db"):
+        db_path = "/opt/presspanel/data/panel.db"
     else:
         exit(0)
 

@@ -123,7 +123,7 @@ case "$ACTION" in
 
         # 1. Sinh file cấu hình standalone hoàn chỉnh từ template php_fpm_pool.tpl
         TPL_FILE="/opt/presspanel/templates/vhost_nginx/php_fpm_pool.tpl"
-        [ ! -f "$TPL_FILE" ] && [ -f "/opt/wpc/templates/vhost_nginx/php_fpm_pool.tpl" ] && TPL_FILE="/opt/wpc/templates/vhost_nginx/php_fpm_pool.tpl"
+        [ ! -f "$TPL_FILE" ] && [ -f "/opt/presspanel/templates/vhost_nginx/php_fpm_pool.tpl" ] && TPL_FILE="/opt/presspanel/templates/vhost_nginx/php_fpm_pool.tpl"
         [ ! -f "$TPL_FILE" ] && TPL_FILE="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/templates/vhost_nginx/php_fpm_pool.tpl"
 
         # Quyết định danh sách disable_functions:

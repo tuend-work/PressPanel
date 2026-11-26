@@ -24,7 +24,7 @@ fi
 
 # 1. Sao lưu tạm dữ liệu quan trọng
 mkdir -p "$BACKUP_DIR"
-for p in "$INSTALL_DIR" "/opt/wpc"; do
+for p in "$INSTALL_DIR" "/opt/presspanel"; do
     if [ -f "$p/data/panel.db" ] && [ ! -f "$BACKUP_DIR/panel.db" ]; then
         echo "[+] Đang sao lưu cơ sở dữ liệu hiện tại vào $BACKUP_DIR/panel.db..."
         cp "$p/data/panel.db" "$BACKUP_DIR/panel.db"

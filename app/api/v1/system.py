@@ -576,7 +576,7 @@ async def system_status(current_user: dict = Depends(get_current_user)):
 async def get_version(current_user: dict = Depends(get_current_user)):
     """Lấy thông tin phiên bản hiện tại"""
     ver = "0.5.205"
-    v_file = "/opt/presspanel/VERSION" if os.path.exists("/opt/presspanel/VERSION") else "/opt/wpc/VERSION"
+    v_file = "/opt/presspanel/VERSION" if os.path.exists("/opt/presspanel/VERSION") else "/opt/presspanel/VERSION"
     if os.path.exists(v_file):
         try:
             with open(v_file, "r") as f:
@@ -600,7 +600,7 @@ async def trigger_update(
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên cấp cao mới có quyền cập nhật panel.")
     
-    update_sh = "/opt/presspanel/scripts/update.sh" if os.path.exists("/opt/presspanel/scripts/update.sh") else "/opt/wpc/scripts/update.sh"
+    update_sh = "/opt/presspanel/scripts/update.sh" if os.path.exists("/opt/presspanel/scripts/update.sh") else "/opt/presspanel/scripts/update.sh"
     cmd = f"sudo bash {update_sh}" if os.path.exists(update_sh) else "echo '[+] Đang kiểm tra mã nguồn...' && sleep 1 && echo '[+] Cập nhật hoàn tất 100%!'"
     task_id = await add_system_task(
         user_id=current_user["id"],
@@ -1897,7 +1897,7 @@ async def get_security_audit(current_user: dict = Depends(get_current_user)):
         checks.append({"id": "loopback_firewall", "title": "Tường Lửa Cổng Localhost (Port 8888)", "desc": "Chưa có quy tắc cô lập cổng 8888 trên card loopback lo", "status": "warn"})
 
     # 7. CageFS Container Terminal
-    cage_ready = os.path.exists("/opt/presspanel/scripts/cage_terminal.sh") or os.path.exists("/opt/wpc/scripts/cage_terminal.sh")
+    cage_ready = os.path.exists("/opt/presspanel/scripts/cage_terminal.sh") or os.path.exists("/opt/presspanel/scripts/cage_terminal.sh")
     if cage_ready:
         score += 1
         checks.append({"id": "cagefs", "title": "Lồng Cách Ly Mount & PID Namespace (CageFS Mode)", "desc": "Môi trường Terminal và PHP tiến trình được khóa trong Mount Namespace riêng biệt", "status": "pass"})
@@ -1936,7 +1936,7 @@ async def apply_security_fix(current_user: dict = Depends(get_current_user)):
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Chỉ Quản trị viên mới có quyền chạy Tối ưu An ninh!")
 
-    script_path = "/opt/presspanel/scripts/security_hardening.sh" if os.path.exists("/opt/presspanel/scripts/security_hardening.sh") else "/opt/wpc/scripts/security_hardening.sh"
+    script_path = "/opt/presspanel/scripts/security_hardening.sh" if os.path.exists("/opt/presspanel/scripts/security_hardening.sh") else "/opt/presspanel/scripts/security_hardening.sh"
     if not os.path.exists(script_path):
         raise HTTPException(status_code=500, detail="Không tìm thấy kịch bản security_hardening.sh!")
 
@@ -2297,7 +2297,7 @@ async def update_panel_settings(req: PanelSettingsUpdateRequest, current_user: d
             raise HTTPException(status_code=400, detail="Số cổng (Port) phải nằm trong khoảng 1 - 65535")
         if req.port != settings.PORT:
             conf_file = get_conf_path()
-            for cf in [conf_file, "/opt/presspanel/conf/presspanel.conf", "/opt/wpc/conf/wpc.conf"]:
+            for cf in [conf_file, "/opt/presspanel/conf/presspanel.conf", "/opt/presspanel/conf/presspanel.conf"]:
                 if os.path.isfile(cf):
                     try:
                         with open(cf, "r", encoding="utf-8") as f:

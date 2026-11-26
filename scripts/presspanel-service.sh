@@ -8,13 +8,13 @@ set -eo pipefail
 
 if [ -d "/opt/presspanel" ]; then
     INSTALL_DIR="/opt/presspanel"
-elif [ -d "/opt/wpc" ]; then
-    INSTALL_DIR="/opt/wpc"
+elif [ -d "/opt/presspanel" ]; then
+    INSTALL_DIR="/opt/presspanel"
 else
     INSTALL_DIR="/opt/presspanel"
 fi
 
-cd "$INSTALL_DIR" 2>/dev/null || cd /opt/presspanel 2>/dev/null || cd /opt/wpc 2>/dev/null || true
+cd "$INSTALL_DIR" 2>/dev/null || cd /opt/presspanel 2>/dev/null || cd /opt/presspanel 2>/dev/null || true
 
 mkdir -p /run/php /tmp/lshttpd 2>/dev/null || true
 
@@ -34,8 +34,8 @@ if [ -x "$INSTALL_DIR/venv/bin/python" ]; then
     PY_BIN="$INSTALL_DIR/venv/bin/python"
 elif [ -x "$INSTALL_DIR/venv/bin/python3" ]; then
     PY_BIN="$INSTALL_DIR/venv/bin/python3"
-elif [ -x "/opt/wpc/venv/bin/python" ]; then
-    PY_BIN="/opt/wpc/venv/bin/python"
+elif [ -x "/opt/presspanel/venv/bin/python" ]; then
+    PY_BIN="/opt/presspanel/venv/bin/python"
 fi
 
 # 2. Nếu venv không tồn tại hoặc hỏng, tìm python hệ thống

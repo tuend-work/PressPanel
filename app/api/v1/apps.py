@@ -10,7 +10,7 @@ from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/apps", tags=["App Store & Software Manager"])
 
-PRESSPANEL_BASE = "/opt/presspanel" if os.path.exists("/opt/presspanel") else "/opt/wpc"
+PRESSPANEL_BASE = "/opt/presspanel"
 WPC_BASE = PRESSPANEL_BASE
 
 OS_PACKAGE_UPDATE_CMD = (
@@ -295,7 +295,7 @@ SUPPORTED_APPS = [
         "icon": "🧭",
         "desc": "Giao diện Web trực quan quản lý CSDL MariaDB/MySQL nhanh chóng và an toàn (Port 888).",
         "service": "phpmyadmin",
-        "binary_checks": ["/home/pma/public_html/index.php", "/opt/presspanel/apps/phpmyadmin/index.php", "/opt/wpc/apps/phpmyadmin/index.php", "/usr/share/phpmyadmin/index.php"],
+        "binary_checks": ["/home/pma/public_html/index.php", "/opt/presspanel/apps/phpmyadmin/index.php", "/opt/presspanel/apps/phpmyadmin/index.php", "/usr/share/phpmyadmin/index.php"],
         "default_version": "5.2.x"
     },
     {
@@ -2236,7 +2236,7 @@ async def rewrite_webserver_config(
         # 5. Cập nhật default_webserver trong presspanel.conf / wpc.conf
         for cfg_file in [
             "/opt/presspanel/conf/presspanel.conf",
-            "/opt/wpc/conf/wpc.conf",
+            "/opt/presspanel/conf/presspanel.conf",
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../conf/presspanel.conf")),
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../conf/wpc.conf")),
         ]:
@@ -2854,8 +2854,8 @@ async def get_app_build_settings(app_id: str, current_user: dict = Depends(get_c
 
     default_args = DEFAULT_BUILD_ARGS.get(def_key, "--prefix=/usr/local")
     args_file = f"{PRESSPANEL_BASE}/config/build/{clean_id}.args"
-    if not os.path.exists(args_file) and os.path.exists(f"/opt/wpc/config/build/{clean_id}.args"):
-        args_file = f"/opt/wpc/config/build/{clean_id}.args"
+    if not os.path.exists(args_file) and os.path.exists(f"/opt/presspanel/config/build/{clean_id}.args"):
+        args_file = f"/opt/presspanel/config/build/{clean_id}.args"
     custom_args = ""
     if os.path.exists(args_file):
         try:
@@ -2934,7 +2934,7 @@ async def trigger_app_build(app_id: str, background_tasks: BackgroundTasks, curr
 async def get_system_websites(current_user: dict = Depends(get_current_user)):
     """Lấy danh sách các ứng dụng Web hệ thống (phpMyAdmin, pgAdmin, Roundcube, etc.) dưới dạng Website độc lập"""
     pma_doc_root = "/home/pma/public_html" if os.path.exists("/home/pma/public_html") else (
-        f"{PRESSPANEL_BASE}/apps/phpmyadmin" if os.path.exists(f"{PRESSPANEL_BASE}/apps/phpmyadmin") else "/opt/wpc/apps/phpmyadmin"
+        f"{PRESSPANEL_BASE}/apps/phpmyadmin" if os.path.exists(f"{PRESSPANEL_BASE}/apps/phpmyadmin") else "/opt/presspanel/apps/phpmyadmin"
     )
     pma_installed = os.path.exists(f"{pma_doc_root}/index.php") or os.path.exists("/usr/share/phpmyadmin/index.php")
     pma_running = False
@@ -2979,7 +2979,7 @@ async def get_system_websites(current_user: dict = Depends(get_current_user)):
 
     rc_installed = (
         os.path.exists(f"{PRESSPANEL_BASE}/apps/roundcube/index.php") or
-        os.path.exists("/opt/wpc/apps/roundcube/index.php") or
+        os.path.exists("/opt/presspanel/apps/roundcube/index.php") or
         os.path.exists("/var/lib/roundcube/index.php")
     )
     rc_running = False
@@ -3055,7 +3055,7 @@ async def get_system_websites(current_user: dict = Depends(get_current_user)):
             "site_title": "Roundcube Webmail",
             "icon": "✉️",
             "url_port": 8800,
-            "doc_root": f"{PRESSPANEL_BASE}/apps/roundcube" if os.path.exists(f"{PRESSPANEL_BASE}/apps/roundcube") else "/opt/wpc/apps/roundcube",
+            "doc_root": f"{PRESSPANEL_BASE}/apps/roundcube" if os.path.exists(f"{PRESSPANEL_BASE}/apps/roundcube") else "/opt/presspanel/apps/roundcube",
             "owner_username": "roundcube",
             "owner_group": "roundcube",
             "webserver": "OLS" if ols_active else "NGINX",

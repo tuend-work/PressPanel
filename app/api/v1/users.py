@@ -12,7 +12,7 @@ from app.api.v1.domains import domain_to_linux_user, sync_nginx_vhost_rate_limit
 
 router = APIRouter(prefix="/users", tags=["Customer Management"])
 
-PRESSPANEL_BASE = "/opt/presspanel" if os.path.exists("/opt/presspanel") else "/opt/wpc"
+PRESSPANEL_BASE = "/opt/presspanel"
 
 class CustomerCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=32)

@@ -325,7 +325,7 @@ EOF_BR
     build)
         echo "[+] Đang chuẩn bị biên dịch Nginx từ source với các đối số tùy chỉnh..."
         ARGS_FILE="/opt/presspanel/config/build/nginx.args"
-        [ ! -f "$ARGS_FILE" ] && [ -f "/opt/wpc/config/build/nginx.args" ] && ARGS_FILE="/opt/wpc/config/build/nginx.args"
+        [ ! -f "$ARGS_FILE" ] && [ -f "/opt/presspanel/config/build/nginx.args" ] && ARGS_FILE="/opt/presspanel/config/build/nginx.args"
         BUILD_ARGS=""
         if [ -f "$ARGS_FILE" ]; then
             BUILD_ARGS=$(grep -v '^[[:space:]]*#' "$ARGS_FILE" | tr '\n' ' ' | sed 's/\\//g')

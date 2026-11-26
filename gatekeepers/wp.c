@@ -7,7 +7,7 @@
 
 static const char* get_wp_script(void) {
     if (access("/opt/presspanel/scripts/wp_manager.sh", X_OK) == 0) return "/opt/presspanel/scripts/wp_manager.sh";
-    return "/opt/wpc/scripts/wp_manager.sh";
+    return "/opt/presspanel/scripts/wp_manager.sh";
 }
 
 static int is_safe_num_string(const char *str) {

@@ -7,7 +7,7 @@
 
 static const char* get_presspanel_dir(void) {
     if (access("/opt/presspanel", F_OK) == 0) return "/opt/presspanel";
-    return "/opt/wpc";
+    return "/opt/presspanel";
 }
 
 static const char* detect_os_family(void) {

@@ -30,8 +30,8 @@ def get_conf_path() -> str:
     for env_k in ["PRESSPANEL_CONF_PATH", "WPC_CONF_PATH"]:
         if env_k in os.environ and os.path.isfile(os.environ[env_k]):
             return os.environ[env_k]
-    # 2. Vị trí chính thức trên máy chủ Linux (/opt/presspanel hoặc /opt/wpc)
-    for sys_cand in ["/opt/presspanel/conf/presspanel.conf", "/opt/wpc/conf/wpc.conf"]:
+    # 2. Vị trí chính thức trên máy chủ Linux (/opt/presspanel hoặc /opt/presspanel)
+    for sys_cand in ["/opt/presspanel/conf/presspanel.conf", "/opt/presspanel/conf/presspanel.conf"]:
         if os.path.isfile(sys_cand):
             return sys_cand
     # 3. Vị trí trong thư mục dự án khi dev
@@ -83,7 +83,7 @@ def get_or_create_secret_key() -> str:
 def get_current_panel_version() -> str:
     for cand in [
         "/opt/presspanel/VERSION",
-        "/opt/wpc/VERSION",
+        "/opt/presspanel/VERSION",
         os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "VERSION")
     ]:
         if os.path.isfile(cand):

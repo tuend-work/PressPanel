@@ -7,7 +7,7 @@
 
 static const char* get_vhost_script(void) {
     if (access("/opt/presspanel/scripts/vhost_manager.sh", X_OK) == 0) return "/opt/presspanel/scripts/vhost_manager.sh";
-    return "/opt/wpc/scripts/vhost_manager.sh";
+    return "/opt/presspanel/scripts/vhost_manager.sh";
 }
 
 int main(int argc, char *argv[]) {

@@ -166,7 +166,7 @@ async def sync_all_databases(current_user: dict = Depends(get_current_user)):
     return {"status": "ok", "message": f"Đã đồng bộ thành công {synced_count} cơ sở dữ liệu!"}
 
 def get_mysql_root_password() -> Optional[str]:
-    """Tìm mật khẩu root MariaDB/MySQL từ /root/.my.cnf hoặc /opt/presspanel/conf/presspanel.conf (fallback /opt/wpc/conf/wpc.conf)"""
+    """Tìm mật khẩu root MariaDB/MySQL từ /root/.my.cnf hoặc /opt/presspanel/conf/presspanel.conf (fallback /opt/presspanel/conf/presspanel.conf)"""
     try:
         if os.path.exists("/root/.my.cnf"):
             with open("/root/.my.cnf", "r", encoding="utf-8") as f:
@@ -175,7 +175,7 @@ def get_mysql_root_password() -> Optional[str]:
                         return line.split("=", 1)[1].strip().strip('"\'')
     except Exception:
         pass
-    for conf_file in ["/opt/presspanel/conf/presspanel.conf", "/opt/wpc/conf/wpc.conf"]:
+    for conf_file in ["/opt/presspanel/conf/presspanel.conf", "/opt/presspanel/conf/presspanel.conf"]:
         try:
             if os.path.exists(conf_file):
                 with open(conf_file, "r", encoding="utf-8") as f:
@@ -413,7 +413,7 @@ async def update_root_password(req: DatabaseRootPasswordRequest, current_user: d
         raise HTTPException(status_code=403, detail="Chỉ quản trị viên cấp cao mới có quyền đổi mật khẩu Root DB")
     
     if os.name != "nt":
-        script_path = "/opt/presspanel/scripts/db_root_password.sh" if os.path.exists("/opt/presspanel/scripts/db_root_password.sh") else "/opt/wpc/scripts/db_root_password.sh"
+        script_path = "/opt/presspanel/scripts/db_root_password.sh" if os.path.exists("/opt/presspanel/scripts/db_root_password.sh") else "/opt/presspanel/scripts/db_root_password.sh"
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         local_script = os.path.join(base_dir, "scripts", "db_root_password.sh")
         target_script = script_path if os.path.exists(script_path) else local_script
@@ -509,7 +509,7 @@ async def toggle_remote_access(req: RemoteAccessRequest, current_user: dict = De
 # ==============================================================================
 
 def get_redis_user_script_path() -> str:
-    path = "/opt/presspanel/scripts/redis_user_manager.sh" if os.path.exists("/opt/presspanel/scripts/redis_user_manager.sh") else "/opt/wpc/scripts/redis_user_manager.sh"
+    path = "/opt/presspanel/scripts/redis_user_manager.sh" if os.path.exists("/opt/presspanel/scripts/redis_user_manager.sh") else "/opt/presspanel/scripts/redis_user_manager.sh"
     if os.path.exists(path):
         return path
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))

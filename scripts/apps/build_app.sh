@@ -4,7 +4,7 @@ set -euo pipefail
 
 APP_ID="${1:-nginx}"
 WPC_BASE="/opt/presspanel"
-[ ! -d "$WPC_BASE" ] && [ -d "/opt/wpc" ] && WPC_BASE="/opt/wpc"
+[ ! -d "$WPC_BASE" ] && [ -d "/opt/presspanel" ] && WPC_BASE="/opt/presspanel"
 
 mkdir -p "$WPC_BASE/config/build" /var/log/presspanel /var/log/wpc 2>/dev/null || true
 LOG_FILE="/var/log/presspanel/build_${APP_ID}.log"
