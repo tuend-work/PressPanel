@@ -542,7 +542,7 @@ async def init_database():
         uri_cur = await db.execute("SELECT value FROM system_settings WHERE key = 'panel_secret_uri'")
         uri_row = await uri_cur.fetchone()
         if not uri_row or not uri_row[0]:
-            secret_uri = f"pp-{secrets.token_hex(6)}"
+            secret_uri = f"pp{secrets.token_hex(5)}"
             await db.execute(
                 "INSERT OR REPLACE INTO system_settings (key, value) VALUES ('panel_secret_uri', ?)",
                 (secret_uri,)

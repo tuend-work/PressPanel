@@ -861,23 +861,31 @@ EXT_IP=$(curl -sS --max-time 3 https://api.ipify.org 2>/dev/null || curl -sS --m
 END_TS=$(date +%s)
 ELAPSED=$((END_TS - START_TS))
 if [ "$ELAPSED" -ge 60 ]; then
-    MINS=$(( (ELAPSED + 59) / 60 ))
-    TIME_STR="${MINS} Minute(s)!"
+    MINS=$((ELAPSED / 60))
+    SECS=$((ELAPSED % 60))
+    TIME_STR="${MINS} phút ${SECS} giây"
 else
-    TIME_STR="${ELAPSED} Seconds!"
+    TIME_STR="${ELAPSED} giây"
 fi
 
-echo "=================================================================="
-echo -e "\033[32mCongratulations! Updated successfully! (v${OLD_VER} -> v${NEW_VER})\033[0m"
-echo "=================================================================="
-echo "PressPanel Internet Address: ${SCHEME}://${EXT_IP}:${PANEL_PORT}${INIT_URI}"
-echo "PressPanel Internal Address: ${SCHEME}://${INT_IP}:${PANEL_PORT}${INIT_URI}"
-echo "username: ${INIT_USER}"
-echo "password: ${INIT_PASS}"
-echo -e "\033[33mWarning:\033[0m"
-echo -e "\033[33mIf you cannot access the panel,\033[0m"
-echo -e "\033[33mrelease the following port (${PANEL_PORT}|80|443|20|21) in the security group\033[0m"
-echo "=================================================================="
-echo -e "Time consumed: \033[32m${TIME_STR}\033[0m"
-echo "=================================================================="
+IS_WSL=0
+grep -qiE "microsoft|wsl" /proc/version 2>/dev/null && IS_WSL=1
+
+echo ""
+echo -e "\033[36m┌──────────────────────────────────────────────────────────────────┐\033[0m"
+echo -e "\033[36m│\033[0m  \033[1;32m✔ PRESSPANEL — CẬP NHẬT THÀNH CÔNG (v${OLD_VER} -> v${NEW_VER})\033[0m"
+echo -e "\033[36m├──────────────────────────────────────────────────────────────────┤\033[0m"
+if [ "$IS_WSL" -eq 1 ]; then
+echo -e "\033[36m│\033[0m  URL Local (WSL) : \033[1;34m${SCHEME}://localhost:${PANEL_PORT}${INIT_URI}\033[0m"
+fi
+echo -e "\033[36m│\033[0m  URL Mạng Nội Bộ : ${SCHEME}://${INT_IP}:${PANEL_PORT}${INIT_URI}"
+echo -e "\033[36m│\033[0m  URL Công Khai   : ${SCHEME}://${EXT_IP}:${PANEL_PORT}${INIT_URI}"
+echo -e "\033[36m│\033[0m  Tên đăng nhập   : \033[1;33m${INIT_USER}\033[0m"
+echo -e "\033[36m│\033[0m  Mật khẩu        : \033[1;33m${INIT_PASS}\033[0m"
+echo -e "\033[36m│\033[0m  Thời gian       : ${TIME_STR}"
+echo -e "\033[36m├──────────────────────────────────────────────────────────────────┤\033[0m"
+echo -e "\033[36m│\033[0m  \033[33mLưu ý:\033[0m Mở cổng ${PANEL_PORT} (TCP) trên Firewall/Security Group nếu"
+echo -e "\033[36m│\033[0m  truy cập từ Internet. Lệnh quản trị CLI: \033[1mpresspanel\033[0m"
+echo -e "\033[36m└──────────────────────────────────────────────────────────────────┘\033[0m"
+echo ""
 exit 0

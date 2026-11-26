@@ -2276,8 +2276,8 @@ async def update_panel_settings(req: PanelSettingsUpdateRequest, current_user: d
 
     if req.secret_uri is not None:
         clean_uri = req.secret_uri.strip().lstrip("/")
-        if not re.match(r"^[a-zA-Z0-9_-]{4,64}$", clean_uri):
-            raise HTTPException(status_code=400, detail="Secret URI phải từ 4-64 ký tự (chỉ gồm a-z, A-Z, 0-9, _, -)")
+        if not re.match(r"^[a-zA-Z0-9]{4,64}$", clean_uri):
+            raise HTTPException(status_code=400, detail="Secret URI chỉ được phép chứa ký tự tiếng Anh và số (a-z, A-Z, 0-9), độ dài 4-64 ký tự")
         reserved_prefixes = {"api", "static", "health", "docs", "redoc", "openapi.json"}
         if clean_uri.lower() in reserved_prefixes:
             raise HTTPException(status_code=400, detail="Không được phép dùng đường dẫn hệ thống này làm Secret URI")
