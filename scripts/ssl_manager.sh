@@ -64,29 +64,61 @@ ensure_acme_sh() {
     [ -x "$acme_bin" ]
 }
 
+update_ssl_db() {
+    local provider="$1"
+    local auto_renew="$2"
+    /opt/presspanel/venv/bin/python - "$DOMAIN" "$provider" "$FULLCHAIN" "$PRIVKEY" "$auto_renew" << 'PY_SSL_DB' 2>/dev/null || true
+import sqlite3, sys
+from app.core.config import settings
+dom_name, prov, cert_p, key_p, ar = sys.argv[1:6]
+conn = sqlite3.connect(settings.DB_PATH)
+cur = conn.cursor()
+cur.execute("SELECT id FROM domains WHERE domain_name = ?", (dom_name,))
+row = cur.fetchone()
+if row:
+    did = row[0]
+    cur.execute("DELETE FROM ssl_certificates WHERE domain_id = ?", (did,))
+    cur.execute(
+        "INSERT INTO ssl_certificates (domain_id, provider, cert_path, key_path, auto_renew) VALUES (?, ?, ?, ?, ?)",
+        (did, prov, cert_p, key_p, int(ar))
+    )
+    cur.execute("UPDATE domains SET ssl_enabled = 1 WHERE id = ?", (did,))
+    conn.commit()
+conn.close()
+PY_SSL_DB
+}
+
 case "$ACTION" in
     letsencrypt)
         EMAIL="${EXTRA_ARG1:-admin@$DOMAIN}"
-        INCLUDE_WWW="${EXTRA_ARG2:-0}"
+        DOM_LIST_CSV="${EXTRA_ARG2:-$DOMAIN}"
         if ! ensure_certbot; then
             echo "[-] Không thể cài đặt Certbot trên máy chủ này."
             exit 1
         fi
-        DOM_ARGS=(-d "$DOMAIN")
-        if [ "$INCLUDE_WWW" = "1" ] && [[ "$DOMAIN" != www.* ]]; then
-            DOM_ARGS+=(-d "www.$DOMAIN")
-        fi
-        echo "[+] Đang xin cấp chứng chỉ Let's Encrypt cho $DOMAIN..."
+        DOM_ARGS=()
+        IFS=',' read -ra DOM_ARR <<< "$DOM_LIST_CSV"
+        for d_item in "${DOM_ARR[@]}"; do
+            d_clean=$(echo "$d_item" | tr -d ' \r\n')
+            [ -n "$d_clean" ] && DOM_ARGS+=(-d "$d_clean")
+        done
+        [ ${#DOM_ARGS[@]} -eq 0 ] && DOM_ARGS=(-d "$DOMAIN")
+        echo "[+] Đang xin cấp chứng chỉ Let's Encrypt cho: ${DOM_LIST_CSV}..."
         if ! certbot certonly --webroot -w "$DOC_ROOT" "${DOM_ARGS[@]}" --non-interactive --agree-tos -m "$EMAIL" --force-renewal; then
-            echo "[-] Cấp phát Let's Encrypt thất bại. Vui lòng kiểm tra DNS của $DOMAIN đã trỏ về IP máy chủ và cổng 80 đang mở."
+            echo "[-] Cấp phát Let's Encrypt thất bại. Vui lòng kiểm tra DNS của tên miền đã trỏ về IP máy chủ và cổng 80 đang mở."
             exit 1
         fi
-        if [ -s "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ] && [ -s "/etc/letsencrypt/live/$DOMAIN/privkey.pem" ]; then
-            cp -fL "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" "$FULLCHAIN"
-            cp -fL "/etc/letsencrypt/live/$DOMAIN/privkey.pem" "$PRIVKEY"
+        PRIMARY_LE_DIR="/etc/letsencrypt/live/$DOMAIN"
+        if [ ! -d "$PRIMARY_LE_DIR" ] && [ ${#DOM_ARR[@]} -gt 0 ]; then
+            PRIMARY_LE_DIR="/etc/letsencrypt/live/${DOM_ARR[0]}"
+        fi
+        if [ -s "$PRIMARY_LE_DIR/fullchain.pem" ] && [ -s "$PRIMARY_LE_DIR/privkey.pem" ]; then
+            cp -fL "$PRIMARY_LE_DIR/fullchain.pem" "$FULLCHAIN"
+            cp -fL "$PRIMARY_LE_DIR/privkey.pem" "$PRIVKEY"
             chmod 644 "$FULLCHAIN"
             chmod 600 "$PRIVKEY"
             reload_webservers
+            update_ssl_db "letsencrypt" "1"
             echo "[+] Cài đặt SSL Let's Encrypt thành công cho $DOMAIN!"
             exit 0
         fi
@@ -96,8 +128,11 @@ case "$ACTION" in
 
     zerossl)
         EMAIL="${EXTRA_ARG1:-admin@$DOMAIN}"
-        EAB_KID="${EXTRA_ARG2:-}"
-        EAB_HMAC="${EXTRA_ARG3:-}"
+        DOM_LIST_CSV="${EXTRA_ARG2:-$DOMAIN}"
+        EAB_COMBINED="${EXTRA_ARG3:-}"
+        EAB_KID="${EAB_COMBINED%%:*}"
+        EAB_HMAC=""
+        [[ "$EAB_COMBINED" == *:* ]] && EAB_HMAC="${EAB_COMBINED#*:}"
         if ! ensure_acme_sh "$EMAIL"; then
             echo "[-] Không thể cài đặt acme.sh cho ZeroSSL."
             exit 1
@@ -109,15 +144,23 @@ case "$ACTION" in
         else
             "$ACME" --register-account --server zerossl -m "$EMAIL" || true
         fi
-        echo "[+] Đang xin cấp chứng chỉ ZeroSSL cho $DOMAIN..."
-        if ! "$ACME" --issue --server zerossl -d "$DOMAIN" -w "$DOC_ROOT" --force; then
-            echo "[-] Cấp phát ZeroSSL thất bại. Kiểm tra DNS của $DOMAIN hoặc thông tin EAB Key."
+        DOM_ARGS=()
+        IFS=',' read -ra DOM_ARR <<< "$DOM_LIST_CSV"
+        for d_item in "${DOM_ARR[@]}"; do
+            d_clean=$(echo "$d_item" | tr -d ' \r\n')
+            [ -n "$d_clean" ] && DOM_ARGS+=(-d "$d_clean")
+        done
+        [ ${#DOM_ARGS[@]} -eq 0 ] && DOM_ARGS=(-d "$DOMAIN")
+        echo "[+] Đang xin cấp chứng chỉ ZeroSSL cho: ${DOM_LIST_CSV}..."
+        if ! "$ACME" --issue --server zerossl "${DOM_ARGS[@]}" -w "$DOC_ROOT" --force; then
+            echo "[-] Cấp phát ZeroSSL thất bại. Kiểm tra DNS của tên miền hoặc thông tin EAB Key."
             exit 1
         fi
         "$ACME" --install-cert -d "$DOMAIN" --fullchain-file "$FULLCHAIN" --key-file "$PRIVKEY"
         chmod 644 "$FULLCHAIN"
         chmod 600 "$PRIVKEY"
         reload_webservers
+        update_ssl_db "custom" "1"
         echo "[+] Cài đặt SSL ZeroSSL thành công cho $DOMAIN!"
         exit 0
         ;;

@@ -8,7 +8,7 @@ import asyncio
 import platform
 import uuid
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from pydantic import BaseModel
 from app.api.deps import get_current_user
 from app.db.session import get_db_connection
@@ -4753,6 +4753,7 @@ class SSLInstallRequest(BaseModel):
     provider: str  # "letsencrypt" | "zerossl" | "custom"
     email: Optional[str] = ""
     include_www: bool = False
+    domains: Optional[List[str]] = None
     eab_kid: Optional[str] = ""
     eab_hmac_key: Optional[str] = ""
     certificate: Optional[str] = ""
@@ -4843,8 +4844,11 @@ async def get_domain_ssl(domain_id: int, current_user: dict = Depends(get_curren
 
 
 @router.post("/{domain_id}/ssl/install")
-async def install_domain_ssl(domain_id: int, req: SSLInstallRequest, current_user: dict = Depends(get_current_user)):
-    """Cài đặt SSL cho website qua Let's Encrypt, ZeroSSL hoặc Custom SSL"""
+async def install_domain_ssl(domain_id: int, req: SSLInstallRequest, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
+    """Cài đặt SSL cho website qua Let's Encrypt, ZeroSSL hoặc Custom SSL (chạy qua Task Queue có log trực tiếp)"""
+    import shlex
+    from app.api.v1.tasks import add_system_task
+
     provider = (req.provider or "").strip().lower()
     if provider not in ("letsencrypt", "zerossl", "custom"):
         raise HTTPException(status_code=400, detail="Nhà cung cấp SSL không hợp lệ (chỉ hỗ trợ letsencrypt, zerossl, custom)")
@@ -4867,49 +4871,71 @@ async def install_domain_ssl(domain_id: int, req: SSLInstallRequest, current_use
         cert_path = f"/home/{iso_u}/domains/{clean_domain}/ssl/fullchain.pem"
         key_path = f"/home/{iso_u}/domains/{clean_domain}/ssl/privkey.pem"
 
-        if os.name != "nt":
-            if provider == "custom":
-                if not req.certificate or not req.private_key:
-                    raise HTTPException(status_code=400, detail="Vui lòng nhập đầy đủ Private Key và Certificate (CRT/PEM)")
+        if provider == "custom":
+            if not req.certificate or not req.private_key:
+                raise HTTPException(status_code=400, detail="Vui lòng nhập đầy đủ Private Key và Certificate (CRT/PEM)")
+            if os.name != "nt":
                 tmp_key = f"/tmp/pp_ssl_key_{uuid.uuid4().hex}.pem"
                 tmp_crt = f"/tmp/pp_ssl_crt_{uuid.uuid4().hex}.pem"
                 with open(tmp_key, "w", encoding="utf-8") as fk:
                     fk.write(req.private_key.strip() + "\n")
                 with open(tmp_crt, "w", encoding="utf-8") as fc:
                     fc.write(req.certificate.strip() + "\n")
-                cmd = ["sudo", "bash", ssl_script, "custom", clean_domain, iso_u, doc_root, tmp_key, tmp_crt]
-            elif provider == "letsencrypt":
-                email = (req.email or domain["owner_email"] or f"admin@{clean_domain}").strip()
-                cmd = ["sudo", "bash", ssl_script, "letsencrypt", clean_domain, iso_u, doc_root, email, "1" if req.include_www else "0"]
-            else:  # zerossl
-                email = (req.email or domain["owner_email"] or f"admin@{clean_domain}").strip()
-                cmd = ["sudo", "bash", ssl_script, "zerossl", clean_domain, iso_u, doc_root, email, (req.eab_kid or "").strip(), (req.eab_hmac_key or "").strip()]
-
-            proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=180)
-            if proc.returncode != 0:
-                err_msg = (proc.stdout or "").strip().splitlines()[-1] if proc.stdout else "Cấp phát SSL thất bại"
-                raise HTTPException(status_code=400, detail=err_msg)
-
-        # Lưu vào bảng ssl_certificates & domains
-        db_provider = "letsencrypt" if provider == "letsencrypt" else ("custom" if provider == "custom" else "letsencrypt")
-        # Lưu provider thực tế nếu schema cho phép hoặc lưu vào ssl_certificates
-        await db.execute("DELETE FROM ssl_certificates WHERE domain_id = ?", (domain_id,))
-        try:
+                proc = subprocess.run(
+                    ["sudo", "bash", ssl_script, "custom", clean_domain, iso_u, doc_root, tmp_key, tmp_crt],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=60
+                )
+                if proc.returncode != 0:
+                    err_msg = (proc.stdout or "").strip().splitlines()[-1] if proc.stdout else "Cài đặt Custom SSL thất bại"
+                    raise HTTPException(status_code=400, detail=err_msg)
+            await db.execute("DELETE FROM ssl_certificates WHERE domain_id = ?", (domain_id,))
             await db.execute(
-                "INSERT INTO ssl_certificates (domain_id, provider, cert_path, key_path, auto_renew) VALUES (?, ?, ?, ?, ?)",
-                (domain_id, provider if provider != "zerossl" else "custom", cert_path, key_path, 0 if provider == "custom" else 1)
+                "INSERT INTO ssl_certificates (domain_id, provider, cert_path, key_path, auto_renew) VALUES (?, 'custom', ?, ?, 0)",
+                (domain_id, cert_path, key_path)
             )
-        except Exception:
-            await db.execute(
-                "INSERT INTO ssl_certificates (domain_id, provider, cert_path, key_path, auto_renew) VALUES (?, ?, ?, ?, ?)",
-                (domain_id, db_provider, cert_path, key_path, 0 if provider == "custom" else 1)
-            )
-        await db.execute("UPDATE domains SET ssl_enabled = 1 WHERE id = ?", (domain_id,))
-        await db.commit()
+            await db.execute("UPDATE domains SET ssl_enabled = 1 WHERE id = ?", (domain_id,))
+            await db.commit()
+            return {"status": "ok", "message": f"Đã cài đặt Custom SSL thành công cho {clean_domain}!"}
 
+        # Let's Encrypt / ZeroSSL -> chạy qua Task Queue để xem chi tiết log tiến trình
+        domain_list = []
+        if req.domains:
+            for d_item in req.domains:
+                d_clean = d_item.strip().lower()
+                if d_clean and re.match(r"^[a-z0-9.-]{3,253}$", d_clean) and d_clean not in domain_list:
+                    domain_list.append(d_clean)
+        if not domain_list:
+            domain_list = [clean_domain]
+        if req.include_www and not clean_domain.startswith("www.") and f"www.{clean_domain}" not in domain_list:
+            domain_list.append(f"www.{clean_domain}")
+
+        domains_csv = ",".join(domain_list)
+        email = (req.email or domain["owner_email"] or f"admin@{clean_domain}").strip()
+
+        if provider == "letsencrypt":
+            shell_cmd = (
+                f"sudo bash {shlex.quote(ssl_script)} letsencrypt "
+                f"{shlex.quote(clean_domain)} {shlex.quote(iso_u)} {shlex.quote(doc_root)} "
+                f"{shlex.quote(email)} {shlex.quote(domains_csv)}"
+            )
+        else:
+            eab_combined = f"{(req.eab_kid or '').strip()}:{(req.eab_hmac_key or '').strip()}" if (req.eab_kid and req.eab_hmac_key) else ""
+            shell_cmd = (
+                f"sudo bash {shlex.quote(ssl_script)} zerossl "
+                f"{shlex.quote(clean_domain)} {shlex.quote(iso_u)} {shlex.quote(doc_root)} "
+                f"{shlex.quote(email)} {shlex.quote(domains_csv)} {shlex.quote(eab_combined)}"
+            )
+
+        task_id = await add_system_task(
+            user_id=current_user["id"],
+            action_name=f"Install SSL [{provider.upper()}] - {clean_domain}",
+            cmd=shell_cmd,
+            background_tasks=background_tasks
+        )
         return {
             "status": "ok",
-            "message": f"Đã cài đặt SSL ({provider.upper()}) thành công cho {clean_domain}!"
+            "task_id": task_id,
+            "message": f"Đã khởi tạo tiến trình cấp SSL ({provider.upper()}) cho {domains_csv}."
         }
     finally:
         await db.close()

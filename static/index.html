@@ -4362,7 +4362,7 @@ geo $limit_rate {
                 const selectedSslDomain = ref(null);
                 const sslTab = ref('current');
                 const sslVerifyMethod = ref('file');
-                const sslForm = ref({ email: '', include_www: false, eab_kid: '', eab_hmac_key: '' });
+                const sslForm = ref({ email: '', domains_text: '', include_www: false, eab_kid: '', eab_hmac_key: '' });
                 const sslPrivateKey = ref('');
                 const sslCertificate = ref('');
                 const sslInfo = ref(null);
@@ -4372,6 +4372,7 @@ geo $limit_rate {
                     selectedSslDomain.value = domain;
                     sslTab.value = domain.ssl_enabled ? 'current' : 'letsencrypt';
                     sslForm.value.email = currentUser.value?.email || `admin@${domain.domain_name}`;
+                    sslForm.value.domains_text = domain.domain_name || '';
                     sslPrivateKey.value = '';
                     sslCertificate.value = '';
                     sslInfo.value = null;
@@ -4405,11 +4406,18 @@ geo $limit_rate {
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            showToast(data.message || 'Cài đặt SSL thành công!', 'success');
-                            domain.ssl_enabled = true;
-                            await fetchDomains();
-                            await openSslModal(domain);
-                            sslTab.value = 'current';
+                            if (data.task_id) {
+                                showSslModal.value = false;
+                                showToast(data.message || 'Đang tiến hành cấp SSL...', 'info');
+                                await fetchTasks();
+                                viewTaskLog(data.task_id);
+                            } else {
+                                showToast(data.message || 'Cài đặt SSL thành công!', 'success');
+                                domain.ssl_enabled = true;
+                                await fetchDomains();
+                                await openSslModal(domain);
+                                sslTab.value = 'current';
+                            }
                         } else {
                             showAlert(data.detail || 'Cài đặt SSL thất bại', 'error');
                         }
@@ -4421,10 +4429,18 @@ geo $limit_rate {
                     }
                 };
 
+                const _parseSslDomains = () => {
+                    return (sslForm.value.domains_text || '')
+                        .split(/[\s,;\n]+/)
+                        .map(s => s.trim().toLowerCase())
+                        .filter(Boolean);
+                };
+
                 const handleInstallLetsEncrypt = async (domain) => {
                     await _submitSslInstall(domain, {
                         provider: 'letsencrypt',
                         email: sslForm.value.email,
+                        domains: _parseSslDomains(),
                         include_www: sslForm.value.include_www
                     });
                 };
@@ -4433,6 +4449,7 @@ geo $limit_rate {
                     await _submitSslInstall(domain, {
                         provider: 'zerossl',
                         email: sslForm.value.email,
+                        domains: _parseSslDomains(),
                         eab_kid: sslForm.value.eab_kid,
                         eab_hmac_key: sslForm.value.eab_hmac_key
                     });
