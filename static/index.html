@@ -7326,10 +7326,6 @@ if ($host ~* ^www\\.(.*)$) {
                             const d = await res.json();
                             if (d.status === 'ok') {
                                 wpInstances.value = d.instances || [];
-                                // Nếu phát hiện có web WordPress và chưa chọn category cụ thể, chọn tab WordPress (tab 1)
-                                if (wpInstances.value.length > 0 && domainCategoryFilter.value === 'all') {
-                                    domainCategoryFilter.value = 'wordpress';
-                                }
                             }
                         }
                     } catch(e) {
@@ -7348,9 +7344,6 @@ if ($host ~* ^www\\.(.*)$) {
                         if (d.status === 'ok') {
                             showAlert(d.message || 'Quét WordPress thành công');
                             await fetchWpInstances();
-                            if (wpInstances.value.length > 0) {
-                                domainCategoryFilter.value = 'wordpress';
-                            }
                         } else {
                             showAlert(d.detail || 'Quét thất bại');
                         }
@@ -7376,9 +7369,8 @@ if ($host ~* ^www\\.(.*)$) {
                 };
 
                 const openDomainWp = async (domain) => {
-                    currentTab.value = 'domains';
-                    domainCategoryFilter.value = 'wordpress';
-                    window.location.hash = 'domains';
+                    currentTab.value = 'wp';
+                    window.location.hash = 'wp';
                     if (!wpInstances.value.length) {
                         await fetchWpInstances();
                     }
