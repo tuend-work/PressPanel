@@ -6354,7 +6354,7 @@ if ($host ~* ^www\\.(.*)$) {
                     });
                 };
 
-                const initTerminalSession = () => {
+                const initTerminalSession = async () => {
                     if (terminalSocket) {
                         terminalSocket.close();
                         terminalSocket = null;
