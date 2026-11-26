@@ -666,28 +666,23 @@ PY_REGISTER
         echo "[+] Đang gỡ bỏ phpMyAdmin..."
         # 1. Dừng và xoá PHP-FPM Service riêng
         for pver in 8.5 8.4 8.3 8.2 8.1 8.0 7.4; do
-            systemctl stop "presspanel-php${pver}-fpm@pma" 2>/dev/null || true
-            systemctl disable "presspanel-php${pver}-fpm@pma" 2>/dev/null || true
-            systemctl stop "wpc-php${pver}-fpm@pma" 2>/dev/null || true
-            systemctl disable "wpc-php${pver}-fpm@pma" 2>/dev/null || true
-            systemctl stop "presspanel-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
-            systemctl disable "presspanel-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
-            systemctl stop "wpc-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
-            systemctl disable "wpc-php${pver}-fpm@phpmyadmin" 2>/dev/null || true
-            rm -f "/etc/php/${pver}/fpm/users/pma.conf" "/run/php/php${pver}-fpm-pma.sock" "/run/php/php${pver}-fpm-pma.pid" 2>/dev/null || true
-            rm -f "/etc/php/${pver}/fpm/users/phpmyadmin.conf" "/run/php/php${pver}-fpm-phpmyadmin.sock" "/run/php/php${pver}-fpm-phpmyadmin.pid" 2>/dev/null || true
+            for u_pma in pma phpmyadmin phpmyadminsys; do
+                systemctl stop "presspanel-php${pver}-fpm@${u_pma}" 2>/dev/null || true
+                systemctl disable "presspanel-php${pver}-fpm@${u_pma}" 2>/dev/null || true
+                systemctl stop "wpc-php${pver}-fpm@${u_pma}" 2>/dev/null || true
+                systemctl disable "wpc-php${pver}-fpm@${u_pma}" 2>/dev/null || true
+                rm -f "/etc/php/${pver}/fpm/users/${u_pma}.conf" "/run/php/php${pver}-fpm-${u_pma}.sock" "/run/php/php${pver}-fpm-${u_pma}.pid" 2>/dev/null || true
+            done
         done
 
         # 2. Xóa thư mục cài đặt & symlink
-        rm -rf "$TARGET_DIR" 2>/dev/null || true
-        [ -L "$LEGACY_DIR" ] && rm -f "$LEGACY_DIR" 2>/dev/null || true
+        rm -rf "$TARGET_DIR" "$PMA_HOME" "/home/phpmyadminsys" 2>/dev/null || true
+        rm -rf "$PRESSPANEL_LEGACY_DIR" "$LEGACY_DIR" 2>/dev/null || true
         rm -f "/usr/share/phpmyadmin/index.php" 2>/dev/null || true
 
         # 3. Xóa cấu hình Nginx
-        if [ -f "/etc/nginx/conf.d/00_phpmyadmin.conf" ]; then
-            rm -f "/etc/nginx/conf.d/00_phpmyadmin.conf"
-            nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
-        fi
+        rm -f "/etc/nginx/conf.d/00_phpmyadmin.conf" "/etc/nginx/conf.d/phpmyadmin.sys.conf" 2>/dev/null || true
+        nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
 
         # 4. Dọn dẹp cấu hình OpenLiteSpeed
         OLS_MAIN_CONF="/usr/local/lsws/conf/httpd_config.conf"
@@ -709,6 +704,7 @@ for c in candidates:
             conn = sqlite3.connect(c)
             cur = conn.cursor()
             cur.execute("DELETE FROM domains WHERE domain_name IN ('phpmyadmin.sys', 'phpmyadmin')")
+            cur.execute("DELETE FROM installed_apps WHERE app_name = 'phpmyadmin'")
             conn.commit()
             conn.close()
         except Exception:

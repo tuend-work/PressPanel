@@ -1238,6 +1238,12 @@ async def app_action(
     # 2. HÀNH ĐỘNG GỠ CÀI ĐẶT (UNINSTALL / REMOVE)
     if req.action in ["uninstall", "remove"]:
         script_path = f"{WPC_BASE}/scripts/apps/{req.app_id}.sh"
+        if req.app_id == "phpmyadmin" and os.path.exists(script_path):
+            subprocess.run(["sudo", "bash", script_path, "remove"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30, check=False)
+            return {
+                "status": "ok",
+                "message": "Đã gỡ bỏ phpMyAdmin hoàn toàn khỏi hệ thống!"
+            }
         if os.path.exists(script_path):
             cmd = f"sudo bash {script_path} remove"
         elif os.path.isfile(gatekeeper_bin) and os.access(gatekeeper_bin, os.X_OK):

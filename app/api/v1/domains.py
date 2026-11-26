@@ -850,6 +850,10 @@ async def delete_domain(domain_id: int, current_user: dict = Depends(get_current
     clean_d = domain["domain_name"]
     isolated_u = domain_to_linux_user(clean_d)
     res = await run_gatekeeper("vhost", "remove", isolated_u, clean_d, domain["webserver"])
+    if clean_d in ("phpmyadmin.sys", "phpmyadmin"):
+        script_pma = f"{PRESSPANEL_BASE}/scripts/apps/phpmyadmin.sh"
+        if os.path.exists(script_pma):
+            subprocess.run(["sudo", "bash", script_pma, "remove"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     
     # Xóa khỏi database SQLite
     try:
