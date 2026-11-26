@@ -295,7 +295,7 @@ SUPPORTED_APPS = [
         "icon": "🧭",
         "desc": "Giao diện Web trực quan quản lý CSDL MariaDB/MySQL nhanh chóng và an toàn (Port 888).",
         "service": "phpmyadmin",
-        "binary_checks": ["/opt/presspanel/apps/phpmyadmin/index.php", "/opt/wpc/apps/phpmyadmin/index.php", "/usr/share/phpmyadmin/index.php"],
+        "binary_checks": ["/home/pma/public_html/index.php", "/opt/presspanel/apps/phpmyadmin/index.php", "/opt/wpc/apps/phpmyadmin/index.php", "/usr/share/phpmyadmin/index.php"],
         "default_version": "5.2.x"
     },
     {
@@ -616,7 +616,7 @@ def check_app_status(app: Dict[str, Any], primary_ws: Optional[str] = None) -> D
     candidates = get_app_service_candidates(app_id)
     active_service = app.get("service", "")
 
-    if not is_php and candidates and os.name != "nt":
+    if not is_php and app_id != "phpmyadmin" and candidates and os.name != "nt":
         for svc_name in candidates:
             try:
                 res = subprocess.run(
