@@ -13,6 +13,9 @@ router = APIRouter(prefix="/tasks", tags=["Task Queue & Messages Box"])
 TASKS_LOG_DIR = "/opt/presspanel/logs/tasks"
 os.makedirs(TASKS_LOG_DIR, exist_ok=True)
 
+# Khóa tuần tự toàn cục tránh xung đột lock apt/dpkg/dnf khi cài nhiều app cùng lúc
+_TASK_EXEC_LOCK = asyncio.Lock()
+
 class TaskResponse(BaseModel):
     id: str
     action: str
@@ -22,44 +25,54 @@ class TaskResponse(BaseModel):
     time_consumption: Optional[str] = None
 
 async def execute_task_background(task_id: str, cmd: str, log_file: str):
-    """Thực thi câu lệnh ngầm và lưu log dòng lệnh"""
+    """Thực thi câu lệnh ngầm tuần tự và lưu log dòng lệnh"""
     start_time = time.time()
     try:
-        with open(log_file, "w", encoding="utf-8") as f:
-            f.write(f"=== Bắt đầu thực thi tác vụ: {task_id} ===\n")
-            f.write(f"Thời gian: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        if _TASK_EXEC_LOCK.locked():
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write("[Queue] Đang xếp hàng chờ tác vụ cài đặt khác hoàn tất để tránh xung đột apt/dpkg lock...\n")
 
-        proc = await asyncio.create_subprocess_shell(
-            cmd,
-            cwd="/tmp",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT
-        )
+        async with _TASK_EXEC_LOCK:
+            db = await get_db_connection()
+            await db.execute("UPDATE tasks SET status = 'running' WHERE id = ?", (task_id,))
+            await db.commit()
+            await db.close()
 
-        with open(log_file, "a", encoding="utf-8") as f:
-            while True:
-                line = await proc.stdout.readline()
-                if not line:
-                    break
-                text = line.decode("utf-8", errors="replace")
-                f.write(text)
-                f.flush()
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"=== Bắt đầu thực thi tác vụ: {task_id} ===\n")
+                f.write(f"Thời gian: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
-        await proc.wait()
-        elapsed = int(time.time() - start_time)
-        status = "completed" if proc.returncode == 0 else "failed"
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                cwd="/tmp",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT
+            )
 
-        with open(log_file, "a", encoding="utf-8") as f:
-            f.write(f"\n=== Tác vụ kết thúc với mã {proc.returncode} sau {elapsed}s ===\n")
+            with open(log_file, "a", encoding="utf-8") as f:
+                while True:
+                    line = await proc.stdout.readline()
+                    if not line:
+                        break
+                    text = line.decode("utf-8", errors="replace")
+                    f.write(text)
+                    f.flush()
 
-        db = await get_db_connection()
-        await db.execute("""
-            UPDATE tasks 
-            SET status = ?, completed_at = CURRENT_TIMESTAMP 
-            WHERE id = ?
-        """, (status, task_id))
-        await db.commit()
-        await db.close()
+            await proc.wait()
+            elapsed = int(time.time() - start_time)
+            status = "completed" if proc.returncode == 0 else "failed"
+
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"\n=== Tác vụ kết thúc với mã {proc.returncode} sau {elapsed}s ===\n")
+
+            db = await get_db_connection()
+            await db.execute("""
+                UPDATE tasks 
+                SET status = ?, completed_at = CURRENT_TIMESTAMP 
+                WHERE id = ?
+            """, (status, task_id))
+            await db.commit()
+            await db.close()
 
     except Exception as e:
         db = await get_db_connection()
@@ -77,15 +90,19 @@ async def execute_task_background(task_id: str, cmd: str, log_file: str):
             pass
 
 async def add_system_task(user_id: int, action_name: str, cmd: str, background_tasks: BackgroundTasks) -> str:
-    """Tạo tác vụ mới và đưa vào hàng đợi chạy ngầm"""
+    """Tạo tác vụ mới và đưa vào hàng đợi chạy ngầm tuần tự"""
     task_id = str(uuid.uuid4())[:8]
     log_file = os.path.join(TASKS_LOG_DIR, f"{task_id}.log")
+    initial_status = "pending" if _TASK_EXEC_LOCK.locked() else "running"
+
+    with open(log_file, "w", encoding="utf-8") as f:
+        f.write(f"[Task {task_id}] Khởi tạo tác vụ: {action_name}\n")
 
     db = await get_db_connection()
     await db.execute("""
         INSERT INTO tasks (id, user_id, action, status, log_file)
-        VALUES (?, ?, ?, 'running', ?)
-    """, (task_id, user_id, action_name, log_file))
+        VALUES (?, ?, ?, ?, ?)
+    """, (task_id, user_id, action_name, initial_status, log_file))
     await db.commit()
     await db.close()
 

@@ -14,6 +14,14 @@ PRESSPANEL_BASE = "/opt/presspanel"
 WPC_BASE = PRESSPANEL_BASE
 
 OS_PACKAGE_UPDATE_CMD = (
+    "WAIT_LOCK_COUNT=0; "
+    "while fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/run/dnf.pid /var/run/yum.pid >/dev/null 2>&1 || "
+    "pgrep -x 'apt-get|dpkg|apt|unattended-upgr|dnf|yum' >/dev/null 2>&1; do "
+    "  if [ $WAIT_LOCK_COUNT -eq 0 ]; then echo '==> [0/2] Đang chờ tiến trình apt/dpkg/dnf khác giải phóng lock...'; fi; "
+    "  WAIT_LOCK_COUNT=$((WAIT_LOCK_COUNT+1)); "
+    "  if [ $WAIT_LOCK_COUNT -ge 60 ]; then echo '[!] Hết thời gian chờ lock (120s), tiếp tục thử...'; break; fi; "
+    "  sleep 2; "
+    "done; "
     "if command -v apt-get >/dev/null 2>&1; then "
     "echo '==> [1/2] Đang làm mới danh mục gói hệ điều hành...' && "
     "sudo DEBIAN_FRONTEND=noninteractive apt-get update -y 2>/dev/null || true; "
@@ -1179,6 +1187,19 @@ async def app_action(
 
     # 1. HÀNH ĐỘNG CÀI ĐẶT, CHUYỂN ĐỔI HOẶC CÀI ĐẶT LẠI (INSTALL / SWITCH / REINSTALL)
     if req.action in ["install", "switch", "reinstall"]:
+        # Kiểm tra điều kiện tiên quyết: các app phụ thuộc Web Server (PHP, phpMyAdmin, Roundcube)
+        if os.name != "nt" and (app.get("category") == "php" or req.app_id in ("phpmyadmin", "roundcube")):
+            ws_installed = any(
+                check_app_status(ws_app)["installed"]
+                for ws_app in SUPPORTED_APPS
+                if ws_app.get("category") == "webserver"
+            )
+            if not ws_installed:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Chưa cài đặt Web Server (Nginx, OpenLiteSpeed, Apache hoặc Caddy). Vui lòng cài đặt Web Server trước khi cài {app['name']}!"
+                )
+
         script_path = f"{WPC_BASE}/scripts/apps/{req.app_id}.sh"
         if not os.path.exists(script_path):
             base_p = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
