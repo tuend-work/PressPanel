@@ -29,8 +29,8 @@ $cfg['Servers'][$i]['AllowNoPassword'] = false;
 $cfg['Servers'][$i]['AllowRoot'] = true;
 $cfg['Servers'][$i]['SessionSavePath'] = $tmpDir;
 
-// Hỗ trợ chế độ Single Sign-On (SSO) tự động khi có cookie SignonSession hoặc yêu cầu xác thực
-if (isset($_COOKIE['SignonSession']) || isset($_GET['token']) || isset($_REQUEST['token']) || isset($_GET['wpc_sso']) || isset($_GET['presspanel_sso'])) {
+// Hỗ trợ chế độ Single Sign-On (SSO) tự động khi có cookie SignonSession hợp lệ hoặc yêu cầu xác thực SSO
+if (!empty($_COOKIE['SignonSession']) || !empty($_GET['token']) || !empty($_POST['token']) || !empty($_GET['wpc_sso']) || !empty($_GET['presspanel_sso'])) {
     $cfg['Servers'][$i]['auth_type'] = 'signon';
     $cfg['Servers'][$i]['SignonSession'] = 'SignonSession';
     $signonFile = file_exists(__DIR__ . '/presspanel_signon.php') ? 'presspanel_signon.php' : 'wpc_signon.php';

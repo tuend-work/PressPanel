@@ -349,7 +349,7 @@
                         <div class="text-xs font-bold text-white">Trạng thái Lockdown: {{ wpDetail && wpDetail.is_locked ? 'Đang Khóa An Toàn' : 'Đang Mở Khóa' }}</div>
                         <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{{ wpDetail && wpDetail.is_locked ? 'Các tệp tin core và config đang được bảo vệ bất biến cấp độ Linux kernel.' : 'Các tệp tin có thể chỉnh sửa/cập nhật bình thường.' }}</div>
                     </div>
-                    <button @click="toggleWpLockdown(selectedWpInstance.id)" :class="['px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-sm', wpDetail && wpDetail.is_locked ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white']">
+                    <button @click="toggleWpLockdown(selectedWpInstance.id)" :class="['px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-sm', wpDetail && wpDetail.is_locked ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'bg-blue-600 hover:bg-emerald-700 text-white']">
                         <i :data-lucide="wpDetail && wpDetail.is_locked ? 'unlock' : 'lock'" class="w-3.5 h-3.5"></i>
                         <span>{{ wpDetail && wpDetail.is_locked ? 'Mở Khóa để Cập Nhật' : 'Khóa Chặt Ngay Lập Tức' }}</span>
                     </button>

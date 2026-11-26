@@ -4516,8 +4516,15 @@ geo $limit_rate {
                     }
                 };
 
-                const handleWPClone = (d) => showAlert(`Chức năng Clone Staging cho ${d.domain_name}`);
-                const handleWPSecure = (d) => showAlert(`Đã kích hoạt Security Hardening cho ${d.domain_name}`);
+                const showComingSoon = ref(false);
+                const comingSoonFeature = ref('');
+                const showComingSoonModal = (feature = '') => {
+                    comingSoonFeature.value = feature || '';
+                    showComingSoon.value = true;
+                };
+
+                const handleWPClone = (d) => showComingSoonModal('Clone Staging');
+                const handleWPSecure = (d) => showComingSoonModal('Security Hardening');
 
                 const getDomainSubTab = (domainId) => {
                     return activeDomainSubTab.value[domainId] || 'dashboard';
@@ -9721,6 +9728,7 @@ if ($host ~* ^www\\.(.*)$) {
                     showRenameDomainModal, selectedRenameDomain, newDomainNameInput, renamingDomain, openRenameDomainModal, handleRenameDomain,
                     showDomainChangePlanModal, selectedDomainForPlan, targetDomainPlanId, changingDomainPlan, selectedDomainPlanPreview, openChangeDomainPlanModal, confirmChangeDomainPlan,
                     domainSearchQuery, domainCategoryFilter, filteredDomains,
+                    showComingSoon, comingSoonFeature, showComingSoonModal,
                     handleWPSSO, installSSL, showSslModal, selectedSslDomain, sslTab, sslVerifyMethod, sslForm, sslPrivateKey, sslCertificate, sslInfo, installingSSL, openSslModal, handleInstallLetsEncrypt, handleInstallZeroSSL, handleSaveManualSSL, handleRenewSSL, handleDisableSSL, handleWPClone, handleWPSecure, openFileManager,
                     fetchSystemStatus, restartPanel, refreshLucideIcons,
                     filesList, fileCurrentPath, fileTargetUser, loadingFiles, pathParts,

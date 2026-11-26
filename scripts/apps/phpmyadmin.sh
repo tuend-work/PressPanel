@@ -151,9 +151,9 @@ case "$ACTION" in
             echo "[+] Xác nhận $TARGET_DIR/index.php tồn tại hợp lệ."
         fi
 
-        # 4. Sinh blowfish secret ngẫu nhiên và tạo config.inc.php
-        BLOWFISH=$(head -c 32 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32)
-        [ -z "$BLOWFISH" ] && BLOWFISH="WPCloudPMASecretKey20261016Secure"
+        # 4. Sinh blowfish secret đủ 32 ký tự và tạo config.inc.php
+        BLOWFISH=$(head -c 64 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32)
+        [ ${#BLOWFISH} -lt 32 ] && BLOWFISH="WPCloudPMASecretKey20261016Secure"
 
         cat <<EOF > "$TARGET_DIR/config.inc.php"
 <?php
@@ -187,8 +187,8 @@ if (!is_dir(__DIR__ . '/logs')) {
 \$cfg['Servers'][\$i]['AllowRoot'] = true;
 \$cfg['Servers'][\$i]['SessionSavePath'] = \$tmpDir;
 
-// Hỗ trợ Single Sign-On (SSO) tự động khi có cookie SignonSession hoặc yêu cầu xác thực
-if (isset(\$_COOKIE['SignonSession']) || isset(\$_GET['token']) || isset(\$_REQUEST['token']) || isset(\$_GET['presspanel_sso']) || isset(\$_GET['wpc_sso'])) {
+// Hỗ trợ Single Sign-On (SSO) tự động khi có cookie SignonSession hợp lệ hoặc yêu cầu xác thực SSO
+if (!empty(\$_COOKIE['SignonSession']) || !empty(\$_GET['token']) || !empty(\$_POST['token']) || !empty(\$_GET['presspanel_sso']) || !empty(\$_GET['wpc_sso'])) {
     \$cfg['Servers'][\$i]['auth_type'] = 'signon';
     \$cfg['Servers'][\$i]['SignonSession'] = 'SignonSession';
     \$signon = file_exists(__DIR__ . '/presspanel_signon.php') ? 'presspanel_signon.php' : 'wpc_signon.php';
@@ -228,6 +228,14 @@ echo "<h2>🐬 PressPanel phpMyAdmin</h2>";
 echo "<p>phpMyAdmin đang đồng bộ. Vui lòng bấm <b>🔄 Cài lại</b> trên giao diện hoặc kiểm tra kết nối mạng máy chủ.</p>";
 echo "</div>";
 EOF
+        fi
+
+        # Đồng bộ tài khoản root@127.0.0.1 từ /root/.my.cnf để đăng nhập phpMyAdmin bằng user/pass hoạt động ngay
+        if [ -f /root/.my.cnf ]; then
+            MY_ROOT_PW=$(grep -E "^password=" /root/.my.cnf 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d "\"' \r\n" || true)
+            if [ -n "$MY_ROOT_PW" ]; then
+                mysql -u root -e "CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY '${MY_ROOT_PW}'; ALTER USER 'root'@'127.0.0.1' IDENTIFIED BY '${MY_ROOT_PW}'; GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION; FLUSH PRIVILEGES;" 2>/dev/null || true
+            fi
         fi
 
         # 5. Phân quyền toàn diện chuẩn Website User

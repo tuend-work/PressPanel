@@ -11,24 +11,20 @@
                                 PHP Project
                             </button>
 
-                            <button @click="domainCategoryFilter = 'nodejs'"
-                                :class="domainCategoryFilter === 'nodejs' ? 'text-emerald-500 border-b-2 border-blue-500 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-300 pb-2.5'"
-                                class="transition whitespace-nowrap">
+                            <button @click="showComingSoonModal('Node.js Project')"
+                                class="text-slate-500 hover:text-slate-300 pb-2.5 transition whitespace-nowrap">
                                 Node.js Project
                             </button>
-                            <button @click="domainCategoryFilter = 'proxy'"
-                                :class="domainCategoryFilter === 'proxy' ? 'text-emerald-500 border-b-2 border-blue-500 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-300 pb-2.5'"
-                                class="transition whitespace-nowrap">
+                            <button @click="showComingSoonModal('Proxy Project')"
+                                class="text-slate-500 hover:text-slate-300 pb-2.5 transition whitespace-nowrap">
                                 Proxy Project
                             </button>
-                            <button @click="domainCategoryFilter = 'go'"
-                                :class="domainCategoryFilter === 'go' ? 'text-emerald-500 border-b-2 border-blue-500 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-300 pb-2.5'"
-                                class="transition whitespace-nowrap">
+                            <button @click="showComingSoonModal('Go Project')"
+                                class="text-slate-500 hover:text-slate-300 pb-2.5 transition whitespace-nowrap">
                                 Go Project
                             </button>
-                            <button @click="domainCategoryFilter = 'python'"
-                                :class="domainCategoryFilter === 'python' ? 'text-emerald-500 border-b-2 border-blue-500 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-300 pb-2.5'"
-                                class="transition whitespace-nowrap">
+                            <button @click="showComingSoonModal('Python Project')"
+                                class="text-slate-500 hover:text-slate-300 pb-2.5 transition whitespace-nowrap">
                                 Python Project
                             </button>
                             <button @click="domainCategoryFilter = 'system'; fetchDomains();"

@@ -502,7 +502,7 @@
 
                                 <!-- Toggle Switch -->
                                 <button type="button" @click="ext.enabled = !ext.enabled"
-                                    :class="ext.enabled ? 'bg-emerald-600' : 'bg-slate-700'"
+                                    :class="ext.enabled ? 'bg-blue-600' : 'bg-slate-700'"
                                     class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none shadow-inner"
                                     :title="ext.enabled ? 'Đang bật - Bấm để tắt' : 'Đang tắt - Bấm để bật'">
                                     <span :class="ext.enabled ? 'translate-x-5 bg-white' : 'translate-x-0 bg-slate-300'"
@@ -2853,7 +2853,7 @@
                                         <span>Khởi Động Lại Webserver</span>
                                     </button>
                                     <button @click="saveWsServerSettings(selectedSettingApp?.id)" :disabled="savingWsServerConfig"
-                                        class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white shadow-lg shadow-emerald-500/20 flex items-center space-x-1.5 text-xs transition">
+                                        class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white shadow-lg shadow-emerald-500/20 flex items-center space-x-1.5 text-xs transition">
                                         <span v-if="savingWsServerConfig" class="animate-spin">⏳</span>
                                         <span v-else>💾</span>
                                         <span>{{ savingWsServerConfig ? 'Đang lưu...' : 'Lưu Cấu Hình Webserver' }}</span>
@@ -2887,7 +2887,7 @@
                                             </button>
                                         </div>
                                         <button @click="restartAllUserAppPools(selectedSettingApp)" :disabled="restartingPools"
-                                            class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium text-xs transition flex items-center space-x-1.5 shadow-sm">
+                                            class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-600 disabled:opacity-50 text-white font-medium text-xs transition flex items-center space-x-1.5 shadow-sm">
                                             <span :class="{'inline-block animate-spin': restartingPools}">🔄</span>
                                             <span>{{ restartingPools ? 'Đang Khởi Động Lại...' : 'Khởi Động Lại Tất Cả Pools' }}</span>
                                         </button>
@@ -2938,7 +2938,7 @@
                                                                 🔄
                                                             </button>
                                                             <button @click="navigateToWebsiteFpm(pool.domain)"
-                                                                class="px-2.5 py-1 rounded bg-[#1e2634] hover:bg-emerald-600 hover:text-white text-emerald-400 border border-emerald-500/30 text-[11px] font-medium transition">
+                                                                class="px-2.5 py-1 rounded bg-[#1e2634] hover:bg-blue-600 hover:text-white text-emerald-400 border border-emerald-500/30 text-[11px] font-medium transition">
                                                                 ⚙️ FPM Setting
                                                             </button>
                                                         </td>
@@ -3299,7 +3299,7 @@
                                                 <span class="pointer-events-none absolute right-3 top-2.5 text-slate-400 text-xs">▼</span>
                                             </div>
                                             <button @click="handleSwitchAppVersion(selectedSettingApp, selectedSwitchVersion)"
-                                                class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-md shadow-emerald-500/20 transition whitespace-nowrap">
+                                                class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-600 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-md shadow-emerald-500/20 transition whitespace-nowrap">
                                                 <span>🔄</span>
                                                 <span>Chuyển Đổi Ngay</span>
                                             </button>
@@ -3407,7 +3407,7 @@
                                         </label>
                                     </div>
                                     <div class="pt-3 border-t border-[#232b36] flex justify-end">
-                                        <button @click="alert('Đã lưu cấu hình tối ưu thành công!')" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs transition">
+                                        <button @click="alert('Đã lưu cấu hình tối ưu thành công!')" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs transition">
                                             💾 Lưu & Áp Dụng Tối Ưu
                                         </button>
                                     </div>
@@ -3464,7 +3464,7 @@
                                         </div>
                                     </div>
                                     <div class="pt-3 border-t border-[#232b36] flex justify-end">
-                                        <button @click="alert('Đã lưu thiết lập cơ sở dữ liệu!')" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs transition">
+                                        <button @click="alert('Đã lưu thiết lập cơ sở dữ liệu!')" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs transition">
                                             💾 Lưu Thiết Lập
                                         </button>
                                     </div>
@@ -3583,7 +3583,7 @@
                                     </button>
 
                                     <button @click="saveAppBuildSettings(selectedSettingApp?.id)" :disabled="savingBuildSettings"
-                                        class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs shadow-lg shadow-emerald-500/20 flex items-center space-x-1.5 transition">
+                                        class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs shadow-lg shadow-emerald-500/20 flex items-center space-x-1.5 transition">
                                         <span v-if="savingBuildSettings" class="animate-spin">⏳</span>
                                         <span v-else>💾</span>
                                         <span>{{ savingBuildSettings ? 'Đang lưu...' : 'Lưu Đối Số Build' }}</span>
@@ -3636,7 +3636,7 @@
 
                         <div class="flex justify-end space-x-2 pt-2 border-t border-[#232b36]">
                             <button type="button" @click="showAlarmSettingModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-medium transition">Đóng</button>
-                            <button type="button" @click="showAlarmSettingModal = false; alert('Đã lưu cấu hình cảnh báo cho dịch vụ thành công!')" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition">
+                            <button type="button" @click="showAlarmSettingModal = false; alert('Đã lưu cấu hình cảnh báo cho dịch vụ thành công!')" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 text-white font-bold transition">
                                 Lưu Cấu Hình
                             </button>
                         </div>
@@ -3798,7 +3798,7 @@
                                 <button v-if="isUpdating" @click="showUpdateModal = false" class="px-3 py-1.5 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-slate-300 text-xs transition">
                                     Chạy ngầm
                                 </button>
-                                <button v-if="updateCompleted" @click="reloadNow" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition">
+                                <button v-if="updateCompleted" @click="reloadNow" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-600 text-white text-xs font-semibold transition">
                                     Tải lại ngay
                                 </button>
                             </div>
@@ -4018,7 +4018,7 @@
                         </div>
                         <div class="flex items-center space-x-3">
                             <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
-                                class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow-lg shadow-emerald-500/20 transition">
+                                class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs flex items-center space-x-1.5 shadow-lg shadow-emerald-500/20 transition">
                                 <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
                                 <span v-else>💾</span>
                                 <span>{{ savingVhostConfig ? 'Đang lưu...' : 'Lưu Thay Đổi' }}</span>
@@ -4187,7 +4187,7 @@
                                 </div>
                                 <div class="pt-3 border-t border-[#232b36] flex justify-end">
                                     <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
-                                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
                                         <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
                                         <span v-else>💾</span>
                                         <span>Lưu Thiết Lập General</span>
@@ -4233,7 +4233,7 @@
                                 </div>
                                 <div class="pt-3 border-t border-[#232b36] flex justify-end">
                                     <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
-                                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
                                         <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
                                         <span v-else>💾</span>
                                         <span>Lưu Thiết Lập Log</span>
@@ -4291,7 +4291,7 @@
                                 </div>
                                 <div class="pt-3 border-t border-[#232b36] flex justify-end">
                                     <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
-                                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
                                         <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
                                         <span v-else>💾</span>
                                         <span>Lưu Thiết Lập Security</span>
@@ -4341,7 +4341,7 @@
                                 </div>
                                 <div class="pt-3 border-t border-[#232b36] flex justify-end">
                                     <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
-                                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
                                         <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
                                         <span v-else>💾</span>
                                         <span>Lưu Thiết Lập External App</span>
@@ -4418,7 +4418,7 @@
                                     class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 font-mono text-[11px] h-52 custom-scrollbar resize-y leading-relaxed focus:border-emerald-500 focus:outline-none"></textarea>
                                 <div class="pt-3 border-t border-[#232b36] flex justify-end">
                                     <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
-                                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
                                         <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
                                         <span v-else>💾</span>
                                         <span>Lưu Quy Tắc Rewrite</span>
@@ -4468,7 +4468,7 @@
                                 <div class="pt-3 border-t border-[#232b36] flex items-center justify-between">
                                     <span class="text-[11px] text-slate-400">Giao thức bảo mật: TLSv1.2, TLSv1.3 | HTTP/2 & HTTP/3 QUIC enabled</span>
                                     <button @click="installSSL(selectedVhostDomain)"
-                                        class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs transition shadow">
+                                        class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs transition shadow">
                                         🔒 Cấp Phát Let's Encrypt SSL
                                     </button>
                                 </div>
@@ -4502,7 +4502,7 @@
                                 </div>
                                 <div class="pt-3 border-t border-[#232b36] flex justify-end">
                                     <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
-                                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
                                         <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
                                         <span v-else>💾</span>
                                         <span>Lưu Thiết Lập WebSocket</span>
@@ -4536,7 +4536,7 @@
                                 </div>
                                 <div class="pt-3 border-t border-[#232b36] flex justify-end">
                                     <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
-                                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
                                         <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
                                         <span v-else>💾</span>
                                         <span>Lưu Thiết Lập Modules</span>
@@ -4569,7 +4569,7 @@
                                     💡 Sau khi lưu, webserver sẽ tự động reload để áp dụng cấu hình VirtualHost mới.
                                 </span>
                                 <button @click="saveDomainVhostConfig(selectedVhostDomain)" :disabled="savingVhostConfig"
-                                    class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white shadow-lg shadow-emerald-500/20 flex items-center space-x-1.5">
+                                    class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white shadow-lg shadow-emerald-500/20 flex items-center space-x-1.5">
                                     <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
                                     <span>{{ savingVhostConfig ? 'Đang lưu...' : 'Lưu Cấu Hình VirtualHost' }}</span>
                                 </button>
@@ -4930,6 +4930,26 @@
             </div>
 
             <!-- ============================================================ -->
+            <!-- MODAL: CHỨC NĂNG ĐANG CẬP NHẬT                               -->
+            <!-- ============================================================ -->
+            <div v-if="showComingSoon" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white dark:bg-[#0f1520] rounded-2xl w-full max-w-md shadow-2xl border border-slate-200/80 dark:border-[#1e2736] p-6 text-center space-y-4">
+                    <div class="w-12 h-12 mx-auto rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-2xl">
+                        🚀
+                    </div>
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white">Chức năng đang cập nhật</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                        <span v-if="comingSoonFeature">Tính năng <b class="text-blue-400">{{ comingSoonFeature }}</b> hiện đang được phát triển và sẽ sớm có mặt trong bản cập nhật tiếp theo.</span>
+                        <span v-else>Tính năng này hiện đang được phát triển và sẽ sớm có mặt trong bản cập nhật tiếp theo.</span>
+                    </p>
+                    <button @click="showComingSoon = false"
+                        class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition">
+                        Đóng
+                    </button>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
             <!-- MODAL: SSL CERTIFICATE MANAGER -->
             <!-- ============================================================ -->
             <div v-if="showSslModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -4957,7 +4977,7 @@
                             <span>Tips: Domain chưa có SSL. Hãy cài Let's Encrypt hoặc upload chứng chỉ thủ công.</span>
                         </div>
                         <button @click="sslTab = 'letsencrypt'"
-                            class="shrink-0 px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-[10px] font-bold transition">
+                            class="shrink-0 px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold transition">
                             Get SSL
                         </button>
                     </div>
@@ -4968,7 +4988,7 @@
                             <span>SSL đang Active. Chứng chỉ được cấp bởi Let's Encrypt / ACME.</span>
                         </div>
                         <button @click="handleRenewSSL(selectedSslDomain)"
-                            class="shrink-0 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition">
+                            class="shrink-0 px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-600 text-white text-[10px] font-bold transition">
                             Renewal SSL
                         </button>
                     </div>
@@ -5026,7 +5046,7 @@
                         </div>
                         <div class="flex gap-2 pt-1">
                             <button @click="handleRenewSSL(selectedSslDomain)" :disabled="installingSSL"
-                                class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs transition">
+                                class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 disabled:opacity-50 text-white font-bold text-xs transition">
                                 {{ installingSSL ? 'Đang xử lý...' : 'Gia Hạn SSL' }}
                             </button>
                             <button @click="handleDisableSSL(selectedSslDomain)" :disabled="installingSSL"
@@ -5060,7 +5080,7 @@
                         </div>
                         <button @click="handleInstallLetsEncrypt(selectedSslDomain)"
                             :disabled="installingSSL"
-                            class="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold text-xs transition inline-flex items-center gap-2">
+                            class="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 disabled:opacity-60 text-white font-bold text-xs transition inline-flex items-center gap-2">
                             <i v-if="installingSSL" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
                             <span>{{ installingSSL ? 'Đang cấp SSL...' : 'Cấp SSL Let\'s Encrypt' }}</span>
                         </button>
@@ -5120,7 +5140,7 @@
                         </div>
                         <div class="flex items-center gap-3 pt-1">
                             <button @click="handleSaveManualSSL(selectedSslDomain)" :disabled="installingSSL"
-                                class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs transition">
+                                class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 disabled:opacity-50 text-white font-bold text-xs transition">
                                 {{ installingSSL ? 'Đang lưu...' : 'Lưu & Áp Dụng Custom SSL' }}
                             </button>
                             <button @click="handleDisableSSL(selectedSslDomain)" :disabled="installingSSL"
@@ -5363,7 +5383,7 @@
                                 Cancel
                             </button>
                             <button type="submit" :disabled="wpInstalling" 
-                                    class="px-6 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold text-xs transition flex items-center gap-2 shadow-lg shadow-emerald-600/20">
+                                    class="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-600 disabled:opacity-50 text-white font-semibold text-xs transition flex items-center gap-2 shadow-lg shadow-emerald-600/20">
                                 <i v-if="wpInstalling" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
                                 <span>{{ wpInstalling ? 'Đang kiểm tra & cài đặt...' : 'Confirm' }}</span>
                             </button>
@@ -5383,7 +5403,7 @@
                         </div>
                         <div class="flex justify-end space-x-2 pt-2">
                             <button type="button" @click="showWpInstallModal = false" class="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300">Hủy</button>
-                            <button type="button" @click="alert('Chức năng Batch create sites đang xử lý danh sách domain!')" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">Tạo Hàng Loạt</button>
+                            <button type="button" @click="alert('Chức năng Batch create sites đang xử lý danh sách domain!')" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-600 text-white font-semibold">Tạo Hàng Loạt</button>
                         </div>
                     </div>
 
@@ -5406,7 +5426,7 @@
                         </div>
                         <div class="flex justify-end space-x-2 pt-2">
                             <button type="button" @click="showWpInstallModal = false" class="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300">Hủy</button>
-                            <button type="button" @click="alert('Chức năng khôi phục từ bản sao lưu đang sẵn sàng')" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">Khôi Phục</button>
+                            <button type="button" @click="alert('Chức năng khôi phục từ bản sao lưu đang sẵn sàng')" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-600 text-white font-semibold">Khôi Phục</button>
                         </div>
                     </div>
 
@@ -5593,7 +5613,7 @@
 
                         <div class="flex justify-end space-x-2 pt-2">
                             <button type="button" @click="showWpEditUserModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
-                            <button type="submit" :disabled="savingWpUser" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/20">
+                            <button type="submit" :disabled="savingWpUser" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/20">
                                 <i v-if="savingWpUser" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
                                 <span>{{ savingWpUser ? 'Đang lưu...' : 'Lưu Thay Đổi' }}</span>
                             </button>
@@ -5693,7 +5713,7 @@
 
                         <div class="flex justify-end space-x-2 pt-2">
                             <button type="button" @click="showRemoteDownloadModal = false" class="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700">Hủy</button>
-                            <button type="submit" :disabled="downloadingRemote" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
+                            <button type="submit" :disabled="downloadingRemote" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-600 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
                                 <i v-if="downloadingRemote" data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
                                 <span>{{ downloadingRemote ? 'Đang tải về...' : 'Bắt Đầu Tải' }}</span>
                             </button>
@@ -5723,7 +5743,7 @@
                         </div>
                         <div class="flex justify-end space-x-2 pt-2">
                             <button type="button" @click="showRenameModal = false" class="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700">Hủy</button>
-                            <button type="submit" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition">Xác Nhận</button>
+                            <button type="submit" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-600 text-white font-semibold transition">Xác Nhận</button>
                         </div>
                     </form>
                 </div>
@@ -5756,7 +5776,7 @@
                         </div>
                         <div class="flex justify-end space-x-2 pt-2">
                             <button type="button" @click="showChmodModal = false" class="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700">Hủy</button>
-                            <button type="submit" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition">Áp Dụng</button>
+                            <button type="submit" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-600 text-white font-semibold transition">Áp Dụng</button>
                         </div>
                     </form>
                 </div>
@@ -5789,7 +5809,7 @@
 
                         <div class="flex justify-end space-x-2 pt-2">
                             <button type="button" @click="showCreateItemModal = false" class="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700">Hủy</button>
-                            <button type="submit" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
+                            <button type="submit" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-600 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
                                 Xác Nhận Tạo
                             </button>
                         </div>
@@ -5823,17 +5843,17 @@
                             <label class="block font-medium text-zinc-300 mb-1">Định dạng nén:</label>
                             <div class="grid grid-cols-3 gap-2">
                                 <button type="button" @click="compressFormat = 'zip'"
-                                        :class="compressFormat === 'zip' ? 'bg-emerald-600 text-white border-emerald-500 font-bold shadow-md' : 'bg-[#202126] text-zinc-300 border-[#33353a] hover:bg-[#2a2b32]'"
+                                        :class="compressFormat === 'zip' ? 'bg-blue-600 text-white border-emerald-500 font-bold shadow-md' : 'bg-[#202126] text-zinc-300 border-[#33353a] hover:bg-[#2a2b32]'"
                                         class="py-2 px-3 rounded-lg border text-center font-mono text-xs transition">
                                     .zip
                                 </button>
                                 <button type="button" @click="compressFormat = 'tar.gz'"
-                                        :class="compressFormat === 'tar.gz' ? 'bg-emerald-600 text-white border-emerald-500 font-bold shadow-md' : 'bg-[#202126] text-zinc-300 border-[#33353a] hover:bg-[#2a2b32]'"
+                                        :class="compressFormat === 'tar.gz' ? 'bg-blue-600 text-white border-emerald-500 font-bold shadow-md' : 'bg-[#202126] text-zinc-300 border-[#33353a] hover:bg-[#2a2b32]'"
                                         class="py-2 px-3 rounded-lg border text-center font-mono text-xs transition">
                                     .tar.gz
                                 </button>
                                 <button type="button" @click="compressFormat = 'tar'"
-                                        :class="compressFormat === 'tar' ? 'bg-emerald-600 text-white border-emerald-500 font-bold shadow-md' : 'bg-[#202126] text-zinc-300 border-[#33353a] hover:bg-[#2a2b32]'"
+                                        :class="compressFormat === 'tar' ? 'bg-blue-600 text-white border-emerald-500 font-bold shadow-md' : 'bg-[#202126] text-zinc-300 border-[#33353a] hover:bg-[#2a2b32]'"
                                         class="py-2 px-3 rounded-lg border text-center font-mono text-xs transition">
                                     .tar
                                 </button>
@@ -5852,7 +5872,7 @@
 
                         <div class="flex justify-end space-x-2 pt-2">
                             <button type="button" @click="showCompressModal = false" :disabled="compressingFiles" class="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700">Hủy</button>
-                            <button type="submit" :disabled="compressingFiles" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
+                            <button type="submit" :disabled="compressingFiles" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-600 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
                                 <span v-if="compressingFiles" class="animate-spin">⏳</span>
                                 <span>{{ compressingFiles ? 'Đang Nén...' : 'Bắt Đầu Nén' }}</span>
                             </button>
@@ -5876,7 +5896,7 @@
                         <div class="flex items-center gap-2">
                             <input type="text" v-model="searchContentQuery" required placeholder="Nhập từ khóa hoặc chuỗi ký tự cần tìm trong mã nguồn..." 
                                    class="flex-1 px-3 py-2 rounded-lg bg-[#202126] border border-[#33353a] text-white placeholder-zinc-500 font-mono focus:outline-none focus:border-emerald-500 text-xs">
-                            <button type="submit" :disabled="searchingContent" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 shrink-0">
+                            <button type="submit" :disabled="searchingContent" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-600 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 shrink-0">
                                 <span v-if="searchingContent" class="animate-spin">⏳</span>
                                 <span>{{ searchingContent ? 'Đang Tìm...' : 'Tìm Kiếm' }}</span>
                             </button>
@@ -5940,7 +5960,7 @@
 
                         <div class="flex items-center space-x-2 shrink-0">
                             <button type="button" @click="saveFileContent" :disabled="savingFile" 
-                                    class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 text-xs">
+                                    class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-600 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 text-xs">
                                 <span v-if="savingFile" class="animate-spin">⏳</span>
                                 <span v-else>💾</span>
                                 <span>{{ savingFile ? 'Đang Lưu...' : 'Lưu Tệp' }}</span>
