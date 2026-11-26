@@ -609,14 +609,18 @@ fi
 
 # 7.5 Mở cổng tường lửa: 80/tcp, 443/tcp và 443/udp (QUIC/HTTP3)
 echo "[+] Kiểm tra và mở cổng tường lửa: 80/tcp, 443/tcp, 443/udp (QUIC/HTTP3)..."
+PANEL_PORT_FW=$(grep -E "^port=" "$INSTALL_DIR/conf/presspanel.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r\n' || echo "8888")
+[ -z "$PANEL_PORT_FW" ] && PANEL_PORT_FW="8888"
 if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
     ufw allow 80/tcp 2>/dev/null || true
     ufw allow 443/tcp 2>/dev/null || true
     ufw allow 443/udp 2>/dev/null || true
+    ufw allow "${PANEL_PORT_FW}/tcp" 2>/dev/null || true
 elif command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld 2>/dev/null; then
     firewall-cmd --permanent --add-port=80/tcp 2>/dev/null || true
     firewall-cmd --permanent --add-port=443/tcp 2>/dev/null || true
     firewall-cmd --permanent --add-port=443/udp 2>/dev/null || true
+    firewall-cmd --permanent --add-port="${PANEL_PORT_FW}/tcp" 2>/dev/null || true
     firewall-cmd --reload 2>/dev/null || true
 fi
 
