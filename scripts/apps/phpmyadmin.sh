@@ -232,9 +232,9 @@ EOF
 
         # Đồng bộ tài khoản root@127.0.0.1 từ /root/.my.cnf để đăng nhập phpMyAdmin bằng user/pass hoạt động ngay
         if [ -f /root/.my.cnf ]; then
-            MY_ROOT_PW=$(grep -E "^password=" /root/.my.cnf 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d "\"' \r\n" || true)
+            MY_ROOT_PW=$(grep -E "^password[[:space:]]*=" /root/.my.cnf 2>/dev/null | head -n 1 | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d "\"'\r\n" || true)
             if [ -n "$MY_ROOT_PW" ]; then
-                mysql -u root -e "CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY '${MY_ROOT_PW}'; ALTER USER 'root'@'127.0.0.1' IDENTIFIED BY '${MY_ROOT_PW}'; GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION; FLUSH PRIVILEGES;" 2>/dev/null || true
+                mysql -u root -e "CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY '${MY_ROOT_PW}'; ALTER USER 'root'@'localhost' IDENTIFIED BY '${MY_ROOT_PW}'; ALTER USER 'root'@'127.0.0.1' IDENTIFIED BY '${MY_ROOT_PW}'; GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION; FLUSH PRIVILEGES;" 2>/dev/null || true
             fi
         fi
 
