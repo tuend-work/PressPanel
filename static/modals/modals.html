@@ -4368,10 +4368,52 @@
                                     </div>
                                 </div>
                                 <div class="pt-3 border-t border-[#232b36] flex items-center justify-between">
-                                    <span class="text-[11px] text-slate-400">Giao thức bảo mật: TLSv1.2, TLSv1.3 | HTTP/2 & HTTP/3 QUIC enabled</span>
-                                    <button @click="installSSL(selectedVhostDomain)"
-                                        class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs transition shadow">
+                                    <span class="text-[11px] text-slate-400">Giao thức bảo mật: TLSv1.2, TLSv1.3</span>
+                                    <button type="button" @click="installSSL(selectedVhostDomain)"
+                                        class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-white text-xs transition shadow">
                                         🔒 Cấp Phát Let's Encrypt SSL
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Per-VHost HSTS, HTTP/2 & HTTP/3 Settings -->
+                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
+                                <div class="flex items-center justify-between border-b border-[#232b36] pb-2">
+                                    <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                                        <span>⚡</span>
+                                        <span>Giao Thức & Bảo Mật HTTPS (Riêng cho Domain này)</span>
+                                    </h4>
+                                    <span class="text-[11px] text-emerald-400">Áp dụng trực tiếp vào VHost</span>
+                                </div>
+                                <div class="space-y-2.5">
+                                    <label class="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+                                        <div>
+                                            <span class="font-bold text-white block">Kích hoạt HSTS (Strict-Transport-Security)</span>
+                                            <span class="text-[11px] text-slate-400">Ép trình duyệt luôn kết nối qua HTTPS trong 1 năm (max-age=31536000; includeSubDomains)</span>
+                                        </div>
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).enableHsts" class="w-5 h-5 rounded text-blue-600 bg-slate-900 border-slate-700">
+                                    </label>
+                                    <label class="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+                                        <div>
+                                            <span class="font-bold text-white block">Kích hoạt HTTP/2 (http2 on)</span>
+                                            <span class="text-[11px] text-slate-400">Ghép kênh nhiều request song song trên 1 kết nối TCP</span>
+                                        </div>
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).http2Enabled" class="w-5 h-5 rounded text-blue-600 bg-slate-900 border-slate-700">
+                                    </label>
+                                    <label class="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+                                        <div>
+                                            <span class="font-bold text-white block">Kích hoạt HTTP/3 (QUIC UDP 443)</span>
+                                            <span class="text-[11px] text-slate-400">Truyền tải tốc độ cao qua QUIC, giảm độ trễ handshake và chống nghẽn gói tin</span>
+                                        </div>
+                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).http3Enabled" class="w-5 h-5 rounded text-blue-600 bg-slate-900 border-slate-700">
+                                    </label>
+                                </div>
+                                <div class="pt-3 border-t border-[#232b36] flex justify-end">
+                                    <button type="button" @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
+                                        class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
+                                        <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
+                                        <span v-else>💾</span>
+                                        <span>Lưu Thiết Lập SSL & Giao Thức</span>
                                     </button>
                                 </div>
                             </div>

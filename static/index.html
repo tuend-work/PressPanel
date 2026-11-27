@@ -5295,7 +5295,10 @@ geo $limit_rate {
                     wsTarget: '127.0.0.1:3000',
                     wsEnabled: false,
                     lscacheEnabled: true,
-                    browserCacheEnabled: true
+                    browserCacheEnabled: true,
+                    enableHsts: false,
+                    http2Enabled: true,
+                    http3Enabled: true
                 });
 
                 const domainVhostSettings = ref({});

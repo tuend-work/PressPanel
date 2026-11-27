@@ -3722,6 +3722,9 @@ class VHostSettingsUpdateRequest(BaseModel):
     wsEnabled: Optional[bool] = None
     lscacheEnabled: Optional[bool] = None
     browserCacheEnabled: Optional[bool] = None
+    enableHsts: Optional[bool] = None
+    http2Enabled: Optional[bool] = None
+    http3Enabled: Optional[bool] = None
 
 
 def parse_vhost_content(content: str, ws: str, domain_name: str) -> dict:
@@ -3765,7 +3768,10 @@ RewriteRule ^/xmlrpc\\.php$ - [F,L]""",
         "wsTarget": "127.0.0.1:3000",
         "wsEnabled": False,
         "lscacheEnabled": True,
-        "browserCacheEnabled": True
+        "browserCacheEnabled": True,
+        "enableHsts": False,
+        "http2Enabled": True,
+        "http3Enabled": True
     }
     if not content:
         return settings
@@ -3847,11 +3853,16 @@ RewriteRule ^/xmlrpc\\.php$ - [F,L]""",
         settings["blockXmlrpc"] = ("xmlrpc.php" in content)
         settings["secHeaders"] = ("X-Frame-Options" in content)
 
+        settings["wsEnabled"] = False
         m_ws = re.search(r"websocket\s+([^\s{]+)\s*\{[^}]*address\s+([^\r\n}]+)", content)
         if m_ws:
             settings["wsEnabled"] = True
             settings["wsUri"] = m_ws.group(1).strip()
             settings["wsTarget"] = m_ws.group(2).strip()
+        settings["enableHsts"] = bool(re.search(r"Strict-Transport-Security", content, re.IGNORECASE))
+        m_quic = re.search(r"enableQuic\s+(\d+)", content)
+        if m_quic:
+            settings["http3Enabled"] = (m_quic.group(1) == "1")
 
     else:
         # Nginx
@@ -3891,6 +3902,19 @@ RewriteRule ^/xmlrpc\\.php$ - [F,L]""",
         settings["blockDotFiles"] = ("well-known" in content and "\\." in content)
         settings["blockXmlrpc"] = ("xmlrpc.php" in content)
         settings["secHeaders"] = ("X-Frame-Options" in content)
+        settings["enableHsts"] = bool(re.search(r"Strict-Transport-Security", content, re.IGNORECASE))
+
+        m_h2 = re.search(r"^\s*http2\s+(on|off);", content, flags=re.MULTILINE)
+        if m_h2:
+            settings["http2Enabled"] = (m_h2.group(1).lower() == "on")
+        else:
+            settings["http2Enabled"] = bool(re.search(r"listen\s+[^\n;]*\bhttp2\b", content))
+
+        m_h3 = re.search(r"^\s*http3\s+(on|off);", content, flags=re.MULTILINE)
+        if m_h3:
+            settings["http3Enabled"] = (m_h3.group(1).lower() == "on")
+        else:
+            settings["http3Enabled"] = bool(re.search(r"^\s*listen\s+(?:\[::\]:)?443\s+quic", content, flags=re.MULTILINE))
 
         m_crw = re.search(r"# BEGIN PRESSPANEL CUSTOM REWRITE\s*([\s\S]*?)# END PRESSPANEL CUSTOM REWRITE", content)
         if m_crw:
@@ -4170,6 +4194,44 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
                     content = content[:last_brace] + ws_block + "\n}\n"
         elif settings.wsEnabled is False and settings.wsUri:
             content = re.sub(rf"\n?\s*location\s+{re.escape(settings.wsUri.strip())}\s*\{{[^}}]*\}}", "", content)
+
+        # HSTS (Strict-Transport-Security) cho vhost Nginx
+        if settings.enableHsts is True:
+            if not re.search(r"Strict-Transport-Security", content, re.IGNORECASE):
+                hsts_line = '    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;'
+                if re.search(r"^\s*ssl_protocols\s+[^;]+;", content, flags=re.MULTILINE):
+                    content = re.sub(r"^(\s*ssl_protocols\s+[^;]+;)", rf"\1\n{hsts_line}", content, count=1, flags=re.MULTILINE)
+                elif re.search(r"^\s*ssl_certificate_key\s+[^;]+;", content, flags=re.MULTILINE):
+                    content = re.sub(r"^(\s*ssl_certificate_key\s+[^;]+;)", rf"\1\n{hsts_line}", content, count=1, flags=re.MULTILINE)
+        elif settings.enableHsts is False:
+            content = re.sub(r"^[ \t]*add_header\s+Strict-Transport-Security[^\n\r]*[\r\n]*", "", content, flags=re.MULTILINE)
+
+        # HTTP/2 cho từng vhost Nginx
+        if settings.http2Enabled is not None:
+            h2_val = "on" if settings.http2Enabled else "off"
+            if re.search(r"^\s*#?\s*http2\s+(?:on|off);", content, flags=re.MULTILINE):
+                content = re.sub(r"^(\s*)#?\s*http2\s+(?:on|off);", rf"\1http2 {h2_val};", content, flags=re.MULTILINE)
+            elif re.search(r"^\s*ssl_certificate_key\s+[^;]+;", content, flags=re.MULTILINE):
+                content = re.sub(r"^(\s*ssl_certificate_key\s+[^;]+;)", rf"\1\n    http2 {h2_val};", content, count=1, flags=re.MULTILINE)
+
+        # HTTP/3 (QUIC) cho từng vhost Nginx
+        if settings.http3Enabled is not None:
+            h3_val = "on" if settings.http3Enabled else "off"
+            if re.search(r"^\s*#?\s*http3\s+(?:on|off);", content, flags=re.MULTILINE):
+                content = re.sub(r"^(\s*)#?\s*http3\s+(?:on|off);", rf"\1http3 {h3_val};", content, flags=re.MULTILINE)
+            elif re.search(r"^\s*http2\s+(?:on|off);", content, flags=re.MULTILINE):
+                content = re.sub(r"^(\s*http2\s+(?:on|off);)", rf"\1\n    http3 {h3_val};", content, count=1, flags=re.MULTILINE)
+
+            if settings.http3Enabled:
+                content = re.sub(r"^(\s*)#\s*(listen\s+(?:\[::\]:)?443\s+quic[^;]*;)", rf"\1\2", content, flags=re.MULTILINE)
+                content = re.sub(r"^(\s*)#\s*(add_header\s+Alt-Svc\s+'h3=\":443\";\s*ma=86400'\s+always;)", rf"\1\2", content, flags=re.MULTILINE)
+                if not re.search(r"^\s*listen\s+(?:\[::\]:)?443\s+quic", content, flags=re.MULTILINE) and re.search(r"^\s*listen\s+443\s+ssl;", content, flags=re.MULTILINE):
+                    content = re.sub(r"^(\s*listen\s+(?:\[::\]:)?443\s+ssl;)", rf"\1\n    listen 443 quic;\n    listen [::]:443 quic;", content, count=1, flags=re.MULTILINE)
+                if "Alt-Svc" not in content and re.search(r"^\s*http3\s+on;", content, flags=re.MULTILINE):
+                    content = re.sub(r"^(\s*http3\s+on;)", rf"\1\n    add_header Alt-Svc 'h3=\":443\"; ma=86400' always;", content, count=1, flags=re.MULTILINE)
+            else:
+                content = re.sub(r"^(\s*)(listen\s+(?:\[::\]:)?443\s+quic[^;]*;)", rf"\1# \2", content, flags=re.MULTILINE)
+                content = re.sub(r"^(\s*)(add_header\s+Alt-Svc\s+'h3=\":443\";\s*ma=86400'\s+always;)", rf"\1# \2", content, flags=re.MULTILINE)
 
     return content
 
