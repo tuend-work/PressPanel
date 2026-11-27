@@ -50,7 +50,9 @@ async def list_customers(current_user: dict = Depends(get_current_user)):
     if current_user["role"] == "admin":
         cursor = await db.execute("""
             SELECT u.id, u.username, u.email, COALESCE(u.full_name, '') as full_name, COALESCE(u.phone, '') as phone,
-                   u.role, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb, u.status, u.created_at,
+                   u.role, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb,
+                   COALESCE(u.io_weight, 100) as io_weight, COALESCE(u.pids_max, 100) as pids_max,
+                   u.status, u.created_at,
                    p.name as package_name,
                    (SELECT COUNT(*) FROM domains d WHERE d.user_id = u.id) as domain_count
             FROM users u
@@ -61,7 +63,9 @@ async def list_customers(current_user: dict = Depends(get_current_user)):
     elif current_user["role"] == "reseller":
         cursor = await db.execute("""
             SELECT u.id, u.username, u.email, COALESCE(u.full_name, '') as full_name, COALESCE(u.phone, '') as phone,
-                   u.role, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb, u.status, u.created_at,
+                   u.role, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb,
+                   COALESCE(u.io_weight, 100) as io_weight, COALESCE(u.pids_max, 100) as pids_max,
+                   u.status, u.created_at,
                    p.name as package_name,
                    (SELECT COUNT(*) FROM domains d WHERE d.user_id = u.id) as domain_count
             FROM users u
@@ -709,6 +713,11 @@ class CustomerAdminEditRequest(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     password: Optional[str] = None
+    cpu_pct: Optional[int] = Field(None, ge=10, le=12800)
+    mem_mb: Optional[int] = Field(None, ge=128, le=524288)
+    disk_mb: Optional[int] = Field(None, ge=100, le=5000000)
+    io_weight: Optional[int] = Field(None, ge=10, le=1000)
+    pids_max: Optional[int] = Field(None, ge=20, le=50000)
 
 @router.get("/profile")
 async def get_user_profile(current_user: dict = Depends(get_current_user)):
@@ -968,10 +977,16 @@ async def change_username(req: UsernameChangeRequest, current_user: dict = Depen
 
 @router.put("/customers/{target_id}/edit")
 async def admin_edit_customer(target_id: int, req: CustomerAdminEditRequest, current_user: dict = Depends(require_role("admin", "reseller"))):
-    """Admin hoặc Reseller chỉnh sửa thông tin hoặc reset mật khẩu của Customer"""
+    """Modify User: Admin hoặc Reseller chỉnh sửa thông tin, mật khẩu và tài nguyên riêng (CPU, RAM, Disk, I/O, PIDs) của User"""
     db = await get_db_connection()
     try:
-        cur = await db.execute("SELECT id, username, parent_id, role FROM users WHERE id = ?", (target_id,))
+        cur = await db.execute("""
+            SELECT id, username, parent_id, role,
+                   COALESCE(cpu_pct, 100) as cpu_pct, COALESCE(mem_mb, 1024) as mem_mb,
+                   COALESCE(disk_mb, 5120) as disk_mb, COALESCE(io_weight, 100) as io_weight,
+                   COALESCE(pids_max, 100) as pids_max
+            FROM users WHERE id = ?
+        """, (target_id,))
         target = await cur.fetchone()
         if not target:
             raise HTTPException(status_code=404, detail="Không tìm thấy người dùng này")
@@ -1003,12 +1018,67 @@ async def admin_edit_customer(target_id: int, req: CustomerAdminEditRequest, cur
             updates.append("password_hash = ?")
             params.append(get_password_hash(req.password))
 
+        res_changed = False
+        new_cpu = target["cpu_pct"]
+        new_mem = target["mem_mb"]
+        new_disk = target["disk_mb"]
+        new_io = target["io_weight"]
+        new_pids = target["pids_max"]
+
+        if req.cpu_pct is not None:
+            new_cpu = req.cpu_pct
+            updates.append("cpu_pct = ?")
+            params.append(new_cpu)
+            res_changed = True
+        if req.mem_mb is not None:
+            new_mem = req.mem_mb
+            updates.append("mem_mb = ?")
+            params.append(new_mem)
+            res_changed = True
+        if req.disk_mb is not None:
+            new_disk = req.disk_mb
+            updates.append("disk_mb = ?")
+            params.append(new_disk)
+            res_changed = True
+        if req.io_weight is not None:
+            new_io = req.io_weight
+            updates.append("io_weight = ?")
+            params.append(new_io)
+            res_changed = True
+        if req.pids_max is not None:
+            new_pids = req.pids_max
+            updates.append("pids_max = ?")
+            params.append(new_pids)
+            res_changed = True
+
         if updates:
             params.append(target_id)
             await db.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = ?", params)
             await db.commit()
 
-        return {"status": "ok", "message": f"Đã cập nhật thông tin người dùng '{target['username']}' thành công!"}
+        if res_changed and target["role"] != "admin":
+            username = target["username"]
+            parent_reseller_id = str(target["parent_id"] or 1)
+            try:
+                await run_gatekeeper("cgroup", "set-user", parent_reseller_id, username, str(new_cpu), str(new_mem), str(new_io), str(new_pids))
+            except Exception as ce:
+                print(f"Warning: cgroup set-user for {username}: {ce}")
+            if req.disk_mb is not None:
+                try:
+                    await run_gatekeeper("user", "set-quota", username, str(new_disk))
+                except Exception as qe:
+                    print(f"Warning: user set-quota for {username}: {qe}")
+            try:
+                dom_cur = await db.execute("SELECT domain_name FROM domains WHERE user_id = ?", (target_id,))
+                for d in await dom_cur.fetchall():
+                    clean_d = domain_to_linux_user(d["domain_name"])
+                    if clean_d and clean_d != username:
+                        await run_gatekeeper("cgroup", "attach-child", username, clean_d)
+                await run_gatekeeper("cgroup", "sync", username)
+            except Exception:
+                pass
+
+        return {"status": "ok", "message": f"Đã cập nhật User '{target['username']}' thành công!"}
     finally:
         await db.close()
 

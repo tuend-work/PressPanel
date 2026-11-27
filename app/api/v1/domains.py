@@ -291,10 +291,30 @@ class DomainUpdateRequest(BaseModel):
     package_id: Optional[int] = None
     allow_ssh: Optional[bool] = None
     rate_limit: Optional[str] = None
+    cpu_pct: Optional[int] = Field(None, ge=10, le=12800)
+    mem_mb: Optional[int] = Field(None, ge=128, le=524288)
+    disk_mb: Optional[int] = Field(None, ge=100, le=5000000)
+    io_weight: Optional[int] = Field(None, ge=10, le=1000)
+    pids_max: Optional[int] = Field(None, ge=20, le=50000)
+    reset_custom_limits: bool = False
+
+
+async def _ensure_domain_resource_columns(db):
+    """Đảm bảo bảng domains có các cột tùy chỉnh tài nguyên riêng (cpu_pct, mem_mb, disk_mb, io_weight, pids_max)."""
+    try:
+        cur = await db.execute("PRAGMA table_info(domains)")
+        cols = {r[1] for r in await cur.fetchall()}
+        for col_name in ("cpu_pct", "mem_mb", "disk_mb", "io_weight", "pids_max"):
+            if col_name not in cols:
+                await db.execute(f"ALTER TABLE domains ADD COLUMN {col_name} INTEGER DEFAULT NULL")
+        await db.commit()
+    except Exception:
+        pass
 
 @router.get("/")
 async def list_domains(current_user: dict = Depends(get_current_user)):
     db = await get_db_connection()
+    await _ensure_domain_resource_columns(db)
     # Tự động đảm bảo nếu phpMyAdmin đã cài đặt trên máy chủ nhưng chưa có trong DB domains thì auto đồng bộ
     # Tự động đảm bảo nếu phpMyAdmin đã cài đặt trên máy chủ nhưng chưa có trong DB domains thì auto đồng bộ
     if current_user["role"] == "admin":
@@ -328,13 +348,21 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
                u.username as owner_username, 
                u.email as owner_email, 
                CASE 
+                   WHEN d.cpu_pct IS NOT NULL OR d.mem_mb IS NOT NULL OR d.disk_mb IS NOT NULL THEN 'Tùy chỉnh riêng'
                    WHEN p_dom.id IS NOT NULL AND p_dom.plan_type = 'website' THEN p_dom.name
                    ELSE 'Mặc định (Theo Hosting User)'
                END as plan_name,
                p.name as user_plan_name,
-               COALESCE(p_dom.cpu_pct, p.cpu_pct, 100) as cpu_pct,
-               COALESCE(p_dom.mem_mb, p.mem_mb, 1024) as mem_mb,
-               COALESCE(p_dom.disk_mb, p.disk_mb, 5120) as disk_mb,
+               d.cpu_pct as custom_cpu_pct,
+               d.mem_mb as custom_mem_mb,
+               d.disk_mb as custom_disk_mb,
+               d.io_weight as custom_io_weight,
+               d.pids_max as custom_pids_max,
+               COALESCE(d.cpu_pct, p_dom.cpu_pct, p.cpu_pct, 100) as cpu_pct,
+               COALESCE(d.mem_mb, p_dom.mem_mb, p.mem_mb, 1024) as mem_mb,
+               COALESCE(d.disk_mb, p_dom.disk_mb, p.disk_mb, 5120) as disk_mb,
+               COALESCE(d.io_weight, p_dom.io_weight, p.io_weight, 100) as io_weight,
+               COALESCE(d.pids_max, p_dom.pids_max, p.pids_max, 100) as pids_max,
                COALESCE(d.rate_limit, p_dom.rate_limit, '0') as rate_limit,
                COALESCE(d.status, 'active') as status,
                COALESCE(d.is_system, 0) as is_system,
@@ -675,16 +703,18 @@ async def change_domain_plan(domain_id: int, req: DomainChangePlanRequest, curre
 @router.put("/{domain_id}")
 async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: dict = Depends(get_current_user)):
     """
-    Sửa cấu hình Website:
+    Modify Web Application:
     - Đổi phiên bản PHP (chạy vhost change-php)
-    - Đổi Website Plan / Hạn mức
+    - Đổi Website Plan hoặc chỉnh tài nguyên riêng (CPU, RAM, Disk, I/O, PIDs, Rate Limit)
     - Bật / tắt quyền SSH
     """
     db = await get_db_connection()
+    await _ensure_domain_resource_columns(db)
     cur = await db.execute("""
         SELECT d.id, d.domain_name, d.user_id, d.php_version, d.package_id, d.allow_ssh, d.webserver, d.rate_limit,
+               d.cpu_pct as d_cpu, d.mem_mb as d_mem, d.disk_mb as d_disk, d.io_weight as d_io, d.pids_max as d_pids,
                u.username as owner_username, u.parent_id, u.role as owner_role,
-               u.cpu_pct as parent_cpu, u.mem_mb as parent_mem
+               u.cpu_pct as parent_cpu, u.mem_mb as parent_mem, u.disk_mb as parent_disk
         FROM domains d
         JOIN users u ON d.user_id = u.id
         WHERE d.id = ?
@@ -698,9 +728,13 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
     if current_user["role"] == "reseller" and dom["user_id"] != current_user["id"] and dom["parent_id"] != current_user["id"]:
         await db.close()
         raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
-    elif current_user["role"] == "user" and dom["user_id"] != current_user["id"]:
-        await db.close()
-        raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
+    elif current_user["role"] not in ("admin", "reseller"):
+        if dom["user_id"] != current_user["id"] and current_user.get("web_domain_id") != domain_id:
+            await db.close()
+            raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
+        if any(v is not None for v in (req.cpu_pct, req.mem_mb, req.disk_mb, req.io_weight, req.pids_max, req.package_id)) or req.reset_custom_limits:
+            await db.close()
+            raise HTTPException(status_code=403, detail="Chỉ Admin hoặc Reseller mới có quyền điều chỉnh tài nguyên Web Application.")
 
     isolated_user = domain_to_linux_user(dom["domain_name"])
     reseller_id = str(dom["parent_id"] or 1)
@@ -727,7 +761,22 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
             pass
 
     new_rate_limit = dom.get("rate_limit", "0") or "0"
-    if req.package_id and req.package_id != dom["package_id"]:
+    new_d_cpu = dom.get("d_cpu")
+    new_d_mem = dom.get("d_mem")
+    new_d_disk = dom.get("d_disk")
+    new_d_io = dom.get("d_io")
+    new_d_pids = dom.get("d_pids")
+    apply_res_sync = False
+
+    if req.reset_custom_limits:
+        new_d_cpu = None
+        new_d_mem = None
+        new_d_disk = None
+        new_d_io = None
+        new_d_pids = None
+        apply_res_sync = True
+
+    if req.package_id != dom["package_id"] and req.package_id is not None:
         pkg_cur = await db.execute("SELECT id, name, plan_type, cpu_pct, mem_mb, disk_mb, allow_ssh, rate_limit FROM packages WHERE id = ?", (req.package_id,))
         pkg = await pkg_cur.fetchone()
         if pkg:
@@ -735,22 +784,28 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
                 await db.close()
                 raise HTTPException(status_code=400, detail=f"Gói '{pkg['name']}' là User Package dành cho tài khoản Hosting, không thể gán cho Website con. Vui lòng chọn một Website Plan hợp lệ.")
             new_pkg_id = pkg["id"]
-            new_rate_limit = pkg.get("rate_limit", "0") or "0"
-            u_cpu = pkg["cpu_pct"]
-            u_mem = pkg["mem_mb"]
-            if dom["owner_role"] == "user" and dom["parent_cpu"]:
-                u_cpu = min(u_cpu, dom["parent_cpu"])
-                u_mem = min(u_mem, dom["parent_mem"])
-            try:
-                hosting_username = dom.get("owner_username", isolated_user)
-                if hosting_username != isolated_user:
-                    await run_gatekeeper("cgroup", "attach-child", hosting_username, isolated_user)
-                    await run_gatekeeper("cgroup", "sync", hosting_username)
-                else:
-                    await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(u_cpu), str(u_mem), "100", "100")
-                await run_gatekeeper("user", "set-quota", isolated_user, str(pkg["disk_mb"]))
-            except Exception:
-                pass
+            if req.rate_limit is None:
+                new_rate_limit = pkg.get("rate_limit", "0") or "0"
+            apply_res_sync = True
+    elif req.package_id is None and dom["package_id"] is not None and req.reset_custom_limits:
+        new_pkg_id = None
+        apply_res_sync = True
+
+    if req.cpu_pct is not None:
+        new_d_cpu = req.cpu_pct
+        apply_res_sync = True
+    if req.mem_mb is not None:
+        new_d_mem = req.mem_mb
+        apply_res_sync = True
+    if req.disk_mb is not None:
+        new_d_disk = req.disk_mb
+        apply_res_sync = True
+    if req.io_weight is not None:
+        new_d_io = req.io_weight
+        apply_res_sync = True
+    if req.pids_max is not None:
+        new_d_pids = req.pids_max
+        apply_res_sync = True
 
     if req.rate_limit is not None:
         new_rate_limit = req.rate_limit.strip() or "0"
@@ -762,19 +817,51 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
 
     await db.execute("""
         UPDATE domains 
-        SET php_version = ?, package_id = ?, allow_ssh = ?, rate_limit = ?
+        SET php_version = ?, package_id = ?, allow_ssh = ?, rate_limit = ?,
+            cpu_pct = ?, mem_mb = ?, disk_mb = ?, io_weight = ?, pids_max = ?
         WHERE id = ?
-    """, (new_php, new_pkg_id, new_ssh, new_rate_limit, domain_id))
+    """, (new_php, new_pkg_id, new_ssh, new_rate_limit, new_d_cpu, new_d_mem, new_d_disk, new_d_io, new_d_pids, domain_id))
     await db.commit()
+
+    # Áp dụng giới hạn Cgroup v2 & Disk Quota xuống hệ điều hành nếu có thay đổi tài nguyên
+    if apply_res_sync:
+        eff_cpu = new_d_cpu
+        eff_mem = new_d_mem
+        eff_disk = new_d_disk
+        eff_io = new_d_io or 100
+        eff_pids = new_d_pids or 100
+        if new_pkg_id and (eff_cpu is None or eff_mem is None or eff_disk is None):
+            p_cur = await db.execute("SELECT cpu_pct, mem_mb, disk_mb FROM packages WHERE id = ?", (new_pkg_id,))
+            p_row = await p_cur.fetchone()
+            if p_row:
+                if eff_cpu is None: eff_cpu = p_row["cpu_pct"]
+                if eff_mem is None: eff_mem = p_row["mem_mb"]
+                if eff_disk is None: eff_disk = p_row["disk_mb"]
+        if eff_cpu is None: eff_cpu = dom.get("parent_cpu") or 100
+        if eff_mem is None: eff_mem = dom.get("parent_mem") or 1024
+        if eff_disk is None: eff_disk = dom.get("parent_disk") or 5120
+        try:
+            hosting_username = dom.get("owner_username", isolated_user)
+            await run_gatekeeper("cgroup", "set-user", reseller_id, isolated_user, str(eff_cpu), str(eff_mem), str(eff_io), str(eff_pids))
+            if hosting_username != isolated_user and dom["owner_role"] == "user":
+                await run_gatekeeper("cgroup", "attach-child", hosting_username, isolated_user)
+                await run_gatekeeper("cgroup", "sync", hosting_username)
+            await run_gatekeeper("user", "set-quota", isolated_user, str(eff_disk))
+        except Exception:
+            pass
+
     await db.close()
 
     return {
         "status": "ok",
-        "message": f"Đã cập nhật website '{dom['domain_name']}' thành công!",
+        "message": f"Đã cập nhật cấu hình Web Application '{dom['domain_name']}' thành công!",
         "php_version": new_php,
         "package_id": new_pkg_id,
         "allow_ssh": new_ssh,
-        "rate_limit": new_rate_limit
+        "rate_limit": new_rate_limit,
+        "cpu_pct": new_d_cpu,
+        "mem_mb": new_d_mem,
+        "disk_mb": new_d_disk
     }
 
 @router.post("/batch-delete")

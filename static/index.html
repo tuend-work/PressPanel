@@ -3360,16 +3360,29 @@ geo $limit_rate {
                 // ----------------------------------------------------
                 const showEditDomainModal = ref(false);
                 const selectedEditDomain = ref(null);
-                const editDomainForm = ref({ php_version: '8.2', package_id: null, allow_ssh: false });
+                const editDomainForm = ref({
+                    php_version: '8.2', package_id: null, allow_ssh: false, rate_limit: '0',
+                    use_custom_limits: false, cpu_pct: 100, mem_mb: 1024, disk_mb: 5120, io_weight: 100, pids_max: 100
+                });
                 const savingDomainEdit = ref(false);
 
                 const openEditDomainModal = (domain) => {
                     if (!domain || !domain.id) return;
                     selectedEditDomain.value = domain;
+                    const hasCustom = domain.custom_cpu_pct !== null && domain.custom_cpu_pct !== undefined
+                        || domain.custom_mem_mb !== null && domain.custom_mem_mb !== undefined
+                        || domain.custom_disk_mb !== null && domain.custom_disk_mb !== undefined;
                     editDomainForm.value = {
                         php_version: domain.php_version || '8.2',
                         package_id: domain.package_id || null,
-                        allow_ssh: !!domain.allow_ssh
+                        allow_ssh: !!domain.allow_ssh,
+                        rate_limit: domain.rate_limit || '0',
+                        use_custom_limits: !!hasCustom,
+                        cpu_pct: domain.cpu_pct || 100,
+                        mem_mb: domain.mem_mb || 1024,
+                        disk_mb: domain.disk_mb || 5120,
+                        io_weight: domain.io_weight || 100,
+                        pids_max: domain.pids_max || 100
                     };
                     showEditDomainModal.value = true;
                     if (servicePlans.value.length === 0) {
@@ -3377,17 +3390,46 @@ geo $limit_rate {
                     }
                 };
 
+                const onEditDomainPlanChange = () => {
+                    const pid = editDomainForm.value.package_id;
+                    if (!pid) return;
+                    const found = (websitePlans.value || []).find(p => p.id === pid);
+                    if (found) {
+                        editDomainForm.value.cpu_pct = found.cpu_pct || 100;
+                        editDomainForm.value.mem_mb = found.mem_mb || 1024;
+                        editDomainForm.value.disk_mb = found.disk_mb || 5120;
+                        if (found.rate_limit !== undefined) editDomainForm.value.rate_limit = found.rate_limit || '0';
+                    }
+                };
+
                 const handleSaveDomainEdit = async () => {
                     if (!selectedEditDomain.value) return;
                     savingDomainEdit.value = true;
                     try {
+                        const payload = {
+                            php_version: editDomainForm.value.php_version,
+                            allow_ssh: editDomainForm.value.allow_ssh
+                        };
+                        if (currentUser.value.role === 'admin' || currentUser.value.role === 'reseller') {
+                            payload.package_id = editDomainForm.value.package_id;
+                            payload.rate_limit = editDomainForm.value.rate_limit || '0';
+                            if (editDomainForm.value.use_custom_limits) {
+                                payload.cpu_pct = parseInt(editDomainForm.value.cpu_pct) || 100;
+                                payload.mem_mb = parseInt(editDomainForm.value.mem_mb) || 1024;
+                                payload.disk_mb = parseInt(editDomainForm.value.disk_mb) || 5120;
+                                payload.io_weight = parseInt(editDomainForm.value.io_weight) || 100;
+                                payload.pids_max = parseInt(editDomainForm.value.pids_max) || 100;
+                            } else {
+                                payload.reset_custom_limits = true;
+                            }
+                        }
                         const res = await fetch(`/api/v1/domains/${selectedEditDomain.value.id}`, {
                             method: 'PUT',
                             headers: {
                                 'Content-Type': 'application/json',
                                 'Authorization': `Bearer ${token.value}`
                             },
-                            body: JSON.stringify(editDomainForm.value)
+                            body: JSON.stringify(payload)
                         });
                         const data = await res.json();
                         if (res.ok) {
@@ -3942,7 +3984,12 @@ geo $limit_rate {
                     full_name: '',
                     email: '',
                     phone: '',
-                    password: ''
+                    password: '',
+                    cpu_pct: 100,
+                    mem_mb: 1024,
+                    disk_mb: 5120,
+                    io_weight: 100,
+                    pids_max: 100
                 });
 
                 const openEditCustomerModal = (customer) => {
@@ -3952,7 +3999,12 @@ geo $limit_rate {
                         full_name: customer.full_name || '',
                         email: customer.email || '',
                         phone: customer.phone || '',
-                        password: ''
+                        password: '',
+                        cpu_pct: customer.cpu_pct || 100,
+                        mem_mb: customer.mem_mb || 1024,
+                        disk_mb: customer.disk_mb || 5120,
+                        io_weight: customer.io_weight || 100,
+                        pids_max: customer.pids_max || 100
                     };
                     showEditCustomerModal.value = true;
                 };
@@ -3964,7 +4016,12 @@ geo $limit_rate {
                         const payload = {
                             full_name: editingCustomer.value.full_name,
                             email: editingCustomer.value.email,
-                            phone: editingCustomer.value.phone
+                            phone: editingCustomer.value.phone,
+                            cpu_pct: parseInt(editingCustomer.value.cpu_pct) || 100,
+                            mem_mb: parseInt(editingCustomer.value.mem_mb) || 1024,
+                            disk_mb: parseInt(editingCustomer.value.disk_mb) || 5120,
+                            io_weight: parseInt(editingCustomer.value.io_weight) || 100,
+                            pids_max: parseInt(editingCustomer.value.pids_max) || 100
                         };
                         if (editingCustomer.value.password) {
                             payload.password = editingCustomer.value.password;
@@ -10354,7 +10411,7 @@ if ($host ~* ^www\\.(.*)$) {
                     domainFpmData, loadingDomainFpm, savingDomainFpm, resettingDomainFpm, controllingFpm, fpmConfigMode, applyFpmPreset, loadDomainFpmSettings, saveDomainFpmSettings, resetDomainFpmSettings, controlDomainFpm,
                     domainLsapiData, loadingDomainLsapi, savingDomainLsapi, resettingDomainLsapi, controllingLsapi, lsapiConfigMode, applyLsapiPreset, loadDomainLsapiSettings, saveDomainLsapiSettings, resetDomainLsapiSettings, controlDomainLsapi,
                     navClass, handleLogin, handleLogout, fetchDomains, handleAddDomain, handleDeleteDomain, handleToggleDomainStatus,
-                    showEditDomainModal, selectedEditDomain, editDomainForm, savingDomainEdit, openEditDomainModal, handleSaveDomainEdit,
+                    showEditDomainModal, selectedEditDomain, editDomainForm, savingDomainEdit, openEditDomainModal, onEditDomainPlanChange, handleSaveDomainEdit,
                     showRenameDomainModal, selectedRenameDomain, newDomainNameInput, renamingDomain, openRenameDomainModal, handleRenameDomain,
                     showDomainChangePlanModal, selectedDomainForPlan, targetDomainPlanId, changingDomainPlan, selectedDomainPlanPreview, openChangeDomainPlanModal, confirmChangeDomainPlan,
                     domainSearchQuery, domainCategoryFilter, filteredDomains,
