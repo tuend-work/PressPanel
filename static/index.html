@@ -3129,6 +3129,7 @@ geo $limit_rate {
                             if (!domains.value || domains.value.length === 0 || domains.value.length !== newDomains.length) {
                                 domains.value = newDomains;
                             } else {
+                                if (JSON.stringify(domains.value) === JSON.stringify(newDomains)) return;
                                 for (let i = 0; i < newDomains.length; i++) {
                                     const nd = newDomains[i];
                                     const od = domains.value.find(x => x.id === nd.id);
@@ -3342,6 +3343,7 @@ geo $limit_rate {
                 const savingDomainEdit = ref(false);
 
                 const openEditDomainModal = (domain) => {
+                    if (!domain || !domain.id) return;
                     selectedEditDomain.value = domain;
                     editDomainForm.value = {
                         php_version: domain.php_version || '8.2',
@@ -8177,6 +8179,7 @@ if ($host ~* ^www\\.(.*)$) {
                     lucideRaf = requestAnimationFrame(() => {
                         if (window.lucide && typeof window.lucide.createIcons === 'function') {
                             try {
+                                if (!document.querySelector('i[data-lucide]')) return;
                                 window.lucide.createIcons();
                             } catch (e) {
                                 console.warn('Lucide createIcons error:', e);
