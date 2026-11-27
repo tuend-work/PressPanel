@@ -1,0 +1,412 @@
+<div v-if="currentTab === 'cloudflare'" class="space-y-5 max-w-7xl mx-auto pb-12">
+    <!-- HEADER -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center shadow-sm">
+                <i data-lucide="cloud-lightning" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                    <span>Cloudflare Intelligent</span>
+                    <span v-if="cfConfig?.zone_id" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold">
+                        Connected: {{ cfConfig.zone_name }}
+                    </span>
+                    <span v-else class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-semibold">
+                        Chưa kết nối
+                    </span>
+                </h2>
+                <p class="text-[12px] text-slate-400">Quản lý API Token, DNS Records, Fail2ban Auto-Sync, Chặn IP chủ động, Xóa Cache & Bảo mật SSL/WAF</p>
+            </div>
+        </div>
+
+        <!-- Domain Selector -->
+        <div class="flex items-center gap-2">
+            <select v-model="cfSelectedDomainId" @change="fetchCloudflareConfig(cfSelectedDomainId)"
+                class="px-3 py-2 rounded-xl bg-[#111827] border border-slate-700 text-white text-xs font-mono focus:outline-none focus:border-blue-500">
+                <option v-for="d in cfDomains" :key="'cf_dom_' + d.id" :value="d.id">{{ d.domain_name }}</option>
+            </select>
+            <button type="button" @click="fetchCloudflareConfig(cfSelectedDomainId)"
+                class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                <span>Tải lại</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- NAVIGATION TABS -->
+    <div class="flex border-b border-slate-800 space-x-1 overflow-x-auto custom-scrollbar">
+        <button type="button" @click="cfActiveTab = 'connect'"
+            :class="['px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', cfActiveTab === 'connect' ? 'border-blue-500 text-blue-400 bg-slate-900/50' : 'border-transparent text-slate-400 hover:text-white']">
+            <i data-lucide="key" class="w-3.5 h-3.5"></i>
+            <span>Kết nối API Token</span>
+        </button>
+        <button type="button" @click="cfActiveTab = 'dns'; fetchCfDns()"
+            :class="['px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', cfActiveTab === 'dns' ? 'border-blue-500 text-blue-400 bg-slate-900/50' : 'border-transparent text-slate-400 hover:text-white']">
+            <i data-lucide="network" class="w-3.5 h-3.5"></i>
+            <span>Quản lý DNS</span>
+        </button>
+        <button type="button" @click="cfActiveTab = 'fail2ban'; fetchCfFail2ban()"
+            :class="['px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', cfActiveTab === 'fail2ban' ? 'border-blue-500 text-blue-400 bg-slate-900/50' : 'border-transparent text-slate-400 hover:text-white']">
+            <i data-lucide="shield-ban" class="w-3.5 h-3.5"></i>
+            <span>Fail2ban Sync & Chặn IP</span>
+        </button>
+        <button type="button" @click="cfActiveTab = 'cache'; fetchCfZoneSettings()"
+            :class="['px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', cfActiveTab === 'cache' ? 'border-blue-500 text-blue-400 bg-slate-900/50' : 'border-transparent text-slate-400 hover:text-white']">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            <span>Xóa Cache</span>
+        </button>
+        <button type="button" @click="cfActiveTab = 'settings'; fetchCfZoneSettings()"
+            :class="['px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-1.5', cfActiveTab === 'settings' ? 'border-blue-500 text-blue-400 bg-slate-900/50' : 'border-transparent text-slate-400 hover:text-white']">
+            <i data-lucide="sliders" class="w-3.5 h-3.5"></i>
+            <span>SSL, WAF & Tối ưu</span>
+        </button>
+    </div>
+
+    <!-- TAB 1: API TOKEN CONNECTION -->
+    <div v-if="cfActiveTab === 'connect'" class="bg-[#111827] border border-slate-800 rounded-2xl p-5 space-y-4">
+        <div class="p-3.5 rounded-xl bg-blue-950/30 border border-blue-800/50 text-xs text-blue-200 space-y-1">
+            <div class="font-bold text-white">Hướng dẫn tạo Cloudflare API Token (Khuyên dùng thay Global API Key):</div>
+            <div>Vào Cloudflare Dashboard &rarr; <strong>My Profile &rarr; API Tokens &rarr; Create Token</strong> với các quyền: <code>Zone:Read</code>, <code>DNS:Edit</code>, <code>Cache Purge:Purge</code>, <code>Firewall Services:Edit</code>, <code>Zone Settings:Edit</code>.</div>
+        </div>
+
+        <form @submit.prevent="connectCloudflare" class="space-y-4 text-xs">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1.5">Cloudflare API Token (Bearer) *</label>
+                    <input type="password" v-model="cfConnectForm.api_token"
+                        :placeholder="cfConfig?.has_token ? ('Đã lưu: ' + cfConfig.token_preview + ' (nhập mới để thay đổi)') : 'Nhập Cloudflare API Token...'"
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-[#0b1120] border border-slate-700 text-white font-mono focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1.5">Zone ID (Tự động tìm theo domain nếu để trống)</label>
+                    <input type="text" v-model="cfConnectForm.zone_id" placeholder="Tự động nhận diện hoặc nhập Zone ID..."
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-[#0b1120] border border-slate-700 text-white font-mono focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+                <button v-if="cfConfig?.zone_id" type="button" @click="disconnectCloudflare()"
+                    class="px-4 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-600/40 font-semibold transition">
+                    Ngắt kết nối Cloudflare
+                </button>
+                <div v-else></div>
+                <button type="submit" :disabled="cfSaving"
+                    class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-sm transition flex items-center gap-1.5">
+                    <span v-if="cfSaving" class="animate-spin">⏳</span>
+                    <span>{{ cfSaving ? 'Đang xác thực...' : 'Xác thực & Lưu kết nối' }}</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- TAB 2: DNS RECORDS -->
+    <div v-if="cfActiveTab === 'dns'" class="space-y-4">
+        <div class="bg-[#111827] border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div class="text-xs font-bold text-white">Thêm bản ghi DNS mới</div>
+            <form @submit.prevent="addCfDnsRecord" class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 text-xs items-end">
+                <div class="sm:col-span-2">
+                    <label class="block text-slate-400 mb-1">Type</label>
+                    <select v-model="cfDnsForm.type" class="w-full px-2.5 py-2 rounded-lg bg-[#0b1120] border border-slate-700 text-white font-mono">
+                        <option value="A">A</option>
+                        <option value="AAAA">AAAA</option>
+                        <option value="CNAME">CNAME</option>
+                        <option value="TXT">TXT</option>
+                        <option value="MX">MX</option>
+                    </select>
+                </div>
+                <div class="sm:col-span-3">
+                    <label class="block text-slate-400 mb-1">Name (@ hoặc subdomain)</label>
+                    <input type="text" v-model="cfDnsForm.name" required placeholder="@ hoặc www"
+                        class="w-full px-3 py-2 rounded-lg bg-[#0b1120] border border-slate-700 text-white font-mono">
+                </div>
+                <div class="sm:col-span-4">
+                    <label class="block text-slate-400 mb-1">Content (IP / Target)</label>
+                    <input type="text" v-model="cfDnsForm.content" required placeholder="103.195.239.107"
+                        class="w-full px-3 py-2 rounded-lg bg-[#0b1120] border border-slate-700 text-white font-mono">
+                </div>
+                <div class="sm:col-span-1 flex items-center gap-1.5 pb-2">
+                    <input type="checkbox" v-model="cfDnsForm.proxied" id="cfProxiedNew" class="w-4 h-4 rounded text-amber-500">
+                    <label for="cfProxiedNew" class="text-amber-400 font-semibold cursor-pointer">Proxy</label>
+                </div>
+                <div class="sm:col-span-2">
+                    <button type="submit" :disabled="cfSaving" class="w-full px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold">
+                        + Thêm Record
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="bg-[#111827] border border-slate-800 rounded-2xl overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="bg-[#0f1624] text-slate-400 border-b border-slate-800">
+                        <tr>
+                            <th class="px-4 py-2.5">Type</th>
+                            <th class="px-4 py-2.5">Name</th>
+                            <th class="px-4 py-2.5">Content</th>
+                            <th class="px-4 py-2.5 text-center">Proxy (CDN)</th>
+                            <th class="px-4 py-2.5 text-right">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/70">
+                        <tr v-if="cfDnsRecords.length === 0">
+                            <td colspan="5" class="px-4 py-8 text-center text-slate-400">Chưa có bản ghi DNS hoặc chưa kết nối Cloudflare.</td>
+                        </tr>
+                        <tr v-for="rec in cfDnsRecords" :key="rec.id" class="hover:bg-slate-800/30">
+                            <td class="px-4 py-2.5 font-mono font-bold text-blue-400">{{ rec.type }}</td>
+                            <td class="px-4 py-2.5 font-mono text-white">{{ rec.name }}</td>
+                            <td class="px-4 py-2.5 font-mono max-w-xs truncate" :title="rec.content">{{ rec.content }}</td>
+                            <td class="px-4 py-2.5 text-center">
+                                <button v-if="['A','AAAA','CNAME'].includes(rec.type)" type="button" @click="toggleCfDnsProxy(rec)"
+                                    :class="['px-2.5 py-1 rounded-full text-[11px] font-semibold border transition', rec.proxied ? 'bg-amber-500/15 text-amber-400 border-amber-500/40' : 'bg-slate-800 text-slate-400 border-slate-700']">
+                                    {{ rec.proxied ? '☁️ Proxied' : 'DNS Only' }}
+                                </button>
+                                <span v-else class="text-slate-500 text-[11px]">DNS Only</span>
+                            </td>
+                            <td class="px-4 py-2.5 text-right">
+                                <button type="button" @click="deleteCfDnsRecord(rec.id)"
+                                    class="px-2.5 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-600/40 text-[11px]">
+                                    Xóa
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: FAIL2BAN SYNC & MANUAL BLOCK IP -->
+    <div v-if="cfActiveTab === 'fail2ban'" class="space-y-4">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Fail2ban Auto-Sync Config -->
+            <div class="bg-[#111827] border border-slate-800 rounded-2xl p-5 space-y-3.5 text-xs">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                    <div>
+                        <h3 class="text-sm font-bold text-white">Fail2ban &rarr; Cloudflare Auto-Sync</h3>
+                        <p class="text-[11px] text-slate-400">Tự động đẩy IP bị Fail2ban khóa lên tường lửa Cloudflare (chặn ở Edge trước khi tới VPS)</p>
+                    </div>
+                    <input type="checkbox" v-model="cfF2bForm.enabled" class="w-5 h-5 rounded text-blue-600">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Tần suất đồng bộ</label>
+                        <select v-model.number="cfF2bForm.interval_sec" class="w-full px-3 py-2 rounded-lg bg-[#0b1120] border border-slate-700 text-white">
+                            <option :value="30">Mỗi 30 giây</option>
+                            <option :value="60">Mỗi 1 phút</option>
+                            <option :value="300">Mỗi 5 phút</option>
+                            <option :value="600">Mỗi 10 phút</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Hành động trên CF</label>
+                        <select v-model="cfF2bForm.ban_mode" class="w-full px-3 py-2 rounded-lg bg-[#0b1120] border border-slate-700 text-white">
+                            <option value="block">Block (Chặn tuyệt đối)</option>
+                            <option value="managed_challenge">Managed Challenge</option>
+                            <option value="js_challenge">JS Challenge</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Số IP tối đa / lần</label>
+                        <input type="number" v-model.number="cfF2bForm.max_ips" min="1" max="500"
+                            class="w-full px-3 py-2 rounded-lg bg-[#0b1120] border border-slate-700 text-white font-mono">
+                    </div>
+                </div>
+                <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+                    <span class="text-[11px] text-slate-400">
+                        Fail2ban đang ban: <strong class="text-rose-400">{{ cfF2bStatus?.total_banned || 0 }}</strong> IP
+                        <span v-if="cfConfig?.last_sync_at"> | Sync cuối: {{ cfConfig.last_sync_at }}</span>
+                    </span>
+                    <div class="flex items-center gap-2">
+                        <button type="button" @click="syncCfFail2banNow()" :disabled="cfSaving"
+                            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold">
+                            Sync Ngay
+                        </button>
+                        <button type="button" @click="saveCfFail2banConfig()" :disabled="cfSaving"
+                            class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold">
+                            Lưu cấu hình
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manual Push IP to CF -->
+            <div class="bg-[#111827] border border-slate-800 rounded-2xl p-5 space-y-3.5 text-xs">
+                <div class="border-b border-slate-800 pb-2.5">
+                    <h3 class="text-sm font-bold text-white">Chủ động gửi IP lên chặn trên Cloudflare</h3>
+                    <p class="text-[11px] text-slate-400">Chặn hoặc thử thách (Captcha/JS) ngay một địa chỉ IP hoặc dải IP trên Edge Cloudflare</p>
+                </div>
+                <form @submit.prevent="blockIpOnCf" class="space-y-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-slate-400 mb-1">Địa chỉ IP / CIDR *</label>
+                            <input type="text" v-model="cfBlockIpForm.ip" required placeholder="VD: 1.2.3.4"
+                                class="w-full px-3 py-2 rounded-lg bg-[#0b1120] border border-slate-700 text-white font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1">Chế độ</label>
+                            <select v-model="cfBlockIpForm.mode" class="w-full px-3 py-2 rounded-lg bg-[#0b1120] border border-slate-700 text-white">
+                                <option value="block">Block (Chặn)</option>
+                                <option value="managed_challenge">Managed Challenge</option>
+                                <option value="js_challenge">JS Challenge</option>
+                                <option value="whitelist">Whitelist (Cho phép)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Ghi chú</label>
+                        <input type="text" v-model="cfBlockIpForm.note" placeholder="Lý do chặn IP..."
+                            class="w-full px-3 py-2 rounded-lg bg-[#0b1120] border border-slate-700 text-white">
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="submit" :disabled="cfSaving" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold">
+                            Gửi IP lên Cloudflare
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Cloudflare Active IP Rules Table -->
+        <div class="bg-[#111827] border border-slate-800 rounded-2xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-800 text-xs font-bold text-white flex justify-between items-center">
+                <span>Danh sách IP Rules đang áp dụng trên Cloudflare ({{ cfIpRules.length }})</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="bg-[#0f1624] text-slate-400 border-b border-slate-800">
+                        <tr>
+                            <th class="px-4 py-2.5">IP</th>
+                            <th class="px-4 py-2.5">Mode</th>
+                            <th class="px-4 py-2.5">Ghi chú</th>
+                            <th class="px-4 py-2.5 text-right">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/70">
+                        <tr v-if="cfIpRules.length === 0">
+                            <td colspan="4" class="px-4 py-6 text-center text-slate-400">Chưa có IP rule nào trên Cloudflare.</td>
+                        </tr>
+                        <tr v-for="r in cfIpRules" :key="r.id" class="hover:bg-slate-800/30">
+                            <td class="px-4 py-2.5 font-mono font-bold text-white">{{ r.configuration?.value }}</td>
+                            <td class="px-4 py-2.5">
+                                <span :class="['px-2 py-0.5 rounded text-[10px] font-bold uppercase', r.mode === 'block' ? 'bg-rose-500/15 text-rose-300' : r.mode === 'whitelist' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300']">
+                                    {{ r.mode }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-2.5 text-slate-400">{{ r.notes || '-' }}</td>
+                            <td class="px-4 py-2.5 text-right">
+                                <button type="button" @click="deleteCfIpRule(r.id)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px]">
+                                    Gỡ chặn
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 4: CACHE MANAGEMENT -->
+    <div v-if="cfActiveTab === 'cache'" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div class="bg-[#111827] border border-slate-800 rounded-2xl p-5 space-y-4">
+            <h3 class="text-sm font-bold text-white">Xóa Cache Cloudflare</h3>
+            <div class="p-4 rounded-xl bg-[#0b1120] border border-slate-800 flex items-center justify-between gap-3">
+                <div>
+                    <div class="font-bold text-white">Purge Everything (Xóa toàn bộ Cache)</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">Xóa ngay toàn bộ file tĩnh/cache trên mọi POP Cloudflare toàn cầu.</div>
+                </div>
+                <button type="button" @click="purgeCfCache(true)" :disabled="cfSaving"
+                    class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shrink-0">
+                    Xóa Tất Cả
+                </button>
+            </div>
+            <div class="space-y-2">
+                <label class="block font-semibold text-slate-300">Hoặc xóa theo danh sách URL cụ thể (mỗi dòng 1 URL, tối đa 30):</label>
+                <textarea v-model="cfPurgeUrlsText" rows="4" placeholder="https://example.com/style.css&#10;https://example.com/app.js"
+                    class="w-full p-3 rounded-xl bg-[#0b1120] border border-slate-700 text-white font-mono focus:outline-none focus:border-blue-500"></textarea>
+                <div class="flex justify-end">
+                    <button type="button" @click="purgeCfCache(false)" :disabled="cfSaving"
+                        class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold border border-slate-700">
+                        Xóa theo URL
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-[#111827] border border-slate-800 rounded-2xl p-5 space-y-4">
+            <h3 class="text-sm font-bold text-white">Chế độ Nhà phát triển (Development Mode)</h3>
+            <p class="text-slate-400">Tạm thời bỏ qua lớp Edge Cache của Cloudflare trong 3 giờ để bạn sửa code/CSS thấy thay đổi ngay lập tức.</p>
+            <div class="p-4 rounded-xl bg-[#0b1120] border border-slate-800 flex items-center justify-between">
+                <div>
+                    <div class="font-bold text-white">Development Mode</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">Trạng thái: <strong :class="cfZoneSettings.development_mode === 'on' ? 'text-amber-400' : 'text-slate-300'">{{ cfZoneSettings.development_mode === 'on' ? 'Đang BẬT' : 'Đang TẮT' }}</strong></div>
+                </div>
+                <button type="button" @click="toggleCfDevMode(cfZoneSettings.development_mode !== 'on')" :disabled="cfSaving"
+                    class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold">
+                    {{ cfZoneSettings.development_mode === 'on' ? 'Tắt Dev Mode' : 'Bật Dev Mode (3h)' }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 5: SSL, SECURITY & OPTIMIZATION (EXTRA PROPOSED) -->
+    <div v-if="cfActiveTab === 'settings'" class="bg-[#111827] border border-slate-800 rounded-2xl p-5 space-y-4 text-xs">
+        <div class="border-b border-slate-800 pb-3">
+            <h3 class="text-sm font-bold text-white">Cấu hình SSL/TLS, Chống DDoS & Tối ưu Tốc độ Cloudflare</h3>
+            <p class="text-[11px] text-slate-400 mt-0.5">Điều chỉnh nhanh các thông số quan trọng nhất của Cloudflare cho website WordPress / Web App.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+                <label class="block font-semibold text-slate-300 mb-1.5">Chế độ SSL/TLS</label>
+                <select v-model="cfZoneSettings.ssl" class="w-full px-3 py-2.5 rounded-xl bg-[#0b1120] border border-slate-700 text-white">
+                    <option value="off">Off (Không khuyến nghị)</option>
+                    <option value="flexible">Flexible (CF HTTPS &rarr; VPS HTTP)</option>
+                    <option value="full">Full (CF HTTPS &rarr; VPS HTTPS)</option>
+                    <option value="strict">Full (Strict) — Khuyên dùng</option>
+                </select>
+            </div>
+            <div>
+                <label class="block font-semibold text-slate-300 mb-1.5">Always Use HTTPS</label>
+                <select v-model="cfZoneSettings.always_use_https" class="w-full px-3 py-2.5 rounded-xl bg-[#0b1120] border border-slate-700 text-white">
+                    <option value="on">Bật (Tự chuyển HTTP &rarr; HTTPS)</option>
+                    <option value="off">Tắt</option>
+                </select>
+            </div>
+            <div>
+                <label class="block font-semibold text-slate-300 mb-1.5">Security Level / Chống DDoS</label>
+                <select v-model="cfZoneSettings.security_level" class="w-full px-3 py-2.5 rounded-xl bg-[#0b1120] border border-slate-700 text-white">
+                    <option value="essentially_off">Essentially Off</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium (Mặc định)</option>
+                    <option value="high">High</option>
+                    <option value="under_attack">I'm Under Attack! (Chặn DDoS khẩn cấp)</option>
+                </select>
+            </div>
+            <div>
+                <label class="block font-semibold text-slate-300 mb-1.5">Nén Brotli trên Edge</label>
+                <select v-model="cfZoneSettings.brotli" class="w-full px-3 py-2.5 rounded-xl bg-[#0b1120] border border-slate-700 text-white">
+                    <option value="on">Bật (Khuyên dùng)</option>
+                    <option value="off">Tắt</option>
+                </select>
+            </div>
+            <div>
+                <label class="block font-semibold text-slate-300 mb-1.5">Browser Cache TTL</label>
+                <select v-model.number="cfZoneSettings.browser_cache_ttl" class="w-full px-3 py-2.5 rounded-xl bg-[#0b1120] border border-slate-700 text-white">
+                    <option :value="0">Respect Existing Headers</option>
+                    <option :value="14400">4 giờ</option>
+                    <option :value="86400">1 ngày</option>
+                    <option :value="604800">7 ngày</option>
+                    <option :value="2592000">1 tháng</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex justify-end">
+            <button type="button" @click="saveCfZoneSettings()" :disabled="cfSaving"
+                class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-sm transition">
+                {{ cfSaving ? 'Đang lưu...' : 'Lưu cấu hình Cloudflare' }}
+            </button>
+        </div>
+    </div>
+</div>

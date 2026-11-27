@@ -32,6 +32,7 @@ from app.api.v1.databases import router as databases_router
 import asyncio
 from app.api.v1.crons import router as crons_router
 from app.api.v1.backups import router as backups_router
+from app.api.v1.cloudflare import router as cloudflare_router, start_cloudflare_fail2ban_sync_worker
 from app.services.metrics_collector import start_metrics_collector
 from app.services.mysql_controller import start_mysql_controller_worker
 
@@ -43,10 +44,13 @@ async def lifespan(app: FastAPI):
     metrics_task = asyncio.create_task(start_metrics_collector())
     # Khởi động PressPanel MySQL Resource Controller Worker (chu kỳ 10s: Telemetry, Active Sniper, Circuit Breaker)
     mysql_controller_task = asyncio.create_task(start_mysql_controller_worker())
+    # Khởi động tiến trình ngầm đồng bộ Fail2ban -> Cloudflare
+    cf_sync_task = asyncio.create_task(start_cloudflare_fail2ban_sync_worker())
     yield
     # Tắt dịch vụ: cleanup nếu cần
     metrics_task.cancel()
     mysql_controller_task.cancel()
+    cf_sync_task.cancel()
 
 _ENABLE_DOCS = os.getenv("PRESSPANEL_DEV_DOCS") == "1" or CONF_DATA.get("enable_docs", "0") in ("1", "true", "yes")
 
@@ -88,6 +92,7 @@ app.include_router(terminal_router, prefix=settings.API_V1_STR)
 app.include_router(databases_router, prefix=settings.API_V1_STR)
 app.include_router(crons_router, prefix=settings.API_V1_STR)
 app.include_router(backups_router, prefix=settings.API_V1_STR)
+app.include_router(cloudflare_router, prefix=settings.API_V1_STR)
 
 @app.get("/health", tags=["System"])
 async def health_check():

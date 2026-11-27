@@ -799,6 +799,15 @@ function showToast(message, type = 'success') {
                                             {{ cronJobs.length }}
                                         </span>
                                     </button>
+
+                                    <!-- Cloudflare Intelligent (Web Application & Admin) -->
+                                    <button v-if="isWebUser || currentUser.role === 'admin'" @click="currentTab = 'cloudflare'; fetchCloudflareConfig();" :class="navClass('cloudflare')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="cloud-lightning" class="w-4 h-4 text-amber-400 group-hover:text-amber-300 transition-colors"></i>
+                                            <span>Cloudflare Intelligent</span>
+                                        </div>
+                                        <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                                    </button>
                                 </div>
                             </div>
 
@@ -1060,7 +1069,7 @@ function showToast(message, type = 'success') {
                 'dashboard.html', 'domains.html', 'wp.html', 'apps.html',
                 'customers.html', 'service_plans.html', 'databases.html',
                 'files.html', 'others.html', 'profile.html', 'crons.html', 'monitoring.html',
-                'firewall.html', 'backups.html'
+                'firewall.html', 'backups.html', 'cloudflare.html'
             ];
             try {
                 const assetVer = '0.5.207_' + Date.now();
@@ -1139,7 +1148,7 @@ function showToast(message, type = 'success') {
                     const validTabs = [
                         'dashboard', 'domains', 'mail', 'files', 'databases',
                         'monitoring', 'wp', 'service_plans', 'customers',
-                        'apps', 'firewall', 'backups', 'tools_settings', 'profile', 'crons'
+                        'apps', 'firewall', 'backups', 'tools_settings', 'profile', 'crons', 'cloudflare'
                     ];
                     let chosen = validTabs.includes(hash) ? hash : (isWebUser.value ? 'domains' : 'dashboard');
                     if (isWebUser.value && (chosen === 'dashboard' || chosen === 'service_plans' || chosen === 'customers' || chosen === 'apps' || chosen === 'firewall' || chosen === 'tools_settings')) {
@@ -8358,6 +8367,240 @@ if ($host ~* ^www\\.(.*)$) {
                 }
 
                 // ==========================================
+                // CLOUDFLARE INTELLIGENT LOGIC
+                // ==========================================
+                const cfActiveTab = ref('connect');
+                const cfDomains = ref([]);
+                const cfSelectedDomainId = ref(null);
+                const cfConfig = ref(null);
+                const cfSaving = ref(false);
+                const cfConnectForm = ref({ api_token: '', zone_id: '' });
+                const cfDnsRecords = ref([]);
+                const cfDnsForm = ref({ type: 'A', name: '@', content: '', proxied: true });
+                const cfF2bStatus = ref(null);
+                const cfF2bForm = ref({ enabled: false, interval_sec: 60, ban_mode: 'block', max_ips: 50 });
+                const cfBlockIpForm = ref({ ip: '', mode: 'block', note: '' });
+                const cfIpRules = ref([]);
+                const cfPurgeUrlsText = ref('');
+                const cfZoneSettings = ref({ ssl: 'strict', always_use_https: 'on', security_level: 'medium', brotli: 'on', browser_cache_ttl: 14400, development_mode: 'off' });
+
+                const fetchCloudflareConfig = async (domId = null) => {
+                    try {
+                        const q = domId ? `?domain_id=${domId}` : '';
+                        const res = await fetch(`/api/v1/cloudflare/config${q}`, { headers: { 'Authorization': `Bearer ${token.value}` } });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            cfDomains.value = d.domains || [];
+                            cfSelectedDomainId.value = d.domain_id || (cfDomains.value[0]?.id || null);
+                            cfConfig.value = d.config || null;
+                            cfConnectForm.value = { api_token: '', zone_id: d.config?.zone_id || '' };
+                            if (d.config) {
+                                cfF2bForm.value = {
+                                    enabled: !!d.config.f2b_sync_enabled,
+                                    interval_sec: d.config.f2b_sync_interval || 60,
+                                    ban_mode: d.config.f2b_ban_mode || 'block',
+                                    max_ips: d.config.f2b_max_ips || 50
+                                };
+                            }
+                            if (cfConfig.value?.zone_id) {
+                                if (cfActiveTab.value === 'dns') fetchCfDns();
+                                if (cfActiveTab.value === 'fail2ban') fetchCfFail2ban();
+                                if (cfActiveTab.value === 'cache' || cfActiveTab.value === 'settings') fetchCfZoneSettings();
+                            }
+                        }
+                    } catch (e) { console.error('Lỗi tải Cloudflare config:', e); }
+                };
+
+                const connectCloudflare = async () => {
+                    if (!cfSelectedDomainId.value) return;
+                    cfSaving.value = true;
+                    try {
+                        const res = await fetch('/api/v1/cloudflare/connect', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ domain_id: cfSelectedDomainId.value, ...cfConnectForm.value })
+                        });
+                        const d = await res.json();
+                        if (res.ok && d.status === 'ok') {
+                            showAlert(d.message || 'Kết nối Cloudflare thành công!');
+                            await fetchCloudflareConfig(cfSelectedDomainId.value);
+                        } else {
+                            showAlert(d.detail || 'Kết nối Cloudflare thất bại');
+                        }
+                    } catch (e) { showAlert('Lỗi: ' + e); } finally { cfSaving.value = false; }
+                };
+
+                const disconnectCloudflare = async () => {
+                    if (!cfSelectedDomainId.value || !confirm('Ngắt kết nối Cloudflare cho domain này?')) return;
+                    const res = await fetch(`/api/v1/cloudflare/disconnect?domain_id=${cfSelectedDomainId.value}`, {
+                        method: 'DELETE', headers: { 'Authorization': `Bearer ${token.value}` }
+                    });
+                    const d = await res.json();
+                    showAlert(d.message || 'Đã ngắt kết nối');
+                    await fetchCloudflareConfig(cfSelectedDomainId.value);
+                };
+
+                const fetchCfDns = async () => {
+                    if (!cfSelectedDomainId.value || !cfConfig.value?.zone_id) return;
+                    const res = await fetch(`/api/v1/cloudflare/dns?domain_id=${cfSelectedDomainId.value}`, { headers: { 'Authorization': `Bearer ${token.value}` } });
+                    const d = await res.json();
+                    if (res.ok && d.status === 'ok') cfDnsRecords.value = d.records || [];
+                };
+
+                const addCfDnsRecord = async () => {
+                    if (!cfSelectedDomainId.value) return;
+                    cfSaving.value = true;
+                    try {
+                        const res = await fetch('/api/v1/cloudflare/dns', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ domain_id: cfSelectedDomainId.value, ...cfDnsForm.value })
+                        });
+                        const d = await res.json();
+                        if (res.ok && d.status === 'ok') {
+                            showToast(d.message);
+                            cfDnsForm.value = { type: 'A', name: '@', content: '', proxied: true };
+                            await fetchCfDns();
+                        } else showAlert(d.detail || 'Lỗi thêm DNS');
+                    } finally { cfSaving.value = false; }
+                };
+
+                const toggleCfDnsProxy = async (rec) => {
+                    const res = await fetch(`/api/v1/cloudflare/dns/${rec.id}`, {
+                        method: 'PUT',
+                        headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ domain_id: cfSelectedDomainId.value, type: rec.type, name: rec.name, content: rec.content, ttl: rec.ttl || 1, proxied: !rec.proxied })
+                    });
+                    if (res.ok) { showToast('Đã cập nhật trạng thái Proxy!'); await fetchCfDns(); }
+                };
+
+                const deleteCfDnsRecord = async (recId) => {
+                    if (!confirm('Xóa bản ghi DNS này trên Cloudflare?')) return;
+                    const res = await fetch(`/api/v1/cloudflare/dns/${recId}?domain_id=${cfSelectedDomainId.value}`, {
+                        method: 'DELETE', headers: { 'Authorization': `Bearer ${token.value}` }
+                    });
+                    if (res.ok) { showToast('Đã xóa bản ghi DNS!'); await fetchCfDns(); }
+                };
+
+                const fetchCfFail2ban = async () => {
+                    if (!cfSelectedDomainId.value || !cfConfig.value?.zone_id) return;
+                    const res = await fetch(`/api/v1/cloudflare/fail2ban?domain_id=${cfSelectedDomainId.value}`, { headers: { 'Authorization': `Bearer ${token.value}` } });
+                    const d = await res.json();
+                    if (res.ok && d.status === 'ok') {
+                        cfF2bStatus.value = d.fail2ban;
+                        cfIpRules.value = d.cf_rules || [];
+                    }
+                };
+
+                const saveCfFail2banConfig = async () => {
+                    cfSaving.value = true;
+                    try {
+                        const res = await fetch('/api/v1/cloudflare/fail2ban/config', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ domain_id: cfSelectedDomainId.value, ...cfF2bForm.value })
+                        });
+                        const d = await res.json();
+                        showAlert(d.message || d.detail);
+                    } finally { cfSaving.value = false; }
+                };
+
+                const syncCfFail2banNow = async () => {
+                    cfSaving.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/cloudflare/fail2ban/sync-now?domain_id=${cfSelectedDomainId.value}`, {
+                            method: 'POST', headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        showAlert(d.message || d.detail);
+                        await fetchCfFail2ban();
+                    } finally { cfSaving.value = false; }
+                };
+
+                const blockIpOnCf = async () => {
+                    cfSaving.value = true;
+                    try {
+                        const res = await fetch('/api/v1/cloudflare/fail2ban/block-ip', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ domain_id: cfSelectedDomainId.value, ...cfBlockIpForm.value })
+                        });
+                        const d = await res.json();
+                        if (res.ok && d.status === 'ok') {
+                            showAlert(d.message);
+                            cfBlockIpForm.value.ip = '';
+                            await fetchCfFail2ban();
+                        } else showAlert(d.detail || 'Lỗi chặn IP');
+                    } finally { cfSaving.value = false; }
+                };
+
+                const deleteCfIpRule = async (ruleId) => {
+                    const res = await fetch(`/api/v1/cloudflare/fail2ban/rule/${ruleId}?domain_id=${cfSelectedDomainId.value}`, {
+                        method: 'DELETE', headers: { 'Authorization': `Bearer ${token.value}` }
+                    });
+                    if (res.ok) { showToast('Đã gỡ quy tắc chặn IP!'); await fetchCfFail2ban(); }
+                };
+
+                const purgeCfCache = async (purgeAll) => {
+                    cfSaving.value = true;
+                    try {
+                        const urls = purgeAll ? [] : cfPurgeUrlsText.value.split('\n').map(s => s.trim()).filter(Boolean);
+                        const res = await fetch('/api/v1/cloudflare/cache/purge', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ domain_id: cfSelectedDomainId.value, purge_everything: purgeAll, urls })
+                        });
+                        const d = await res.json();
+                        showAlert(d.message || d.detail);
+                    } finally { cfSaving.value = false; }
+                };
+
+                const toggleCfDevMode = async (enabled) => {
+                    cfSaving.value = true;
+                    try {
+                        const res = await fetch('/api/v1/cloudflare/cache/dev-mode', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ domain_id: cfSelectedDomainId.value, enabled })
+                        });
+                        const d = await res.json();
+                        if (res.ok && d.status === 'ok') {
+                            cfZoneSettings.value.development_mode = enabled ? 'on' : 'off';
+                            showToast(d.message);
+                        } else showAlert(d.detail || 'Lỗi Dev Mode');
+                    } finally { cfSaving.value = false; }
+                };
+
+                const fetchCfZoneSettings = async () => {
+                    if (!cfSelectedDomainId.value || !cfConfig.value?.zone_id) return;
+                    const res = await fetch(`/api/v1/cloudflare/settings?domain_id=${cfSelectedDomainId.value}`, { headers: { 'Authorization': `Bearer ${token.value}` } });
+                    const d = await res.json();
+                    if (res.ok && d.status === 'ok' && d.settings) {
+                        cfZoneSettings.value = { ...cfZoneSettings.value, ...d.settings };
+                    }
+                };
+
+                const saveCfZoneSettings = async () => {
+                    cfSaving.value = true;
+                    try {
+                        const res = await fetch('/api/v1/cloudflare/settings', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                domain_id: cfSelectedDomainId.value,
+                                ssl_mode: cfZoneSettings.value.ssl,
+                                always_use_https: cfZoneSettings.value.always_use_https,
+                                security_level: cfZoneSettings.value.security_level,
+                                brotli: cfZoneSettings.value.brotli,
+                                browser_cache_ttl: cfZoneSettings.value.browser_cache_ttl
+                            })
+                        });
+                        const d = await res.json();
+                        showAlert(d.message || d.detail);
+                    } finally { cfSaving.value = false; }
+                };
+
+                // ==========================================
                 // CRONJOBS MANAGEMENT LOGIC
                 // ==========================================
                 const cronJobs = ref([]);
@@ -9623,151 +9866,6 @@ if ($host ~* ^www\\.(.*)$) {
                     } catch (e) {
                         showAlert('Lỗi tạo bản sao lưu: ' + (e.message || e));
                     } finally {
-                        creatingBackup.value = false;
-                    }
-                };
-
-                const handleDeleteBackup = async (backupId) => {
-                    if (!confirm('Bạn có chắc chắn muốn xóa vĩnh viễn bản sao lưu này không?')) return;
-                    try {
-                        const res = await api('/backups/' + backupId, 'DELETE');
-                        if (res && res.status === 'ok') {
-                            showAlert(res.message);
-                            await fetchBackups();
-                        }
-                    } catch (e) {
-                        showAlert('Lỗi xóa bản sao lưu: ' + (e.message || e));
-                    }
-                };
-
-                const handleRestoreBackup = async (backupId) => {
-                    if (!confirm('CẢNH BÁO: Phục hồi sẽ ghi đè toàn bộ mã nguồn website và cơ sở dữ liệu hiện tại! Bạn có chắc muốn tiếp tục?')) return;
-                    try {
-                        const res = await api('/backups/restore/' + backupId, 'POST');
-                        if (res && res.status === 'ok') {
-                            showAlert(res.message);
-                            await fetchBackups();
-                        }
-                    } catch (e) {
-                        showAlert('Lỗi khôi phục: ' + (e.message || e));
-                    }
-                };
-
-                const fetchBackupDestinations = async () => {
-                    loadingDestinations.value = true;
-                    try {
-                        const res = await api('/backups/destinations');
-                        if (res && res.status === 'ok') {
-                            backupDestinations.value = res.data || [];
-                        }
-                    } catch (e) {
-                        console.error('Lỗi tải kho lưu trữ cloud:', e);
-                    } finally {
-                        loadingDestinations.value = false;
-                    }
-                };
-
-                const showAddDestModal = ref(false);
-                const savingDest = ref(false);
-                const destForm = ref({
-                    name: '',
-                    type: 's3',
-                    endpoint_url: '',
-                    bucket_name: '',
-                    region: 'us-east-1',
-                    access_key: '',
-                    secret_key: '',
-                    remote_path: '/presspanel_backups'
-                });
-
-                const openAddDestModal = () => {
-                    destForm.value = {
-                        name: '',
-                        type: 's3',
-                        endpoint_url: '',
-                        bucket_name: '',
-                        region: 'us-east-1',
-                        access_key: '',
-                        secret_key: '',
-                        remote_path: '/presspanel_backups'
-                    };
-                    showAddDestModal.value = true;
-                };
-
-                const submitAddDestination = async () => {
-                    if (!destForm.value.name) {
-                        showAlert('Vui lòng nhập tên nhận diện kho lưu trữ!');
-                        return;
-                    }
-                    savingDest.value = true;
-                    try {
-                        const res = await api('/backups/destinations', 'POST', destForm.value);
-                        if (res && res.status === 'ok') {
-                            showAlert(res.message);
-                            showAddDestModal.value = false;
-                            await fetchBackupDestinations();
-                        }
-                    } catch (e) {
-                        showAlert('Lỗi lưu điểm lưu trữ: ' + (e.message || e));
-                    } finally {
-                        savingDest.value = false;
-                    }
-                };
-
-                const handleDeleteDestination = async (destId) => {
-                    if (!confirm('Bạn có chắc muốn xóa điểm lưu trữ Cloud này?')) return;
-                    try {
-                        const res = await api('/backups/destinations/' + destId, 'DELETE');
-                        if (res && res.status === 'ok') {
-                            showAlert(res.message);
-                            await fetchBackupDestinations();
-                        }
-                    } catch (e) {
-                        showAlert('Lỗi xóa kho lưu trữ: ' + (e.message || e));
-                    }
-                };
-
-                const fetchBackupSchedules = async () => {
-                    loadingSchedules.value = true;
-                    try {
-                        const res = await api('/backups/schedules');
-                        if (res && res.status === 'ok') {
-                            backupSchedules.value = res.data || [];
-                        }
-                    } catch (e) {
-                        console.error('Lỗi tải lịch sao lưu:', e);
-                    } finally {
-                        loadingSchedules.value = false;
-                    }
-                };
-
-                const showAddScheduleModal = ref(false);
-                const savingSchedule = ref(false);
-                const scheduleForm = ref({
-                    domain_id: '',
-                    frequency: 'daily',
-                    retention_count: 7,
-                    destination_id: ''
-                });
-
-                const openAddScheduleModal = () => {
-                    scheduleForm.value = {
-                        domain_id: domains.value.length > 0 ? domains.value[0].id : '',
-                        frequency: 'daily',
-                        retention_count: 7,
-                        destination_id: ''
-                    };
-                    showAddScheduleModal.value = true;
-                };
-
-                const submitAddSchedule = async () => {
-                    if (!scheduleForm.value.domain_id) {
-                        showAlert('Vui lòng chọn website cần lập lịch!');
-                        return;
-                    }
-                    savingSchedule.value = true;
-                    try {
-                        const res = await api('/backups/schedules', 'POST', {
                             domain_id: parseInt(scheduleForm.value.domain_id),
                             frequency: scheduleForm.value.frequency,
                             retention_count: parseInt(scheduleForm.value.retention_count) || 7,
@@ -9922,6 +10020,11 @@ if ($host ~* ^www\\.(.*)$) {
                     showWpAddThemeModal, installingTheme, newThemeSlug, newThemeZipUrl,
                     showWpEditUserModal, savingWpUser, editingWpUser, editWpUserForm,
                     showWpAddUserModal, creatingWpUser, newWpUserForm, openAddWpUserModal, handleCreateWpUser,
+                    cfActiveTab, cfDomains, cfSelectedDomainId, cfConfig, cfSaving, cfConnectForm,
+                    cfDnsRecords, cfDnsForm, cfF2bStatus, cfF2bForm, cfBlockIpForm, cfIpRules, cfPurgeUrlsText, cfZoneSettings,
+                    fetchCloudflareConfig, connectCloudflare, disconnectCloudflare, fetchCfDns, addCfDnsRecord, toggleCfDnsProxy, deleteCfDnsRecord,
+                    fetchCfFail2ban, saveCfFail2banConfig, syncCfFail2banNow, blockIpOnCf, deleteCfIpRule,
+                    purgeCfCache, toggleCfDevMode, fetchCfZoneSettings, saveCfZoneSettings,
                     wpPluginStoreTab, wpThemeStoreTab, wpStoreSearch, wpPopularPlugins, wpPopularThemes, wpPremiumStore,
                     loadingWpStore, installingStoreSlug, fetchWpStorePopular, fetchWpStorePremium, switchWpStoreTab, installStoreItem,
                     fetchWpInstances, scanWpInstances, selectWpInstance, backToWpList, openDomainWp, fetchWpDetail, magicLoginWp, magicLoginWpUser,
