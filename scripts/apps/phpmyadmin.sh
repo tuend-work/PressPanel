@@ -187,8 +187,8 @@ if (!is_dir(__DIR__ . '/logs')) {
 \$cfg['Servers'][\$i]['AllowRoot'] = true;
 \$cfg['Servers'][\$i]['SessionSavePath'] = \$tmpDir;
 
-// Hỗ trợ Single Sign-On (SSO) tự động khi có cookie SignonSession hợp lệ hoặc yêu cầu xác thực SSO
-if (!empty(\$_COOKIE['SignonSession']) || !empty(\$_GET['token']) || !empty(\$_POST['token']) || !empty(\$_GET['presspanel_sso']) || !empty(\$_GET['wpc_sso'])) {
+// Hỗ trợ Single Sign-On (SSO) chỉ khi có cookie SignonSession và không đang submit form đăng nhập thường
+if (!empty(\$_COOKIE['SignonSession']) && empty(\$_POST['pma_username'])) {
     \$cfg['Servers'][\$i]['auth_type'] = 'signon';
     \$cfg['Servers'][\$i]['SignonSession'] = 'SignonSession';
     \$signon = file_exists(__DIR__ . '/presspanel_signon.php') ? 'presspanel_signon.php' : 'wpc_signon.php';
