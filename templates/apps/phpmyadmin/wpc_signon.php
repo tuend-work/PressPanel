@@ -39,8 +39,16 @@ if (empty($token)) {
     die('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Lỗi SSO phpMyAdmin</title></head><body style="font-family:sans-serif;text-align:center;padding:50px;"><h2>❌ Lỗi xác thực Single Sign-On</h2><p>Thiếu mã token đăng nhập một lần (SSO token).</p><p><a href="index.php">Chuyển đến màn hình đăng nhập phpMyAdmin chuẩn</a></p></body></html>');
 }
 
-// 3. Xác minh Token với backend PressPanel nội bộ (127.0.0.1:8888)
-$verifyUrl = 'http://127.0.0.1:8888/api/v1/databases/pma-sso/verify?token=' . urlencode((string)$token);
+// 3. Xác minh Token với backend PressPanel nội bộ (đọc port từ presspanel.conf)
+$panelPort = '8888';
+$confFile = '/opt/presspanel/conf/presspanel.conf';
+if (is_file($confFile) && is_readable($confFile)) {
+    $confTxt = @file_get_contents($confFile);
+    if ($confTxt && preg_match('/^port=(\d+)/m', $confTxt, $mPort)) {
+        $panelPort = $mPort[1];
+    }
+}
+$verifyUrl = 'http://127.0.0.1:' . $panelPort . '/api/v1/databases/pma-sso/verify?token=' . urlencode((string)$token);
 $ctx = stream_context_create([
     'http' => [
         'timeout' => 5,

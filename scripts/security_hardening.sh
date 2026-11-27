@@ -169,7 +169,7 @@ apply_firewall_local_rules() {
         if ! iptables -C OUTPUT -p tcp -o lo --dport "$panel_port" -m owner --uid-owner 0 -j ACCEPT 2>/dev/null; then
             iptables -I OUTPUT 1 -p tcp -o lo --dport "$panel_port" -m owner --uid-owner 0 -j ACCEPT 2>/dev/null || true
         fi
-        for p_u in "presspanel" "wpc"; do
+        for p_u in "presspanel" "wpc" "pma"; do
             if id "$p_u" &>/dev/null; then
                 local u_id
                 u_id=$(id -u "$p_u")

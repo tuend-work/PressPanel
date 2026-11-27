@@ -998,15 +998,33 @@ async def generate_pma_sso_token(
 
     root_pass = get_mysql_root_password() or ""
 
-    # Sinh mã token ngẫu nhiên an toàn 256-bit
+    # Sinh mã token ngẫu nhiên an toàn 256-bit và lưu vào SQLite (chia sẻ giữa các worker uvicorn)
     token = secrets.token_urlsafe(32)
-    PMA_SSO_TOKENS[token] = {
+    payload_data = {
         "user": "root",
         "password": root_pass,
         "database": target_db,
         "only_db": only_db,
         "expires_at": now + 60,
     }
+    PMA_SSO_TOKENS[token] = payload_data
+    db_sso = await get_db_connection()
+    try:
+        await db_sso.execute("""
+            CREATE TABLE IF NOT EXISTS pma_sso_tokens (
+                token TEXT PRIMARY KEY,
+                payload TEXT NOT NULL,
+                expires_at REAL NOT NULL
+            )
+        """)
+        await db_sso.execute("DELETE FROM pma_sso_tokens WHERE expires_at < ?", (now,))
+        await db_sso.execute(
+            "INSERT INTO pma_sso_tokens (token, payload, expires_at) VALUES (?, ?, ?)",
+            (token, json.dumps(payload_data), now + 60)
+        )
+        await db_sso.commit()
+    finally:
+        await db_sso.close()
 
     sso_file = "/presspanel_signon.php"
     pma_doc = "/home/pma/public_html"
@@ -1028,6 +1046,26 @@ async def verify_pma_sso_token(token: str):
     """
     now = time.time()
     data = PMA_SSO_TOKENS.pop(token, None)
+    if not data:
+        db_sso = await get_db_connection()
+        try:
+            await db_sso.execute("""
+                CREATE TABLE IF NOT EXISTS pma_sso_tokens (
+                    token TEXT PRIMARY KEY,
+                    payload TEXT NOT NULL,
+                    expires_at REAL NOT NULL
+                )
+            """)
+            cur = await db_sso.execute("SELECT payload, expires_at FROM pma_sso_tokens WHERE token = ?", (token,))
+            row = await cur.fetchone()
+            if row:
+                await db_sso.execute("DELETE FROM pma_sso_tokens WHERE token = ?", (token,))
+                await db_sso.commit()
+                if float(row["expires_at"]) >= now:
+                    data = json.loads(row["payload"])
+        finally:
+            await db_sso.close()
+
     if not data or data.get("expires_at", 0) < now:
         raise HTTPException(status_code=401, detail="Token SSO không hợp lệ hoặc đã hết hạn.")
 
