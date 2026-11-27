@@ -586,6 +586,8 @@ EOF_SCHEMA
 
         MU_DIR="$TARGET_DIR/wp-content/mu-plugins"
         mkdir -p "$MU_DIR"
+        # Dọn dẹp các file/symlink SSO cũ quá hạn (> 2 phút) trước khi tạo mới
+        find "$MU_DIR" -maxdepth 1 \( -name "presspanel_sso_*.php" -o -name "wpc_sso_*.php" \) -mmin +2 -delete 2>/dev/null || true
         SSO_FILE="$MU_DIR/presspanel_sso_${TOKEN}.php"
 
         cat <<EOF > "$SSO_FILE"
@@ -598,10 +600,12 @@ if ((isset(\$_GET['presspanel_sso_token']) && \$_GET['presspanel_sso_token'] ===
     (isset(\$_GET['wpc_sso_token']) && \$_GET['wpc_sso_token'] === '$TOKEN')) {
     if (time() - $NOW_TS > 60) {
         @unlink(__FILE__);
+        @unlink(__DIR__ . '/wpc_sso_$TOKEN.php');
         wp_die('Lien ket Magic Login da het han (60 giay). Vui long tao lai tu PressPanel.');
     }
     add_action('init', function() {
         @unlink(__FILE__);
+        @unlink(__DIR__ . '/wpc_sso_$TOKEN.php');
         \$target_id = intval($TARGET_USER_ID);
         \$user = null;
         if (\$target_id > 0) {
@@ -630,7 +634,6 @@ EOF
             chown "$USERNAME:$USERNAME" "$MU_DIR" "$SSO_FILE" 2>/dev/null || true
         fi
         chmod 644 "$SSO_FILE" 2>/dev/null || true
-        ln -sf "$SSO_FILE" "$MU_DIR/wpc_sso_${TOKEN}.php" 2>/dev/null || true
         echo "[+] Da tao SSO MU-Plugin thanh cong: presspanel_sso_${TOKEN}.php"
         exit 0
         ;;
