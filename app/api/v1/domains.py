@@ -9,7 +9,7 @@ import platform
 import uuid
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.api.deps import get_current_user
 from app.db.session import get_db_connection
 from app.executor.gatekeeper import run_gatekeeper
