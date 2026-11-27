@@ -1260,9 +1260,15 @@ async def get_resource_monitor(
                     ws_ram_points.append(r_pt)
                     ws_disk_points.append(d_pt)
 
+        dom_clean_d = re.sub(r"^(https?://)?(www\.)?", "", (d.get("domain_name") or "").strip().lower()).rstrip("/")
+        linux_uname = re.sub(r"[^a-z0-9]", "", dom_clean_d)[:30] or str(d.get("owner_username") or d["domain_name"])
+        if target_scope == "server" and (dom_clean_d.startswith("phpmyadmin") or dom_clean_d == "pma"):
+            linux_uname = "pma"
+
         website_series.append({
             "id": d["id"],
-            "domain_name": d["domain_name"],
+            "domain_name": linux_uname if target_scope == "server" else d["domain_name"],
+            "linux_user": linux_uname,
             "color": ws_color,
             "current_cpu": ws_current_cpu,
             "current_ram_mb": ws_current_ram_mb,
@@ -1277,90 +1283,112 @@ async def get_resource_monitor(
 
     website_series.sort(key=lambda x: x["current_cpu"], reverse=True)
 
-    # 4.2. Bổ sung line riêng cho tài nguyên của PressPanel (Panel) và phần Hệ thống & App khác
+    # 4.2. Phân biệt toàn bộ các line theo username Linux (presspanel, mysql, www-data, nginx, valkey, root...)
     if target_scope == "server":
-        panel_cpu = 0.0
-        panel_ram_mb = 0.0
-        panel_disk_gb = 0.0
-        try:
-            ps_res = subprocess.run(["ps", "-u", "presspanel", "-o", "rss=,pcpu="], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=2)
-            if ps_res.returncode == 0 and ps_res.stdout.strip():
-                for line in ps_res.stdout.strip().splitlines():
-                    parts = line.split()
-                    if len(parts) >= 2:
-                        panel_ram_mb += float(parts[0]) / 1024.0
-                        panel_cpu += float(parts[1])
-        except Exception:
-            pass
-        if panel_ram_mb == 0.0:
+        n_pts = len(cpu_series)
+        covered_users = {ws.get("linux_user") for ws in website_series if ws.get("linux_user")}
+        if "pma" in covered_users:
+            covered_users.add("phpmyadminsys")
+
+        ps_user_stats = {}
+        if platform.system() == "Linux":
             try:
-                for proc in psutil.process_iter(['pid', 'username', 'cmdline', 'memory_info']):
-                    try:
-                        uname = (proc.info.get('username') or '').lower()
-                        cmd = " ".join(proc.info.get('cmdline') or []).lower()
-                        if uname == 'presspanel' or '/opt/presspanel' in cmd:
-                            mem_info = proc.info.get('memory_info')
-                            if mem_info:
-                                panel_ram_mb += float(mem_info.rss) / (1024 * 1024)
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        continue
+                ps_all = subprocess.run(
+                    ["ps", "-eo", "user:32,rss,pcpu", "--no-headers"],
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=2
+                )
+                if ps_all.returncode == 0 and ps_all.stdout:
+                    for line in ps_all.stdout.splitlines():
+                        parts = line.strip().split()
+                        if len(parts) >= 3:
+                            u_name = parts[0]
+                            try:
+                                r_mb = float(parts[1]) / 1024.0
+                                c_pct = float(parts[2])
+                            except ValueError:
+                                continue
+                            if u_name not in ps_user_stats:
+                                ps_user_stats[u_name] = {"ram_mb": 0.0, "cpu_pct": 0.0}
+                            ps_user_stats[u_name]["ram_mb"] += r_mb
+                            ps_user_stats[u_name]["cpu_pct"] += c_pct
             except Exception:
                 pass
 
-        try:
-            du_res = subprocess.run(["du", "-sk", "/opt/presspanel"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=2)
-            if du_res.returncode == 0 and du_res.stdout.strip():
-                kb_val = int(du_res.stdout.strip().split()[0])
-                panel_disk_gb = round(kb_val / (1024 * 1024), 2)
-        except Exception:
-            panel_disk_gb = 0.15
+        # Danh sách các Linux user dịch vụ cần hiển thị line riêng
+        priority_users = ["presspanel", "mysql", "www-data", "nginx", "valkey", "redis", "lsadm", "nobody"]
+        extra_users = [
+            u for u, st in ps_user_stats.items()
+            if u not in covered_users and u != "root" and (u in priority_users or st["ram_mb"] >= 10.0 or st["cpu_pct"] >= 0.5)
+        ]
+        # Sắp xếp theo RAM giảm dần
+        extra_users.sort(key=lambda u: ps_user_stats[u]["ram_mb"], reverse=True)
 
-        panel_cpu = round(panel_cpu, 1)
-        panel_ram_mb = int(round(panel_ram_mb))
-        record_metric_sample("panel_core", {
-            "t": now_ts,
-            "cpu": panel_cpu,
-            "ram": panel_ram_mb,
-            "disk": panel_disk_gb
-        })
-        panel_hist = _METRICS_TIME_SERIES.get("panel_core", [])
+        USER_DISK_PATHS = {
+            "presspanel": "/opt/presspanel",
+            "mysql": "/var/lib/mysql",
+            "valkey": "/var/lib/valkey",
+            "redis": "/var/lib/redis",
+            "www-data": "/var/www",
+        }
+        USER_COLORS = {
+            "presspanel": "#a855f7",
+            "mysql": "#f97316",
+            "www-data": "#06b6d4",
+            "nginx": "#10b981",
+            "valkey": "#ef4444",
+            "redis": "#ef4444",
+        }
 
-        n_pts = len(cpu_series)
-        panel_cpu_pts = []
-        panel_ram_pts = []
-        panel_disk_pts = []
-        for p_i in range(n_pts):
-            if p_i == n_pts - 1:
-                panel_cpu_pts.append(panel_cpu)
-                panel_ram_pts.append(panel_ram_mb)
-                panel_disk_pts.append(panel_disk_gb)
-            else:
-                pt_ts = (now - datetime.timedelta(minutes=(n_pts - 1 - p_i) * delta_mins)).timestamp()
-                matched_p = [s for s in panel_hist if abs(s["t"] - pt_ts) <= max(3.0, half_window)]
-                if matched_p:
-                    panel_cpu_pts.append(round(sum(s["cpu"] for s in matched_p) / len(matched_p), 1))
-                    panel_ram_pts.append(int(sum(s["ram"] for s in matched_p) / len(matched_p)))
-                    panel_disk_pts.append(round(sum(s["disk"] for s in matched_p) / len(matched_p), 2))
+        for idx_u, u_name in enumerate(extra_users):
+            u_cpu = round(ps_user_stats[u_name]["cpu_pct"], 1)
+            u_ram = int(round(ps_user_stats[u_name]["ram_mb"]))
+            u_disk_gb = 0.0
+            d_path = USER_DISK_PATHS.get(u_name)
+            if d_path and os.path.exists(d_path) and os.name != "nt":
+                try:
+                    du_r = subprocess.run(["du", "-sk", d_path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1.5)
+                    if du_r.returncode == 0 and du_r.stdout.strip():
+                        u_disk_gb = round(int(du_r.stdout.strip().split()[0]) / (1024 * 1024), 2)
+                except Exception:
+                    pass
+
+            record_metric_sample(f"linux_user_{u_name}", {"t": now_ts, "cpu": u_cpu, "ram": u_ram, "disk": u_disk_gb})
+            u_hist = _METRICS_TIME_SERIES.get(f"linux_user_{u_name}", [])
+
+            u_cpu_pts, u_ram_pts, u_disk_pts = [], [], []
+            for p_i in range(n_pts):
+                if p_i == n_pts - 1:
+                    u_cpu_pts.append(u_cpu)
+                    u_ram_pts.append(u_ram)
+                    u_disk_pts.append(u_disk_gb)
                 else:
-                    panel_cpu_pts.append(0.0)
-                    panel_ram_pts.append(panel_ram_mb)
-                    panel_disk_pts.append(panel_disk_gb)
+                    pt_ts = (now - datetime.timedelta(minutes=(n_pts - 1 - p_i) * delta_mins)).timestamp()
+                    matched_u = [s for s in u_hist if abs(s["t"] - pt_ts) <= max(3.0, half_window)]
+                    if matched_u:
+                        u_cpu_pts.append(round(sum(s["cpu"] for s in matched_u) / len(matched_u), 1))
+                        u_ram_pts.append(int(sum(s["ram"] for s in matched_u) / len(matched_u)))
+                        u_disk_pts.append(round(sum(s["disk"] for s in matched_u) / len(matched_u), 2))
+                    else:
+                        u_cpu_pts.append(0.0)
+                        u_ram_pts.append(u_ram)
+                        u_disk_pts.append(u_disk_gb)
 
-        website_series.append({
-            "id": "presspanel_core",
-            "domain_name": "PressPanel (Panel)",
-            "color": "#a855f7",
-            "current_cpu": panel_cpu,
-            "current_ram_mb": panel_ram_mb,
-            "current_ram_pct": round((panel_ram_mb / max(1, total_ram_mb)) * 100, 1),
-            "current_disk_mb": round(panel_disk_gb * 1024, 1),
-            "current_disk_gb": panel_disk_gb,
-            "current_disk_pct": round((panel_disk_gb / max(0.1, total_disk_gb)) * 100, 1),
-            "cpu": panel_cpu_pts,
-            "ram": panel_ram_pts,
-            "disk": panel_disk_pts,
-            "is_panel": True
-        })
+            u_color = USER_COLORS.get(u_name, LINE_COLORS[(len(website_series) + idx_u) % len(LINE_COLORS)])
+            website_series.append({
+                "id": f"linux_user_{u_name}",
+                "domain_name": u_name,
+                "linux_user": u_name,
+                "color": u_color,
+                "current_cpu": u_cpu,
+                "current_ram_mb": u_ram,
+                "current_ram_pct": round((u_ram / max(1, total_ram_mb)) * 100, 1),
+                "current_disk_mb": round(u_disk_gb * 1024, 1),
+                "current_disk_gb": u_disk_gb,
+                "current_disk_pct": round((u_disk_gb / max(0.1, total_disk_gb)) * 100, 1),
+                "cpu": u_cpu_pts,
+                "ram": u_ram_pts,
+                "disk": u_disk_pts
+            })
 
         sys_cpu_pts = []
         sys_ram_pts = []
@@ -1388,8 +1416,9 @@ async def get_resource_monitor(
         curr_sys_disk = sys_disk_pts[-1] if sys_disk_pts else round(max(0.0, base_disk_gb - sum(ws["current_disk_gb"] for ws in website_series)), 2)
 
         website_series.append({
-            "id": "system_other",
-            "domain_name": "Hệ thống & App khác",
+            "id": "linux_user_root",
+            "domain_name": "root (OS)",
+            "linux_user": "root",
             "color": "#94a3b8",
             "current_cpu": curr_sys_cpu,
             "current_ram_mb": curr_sys_ram,
