@@ -874,7 +874,7 @@ async def get_magic_login_user_sso(instance_id: int, user_id: int, current_user:
     """Tạo liên kết Magic Login Single-Use cho bất kỳ User ID nào trong WordPress"""
     db = await get_db_connection()
     cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
+        SELECT w.*, d.domain_name, d.document_root as domain_docroot, d.ssl_enabled, u.username as owner_username
         FROM wp_instances w
         JOIN domains d ON w.domain_id = d.id
         JOIN users u ON d.user_id = u.id
@@ -886,16 +886,23 @@ async def get_magic_login_user_sso(instance_id: int, user_id: int, current_user:
     if not row:
         raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
 
-    if current_user["role"] != "admin" and row["user_id"] != current_user["id"]:
+    is_allowed = (
+        current_user["role"] == "admin"
+        or row["user_id"] == current_user["id"]
+        or (current_user.get("web_domain_id") and current_user.get("web_domain_id") == row["domain_id"])
+    )
+    if not is_allowed:
         raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập website này")
 
+    linux_user = extract_linux_user(row["document_root"] or row["domain_docroot"] or "", row["domain_name"], row["owner_username"])
     token = secrets.token_hex(24)
-    # Gọi C gatekeeper: wp sso_create <username> <domain> <target_user_id> <token>
-    res = await run_gatekeeper("wp", "sso_create", row["owner_username"], row["domain_name"], str(user_id), token)
+    # Gọi C gatekeeper: wp sso_create <linux_user> <domain> <target_user_id> <token> <admin_user>
+    res = await run_gatekeeper("wp", "sso_create", linux_user, row["domain_name"], str(user_id), token, row["admin_user"] or "admin")
     if res.get("status") == "error":
         raise HTTPException(status_code=400, detail=res.get("message", "Tạo liên kết Magic Login thất bại"))
 
-    sso_url = f"http://{row['domain_name']}/?wpc_sso_token={token}"
+    scheme = "https" if row["ssl_enabled"] else "http"
+    sso_url = f"{scheme}://{row['domain_name']}/?wpc_sso_token={token}"
     return {
         "status": "ok",
         "sso_url": sso_url,

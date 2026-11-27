@@ -627,9 +627,9 @@ if ((isset(\$_GET['presspanel_sso_token']) && \$_GET['presspanel_sso_token'] ===
 EOF
 
         if id "$USERNAME" &>/dev/null; then
-            chown "$USERNAME:$USERNAME" "$SSO_FILE" 2>/dev/null || true
-            chmod 644 "$SSO_FILE" 2>/dev/null || true
+            chown "$USERNAME:$USERNAME" "$MU_DIR" "$SSO_FILE" 2>/dev/null || true
         fi
+        chmod 644 "$SSO_FILE" 2>/dev/null || true
         ln -sf "$SSO_FILE" "$MU_DIR/wpc_sso_${TOKEN}.php" 2>/dev/null || true
         echo "[+] Da tao SSO MU-Plugin thanh cong: presspanel_sso_${TOKEN}.php"
         exit 0
