@@ -9866,6 +9866,151 @@ if ($host ~* ^www\\.(.*)$) {
                     } catch (e) {
                         showAlert('Lỗi tạo bản sao lưu: ' + (e.message || e));
                     } finally {
+                        creatingBackup.value = false;
+                    }
+                };
+
+                const handleDeleteBackup = async (backupId) => {
+                    if (!confirm('Bạn có chắc chắn muốn xóa vĩnh viễn bản sao lưu này không?')) return;
+                    try {
+                        const res = await api('/backups/' + backupId, 'DELETE');
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            await fetchBackups();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi xóa bản sao lưu: ' + (e.message || e));
+                    }
+                };
+
+                const handleRestoreBackup = async (backupId) => {
+                    if (!confirm('CẢNH BÁO: Phục hồi sẽ ghi đè toàn bộ mã nguồn website và cơ sở dữ liệu hiện tại! Bạn có chắc muốn tiếp tục?')) return;
+                    try {
+                        const res = await api('/backups/restore/' + backupId, 'POST');
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            await fetchBackups();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi khôi phục: ' + (e.message || e));
+                    }
+                };
+
+                const fetchBackupDestinations = async () => {
+                    loadingDestinations.value = true;
+                    try {
+                        const res = await api('/backups/destinations');
+                        if (res && res.status === 'ok') {
+                            backupDestinations.value = res.data || [];
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải kho lưu trữ cloud:', e);
+                    } finally {
+                        loadingDestinations.value = false;
+                    }
+                };
+
+                const showAddDestModal = ref(false);
+                const savingDest = ref(false);
+                const destForm = ref({
+                    name: '',
+                    type: 's3',
+                    endpoint_url: '',
+                    bucket_name: '',
+                    region: 'us-east-1',
+                    access_key: '',
+                    secret_key: '',
+                    remote_path: '/presspanel_backups'
+                });
+
+                const openAddDestModal = () => {
+                    destForm.value = {
+                        name: '',
+                        type: 's3',
+                        endpoint_url: '',
+                        bucket_name: '',
+                        region: 'us-east-1',
+                        access_key: '',
+                        secret_key: '',
+                        remote_path: '/presspanel_backups'
+                    };
+                    showAddDestModal.value = true;
+                };
+
+                const submitAddDestination = async () => {
+                    if (!destForm.value.name) {
+                        showAlert('Vui lòng nhập tên nhận diện kho lưu trữ!');
+                        return;
+                    }
+                    savingDest.value = true;
+                    try {
+                        const res = await api('/backups/destinations', 'POST', destForm.value);
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            showAddDestModal.value = false;
+                            await fetchBackupDestinations();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi lưu điểm lưu trữ: ' + (e.message || e));
+                    } finally {
+                        savingDest.value = false;
+                    }
+                };
+
+                const handleDeleteDestination = async (destId) => {
+                    if (!confirm('Bạn có chắc muốn xóa điểm lưu trữ Cloud này?')) return;
+                    try {
+                        const res = await api('/backups/destinations/' + destId, 'DELETE');
+                        if (res && res.status === 'ok') {
+                            showAlert(res.message);
+                            await fetchBackupDestinations();
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi xóa kho lưu trữ: ' + (e.message || e));
+                    }
+                };
+
+                const fetchBackupSchedules = async () => {
+                    loadingSchedules.value = true;
+                    try {
+                        const res = await api('/backups/schedules');
+                        if (res && res.status === 'ok') {
+                            backupSchedules.value = res.data || [];
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải lịch sao lưu:', e);
+                    } finally {
+                        loadingSchedules.value = false;
+                    }
+                };
+
+                const showAddScheduleModal = ref(false);
+                const savingSchedule = ref(false);
+                const scheduleForm = ref({
+                    domain_id: '',
+                    frequency: 'daily',
+                    retention_count: 7,
+                    destination_id: ''
+                });
+
+                const openAddScheduleModal = () => {
+                    scheduleForm.value = {
+                        domain_id: domains.value.length > 0 ? domains.value[0].id : '',
+                        frequency: 'daily',
+                        retention_count: 7,
+                        destination_id: ''
+                    };
+                    showAddScheduleModal.value = true;
+                };
+
+                const submitAddSchedule = async () => {
+                    if (!scheduleForm.value.domain_id) {
+                        showAlert('Vui lòng chọn website cần lập lịch!');
+                        return;
+                    }
+                    savingSchedule.value = true;
+                    try {
+                        const res = await api('/backups/schedules', 'POST', {
                             domain_id: parseInt(scheduleForm.value.domain_id),
                             frequency: scheduleForm.value.frequency,
                             retention_count: parseInt(scheduleForm.value.retention_count) || 7,
