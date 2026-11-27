@@ -149,6 +149,13 @@ function showToast(message, type = 'success') {
             -moz-osx-font-smoothing: grayscale;
         }
 
+        /* Global 5px Border-Radius Style */
+        button, input:not([type="checkbox"]):not([type="radio"]), select, textarea,
+        .rounded, .rounded-sm, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl,
+        .swal2-popup, .swal2-styled, .swal2-input {
+            border-radius: 5px !important;
+        }
+
         /* Dark Mode (Default) Theme Styles */
         html.dark, body.dark {
             background-color: #0b0f17 !important;
@@ -6275,7 +6282,13 @@ if ($host ~* ^www\\.(.*)$) {
 
                 const openPreviewImage = async (fileName) => {
                     const cleanName = fileName.replace(/^\/+/, '');
-                    const filePath = (!cleanName.includes('/') && fileCurrentPath.value) ? `${fileCurrentPath.value}/${cleanName}` : cleanName;
+                    let filePath = cleanName;
+                    if (fileCurrentPath.value) {
+                        const prefix = fileCurrentPath.value.replace(/\/+$/, '') + '/';
+                        if (!cleanName.startsWith(prefix)) {
+                            filePath = `${fileCurrentPath.value.replace(/\/+$/, '')}/${cleanName}`;
+                        }
+                    }
                     const targetUserParam = fileTargetUser.value ? `&target_user=${encodeURIComponent(fileTargetUser.value)}` : '';
                     previewImageName.value = cleanName.split('/').pop() || cleanName;
                     if (previewImageUrl.value) {
@@ -6501,8 +6514,11 @@ if ($host ~* ^www\\.(.*)$) {
                     const cleanName = fileName.replace(/^\/+/, '');
                     editingFileName.value = cleanName.split('/').pop() || cleanName;
                     let filePath = cleanName;
-                    if (!cleanName.includes('/') && fileCurrentPath.value) {
-                        filePath = `${fileCurrentPath.value}/${cleanName}`;
+                    if (fileCurrentPath.value) {
+                        const prefix = fileCurrentPath.value.replace(/\/+$/, '') + '/';
+                        if (!cleanName.startsWith(prefix)) {
+                            filePath = `${fileCurrentPath.value.replace(/\/+$/, '')}/${cleanName}`;
+                        }
                     }
                     editingFilePath.value = filePath;
                     editingFileContent.value = 'Đang tải nội dung tệp...';
@@ -9522,223 +9538,6 @@ if ($host ~* ^www\\.(.*)$) {
 
                 watch(showTerminalModal, () => {
                     refreshLucideIcons();
-                });
-
-                watch(showAddDbModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showRootPasswordModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showRemoteDbModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showAdvDbModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showGetDbModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(dbTypeTab, (newTab) => {
-                    if (newTab === 'redis' && (isWebUser.value || currentUser.value?.role === 'user')) {
-                        fetchUserRedisStatus();
-                    }
-                    refreshLucideIcons();
-                });
-
-                const onHashChange = () => {
-                    const newTab = getTabFromHash();
-                    if (currentTab.value !== newTab) {
-                        currentTab.value = newTab;
-                    }
-                };
-
-                let timer = null;
-                onMounted(() => {
-                    applyThemeToDom(isDarkMode.value);
-                    window.addEventListener('hashchange', onHashChange);
-                    const savedUser = localStorage.getItem('wpc_user');
-                    if (savedUser) {
-                        try { currentUser.value = JSON.parse(savedUser); } catch(e){}
-                    }
-                    if (token.value) {
-                        fetchDomains();
-                        if (currentUser.value?.role === 'admin' || currentUser.value?.role === 'reseller') {
-                            fetchCustomers();
-                            fetchServicePlans();
-                        }
-                        fetchSystemStatus();
-                        fetchAppsList();
-                        fetchTasks();
-                        fetchUserProfile();
-                        fetchDatabasesList();
-                        fetchInstalledPhpList();
-                        fetchWpInstances();
-                        if (isWebUser.value || currentUser.value?.role === 'user') {
-                            fetchUserRedisStatus();
-                        }
-                        if (currentUser.value?.role === 'admin') {
-                            fetchPanelVersion();
-                        }
-                        fetchCrons();
-                        fetchSystemWebsites();
-                    }
-                    refreshLucideIcons();
-                    // Tự động làm mới số liệu và kiểm tra task chạy ngầm mỗi 3 giây
-                    timer = setInterval(() => {
-                        if (token.value) {
-                            fetchSystemStatus(); // Cập nhật live tài nguyên CPU, RAM, Disk trên Header
-                            if (currentTab.value === 'domains') {
-                                fetchDomains();
-                            }
-                            if (currentTab.value === 'monitoring' && !loadingMonitor.value) {
-                                fetchResourceMonitorData();
-                            }
-                            if (currentTab.value === 'apps' && (runningTasks.value.length > 0 || activeInstallingAppIds.value.length > 0)) {
-                                fetchAppsList();
-                            }
-                            fetchTasks();
-                        }
-                    }, 3000);
-
-                    if (currentTab.value === 'firewall') {
-                        fetchFirewallData();
-                    }
-                });
-
-                // ==========================================
-                // FIREWALL & SECURITY MANAGEMENT
-                // ==========================================
-                const api = async (endpoint, method = 'GET', body = null) => {
-                    const opts = {
-                        method,
-                        headers: {
-                            'Authorization': `Bearer ${token.value}`
-                        }
-                    };
-                    if (body) {
-                        opts.headers['Content-Type'] = 'application/json';
-                        opts.body = JSON.stringify(body);
-                    }
-                    const res = await fetch('/api/v1' + endpoint, opts);
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) {
-                        throw new Error(data.detail || data.message || `Lỗi HTTP ${res.status}`);
-                    }
-                    return data;
-                };
-
-                const firewallSubTab = ref('rules');
-                const firewallData = ref({ firewall: { active: true, ping_enabled: true, ports_count: 0, ips_count: 0, type: 'iptables' }, rules: [] });
-                const loadingFirewall = ref(false);
-                const firewallSearchQuery = ref('');
-                const togglingPing = ref(false);
-                const showOpenPortModal = ref(false);
-                const showAddIpModal = ref(false);
-                const savingRule = ref(false);
-
-                const portForm = ref({
-                    port: 8080,
-                    protocol: 'tcp',
-                    action: 'allow',
-                    ip_source: '0.0.0.0/0',
-                    comment: ''
-                });
-
-                const ipForm = ref({
-                    ip_source: '',
-                    action: 'deny',
-                    comment: ''
-                });
-
-                const securityAudit = ref({
-                    score: 0,
-                    max_score: 8,
-                    rating: '',
-                    checks: []
-                });
-                const runningAudit = ref(false);
-                const fixingSecurity = ref(false);
-                const securityLogs = ref([]);
-
-                const filteredFirewallRules = computed(() => {
-                    let rules = firewallData.value.rules || [];
-                    if (firewallSearchQuery.value && firewallSearchQuery.value.trim()) {
-                        const q = firewallSearchQuery.value.toLowerCase().trim();
-                        rules = rules.filter(r =>
-                            (r.port && String(r.port).includes(q)) ||
-                            (r.ip_source && r.ip_source.toLowerCase().includes(q)) ||
-                            (r.comment && r.comment.toLowerCase().includes(q)) ||
-                            (r.protocol && r.protocol.toLowerCase().includes(q)) ||
-                            (r.action && r.action.toLowerCase().includes(q))
-                        );
-                    }
-                    return rules;
-                });
-
-                const fetchFirewallData = async () => {
-                    loadingFirewall.value = true;
-                    try {
-                        const res = await api('/system/firewall/status');
-                        if (res && res.status === 'ok') {
-                            firewallData.value = res;
-                        }
-                    } catch (e) {
-                        console.error('Lỗi tải dữ liệu tường lửa:', e);
-                    } finally {
-                        loadingFirewall.value = false;
-                    }
-                };
-
-                const handleTogglePing = async () => {
-                    const currentPing = firewallData.value.firewall ? firewallData.value.firewall.ping_enabled : true;
-                    const nextPing = !currentPing;
-                    togglingPing.value = true;
-                    try {
-                        const res = await api('/system/firewall/toggle-ping', 'POST', { enabled: nextPing });
-                        if (res && res.status === 'ok') {
-                            showAlert(res.message);
-                            if (firewallData.value.firewall) {
-                                firewallData.value.firewall.ping_enabled = nextPing;
-                            }
-                        }
-                    } catch (e) {
-                        showAlert('Lỗi khi cấu hình Ping: ' + (e.message || e));
-                    } finally {
-                        togglingPing.value = false;
-                    }
-                };
-
-                const openOpenPortModal = () => {
-                    portForm.value = {
-                        port: 8080,
-                        protocol: 'tcp',
-                        action: 'allow',
-                        ip_source: '0.0.0.0/0',
-                        comment: ''
-                    };
-                    showOpenPortModal.value = true;
-                };
-
-                const applyPortPreset = (port, comment) => {
-                    portForm.value.port = port;
-                    portForm.value.comment = comment;
-                    portForm.value.action = 'allow';
-                    portForm.value.protocol = 'tcp';
-                };
-
-                const submitAddPortRule = async () => {
-                    if (!portForm.value.port || portForm.value.port < 1 || portForm.value.port > 65535) {
-                        showAlert('Vui lòng nhập số cổng hợp lệ từ 1 đến 65535!');
-                        return;
-                    }
-                    savingRule.value = true;
-                    try {
                         const res = await api('/system/firewall/rule', 'POST', {
                             rule_type: 'port',
                             port: portForm.value.port,

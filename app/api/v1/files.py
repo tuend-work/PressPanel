@@ -855,28 +855,97 @@ async def calculate_size(
     }
 
 
-def _load_recycle_metadata(meta_file: str) -> List[Dict[str, Any]]:
-    if not os.path.isfile(meta_file):
-        return []
+def _load_recycle_metadata(meta_file: str, recycle_dir: str = "") -> List[Dict[str, Any]]:
+    metadata: List[Dict[str, Any]] = []
+    raw_text: Optional[str] = None
     try:
-        with open(meta_file, "r", encoding="utf-8") as mf:
-            data = json.load(mf)
-            return data if isinstance(data, list) else []
+        if os.path.isfile(meta_file):
+            with open(meta_file, "r", encoding="utf-8") as mf:
+                raw_text = mf.read()
     except Exception:
+        raw_text = None
+
+    if raw_text is None and platform.system() == "Linux":
+        try:
+            proc = subprocess.run(["sudo", "cat", meta_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+            if proc.returncode == 0 and proc.stdout.strip():
+                raw_text = proc.stdout
+        except Exception:
+            pass
+
+    if raw_text:
+        try:
+            data = json.loads(raw_text)
+            if isinstance(data, list):
+                metadata = data
+        except Exception:
+            metadata = []
+
+    if not recycle_dir:
+        return metadata
+
+    # Quét thực tế các mục đang có trong .recycle_bin để đồng bộ & tránh trống oan
+    actual_entries: Dict[str, bool] = {}
+    try:
+        with os.scandir(recycle_dir) as entries:
+            for e in entries:
+                if e.name != "metadata.json":
+                    actual_entries[e.name] = e.is_dir(follow_symlinks=False)
+    except Exception:
+        if platform.system() == "Linux":
+            try:
+                proc = subprocess.run(["sudo", "ls", "-1Ap", recycle_dir], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+                if proc.returncode == 0:
+                    for line in proc.stdout.splitlines():
+                        line = line.strip()
+                        if not line or line == "metadata.json":
+                            continue
+                        is_d = line.endswith("/")
+                        actual_entries[line.rstrip("/")] = is_d
+            except Exception:
+                pass
+
+    if not actual_entries:
         return []
+
+    known_names = set()
+    synced: List[Dict[str, Any]] = []
+    for m in metadata:
+        rn = m.get("recycle_name")
+        if rn and rn in actual_entries:
+            synced.append(m)
+            known_names.add(rn)
+
+    base_parent = os.path.dirname(recycle_dir)
+    for rn, is_d in actual_entries.items():
+        if rn not in known_names:
+            parts = rn.split("_", 2)
+            orig_name = parts[2] if len(parts) == 3 and parts[0].isdigit() else (rn.split("_", 1)[1] if "_" in rn and rn.split("_", 1)[0].isdigit() else rn)
+            synced.append({
+                "id": parts[0] if parts[0].isdigit() else rn,
+                "original_name": orig_name,
+                "recycle_name": rn,
+                "original_path": os.path.join(base_parent, orig_name),
+                "deleted_at": int(time.time()),
+                "is_dir": is_d,
+            })
+
+    return synced
 
 
 def _save_recycle_metadata(meta_file: str, metadata: List[Dict[str, Any]], owner_ref: str):
     try:
         with open(meta_file, "w", encoding="utf-8") as mf:
             json.dump(metadata, mf, indent=2, ensure_ascii=False)
+        os.chmod(meta_file, 0o644)
         sync_owner(meta_file)
-    except PermissionError:
+    except Exception:
         tmp_fd, tmp_p = tempfile.mkstemp(prefix="pp_meta_", suffix=".json")
         try:
             with os.fdopen(tmp_fd, "w", encoding="utf-8") as mf:
                 json.dump(metadata, mf, indent=2, ensure_ascii=False)
             subprocess.run(["sudo", "cp", tmp_p, meta_file], check=False)
+            subprocess.run(["sudo", "chmod", "644", meta_file], check=False)
             sync_owner(meta_file)
         finally:
             if os.path.exists(tmp_p):
@@ -894,7 +963,7 @@ async def batch_delete_files(
 
     recycle_dir = get_recycle_bin_dir(base_dir) if req.use_recycle_bin else ""
     meta_file = os.path.join(recycle_dir, "metadata.json") if req.use_recycle_bin else ""
-    metadata = _load_recycle_metadata(meta_file) if req.use_recycle_bin else []
+    metadata = _load_recycle_metadata(meta_file, recycle_dir) if req.use_recycle_bin else []
 
     deleted_count = 0
     for item_name in req.items:
@@ -963,7 +1032,7 @@ async def delete_file_or_dir(
     if req.use_recycle_bin:
         recycle_dir = get_recycle_bin_dir(base_dir)
         meta_file = os.path.join(recycle_dir, "metadata.json")
-        metadata = _load_recycle_metadata(meta_file)
+        metadata = _load_recycle_metadata(meta_file, recycle_dir)
         ts = int(time.time() * 1000)
         recycle_name = f"{ts}_{item_base}"
         dest = os.path.join(recycle_dir, recycle_name)
@@ -1005,7 +1074,7 @@ async def get_recycle_bin(
     base_dir, _ = await resolve_base_and_target(current_user, target_user, "")
     recycle_dir = get_recycle_bin_dir(base_dir)
     meta_file = os.path.join(recycle_dir, "metadata.json")
-    items = _load_recycle_metadata(meta_file)
+    items = _load_recycle_metadata(meta_file, recycle_dir)
     return {"status": "ok", "items": list(reversed(items)), "count": len(items)}
 
 
@@ -1018,7 +1087,7 @@ async def restore_from_recycle_bin(
     base_dir, _ = await resolve_base_and_target(current_user, target_user, "")
     recycle_dir = get_recycle_bin_dir(base_dir)
     meta_file = os.path.join(recycle_dir, "metadata.json")
-    metadata = _load_recycle_metadata(meta_file)
+    metadata = _load_recycle_metadata(meta_file, recycle_dir)
     if not metadata:
         raise HTTPException(status_code=404, detail="Thùng rác trống.")
 

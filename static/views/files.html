@@ -31,25 +31,26 @@
                 <i data-lucide="home" class="w-4 h-4"></i>
             </button>
 
-            <!-- Breadcrumb Container -->
-            <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0b1120] border border-slate-700 flex-1 overflow-x-auto min-w-0 font-mono text-[11px] text-slate-300 custom-scrollbar">
-                <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold shrink-0"
-                    :title="'Sandbox Scope: ' + (fileTargetUser || currentUser.username)">
-                    🔒 {{ fileTargetUser || currentUser.username }}
-                </span>
-                <button type="button" @click="fetchFilesList('')" class="hover:text-blue-400 transition hover:underline shrink-0">
-                    /
-                </button>
-                <template v-for="(part, idx) in pathParts" :key="idx">
-                    <span class="text-slate-600 select-none">/</span>
-                    <button type="button" @click="navigateBreadcrumb(idx)" class="hover:text-blue-400 transition hover:underline truncate max-w-[140px]">
-                        {{ part }}
+            <!-- Address Bar (Full Copyable Path /home/user/... + Clickable Segments, No Extra Slash) -->
+            <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0b1120] border border-slate-700 flex-1 overflow-x-auto min-w-0 font-mono text-[11px] text-slate-200 custom-scrollbar select-text">
+                <span class="text-emerald-400 shrink-0 mr-1" :title="'Scope: ' + (fileTargetUser || currentUser.username)">🔒</span>
+                <div class="flex items-center flex-nowrap whitespace-nowrap select-text">
+                    <button type="button" @click="fetchFilesList('')"
+                        class="hover:text-blue-400 transition hover:underline select-text font-semibold text-emerald-300">
+                        {{ (currentUser.role === 'admin' && !fileTargetUser) ? '/home' : ('/home/' + (fileTargetUser || currentUser.username)) }}
                     </button>
-                </template>
+                    <template v-for="(part, idx) in pathParts" :key="idx">
+                        <span class="text-slate-500 select-text">/</span>
+                        <button type="button" @click="navigateBreadcrumb(idx)"
+                            class="hover:text-blue-400 transition hover:underline select-text">
+                            {{ part }}
+                        </button>
+                    </template>
+                </div>
 
                 <div class="ml-auto flex items-center gap-1.5 pl-2 shrink-0">
                     <button v-if="fileAbsolutePath" type="button" @click="copyFileAbsPath"
-                        class="text-slate-500 hover:text-slate-200 transition p-0.5" :title="'Copy đường dẫn: ' + fileAbsolutePath">
+                        class="text-slate-400 hover:text-white transition p-0.5" :title="'Copy toàn bộ đường dẫn: ' + fileAbsolutePath">
                         <i data-lucide="copy" class="w-3.5 h-3.5"></i>
                     </button>
                     <button type="button" @click="fetchFilesList(fileCurrentPath)"
@@ -246,7 +247,20 @@
                         </td>
                     </tr>
 
-                    <tr v-else-if="filteredFiles.length === 0">
+                    <!-- Thư mục đầu tiên: Quay về thư mục ngoài (..) -->
+                    <tr v-if="!loadingFiles && fileCurrentPath" @click="goUpDirectory"
+                        class="hover:bg-slate-800/45 cursor-pointer transition-colors text-[11px] bg-[#0e1525]">
+                        <td class="py-2.5 px-3.5 text-center text-slate-600">-</td>
+                        <td class="py-2.5 px-3" colspan="5">
+                            <div class="flex items-center gap-2 font-mono font-semibold text-amber-300 hover:text-blue-400">
+                                <span class="text-base">📁</span>
+                                <span>..</span>
+                                <span class="text-[10px] text-slate-400 font-sans font-normal">(Quay về thư mục ngoài)</span>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr v-if="!loadingFiles && filteredFiles.length === 0">
                         <td colspan="6" class="py-12 text-center text-slate-500">
                             <span class="text-3xl block mb-2">📁</span>
                             <p class="font-medium text-slate-300">Thư mục trống (hoặc không tìm thấy tệp phù hợp)</p>
@@ -363,6 +377,12 @@
                 <p class="font-medium text-slate-300">Thư mục trống</p>
             </div>
             <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                <div v-if="fileCurrentPath" @click="goUpDirectory"
+                    class="p-3 rounded-xl border border-slate-800 bg-[#0e1525] hover:border-blue-500/60 cursor-pointer transition flex flex-col items-center justify-center text-center gap-1">
+                    <div class="text-3xl">📁</div>
+                    <div class="font-mono text-xs text-amber-300 font-bold">..</div>
+                    <div class="text-[10px] text-slate-400">Quay về thư mục ngoài</div>
+                </div>
                 <div v-for="item in paginatedFiles" :key="'grid_' + item.name"
                     :class="['relative p-3 rounded-xl border transition group flex flex-col justify-between gap-2',
                         selectedFileNames.includes(item.name) ? 'bg-blue-950/35 border-blue-500/60' : 'bg-[#0b1120] border-slate-800 hover:border-slate-600']">
