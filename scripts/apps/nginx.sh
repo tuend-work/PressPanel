@@ -243,7 +243,7 @@ EOF_CACHE
             rm -f /etc/nginx/conf.d/00_wp_optimization.conf 2>/dev/null || true
             rm -f /etc/nginx/conf.d/00_wp_compression.conf 2>/dev/null || true
 
-            # 2.3 CẤU HÌNH BROTLI NẾU ĐƯỢC HỖ TRỢ VÀ VALIDATE CÚ PHÁP
+            # 2.3 CÀI ĐẶT & CẤU HÌNH GOOGLE BROTLI (ngx_brotli) CHO WORDPRESS / LARAVEL
             HAS_BR="no"
             if nginx -V 2>&1 | grep -qE "ngx_brotli|brotli"; then
                 HAS_BR="yes"
@@ -251,15 +251,59 @@ EOF_CACHE
                 HAS_BR="yes"
             fi
 
+            if [ "$HAS_BR" != "yes" ] && [ "$VERSION" != "openresty" ]; then
+                NGX_CUR_VER=$(nginx -v 2>&1 | sed -n 's/.*nginx\/\([0-9.]*\).*/\1/p' || true)
+                if [ -n "$NGX_CUR_VER" ]; then
+                    echo "[+] Đang biên dịch dynamic module ngx_brotli tương thích Nginx ${NGX_CUR_VER}..."
+                    if command -v apt-get &>/dev/null; then
+                        apt-get install -y --no-install-recommends gcc g++ make git cmake libpcre2-dev zlib1g-dev libssl-dev curl ca-certificates 2>/dev/null || true
+                    elif command -v dnf &>/dev/null; then
+                        dnf install -y gcc gcc-c++ make git cmake pcre2-devel zlib-devel openssl-devel curl tar 2>/dev/null || true
+                    elif command -v yum &>/dev/null; then
+                        yum install -y gcc gcc-c++ make git cmake pcre-devel zlib-devel openssl-devel curl tar 2>/dev/null || true
+                    fi
+
+                    BR_BUILD_DIR="/tmp/wpc_ngx_brotli_build"
+                    rm -rf "$BR_BUILD_DIR" && mkdir -p "$BR_BUILD_DIR"
+                    if curl -fsSL "https://nginx.org/download/nginx-${NGX_CUR_VER}.tar.gz" -o "$BR_BUILD_DIR/nginx.tar.gz" && \
+                       tar -xzf "$BR_BUILD_DIR/nginx.tar.gz" -C "$BR_BUILD_DIR" && \
+                       git clone --depth=1 --recurse-submodules https://github.com/google/ngx_brotli.git "$BR_BUILD_DIR/ngx_brotli"; then
+                        (
+                            cd "$BR_BUILD_DIR/nginx-${NGX_CUR_VER}" && \
+                            ./configure --with-compat --add-dynamic-module=../ngx_brotli >/dev/null 2>&1 && \
+                            make -j"$(nproc 2>/dev/null || echo 2)" modules >/dev/null 2>&1
+                        ) || true
+                        if [ -f "$BR_BUILD_DIR/nginx-${NGX_CUR_VER}/objs/ngx_http_brotli_filter_module.so" ]; then
+                            mkdir -p /usr/lib/nginx/modules
+                            cp -f "$BR_BUILD_DIR/nginx-${NGX_CUR_VER}/objs/ngx_http_brotli_filter_module.so" /usr/lib/nginx/modules/
+                            cp -f "$BR_BUILD_DIR/nginx-${NGX_CUR_VER}/objs/ngx_http_brotli_static_module.so" /usr/lib/nginx/modules/ 2>/dev/null || true
+                            HAS_BR="yes"
+                            echo "[+] Biên dịch ngx_brotli thành công!"
+                        fi
+                    fi
+                    rm -rf "$BR_BUILD_DIR"
+                fi
+            fi
+
             if [ "$HAS_BR" = "yes" ]; then
+                # Nạp dynamic modules vào /etc/nginx/nginx.conf nếu dùng .so
+                if [ -f /usr/lib/nginx/modules/ngx_http_brotli_filter_module.so ] && [ -f /etc/nginx/nginx.conf ]; then
+                    if ! grep -q "ngx_http_brotli_filter_module.so" /etc/nginx/nginx.conf; then
+                        sed -i '1i load_module /usr/lib/nginx/modules/ngx_http_brotli_filter_module.so;' /etc/nginx/nginx.conf
+                    fi
+                    if [ -f /usr/lib/nginx/modules/ngx_http_brotli_static_module.so ] && ! grep -q "ngx_http_brotli_static_module.so" /etc/nginx/nginx.conf; then
+                        sed -i '1i load_module /usr/lib/nginx/modules/ngx_http_brotli_static_module.so;' /etc/nginx/nginx.conf
+                    fi
+                fi
                 echo "[+] Phát hiện module ngx_brotli: Cấu hình nén Google Brotli an toàn..."
                 cat << 'EOF_BR' > /etc/nginx/conf.d/00_wp_brotli.conf
 # WPCloud Google Brotli Compression Engine
 brotli on;
+brotli_static on;
 brotli_comp_level 6;
-brotli_types text/plain text/css text/xml text/javascript application/json application/javascript application/x-javascript application/xml application/xml+rss application/rss+xml application/atom+xml image/svg+xml;
+brotli_types text/plain text/css text/xml text/javascript application/json application/javascript application/x-javascript application/xml application/xml+rss application/rss+xml application/atom+xml image/svg+xml font/woff font/woff2;
 EOF_BR
-                # Kiểm tra cú pháp, nếu brotli directive chưa được compile thì tự động dọn dẹp
+                # Kiểm tra cú pháp, nếu brotli directive chưa được nạp thì tự động dọn dẹp
                 if ! nginx -t 2>/dev/null; then
                     echo "[-] Module Brotli chưa được nạp vào Nginx core, tự động loại bỏ để đảm bảo ổn định."
                     rm -f /etc/nginx/conf.d/00_wp_brotli.conf 2>/dev/null || true

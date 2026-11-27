@@ -1277,10 +1277,81 @@ async def get_resource_monitor(
 
     website_series.sort(key=lambda x: x["current_cpu"], reverse=True)
 
-    # Đảm bảo Tổng CPU/RAM/Disk của Server tại mọi mốc thời gian luôn >= tổng các website cộng lại
-    # và bổ sung đường "Hệ thống & App khác" (OS, MariaDB, Nginx, Redis, Panel...) để biểu đồ phản ánh 100% thực tế
+    # 4.2. Bổ sung line riêng cho tài nguyên của PressPanel (Panel) và phần Hệ thống & App khác
     if target_scope == "server":
+        panel_cpu = 0.0
+        panel_ram_mb = 0.0
+        panel_disk_gb = 0.0
+        try:
+            for proc in psutil.process_iter(['pid', 'name', 'username', 'cmdline', 'cpu_percent', 'memory_info']):
+                try:
+                    uname = (proc.info.get('username') or '').lower()
+                    cmd = " ".join(proc.info.get('cmdline') or []).lower()
+                    if uname == 'presspanel' or '/opt/presspanel' in cmd:
+                        panel_cpu += float(proc.info.get('cpu_percent') or 0.0)
+                        mem_info = proc.info.get('memory_info')
+                        if mem_info:
+                            panel_ram_mb += float(mem_info.rss) / (1024 * 1024)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        except Exception:
+            pass
+
+        try:
+            du_res = subprocess.run(["du", "-sk", "/opt/presspanel"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=2)
+            if du_res.returncode == 0 and du_res.stdout.strip():
+                kb_val = int(du_res.stdout.strip().split()[0])
+                panel_disk_gb = round(kb_val / (1024 * 1024), 2)
+        except Exception:
+            panel_disk_gb = 0.15
+
+        panel_cpu = round(panel_cpu, 1)
+        panel_ram_mb = int(round(panel_ram_mb))
+        record_metric_sample("panel_core", {
+            "t": now_ts,
+            "cpu": panel_cpu,
+            "ram": panel_ram_mb,
+            "disk": panel_disk_gb
+        })
+        panel_hist = _METRICS_TIME_SERIES.get("panel_core", [])
+
         n_pts = len(cpu_series)
+        panel_cpu_pts = []
+        panel_ram_pts = []
+        panel_disk_pts = []
+        for p_i in range(n_pts):
+            if p_i == n_pts - 1:
+                panel_cpu_pts.append(panel_cpu)
+                panel_ram_pts.append(panel_ram_mb)
+                panel_disk_pts.append(panel_disk_gb)
+            else:
+                pt_ts = point_timestamps[p_i] if p_i < len(point_timestamps) else now_ts
+                matched_p = [s for s in panel_hist if abs(s["t"] - pt_ts) <= bucket_sec]
+                if matched_p:
+                    panel_cpu_pts.append(round(sum(s["cpu"] for s in matched_p) / len(matched_p), 1))
+                    panel_ram_pts.append(int(sum(s["ram"] for s in matched_p) / len(matched_p)))
+                    panel_disk_pts.append(round(sum(s["disk"] for s in matched_p) / len(matched_p), 2))
+                else:
+                    panel_cpu_pts.append(0.0)
+                    panel_ram_pts.append(panel_ram_mb)
+                    panel_disk_pts.append(panel_disk_gb)
+
+        website_series.append({
+            "id": "presspanel_core",
+            "domain_name": "PressPanel (Panel)",
+            "color": "#a855f7",
+            "current_cpu": panel_cpu,
+            "current_ram_mb": panel_ram_mb,
+            "current_ram_pct": round((panel_ram_mb / max(1, total_ram_mb)) * 100, 1),
+            "current_disk_mb": round(panel_disk_gb * 1024, 1),
+            "current_disk_gb": panel_disk_gb,
+            "current_disk_pct": round((panel_disk_gb / max(0.1, total_disk_gb)) * 100, 1),
+            "cpu": panel_cpu_pts,
+            "ram": panel_ram_pts,
+            "disk": panel_disk_pts,
+            "is_panel": True
+        })
+
         sys_cpu_pts = []
         sys_ram_pts = []
         sys_disk_pts = []
