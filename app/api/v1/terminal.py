@@ -7,6 +7,8 @@ import termios
 import struct
 import secrets
 import time
+import json
+import re
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, status
 from app.core.security import decode_token
@@ -15,17 +17,21 @@ from app.db.session import get_db_connection
 
 router = APIRouter(prefix="/terminal", tags=["SSH Web Terminal"])
 
-# Vé một lần (one-time ticket) thời hạn ngắn cho WebSocket Terminal, tránh lộ JWT trên URL
-_WS_TICKETS: Dict[str, Dict[str, Any]] = {}
-
 @router.post("/ticket")
 async def create_terminal_ticket(current_user: dict = Depends(get_current_user)):
     now = time.time()
-    # Dọn dẹp vé hết hạn
-    for k in [tk for tk, v in _WS_TICKETS.items() if v["exp"] < now]:
-        _WS_TICKETS.pop(k, None)
     ticket = secrets.token_urlsafe(24)
-    _WS_TICKETS[ticket] = {"user": current_user, "exp": now + 30.0}
+    db = await get_db_connection()
+    try:
+        await db.execute("CREATE TABLE IF NOT EXISTS terminal_tickets (ticket TEXT PRIMARY KEY, user_json TEXT, exp REAL)")
+        await db.execute("DELETE FROM terminal_tickets WHERE exp < ?", (now,))
+        await db.execute(
+            "INSERT INTO terminal_tickets (ticket, user_json, exp) VALUES (?, ?, ?)",
+            (ticket, json.dumps(current_user), now + 30.0)
+        )
+        await db.commit()
+    finally:
+        await db.close()
     return {"ticket": ticket, "expires_in": 30}
 
 @router.websocket("/ws")
@@ -49,15 +55,31 @@ async def terminal_websocket(
     web_domain_id = None
     web_user_name = None
 
-    if ticket and ticket in _WS_TICKETS:
-        t_data = _WS_TICKETS.pop(ticket)
-        if time.time() <= t_data["exp"]:
-            u_obj = t_data["user"]
+    if ticket:
+        t_row = None
+        db_t = await get_db_connection()
+        try:
+            await db_t.execute("CREATE TABLE IF NOT EXISTS terminal_tickets (ticket TEXT PRIMARY KEY, user_json TEXT, exp REAL)")
+            cur_t = await db_t.execute("SELECT user_json, exp FROM terminal_tickets WHERE ticket = ?", (ticket,))
+            t_row = await cur_t.fetchone()
+            if t_row:
+                await db_t.execute("DELETE FROM terminal_tickets WHERE ticket = ?", (ticket,))
+                await db_t.commit()
+        finally:
+            await db_t.close()
+
+        if not t_row:
+            await websocket.send_text("\r\n\x1b[31m[Lỗi] Vé phiên Terminal không hợp lệ hoặc đã sử dụng!\x1b[0m\r\n")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        if time.time() <= float(t_row["exp"]):
+            u_obj = json.loads(t_row["user_json"])
             user_id = u_obj["id"]
-            is_admin = (u_obj["role"] == "admin" or u_obj["username"] == "admin")
-            is_web_user = "web_domain_id" in u_obj and "web_user_name" in u_obj
+            is_admin = (u_obj.get("role") == "admin" or u_obj.get("username") == "admin")
+            is_web_user = (u_obj.get("role") == "application" or bool(u_obj.get("web_domain_id")))
             web_domain_id = u_obj.get("web_domain_id")
-            web_user_name = u_obj.get("web_user_name")
+            web_user_name = u_obj.get("web_user_name") or u_obj.get("username")
         else:
             await websocket.send_text("\r\n\x1b[31m[Lỗi] Vé phiên Terminal đã hết hạn!\x1b[0m\r\n")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -78,9 +100,9 @@ async def terminal_websocket(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
         is_admin = (user["role"] == "admin" or user["username"] == "admin")
-        is_web_user = "web_domain_id" in payload and "web_user_name" in payload
+        is_web_user = (payload.get("role") == "application" or bool(payload.get("web_domain_id")))
         web_domain_id = payload.get("web_domain_id")
-        web_user_name = payload.get("web_user_name")
+        web_user_name = payload.get("web_user_name") or user["username"]
     else:
         await websocket.send_text("\r\n\x1b[31m[Lỗi] Thiếu vé xác thực Terminal!\x1b[0m\r\n")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -89,7 +111,12 @@ async def terminal_websocket(
     # Xác định user mục tiêu trên Linux
     db = await get_db_connection()
     if is_web_user:
-        # Website User: Kết nối bằng quyền của chính mình trong Cage cách ly
+        # Website User / Application: Kết nối bằng quyền Linux user của website trong Cage cách ly
+        if web_domain_id and not web_user_name:
+            cur_dom = await db.execute("SELECT domain_name FROM domains WHERE id = ?", (web_domain_id,))
+            d_row = await cur_dom.fetchone()
+            if d_row and d_row["domain_name"]:
+                web_user_name = re.sub(r'[^a-zA-Z0-9]', '', str(d_row["domain_name"])).lower()
         target_username = web_user_name
     elif is_admin:
         if target_user and target_user != "root":
