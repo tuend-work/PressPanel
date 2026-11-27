@@ -66,6 +66,17 @@ class CFZoneSettingsRequest(BaseModel):
     security_level: Optional[str] = None
     brotli: Optional[str] = None
     browser_cache_ttl: Optional[int] = None
+    browser_check: Optional[str] = None
+    challenge_ttl: Optional[int] = None
+    hotlink_protection: Optional[str] = None
+    email_obfuscation: Optional[str] = None
+    bot_fight_mode: Optional[bool] = None
+
+
+class CFUnderAttackRequest(BaseModel):
+    domain_id: int
+    enabled: bool
+    fallback_level: str = "medium"
 
 
 async def _ensure_cf_tables(db):
@@ -476,14 +487,42 @@ async def delete_cf_ip_rule(rule_id: str, domain_id: int = Query(...), current_u
     return {"status": "ok", "message": "Đã gỡ bỏ quy tắc chặn IP trên Cloudflare."}
 
 
+@router.post("/under-attack")
+async def toggle_cf_under_attack(req: CFUnderAttackRequest, current_user: dict = Depends(get_current_user)):
+    _, cfg, _ = await _resolve_domain_and_cf(req.domain_id, current_user)
+    token, zone_id = _require_cf_connected(cfg)
+    target_level = "under_attack" if req.enabled else (req.fallback_level or "medium")
+    _cf_request(token, "PATCH", f"/zones/{zone_id}/settings/security_level", {"value": target_level})
+    return {
+        "status": "ok",
+        "security_level": target_level,
+        "enabled": req.enabled,
+        "message": "Đã BẬT chế độ I'm Under Attack! (Chống DDoS khẩn cấp)" if req.enabled else f"Đã TẮT Under Attack (Chuyển về mức {target_level})."
+    }
+
+
 @router.get("/settings")
 async def get_cf_zone_settings(domain_id: int = Query(...), current_user: dict = Depends(get_current_user)):
     _, cfg, _ = await _resolve_domain_and_cf(domain_id, current_user)
     token, zone_id = _require_cf_connected(cfg)
     res = _cf_request(token, "GET", f"/zones/{zone_id}/settings")
     raw_items = res.get("result") or []
-    wanted = {"ssl", "always_use_https", "security_level", "brotli", "browser_cache_ttl", "development_mode"}
+    wanted = {
+        "ssl", "always_use_https", "security_level", "brotli",
+        "browser_cache_ttl", "development_mode", "browser_check",
+        "challenge_ttl", "hotlink_protection", "email_obfuscation"
+    }
     parsed = {it["id"]: it["value"] for it in raw_items if it.get("id") in wanted}
+
+    # Bot Fight Mode (nếu Token có quyền Bot Management)
+    parsed["bot_fight_mode"] = False
+    try:
+        bot_res = _cf_request(token, "GET", f"/zones/{zone_id}/bot_management")
+        bot_result = bot_res.get("result") or {}
+        parsed["bot_fight_mode"] = bool(bot_result.get("fight_mode", False))
+    except Exception:
+        pass
+
     return {"status": "ok", "settings": parsed}
 
 
@@ -502,10 +541,26 @@ async def update_cf_zone_settings(req: CFZoneSettingsRequest, current_user: dict
         updates.append({"id": "brotli", "value": req.brotli})
     if req.browser_cache_ttl is not None:
         updates.append({"id": "browser_cache_ttl", "value": int(req.browser_cache_ttl)})
+    if req.browser_check:
+        updates.append({"id": "browser_check", "value": req.browser_check})
+    if req.challenge_ttl is not None:
+        updates.append({"id": "challenge_ttl", "value": int(req.challenge_ttl)})
+    if req.hotlink_protection:
+        updates.append({"id": "hotlink_protection", "value": req.hotlink_protection})
+    if req.email_obfuscation:
+        updates.append({"id": "email_obfuscation", "value": req.email_obfuscation})
 
     if updates:
         _cf_request(token, "PATCH", f"/zones/{zone_id}/settings", {"items": updates})
-    return {"status": "ok", "message": "Đã cập nhật cấu hình tối ưu Cloudflare thành công!"}
+
+    bot_note = ""
+    if req.bot_fight_mode is not None:
+        try:
+            _cf_request(token, "PUT", f"/zones/{zone_id}/bot_management", {"fight_mode": bool(req.bot_fight_mode)})
+        except HTTPException as be:
+            bot_note = f" (Lưu ý Bot Fight Mode chưa cập nhật được: {be.detail} — hãy kiểm tra quyền Bot Management:Edit trên API Token)"
+
+    return {"status": "ok", "message": f"Đã cập nhật cấu hình bảo mật & tối ưu Cloudflare thành công!{bot_note}"}
 
 
 async def start_cloudflare_fail2ban_sync_worker():

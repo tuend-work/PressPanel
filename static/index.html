@@ -8382,7 +8382,19 @@ if ($host ~* ^www\\.(.*)$) {
                 const cfBlockIpForm = ref({ ip: '', mode: 'block', note: '' });
                 const cfIpRules = ref([]);
                 const cfPurgeUrlsText = ref('');
-                const cfZoneSettings = ref({ ssl: 'strict', always_use_https: 'on', security_level: 'medium', brotli: 'on', browser_cache_ttl: 14400, development_mode: 'off' });
+                const cfZoneSettings = ref({
+                    ssl: 'strict',
+                    always_use_https: 'on',
+                    security_level: 'medium',
+                    brotli: 'on',
+                    browser_cache_ttl: 14400,
+                    development_mode: 'off',
+                    browser_check: 'on',
+                    challenge_ttl: 1800,
+                    hotlink_protection: 'off',
+                    email_obfuscation: 'on',
+                    bot_fight_mode: false
+                });
 
                 const fetchCloudflareConfig = async (domId = null) => {
                     try {
@@ -8402,10 +8414,15 @@ if ($host ~* ^www\\.(.*)$) {
                                     max_ips: d.config.f2b_max_ips || 50
                                 };
                             }
-                            if (cfConfig.value?.zone_id) {
+                            if (cfConfig.value?.has_token && cfConfig.value?.zone_id) {
                                 if (cfActiveTab.value === 'dns') fetchCfDns();
                                 if (cfActiveTab.value === 'fail2ban') fetchCfFail2ban();
                                 if (cfActiveTab.value === 'cache' || cfActiveTab.value === 'settings') fetchCfZoneSettings();
+                                else fetchCfZoneSettings();
+                            } else {
+                                cfActiveTab.value = 'connect';
+                                cfDnsRecords.value = [];
+                                cfIpRules.value = [];
                             }
                         }
                     } catch (e) { console.error('Lỗi tải Cloudflare config:', e); }
@@ -8580,6 +8597,23 @@ if ($host ~* ^www\\.(.*)$) {
                     }
                 };
 
+                const toggleCfUnderAttack = async (enabled) => {
+                    if (!cfSelectedDomainId.value || !cfConfig.value?.zone_id) return;
+                    cfSaving.value = true;
+                    try {
+                        const res = await fetch('/api/v1/cloudflare/under-attack', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ domain_id: cfSelectedDomainId.value, enabled, fallback_level: 'medium' })
+                        });
+                        const d = await res.json();
+                        if (res.ok && d.status === 'ok') {
+                            cfZoneSettings.value.security_level = d.security_level;
+                            showAlert(d.message);
+                        } else showAlert(d.detail || 'Lỗi chuyển chế độ Under Attack');
+                    } finally { cfSaving.value = false; }
+                };
+
                 const saveCfZoneSettings = async () => {
                     cfSaving.value = true;
                     try {
@@ -8592,7 +8626,12 @@ if ($host ~* ^www\\.(.*)$) {
                                 always_use_https: cfZoneSettings.value.always_use_https,
                                 security_level: cfZoneSettings.value.security_level,
                                 brotli: cfZoneSettings.value.brotli,
-                                browser_cache_ttl: cfZoneSettings.value.browser_cache_ttl
+                                browser_cache_ttl: cfZoneSettings.value.browser_cache_ttl,
+                                browser_check: cfZoneSettings.value.browser_check,
+                                challenge_ttl: cfZoneSettings.value.challenge_ttl,
+                                hotlink_protection: cfZoneSettings.value.hotlink_protection,
+                                email_obfuscation: cfZoneSettings.value.email_obfuscation,
+                                bot_fight_mode: cfZoneSettings.value.bot_fight_mode
                             })
                         });
                         const d = await res.json();
@@ -10169,7 +10208,7 @@ if ($host ~* ^www\\.(.*)$) {
                     cfDnsRecords, cfDnsForm, cfF2bStatus, cfF2bForm, cfBlockIpForm, cfIpRules, cfPurgeUrlsText, cfZoneSettings,
                     fetchCloudflareConfig, connectCloudflare, disconnectCloudflare, fetchCfDns, addCfDnsRecord, toggleCfDnsProxy, deleteCfDnsRecord,
                     fetchCfFail2ban, saveCfFail2banConfig, syncCfFail2banNow, blockIpOnCf, deleteCfIpRule,
-                    purgeCfCache, toggleCfDevMode, fetchCfZoneSettings, saveCfZoneSettings,
+                    purgeCfCache, toggleCfDevMode, fetchCfZoneSettings, toggleCfUnderAttack, saveCfZoneSettings,
                     wpPluginStoreTab, wpThemeStoreTab, wpStoreSearch, wpPopularPlugins, wpPopularThemes, wpPremiumStore,
                     loadingWpStore, installingStoreSlug, fetchWpStorePopular, fetchWpStorePremium, switchWpStoreTab, installStoreItem,
                     fetchWpInstances, scanWpInstances, selectWpInstance, backToWpList, openDomainWp, fetchWpDetail, magicLoginWp, magicLoginWpUser,
