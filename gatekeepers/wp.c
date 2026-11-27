@@ -191,13 +191,18 @@ int main(int argc, char *argv[]) {
             send_json_error("wp", "Target user ID khong hop le");
             return 1;
         }
-        if (!is_safe_id(token)) {
+        if (!is_safe_token(token)) {
             send_json_error("wp", "SSO token khong hop le");
             return 1;
         }
 
-        snprintf(cmd, sizeof(cmd), "%s sso_create '%s' '%s' '%s' '%s'",
-                 get_wp_script(), username, domain, target_user_id, token);
+        if (argc >= 7 && is_safe_id(argv[6])) {
+            snprintf(cmd, sizeof(cmd), "%s sso_create '%s' '%s' '%s' '%s' '%s'",
+                     get_wp_script(), username, domain, target_user_id, token, argv[6]);
+        } else {
+            snprintf(cmd, sizeof(cmd), "%s sso_create '%s' '%s' '%s' '%s'",
+                     get_wp_script(), username, domain, target_user_id, token);
+        }
     }
     else if (strcmp(action, "presspanel_optimize") == 0 || strcmp(action, "wpc_optimize") == 0) {
         if (argc < 6) {

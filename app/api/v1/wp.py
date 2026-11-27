@@ -895,7 +895,7 @@ async def get_magic_login_user_sso(instance_id: int, user_id: int, current_user:
         raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập website này")
 
     linux_user = extract_linux_user(row["document_root"] or row["domain_docroot"] or "", row["domain_name"], row["owner_username"])
-    token = secrets.token_hex(24)
+    token = secrets.token_hex(16)
     # Gọi C gatekeeper: wp sso_create <linux_user> <domain> <target_user_id> <token> <admin_user>
     res = await run_gatekeeper("wp", "sso_create", linux_user, row["domain_name"], str(user_id), token, row["admin_user"] or "admin")
     if res.get("status") == "error":
