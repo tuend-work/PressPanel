@@ -1283,19 +1283,29 @@ async def get_resource_monitor(
         panel_ram_mb = 0.0
         panel_disk_gb = 0.0
         try:
-            for proc in psutil.process_iter(['pid', 'name', 'username', 'cmdline', 'cpu_percent', 'memory_info']):
-                try:
-                    uname = (proc.info.get('username') or '').lower()
-                    cmd = " ".join(proc.info.get('cmdline') or []).lower()
-                    if uname == 'presspanel' or '/opt/presspanel' in cmd:
-                        panel_cpu += float(proc.info.get('cpu_percent') or 0.0)
-                        mem_info = proc.info.get('memory_info')
-                        if mem_info:
-                            panel_ram_mb += float(mem_info.rss) / (1024 * 1024)
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
+            ps_res = subprocess.run(["ps", "-u", "presspanel", "-o", "rss=,pcpu="], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=2)
+            if ps_res.returncode == 0 and ps_res.stdout.strip():
+                for line in ps_res.stdout.strip().splitlines():
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        panel_ram_mb += float(parts[0]) / 1024.0
+                        panel_cpu += float(parts[1])
         except Exception:
             pass
+        if panel_ram_mb == 0.0:
+            try:
+                for proc in psutil.process_iter(['pid', 'username', 'cmdline', 'memory_info']):
+                    try:
+                        uname = (proc.info.get('username') or '').lower()
+                        cmd = " ".join(proc.info.get('cmdline') or []).lower()
+                        if uname == 'presspanel' or '/opt/presspanel' in cmd:
+                            mem_info = proc.info.get('memory_info')
+                            if mem_info:
+                                panel_ram_mb += float(mem_info.rss) / (1024 * 1024)
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+            except Exception:
+                pass
 
         try:
             du_res = subprocess.run(["du", "-sk", "/opt/presspanel"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=2)

@@ -268,6 +268,12 @@ EOF_CACHE
                     if curl -fsSL "https://nginx.org/download/nginx-${NGX_CUR_VER}.tar.gz" -o "$BR_BUILD_DIR/nginx.tar.gz" && \
                        tar -xzf "$BR_BUILD_DIR/nginx.tar.gz" -C "$BR_BUILD_DIR" && \
                        git clone --depth=1 --recurse-submodules https://github.com/google/ngx_brotli.git "$BR_BUILD_DIR/ngx_brotli"; then
+                        mkdir -p "$BR_BUILD_DIR/ngx_brotli/deps/brotli/out"
+                        (
+                            cd "$BR_BUILD_DIR/ngx_brotli/deps/brotli/out" && \
+                            cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON .. >/dev/null 2>&1 && \
+                            cmake --build . --config Release -j"$(nproc 2>/dev/null || echo 2)" --target brotlienc >/dev/null 2>&1
+                        ) || true
                         (
                             cd "$BR_BUILD_DIR/nginx-${NGX_CUR_VER}" && \
                             ./configure --with-compat --add-dynamic-module=../ngx_brotli >/dev/null 2>&1 && \
