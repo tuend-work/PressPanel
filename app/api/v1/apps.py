@@ -2508,28 +2508,9 @@ async def get_webserver_settings(webserver: str = "ols", current_user: dict = De
                 pass
         if not rewrite_content:
             rewrite_content = (
-                "# Global URL Rewrite & Location Directives for Nginx (/etc/nginx/conf.d/00_rewrite.conf)\n"
-                "# 1. Chặn các file nhạy cảm và thư mục ẩn\n"
-                "location ~ /\\.(?!well-known).* {\n"
-                "    deny all;\n"
-                "    access_log off;\n"
-                "    log_not_found off;\n"
-                "}\n\n"
-                "location ~* /(wp-config\\.php|\\.env|\\.git|\\.user\\.ini|composer\\.(json|lock)) {\n"
-                "    deny all;\n"
-                "    access_log off;\n"
-                "    log_not_found off;\n"
-                "}\n\n"
-                "# 2. Tối ưu static files\n"
-                "location = /favicon.ico {\n"
-                "    log_not_found off;\n"
-                "    access_log off;\n"
-                "}\n\n"
-                "location = /robots.txt {\n"
-                "    allow all;\n"
-                "    log_not_found off;\n"
-                "    access_log off;\n"
-                "}\n"
+                "# Global Nginx HTTP-Context Rewrite & Map Directives (/etc/nginx/conf.d/00_rewrite.conf)\n"
+                "# Lưu ý: File này nằm trong block http {}, không đặt block location {} trực tiếp ở đây.\n"
+                "# Để cấu hình location/rewrite cho từng domain, chỉnh sửa trong file vhost của domain đó.\n"
             )
         settings["rewriteRules"] = rewrite_content
 
@@ -2643,11 +2624,22 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
         rw_path = "/etc/nginx/conf.d/00_rewrite.conf"
         rw_tmp = "/tmp/wpc_nginx_rewrite.tmp"
         rw_bak = "/tmp/wpc_nginx_rewrite.bak"
+        rw_text = req.rewriteRules.strip()
+        # Tự động làm sạch mẫu mặc định cũ vốn chứa block location {} không hợp lệ trong http {}
+        if rw_text.startswith("# Global URL Rewrite & Location Directives for Nginx (/etc/nginx/conf.d/00_rewrite.conf)"):
+            rw_text = (
+                "# Global Nginx HTTP-Context Rewrite & Map Directives (/etc/nginx/conf.d/00_rewrite.conf)\n"
+                "# Lưu ý: File này nằm trong block http {}, không đặt block location {} trực tiếp ở đây.\n"
+                "# Để cấu hình location/rewrite cho từng domain, chỉnh sửa trong file vhost của domain đó."
+            )
         try:
-            if os.path.exists(rw_path):
+            had_rw_file = os.path.exists(rw_path)
+            if had_rw_file:
                 shutil.copy2(rw_path, rw_bak)
+            elif os.path.exists(rw_bak):
+                os.remove(rw_bak)
             with open(rw_tmp, "w", encoding="utf-8") as rf:
-                rf.write(req.rewriteRules.strip() + "\n")
+                rf.write(rw_text + "\n")
             try:
                 shutil.move(rw_tmp, rw_path)
             except Exception:
@@ -2657,9 +2649,11 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
             # Kiểm tra cú pháp nginx -t
             test_proc = subprocess.run(["sudo", "nginx", "-t"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if test_proc.returncode != 0:
-                # Khôi phục file cũ nếu có lỗi cú pháp
-                if os.path.exists(rw_bak):
+                # Khôi phục file cũ hoặc xóa file mới tạo nếu có lỗi cú pháp
+                if had_rw_file and os.path.exists(rw_bak):
                     subprocess.run(["sudo", "mv", rw_bak, rw_path], check=False)
+                elif not had_rw_file:
+                    subprocess.run(["sudo", "rm", "-f", rw_path], check=False)
                 err_out = test_proc.stderr or test_proc.stdout or "Cú pháp Nginx không hợp lệ."
                 raise HTTPException(status_code=400, detail=f"Lỗi kiểm tra cú pháp Nginx URL Rewrite:\n{err_out}")
         except HTTPException:
@@ -2707,6 +2701,38 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
             except Exception:
                 subprocess.run(["sudo", "mv", proto_tmp, proto_file], check=True)
             subprocess.run(["sudo", "chmod", "644", proto_file], check=False)
+
+            # Đồng bộ http2 / http3 / Alt-Svc trong các file vhost (/etc/nginx/conf.d/*.conf)
+            # để thiết lập trong server {} không ghi đè thiết lập toàn cục ở http {}
+            import glob
+            h2_val = "on" if req.http2Enabled else "off"
+            h3_val = "on" if req.http3Enabled else "off"
+            for vhost_path in glob.glob("/etc/nginx/conf.d/*.conf"):
+                v_base = os.path.basename(vhost_path)
+                if v_base.startswith("00_") or v_base == "default.conf":
+                    continue
+                try:
+                    with open(vhost_path, "r", encoding="utf-8", errors="ignore") as vf:
+                        v_orig = vf.read()
+                    v_new = re.sub(r"^(\s*)http2\s+(?:on|off);", rf"\1http2 {h2_val};", v_orig, flags=re.MULTILINE)
+                    v_new = re.sub(r"^(\s*)http3\s+(?:on|off);", rf"\1http3 {h3_val};", v_new, flags=re.MULTILINE)
+                    if req.http3Enabled:
+                        v_new = re.sub(r"^(\s*)#\s*(listen\s+(?:\[::\]:)?443\s+quic[^;]*;)", rf"\1\2", v_new, flags=re.MULTILINE)
+                        v_new = re.sub(r"^(\s*)#\s*(add_header\s+Alt-Svc\s+'h3=\":443\";\s*ma=86400'\s+always;)", rf"\1\2", v_new, flags=re.MULTILINE)
+                    else:
+                        v_new = re.sub(r"^(\s*)(listen\s+(?:\[::\]:)?443\s+quic[^;]*;)", rf"\1# \2", v_new, flags=re.MULTILINE)
+                        v_new = re.sub(r"^(\s*)(add_header\s+Alt-Svc\s+'h3=\":443\";\s*ma=86400'\s+always;)", rf"\1# \2", v_new, flags=re.MULTILINE)
+                    if v_new != v_orig:
+                        v_tmp = f"/tmp/wpc_vhost_{v_base}.tmp"
+                        with open(v_tmp, "w", encoding="utf-8") as vf:
+                            vf.write(v_new)
+                        try:
+                            shutil.move(v_tmp, vhost_path)
+                        except Exception:
+                            subprocess.run(["sudo", "mv", v_tmp, vhost_path], check=True)
+                        subprocess.run(["sudo", "chmod", "644", vhost_path], check=False)
+                except Exception as ve:
+                    logger.warning(f"Không thể đồng bộ protocol cho vhost {v_base}: {ve}")
         except Exception as pe:
             logger.error(f"Lỗi lưu 00_wp_protocols.conf: {pe}")
 
@@ -2785,6 +2811,8 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
             "status": "ok",
             "message": f"Đã lưu và cập nhật cấu hình máy chủ {ws.upper()} thành công!"
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi lưu file cấu hình máy chủ: {str(e)}")
 
