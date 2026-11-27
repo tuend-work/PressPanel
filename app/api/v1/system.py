@@ -1325,8 +1325,8 @@ async def get_resource_monitor(
                 panel_ram_pts.append(panel_ram_mb)
                 panel_disk_pts.append(panel_disk_gb)
             else:
-                pt_ts = point_timestamps[p_i] if p_i < len(point_timestamps) else now_ts
-                matched_p = [s for s in panel_hist if abs(s["t"] - pt_ts) <= bucket_sec]
+                pt_ts = (now - datetime.timedelta(minutes=(n_pts - 1 - p_i) * delta_mins)).timestamp()
+                matched_p = [s for s in panel_hist if abs(s["t"] - pt_ts) <= max(3.0, half_window)]
                 if matched_p:
                     panel_cpu_pts.append(round(sum(s["cpu"] for s in matched_p) / len(matched_p), 1))
                     panel_ram_pts.append(int(sum(s["ram"] for s in matched_p) / len(matched_p)))
