@@ -7489,6 +7489,19 @@ if ($host ~* ^www\\.(.*)$) {
                 const editingWpUser = ref(null);
                 const editWpUserForm = ref({ email: '', password: '', role: 'administrator' });
 
+                const showWpAddUserModal = ref(false);
+                const creatingWpUser = ref(false);
+                const newWpUserForm = ref({ user_login: '', user_email: '', user_pass: '', role: 'administrator' });
+
+                const wpPluginStoreTab = ref('installed'); // 'installed', 'popular', 'premium'
+                const wpThemeStoreTab = ref('installed');   // 'installed', 'popular', 'premium'
+                const wpStoreSearch = ref('');
+                const wpPopularPlugins = ref([]);
+                const wpPopularThemes = ref([]);
+                const wpPremiumStore = ref({ plugins: [], themes: [] });
+                const loadingWpStore = ref(false);
+                const installingStoreSlug = ref('');
+
                 const fetchWpInstances = async () => {
                     try {
                         const res = await fetch('/api/v1/wp/list', {
@@ -7913,6 +7926,118 @@ if ($host ~* ^www\\.(.*)$) {
                         showAlert('Lỗi lưu user: ' + e);
                     } finally {
                         savingWpUser.value = false;
+                    }
+                };
+
+                const openAddWpUserModal = () => {
+                    newWpUserForm.value = {
+                        user_login: '',
+                        user_email: '',
+                        user_pass: Math.random().toString(36).slice(2, 10) + 'A1!',
+                        role: 'administrator'
+                    };
+                    showWpAddUserModal.value = true;
+                };
+
+                const handleCreateWpUser = async () => {
+                    if (!selectedWpInstance.value) return;
+                    creatingWpUser.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/wp/${selectedWpInstance.value.id}/users/create`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify(newWpUserForm.value)
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            showAlert(d.message || 'Tạo người dùng WordPress thành công!');
+                            showWpAddUserModal.value = false;
+                            await fetchWpUsers(selectedWpInstance.value.id);
+                        } else {
+                            showAlert(d.detail || 'Tạo người dùng thất bại');
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi tạo user: ' + e);
+                    } finally {
+                        creatingWpUser.value = false;
+                    }
+                };
+
+                const fetchWpStorePopular = async (kind = 'plugins', search = '') => {
+                    loadingWpStore.value = true;
+                    try {
+                        const q = encodeURIComponent(search || '');
+                        const res = await fetch(`/api/v1/wp/store/popular?kind=${kind}&search=${q}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            if (kind === 'plugins') wpPopularPlugins.value = d.items || [];
+                            else wpPopularThemes.value = d.items || [];
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải popular store:', e);
+                    } finally {
+                        loadingWpStore.value = false;
+                    }
+                };
+
+                const fetchWpStorePremium = async () => {
+                    loadingWpStore.value = true;
+                    try {
+                        const res = await fetch('/api/v1/wp/store/premium', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            wpPremiumStore.value = { plugins: d.plugins || [], themes: d.themes || [] };
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải premium store:', e);
+                    } finally {
+                        loadingWpStore.value = false;
+                    }
+                };
+
+                const switchWpStoreTab = async (kind, tab) => {
+                    if (kind === 'plugins') wpPluginStoreTab.value = tab;
+                    else wpThemeStoreTab.value = tab;
+                    if (tab === 'popular') {
+                        await fetchWpStorePopular(kind, wpStoreSearch.value);
+                    } else if (tab === 'premium' && (wpPremiumStore.value.plugins.length === 0 && wpPremiumStore.value.themes.length === 0)) {
+                        await fetchWpStorePremium();
+                    }
+                };
+
+                const installStoreItem = async (instId, kind, item) => {
+                    if (!instId || !item) return;
+                    const key = `${kind}_${item.slug || item.name}`;
+                    installingStoreSlug.value = key;
+                    try {
+                        const endpoint = kind === 'plugins'
+                            ? `/api/v1/wp/${instId}/plugins/install`
+                            : `/api/v1/wp/${instId}/themes/reinstall`;
+                        const res = await fetch(endpoint, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                slug: item.slug || 'custom-item',
+                                zip_url: item.zip_url || '',
+                                activate: item.activate !== false
+                            })
+                        });
+                        const d = await res.json();
+                        if (d.status === 'ok') {
+                            showToast(d.message || `Cài đặt ${item.name} thành công!`);
+                            if (kind === 'plugins') await fetchWpPlugins(instId);
+                            else await fetchWpThemes(instId);
+                        } else {
+                            showAlert(d.detail || `Cài đặt ${item.name} thất bại`);
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi cài đặt: ' + e);
+                    } finally {
+                        installingStoreSlug.value = '';
                     }
                 };
 
@@ -9796,6 +9921,9 @@ if ($host ~* ^www\\.(.*)$) {
                     showWpAddPluginModal, installingPlugin, newPluginSlug, newPluginZipUrl,
                     showWpAddThemeModal, installingTheme, newThemeSlug, newThemeZipUrl,
                     showWpEditUserModal, savingWpUser, editingWpUser, editWpUserForm,
+                    showWpAddUserModal, creatingWpUser, newWpUserForm, openAddWpUserModal, handleCreateWpUser,
+                    wpPluginStoreTab, wpThemeStoreTab, wpStoreSearch, wpPopularPlugins, wpPopularThemes, wpPremiumStore,
+                    loadingWpStore, installingStoreSlug, fetchWpStorePopular, fetchWpStorePremium, switchWpStoreTab, installStoreItem,
                     fetchWpInstances, scanWpInstances, selectWpInstance, backToWpList, openDomainWp, fetchWpDetail, magicLoginWp, magicLoginWpUser,
                     toggleWpLockdown, fixWpPermissions, cleanupWpDb, handleSaveDefine, toggleWpOptimize,
                     openWpPluginsTab, fetchWpPlugins, toggleWpPlugin, reinstallWpPlugin, deleteWpPlugin,

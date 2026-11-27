@@ -364,16 +364,29 @@
                         </div>
                     </div>
 
-                    <!-- TAB 5: PLUGINS (Screenshot 2 Style Cards) -->
+                    <!-- TAB 5: PLUGINS (Screenshot 2 Style: Installed / Popular / Premium) -->
                     <div v-if="wpSubTab === 'plugins'" class="space-y-3">
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                            <div class="text-xs font-semibold text-slate-300">
-                                Installed Plugins ({{ wpPlugins.length }})
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                            <div class="flex items-center gap-1.5">
+                                <button type="button" @click="switchWpStoreTab('plugins', 'installed')"
+                                    :class="['px-3 py-1.5 rounded-lg text-xs font-semibold transition', wpPluginStoreTab === 'installed' ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-400 hover:text-white']">
+                                    Installed Plugins ({{ wpPlugins.length }})
+                                </button>
+                                <button type="button" @click="switchWpStoreTab('plugins', 'popular')"
+                                    :class="['px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1', wpPluginStoreTab === 'popular' ? 'bg-slate-800 text-amber-300 border border-slate-700' : 'text-slate-400 hover:text-white']">
+                                    <i data-lucide="star" class="w-3.5 h-3.5"></i>
+                                    <span>Popular</span>
+                                </button>
+                                <button type="button" @click="switchWpStoreTab('plugins', 'premium')"
+                                    :class="['px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1', wpPluginStoreTab === 'premium' ? 'bg-slate-800 text-blue-300 border border-slate-700' : 'text-slate-400 hover:text-white']">
+                                    <i data-lucide="crown" class="w-3.5 h-3.5"></i>
+                                    <span>Premium</span>
+                                </button>
                             </div>
                             <div class="flex items-center gap-2">
                                 <button type="button" @click="openAddPluginModal()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
                                     <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                                    <span>Cài Plugin Mới</span>
+                                    <span>Cài từ ZIP / Slug</span>
                                 </button>
                                 <button type="button" @click="fetchWpPlugins(inst.id)" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition flex items-center gap-1">
                                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
@@ -382,84 +395,204 @@
                             </div>
                         </div>
 
-                        <div v-if="wpPlugins.length === 0" class="p-8 text-center text-xs text-slate-400 bg-[#111827] border border-slate-800 rounded-xl">
-                            Chưa có plugin nào hoặc đang tải...
-                        </div>
-                        <div v-else class="space-y-2">
-                            <div v-for="p in wpPlugins" :key="p.slug"
-                                class="p-3.5 rounded-xl bg-[#111827] border border-slate-800 hover:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition">
-                                <div class="min-w-0">
-                                    <div class="text-xs font-bold text-white">{{ p.name }}</div>
-                                    <div class="text-[11px] text-slate-400 font-mono truncate mt-0.5">{{ p.file }}</div>
-                                    <div class="text-[11px] text-slate-400 mt-1 flex items-center gap-2">
-                                        <span>Version: <strong class="text-slate-200">v{{ p.version }}</strong></span>
-                                        <span>|</span>
-                                        <span :class="p.is_active ? 'text-emerald-400 font-semibold' : 'text-slate-400'">
-                                            {{ p.is_active ? 'Active' : 'Inactive' }}
-                                        </span>
+                        <!-- Sub-tab: Installed Plugins -->
+                        <template v-if="wpPluginStoreTab === 'installed'">
+                            <div v-if="wpPlugins.length === 0" class="p-8 text-center text-xs text-slate-400 bg-[#111827] border border-slate-800 rounded-xl">
+                                Chưa có plugin nào hoặc đang tải...
+                            </div>
+                            <div v-else class="space-y-2">
+                                <div v-for="p in wpPlugins" :key="p.slug"
+                                    class="p-3.5 rounded-xl bg-[#111827] border border-slate-800 hover:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition">
+                                    <div class="min-w-0">
+                                        <div class="text-xs font-bold text-white">{{ p.name }}</div>
+                                        <div class="text-[11px] text-slate-400 font-mono truncate mt-0.5">{{ p.file }}</div>
+                                        <div class="text-[11px] text-slate-400 mt-1 flex items-center gap-2">
+                                            <span>Version: <strong class="text-slate-200">v{{ p.version }}</strong></span>
+                                            <span>|</span>
+                                            <span :class="p.is_active ? 'text-emerald-400 font-semibold' : 'text-slate-400'">
+                                                {{ p.is_active ? 'Active' : 'Inactive' }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-wrap items-center gap-1.5 shrink-0">
+                                        <button type="button" @click="reinstallWpPlugin(inst.id, p.slug)"
+                                            class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+                                            title="Tải ZIP sạch từ wordpress.org và giải nén đè mới 100%">
+                                            Reinstall
+                                        </button>
+                                        <button type="button" @click="toggleWpPlugin(inst.id, p.file, !p.is_active)"
+                                            :class="['px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition border', p.is_active ? 'bg-slate-800 hover:bg-slate-700 text-rose-300 border-rose-800/60' : 'bg-blue-600 hover:bg-blue-500 text-white border-blue-500']">
+                                            {{ p.is_active ? 'Deactivate' : 'Activate' }}
+                                        </button>
+                                        <button type="button" @click="deleteWpPlugin(inst.id, p.slug)"
+                                            class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-600/40 transition">
+                                            Delete
+                                        </button>
                                     </div>
                                 </div>
-                                <div class="flex flex-wrap items-center gap-1.5 shrink-0">
-                                    <button type="button" @click="reinstallWpPlugin(inst.id, p.slug)"
-                                        class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
-                                        title="Tải ZIP sạch từ wordpress.org và giải nén đè mới 100%">
-                                        Reinstall
-                                    </button>
-                                    <button type="button" @click="toggleWpPlugin(inst.id, p.file, !p.is_active)"
-                                        :class="['px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition border', p.is_active ? 'bg-slate-800 hover:bg-slate-700 text-rose-300 border-rose-800/60' : 'bg-blue-600 hover:bg-blue-500 text-white border-blue-500']">
-                                        {{ p.is_active ? 'Deactivate' : 'Activate' }}
-                                    </button>
-                                    <button type="button" @click="deleteWpPlugin(inst.id, p.slug)"
-                                        class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-600/40 transition">
-                                        Delete
+                            </div>
+                        </template>
+
+                        <!-- Sub-tab: Popular Plugins (WordPress.org) -->
+                        <template v-if="wpPluginStoreTab === 'popular'">
+                            <div class="flex items-center gap-2">
+                                <input v-model="wpStoreSearch" @keyup.enter="fetchWpStorePopular('plugins', wpStoreSearch)" type="text"
+                                    placeholder="Tìm plugin trên WordPress.org (vd: yoast, woocommerce, litespeed)..."
+                                    class="flex-1 px-3 py-1.5 rounded-lg bg-[#111827] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500">
+                                <button type="button" @click="fetchWpStorePopular('plugins', wpStoreSearch)"
+                                    class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold">Tìm kiếm</button>
+                            </div>
+                            <div v-if="loadingWpStore" class="p-8 text-center text-xs text-slate-400">Đang tải danh sách từ WordPress.org...</div>
+                            <div v-else class="space-y-2">
+                                <div v-for="item in wpPopularPlugins" :key="item.slug"
+                                    class="p-3.5 rounded-xl bg-[#111827] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="text-xs font-bold text-white">{{ item.name }} <span class="text-[10px] font-mono text-slate-400 font-normal">v{{ item.version }}</span></div>
+                                        <p class="text-[11px] text-slate-400 mt-0.5 line-clamp-2">{{ item.description }}</p>
+                                        <div class="text-[10px] font-mono text-slate-500 mt-1">Slug: {{ item.slug }}</div>
+                                    </div>
+                                    <button type="button" @click="installStoreItem(inst.id, 'plugins', item)"
+                                        :disabled="installingStoreSlug === ('plugins_' + item.slug)"
+                                        class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shrink-0 transition">
+                                        {{ installingStoreSlug === ('plugins_' + item.slug) ? 'Installing...' : 'Install' }}
                                     </button>
                                 </div>
                             </div>
-                        </div>
+                        </template>
+
+                        <!-- Sub-tab: Premium Plugins -->
+                        <template v-if="wpPluginStoreTab === 'premium'">
+                            <div v-if="loadingWpStore" class="p-8 text-center text-xs text-slate-400">Đang tải danh sách Premium...</div>
+                            <div v-else-if="wpPremiumStore.plugins.length === 0" class="p-8 text-center text-xs text-slate-400">Chưa có plugin Premium nào.</div>
+                            <div v-else class="space-y-2">
+                                <div v-for="item in wpPremiumStore.plugins" :key="item.name"
+                                    class="p-3.5 rounded-xl bg-[#111827] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="text-xs font-bold text-white">{{ item.name }}</div>
+                                        <p class="text-[11px] text-slate-400 mt-0.5">{{ item.description }}</p>
+                                        <div class="text-[10px] font-mono text-slate-500 mt-1">{{ item.file ? ('File: ' + item.file + ' | Premium ZIP') : ('Slug: ' + item.slug + ' | WordPress.org') }}</div>
+                                    </div>
+                                    <button type="button" @click="installStoreItem(inst.id, 'plugins', item)"
+                                        :disabled="installingStoreSlug === ('plugins_' + (item.slug || item.name))"
+                                        class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shrink-0 transition">
+                                        {{ installingStoreSlug === ('plugins_' + (item.slug || item.name)) ? 'Installing...' : 'Install' }}
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
                     </div>
 
-                    <!-- TAB 6: THEMES (Screenshot 3 Style) -->
+                    <!-- TAB 6: THEMES (Screenshot 3 Style: Installed / Popular / Premium) -->
                     <div v-if="wpSubTab === 'themes'" class="space-y-3">
-                        <div class="flex items-center justify-between">
-                            <div class="text-xs font-semibold text-slate-300">Installed Themes ({{ wpThemes.length }})</div>
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                            <div class="flex items-center gap-1.5">
+                                <button type="button" @click="switchWpStoreTab('themes', 'installed')"
+                                    :class="['px-3 py-1.5 rounded-lg text-xs font-semibold transition', wpThemeStoreTab === 'installed' ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-400 hover:text-white']">
+                                    Installed Themes ({{ wpThemes.length }})
+                                </button>
+                                <button type="button" @click="switchWpStoreTab('themes', 'popular')"
+                                    :class="['px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1', wpThemeStoreTab === 'popular' ? 'bg-slate-800 text-amber-300 border border-slate-700' : 'text-slate-400 hover:text-white']">
+                                    <i data-lucide="star" class="w-3.5 h-3.5"></i>
+                                    <span>Popular</span>
+                                </button>
+                                <button type="button" @click="switchWpStoreTab('themes', 'premium')"
+                                    :class="['px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1', wpThemeStoreTab === 'premium' ? 'bg-slate-800 text-blue-300 border border-slate-700' : 'text-slate-400 hover:text-white']">
+                                    <i data-lucide="crown" class="w-3.5 h-3.5"></i>
+                                    <span>Premium</span>
+                                </button>
+                            </div>
                             <button type="button" @click="openAddThemeModal()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
                                 <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                                <span>Cài Theme Mới</span>
+                                <span>Cài từ ZIP / Slug</span>
                             </button>
                         </div>
-                        <div class="space-y-2">
-                            <div v-for="th in wpThemes" :key="th.slug"
-                                class="p-3.5 rounded-xl bg-[#111827] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                <div class="min-w-0">
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-xs font-bold text-white">{{ th.name }}</span>
-                                        <span class="text-[10px] font-mono text-slate-400">v{{ th.version }}</span>
-                                        <span v-if="th.is_active" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Active</span>
+
+                        <template v-if="wpThemeStoreTab === 'installed'">
+                            <div class="space-y-2">
+                                <div v-for="th in wpThemes" :key="th.slug"
+                                    class="p-3.5 rounded-xl bg-[#111827] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs font-bold text-white">{{ th.name }}</span>
+                                            <span class="text-[10px] font-mono text-slate-400">v{{ th.version }}</span>
+                                            <span v-if="th.is_active" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Active</span>
+                                        </div>
+                                        <p class="text-[11px] text-slate-400 mt-0.5 truncate">{{ th.description || 'WordPress theme' }}</p>
                                     </div>
-                                    <p class="text-[11px] text-slate-400 mt-0.5 truncate">{{ th.description || 'WordPress theme' }}</p>
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        <button type="button" v-if="!th.is_active" @click="activateWpTheme(inst.id, th.slug)"
+                                            class="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-600 hover:bg-blue-500 text-white transition">
+                                            Activate
+                                        </button>
+                                        <button type="button" @click="reinstallWpTheme(inst.id, th.slug)"
+                                            class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+                                            Reinstall ZIP
+                                        </button>
+                                    </div>
                                 </div>
-                                <div class="flex items-center gap-1.5 shrink-0">
-                                    <button type="button" v-if="!th.is_active" @click="activateWpTheme(inst.id, th.slug)"
-                                        class="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-600 hover:bg-blue-500 text-white transition">
-                                        Activate
-                                    </button>
-                                    <button type="button" @click="reinstallWpTheme(inst.id, th.slug)"
-                                        class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
-                                        Reinstall ZIP
+                            </div>
+                        </template>
+
+                        <template v-if="wpThemeStoreTab === 'popular'">
+                            <div class="flex items-center gap-2">
+                                <input v-model="wpStoreSearch" @keyup.enter="fetchWpStorePopular('themes', wpStoreSearch)" type="text"
+                                    placeholder="Tìm theme trên WordPress.org (vd: astra, generatepress, kadence)..."
+                                    class="flex-1 px-3 py-1.5 rounded-lg bg-[#111827] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500">
+                                <button type="button" @click="fetchWpStorePopular('themes', wpStoreSearch)"
+                                    class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold">Tìm kiếm</button>
+                            </div>
+                            <div v-if="loadingWpStore" class="p-8 text-center text-xs text-slate-400">Đang tải danh sách từ WordPress.org...</div>
+                            <div v-else class="space-y-2">
+                                <div v-for="item in wpPopularThemes" :key="item.slug"
+                                    class="p-3.5 rounded-xl bg-[#111827] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="text-xs font-bold text-white">{{ item.name }} <span class="text-[10px] font-mono text-slate-400 font-normal">v{{ item.version }}</span></div>
+                                        <p class="text-[11px] text-slate-400 mt-0.5 line-clamp-2">{{ item.description }}</p>
+                                    </div>
+                                    <button type="button" @click="installStoreItem(inst.id, 'themes', item)"
+                                        :disabled="installingStoreSlug === ('themes_' + item.slug)"
+                                        class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shrink-0 transition">
+                                        {{ installingStoreSlug === ('themes_' + item.slug) ? 'Installing...' : 'Install' }}
                                     </button>
                                 </div>
                             </div>
-                        </div>
+                        </template>
+
+                        <template v-if="wpThemeStoreTab === 'premium'">
+                            <div v-if="loadingWpStore" class="p-8 text-center text-xs text-slate-400">Đang tải danh sách Premium...</div>
+                            <div v-else-if="wpPremiumStore.themes.length === 0" class="p-8 text-center text-xs text-slate-400">Chưa có theme Premium nào.</div>
+                            <div v-else class="space-y-2">
+                                <div v-for="item in wpPremiumStore.themes" :key="item.name"
+                                    class="p-3.5 rounded-xl bg-[#111827] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="text-xs font-bold text-white">{{ item.name }}</div>
+                                        <p class="text-[11px] text-slate-400 mt-0.5">{{ item.description }}</p>
+                                        <div class="text-[10px] font-mono text-slate-500 mt-1">{{ item.file ? ('File: ' + item.file + ' | Premium ZIP') : ('Slug: ' + item.slug) }}</div>
+                                    </div>
+                                    <button type="button" @click="installStoreItem(inst.id, 'themes', item)"
+                                        :disabled="installingStoreSlug === ('themes_' + (item.slug || item.name))"
+                                        class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shrink-0 transition">
+                                        {{ installingStoreSlug === ('themes_' + (item.slug || item.name)) ? 'Installing...' : 'Install' }}
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
                     </div>
 
                     <!-- TAB 7: USERS -->
                     <div v-if="wpSubTab === 'users'" class="space-y-3">
                         <div class="flex items-center justify-between">
                             <div class="text-xs font-semibold text-slate-300">WordPress Users & Magic Login</div>
-                            <button type="button" @click="fetchWpUsers(inst.id)" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition flex items-center gap-1">
-                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-                                <span>Refresh</span>
-                            </button>
+                            <div class="flex items-center gap-2">
+                                <button type="button" @click="openAddWpUserModal()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+                                    <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+                                    <span>Add User</span>
+                                </button>
+                                <button type="button" @click="fetchWpUsers(inst.id)" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition flex items-center gap-1">
+                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                                    <span>Refresh</span>
+                                </button>
+                            </div>
                         </div>
                         <div class="bg-[#111827] border border-slate-800 rounded-xl overflow-hidden">
                             <table class="w-full text-left text-xs text-slate-300">

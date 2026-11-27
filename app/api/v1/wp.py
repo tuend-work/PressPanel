@@ -238,10 +238,12 @@ class WPPluginReinstallRequest(BaseModel):
 class WPPluginInstallRequest(BaseModel):
     slug: str
     zip_url: Optional[str] = ""
+    activate: bool = False
 
 class WPThemeActionRequest(BaseModel):
     slug: str
     zip_url: Optional[str] = ""
+    activate: bool = False
 
 class WPUserCreateRequest(BaseModel):
     user_login: str
@@ -338,6 +340,92 @@ async def ensure_wp_instances_table(db):
         await db.commit()
     except Exception:
         pass
+
+@router.get("/store/popular")
+async def get_wp_store_popular(kind: str = "plugins", search: str = "", current_user: dict = Depends(get_current_user)):
+    """Lấy danh sách Plugin hoặc Theme phổ biến từ WordPress.org API"""
+    import urllib.request
+    import urllib.parse
+    import json
+
+    is_theme = (kind == "themes")
+    action = "query_themes" if is_theme else "query_plugins"
+    params = [f"action={action}", "request[per_page]=24"]
+    if search.strip():
+        params.append("request[search]=" + urllib.parse.quote(search.strip()))
+    else:
+        params.append("request[browse]=popular")
+
+    base = "https://api.wordpress.org/themes/info/1.2/" if is_theme else "https://api.wordpress.org/plugins/info/1.2/"
+    url = base + "?" + "&".join(params)
+    items = []
+    try:
+        req_u = urllib.request.Request(url, headers={"User-Agent": "PressPanel/1.0"})
+        with urllib.request.urlopen(req_u, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+            raw_list = data.get("themes" if is_theme else "plugins") or []
+            for it in raw_list:
+                items.append({
+                    "slug": it.get("slug", ""),
+                    "name": re.sub(r"<[^>]+>", "", str(it.get("name", ""))),
+                    "version": it.get("version", ""),
+                    "description": re.sub(r"<[^>]+>", "", str(it.get("short_description") or it.get("description") or ""))[:180],
+                    "author": re.sub(r"<[^>]+>", "", str(it.get("author", ""))),
+                    "active_installs": it.get("active_installs", 0),
+                    "download_link": it.get("download_link", ""),
+                    "activate": True
+                })
+    except Exception as e:
+        return {"status": "error", "items": [], "message": f"Không thể kết nối WordPress.org: {str(e)}"}
+
+    return {"status": "ok", "items": items}
+
+
+@router.get("/store/premium")
+async def get_wp_store_premium(current_user: dict = Depends(get_current_user)):
+    """Lấy danh sách Plugin & Theme Premium từ kho WPCloud"""
+    import urllib.request
+    import json
+
+    url = "https://ultimate-wordpress-manager.wpcloud.vn/premium.json"
+    base_url = "https://ultimate-wordpress-manager.wpcloud.vn/"
+    plugins = []
+    themes = []
+    try:
+        req_u = urllib.request.Request(url, headers={"User-Agent": "PressPanel/1.0"})
+        with urllib.request.urlopen(req_u, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+            for p in (data.get("plugins") or []):
+                f_url = p.get("zip_url") or p.get("url") or p.get("file") or ""
+                if f_url and not f_url.startswith("http"):
+                    f_url = base_url + f_url.lstrip("/")
+                plugins.append({
+                    "name": p.get("name", ""),
+                    "description": p.get("description", ""),
+                    "type": p.get("type", "zip"),
+                    "slug": p.get("slug") or re.sub(r"[^a-z0-9_-]", "", str(p.get("name", "")).lower().replace(" ", "-")),
+                    "zip_url": f_url if p.get("type") != "wporg" else "",
+                    "file": p.get("file", ""),
+                    "activate": True
+                })
+            for t in (data.get("themes") or []):
+                f_url = t.get("zip_url") or t.get("url") or t.get("file") or ""
+                if f_url and not f_url.startswith("http"):
+                    f_url = base_url + f_url.lstrip("/")
+                themes.append({
+                    "name": t.get("name", ""),
+                    "description": t.get("description", ""),
+                    "type": t.get("type", "zip"),
+                    "slug": t.get("slug") or re.sub(r"[^a-z0-9_-]", "", str(t.get("name", "")).lower().replace(" ", "-")),
+                    "zip_url": f_url if t.get("type") != "wporg" else "",
+                    "file": t.get("file", ""),
+                    "activate": True
+                })
+    except Exception as e:
+        return {"status": "error", "plugins": [], "themes": [], "message": f"Không thể tải danh sách Premium: {str(e)}"}
+
+    return {"status": "ok", "plugins": plugins, "themes": themes}
+
 
 @router.get("/list")
 async def list_wordpress_instances(current_user: dict = Depends(get_current_user)):
@@ -1299,6 +1387,64 @@ async def list_wp_users(instance_id: int, current_user: dict = Depends(get_curre
         })
 
     return {"status": "ok", "users": users}
+
+@router.post("/{instance_id}/users/create")
+async def create_wp_user(instance_id: int, req: WPUserCreateRequest, current_user: dict = Depends(get_current_user)):
+    """Tạo tài khoản WordPress mới trực tiếp trong MariaDB"""
+    user_login = req.user_login.strip()
+    user_email = req.user_email.strip()
+    if not re.match(r"^[a-zA-Z0-9_\-.]{2,60}$", user_login):
+        raise HTTPException(status_code=400, detail="Tên đăng nhập chỉ được chứa chữ, số, _, -, . (2-60 ký tự)")
+    if not user_email or "@" not in user_email:
+        raise HTTPException(status_code=400, detail="Email không hợp lệ")
+    if not req.user_pass or len(req.user_pass) < 6:
+        raise HTTPException(status_code=400, detail="Mật khẩu phải có ít nhất 6 ký tự")
+
+    db = await get_db_connection()
+    cursor = await db.execute("""
+        SELECT w.*, d.domain_name, u.username as owner_username
+        FROM wp_instances w
+        JOIN domains d ON w.domain_id = d.id
+        JOIN users u ON d.user_id = u.id
+        WHERE w.id = ?
+    """, (instance_id,))
+    inst = await cursor.fetchone()
+    await db.close()
+
+    if not inst:
+        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+
+    docroot = inst["document_root"] or resolve_target_dir(inst["owner_username"], inst["domain_name"])
+    cfg = parse_wp_config_file(docroot)
+    if not cfg["db_name"]:
+        raise HTTPException(status_code=400, detail="Không thể đọc cấu hình CSDL WordPress")
+
+    prefix = cfg["table_prefix"]
+    esc_login = user_login.replace("'", "\\'")
+    esc_email = user_email.replace("'", "\\'")
+    existing = await run_mysql_query(cfg, f"SELECT ID FROM {prefix}users WHERE user_login = '{esc_login}' OR user_email = '{esc_email}' LIMIT 1;")
+    if existing:
+        raise HTTPException(status_code=400, detail="Username hoặc Email đã tồn tại trong WordPress này")
+
+    import hashlib
+    md5_pass = hashlib.md5(req.user_pass.encode("utf-8")).hexdigest()
+    role = (req.role or "administrator").strip().lower()
+    if role not in ("administrator", "editor", "author", "contributor", "subscriber"):
+        role = "subscriber"
+    level_map = {"administrator": 10, "editor": 7, "author": 2, "contributor": 1, "subscriber": 0}
+    user_level = level_map.get(role, 0)
+    role_serialized = f'a:1:{{s:{len(role)}:"{role}";b:1;}}'
+
+    sql_insert = f"""
+    INSERT INTO {prefix}users (user_login, user_pass, user_nicename, user_email, user_registered, user_status, display_name)
+    VALUES ('{esc_login}', '{md5_pass}', '{esc_login.lower()}', '{esc_email}', NOW(), 0, '{esc_login}');
+    SET @new_uid = LAST_INSERT_ID();
+    INSERT INTO {prefix}usermeta (user_id, meta_key, meta_value) VALUES (@new_uid, '{prefix}capabilities', '{role_serialized}');
+    INSERT INTO {prefix}usermeta (user_id, meta_key, meta_value) VALUES (@new_uid, '{prefix}user_level', '{user_level}');
+    """
+    await run_mysql_query(cfg, sql_insert)
+    return {"status": "ok", "message": f"Đã tạo tài khoản WordPress '{user_login}' ({role}) thành công!"}
+
 
 @router.post("/{instance_id}/users/modify")
 async def modify_wp_user(instance_id: int, req: WPUserModifyRequest, current_user: dict = Depends(get_current_user)):
