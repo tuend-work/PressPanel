@@ -700,6 +700,26 @@ function showToast(message, type = 'success') {
                             <div>
                                 <div class="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 select-none">Website & Dữ Liệu</div>
                                 <div class="space-y-0.5">
+                                    <!-- Customers -->
+                                    <button v-if="currentUser.role === 'admin'" @click="currentTab = 'customers'; customersSubTab = 'users';"
+                                        :class="(currentTab === 'customers' && customersSubTab !== 'packages') ? navClass('customers') : 'w-full flex items-center justify-between px-3.5 py-2 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-[#142338] transition'">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="users" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
+                                            <span>Customers</span>
+                                        </div>
+                                        <span class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">{{ customers.length }}</span>
+                                    </button>
+
+                                    <!-- Packages -->
+                                    <button v-if="currentUser.role === 'admin'" @click="currentTab = 'customers'; customersSubTab = 'packages'; fetchServicePlans();"
+                                        :class="(currentTab === 'customers' && customersSubTab === 'packages') ? navClass('customers') : 'w-full flex items-center justify-between px-3.5 py-2 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-[#142338] transition'">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="package" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
+                                            <span>Packages</span>
+                                        </div>
+                                        <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                                    </button>
+
                                     <!-- Web Application -->
                                     <button @click="currentTab = 'domains'" :class="navClass('domains')">
                                         <div class="flex items-center space-x-3">
@@ -802,15 +822,6 @@ function showToast(message, type = 'success') {
                                             <span>Website Plan</span>
                                         </div>
                                         <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
-                                    </button>
-
-                                    <!-- Users / Customers -->
-                                    <button v-if="currentUser.role === 'admin'" @click="currentTab = 'customers'" :class="navClass('customers')">
-                                        <div class="flex items-center space-x-3">
-                                            <i data-lucide="users" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
-                                            <span>Quản Lý Users</span>
-                                        </div>
-                                        <span class="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">{{ customers.length }}</span>
                                     </button>
 
                                     <!-- Tiến trình & Hỗ trợ -->

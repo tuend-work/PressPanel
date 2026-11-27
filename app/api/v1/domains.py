@@ -4054,7 +4054,7 @@ def apply_vhost_settings(content: str, ws: str, domain_name: str, settings: VHos
 
         if settings.indexFiles is not None:
             idx = " ".join(settings.indexFiles.replace(",", " ").split())
-            content = re.sub(r"index\s+[^;]+;", f"index {idx};", content)
+            content = re.sub(r"^(\s*)index\s+[^;]+;", rf"\1index {idx};", content, flags=re.MULTILINE)
 
         if settings.clientMaxBodySize:
             clean_b = settings.clientMaxBodySize.strip()
