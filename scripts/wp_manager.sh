@@ -212,14 +212,20 @@ case "$ACTION" in
         fi
         rm -rf "$TEMP_ZIP" "$TEMP_EXTRACT"
 
-        # 2. KHỞI TẠO DATABASE & USER MARIADB VỚI KIỂM SOÁT LỖI TỪNG BƯỚC
+        # 2. KHỞI TẠO DATABASE & USER MARIADB VỚI KIỂM SOÁT LỖI TỪNG BƯỚC (RULE: {full_username}_{name})
+        FULL_USER_PREFIX=$(echo "$USERNAME" | tr -dc 'a-zA-Z0-9' | tr '[:upper:]' '[:lower:]')
+        [ -z "$FULL_USER_PREFIX" ] && FULL_USER_PREFIX="wpuser"
+
         if [ -n "$CUSTOM_DB_NAME" ]; then
-            DB_NAME="$CUSTOM_DB_NAME"
+            case "$CUSTOM_DB_NAME" in
+                "${FULL_USER_PREFIX}_"*) DB_NAME="$CUSTOM_DB_NAME" ;;
+                *) DB_NAME="${FULL_USER_PREFIX}_${CUSTOM_DB_NAME}" ;;
+            esac
         else
-            SAFE_USER_PREFIX=$(echo "$USERNAME" | tr -dc 'a-zA-Z0-9' | cut -c 1-8)
-            RAND_SUFFIX=$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n' | cut -c 1-4)
-            DB_NAME="wp_${SAFE_USER_PREFIX}_${RAND_SUFFIX}"
+            RAND_SUFFIX=$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n' | cut -c 1-6)
+            DB_NAME="${FULL_USER_PREFIX}_wp_${RAND_SUFFIX}"
         fi
+        DB_NAME=$(echo "$DB_NAME" | cut -c 1-64)
 
         if [ -n "$CUSTOM_DB_PASS" ]; then
             DB_PASS="$CUSTOM_DB_PASS"
@@ -227,7 +233,7 @@ case "$ACTION" in
             DB_PASS=$(head -c 16 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 16)
         fi
 
-        DB_USER="usr_$(echo "$DB_NAME" | cut -c 1-24)"
+        DB_USER="$DB_NAME"
         DB_PREFIX="${CUSTOM_DB_PREFIX:-wp_}"
 
         echo "[+] Tao co so du lieu MariaDB: $DB_NAME..."

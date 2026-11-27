@@ -692,7 +692,7 @@ async def install_wordpress(req: WPInstallRequest, current_user: dict = Depends(
         await db.close()
         raise HTTPException(status_code=400, detail="Mật khẩu Admin phải có ít nhất 6 ký tự hoặc đánh dấu 'Allow weak passwords'")
 
-    if req.db_name and not re.match(r"^[a-zA-Z0-9_]{1,32}$", req.db_name):
+    if req.db_name and not re.match(r"^[a-zA-Z0-9_]{1,64}$", req.db_name):
         await db.close()
         raise HTTPException(status_code=400, detail="Tên cơ sở dữ liệu chỉ được chứa chữ cái, số và dấu gạch dưới")
 
@@ -706,6 +706,15 @@ async def install_wordpress(req: WPInstallRequest, current_user: dict = Depends(
         raise HTTPException(status_code=400, detail="Thư mục con (Subdirectory) chỉ được chứa ký tự chữ, số, gạch ngang và gạch dưới")
 
     linux_user = extract_linux_user(domain_docroot, domain_name, current_user["username"])
+    full_prefix = re.sub(r"[^a-zA-Z0-9]", "", domain_name or linux_user).lower() or linux_user
+    raw_wp_db = (req.db_name or "").strip()
+    if raw_wp_db:
+        if not raw_wp_db.startswith(f"{full_prefix}_"):
+            final_wp_db = f"{full_prefix}_{raw_wp_db}"[:64]
+        else:
+            final_wp_db = raw_wp_db[:64]
+    else:
+        final_wp_db = ""
 
     # 4. GỌI GATEKEEPER THỰC THI SCRIPT CÀI ĐẶT
     res = await run_gatekeeper(
@@ -716,7 +725,7 @@ async def install_wordpress(req: WPInstallRequest, current_user: dict = Depends(
         req.admin_user.strip(),
         req.admin_email.strip(),
         req.language or "en_US",
-        req.db_name or "",
+        final_wp_db,
         req.db_pass or "",
         req.db_prefix or "wp_",
         sub_dir,
@@ -747,8 +756,8 @@ async def install_wordpress(req: WPInstallRequest, current_user: dict = Depends(
         except Exception:
             pass
 
-    created_db_name = cfg["db_name"] or req.db_name or f"wp_{linux_user[:8]}"
-    created_db_user = cfg["db_user"] or f"usr_{created_db_name[:24]}"
+    created_db_name = cfg["db_name"] or final_wp_db or f"{full_prefix}_wp"
+    created_db_user = cfg["db_user"] or created_db_name[:64]
     created_prefix = cfg["table_prefix"] or req.db_prefix or "wp_"
 
     # 5. LƯU THÔNG TIN INSTANCE VÀO DATABASE
