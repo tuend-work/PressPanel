@@ -140,9 +140,28 @@ def _extract_root_domain(domain_name: str) -> str:
     parts = [p for p in clean.split(".") if p]
     if len(parts) <= 2:
         return clean
-    if len(parts[-1]) == 2 and parts[-2] in ("com", "net", "org", "edu", "gov", "vn", "co", "ac"):
+    if len(parts[-1]) == 2 and parts[-2] in ("com", "net", "org", "edu", "gov", "vn", "co", "ac", "io", "id", "biz", "name"):
         return ".".join(parts[-3:]) if len(parts) >= 3 else clean
     return ".".join(parts[-2:])
+
+
+def _domain_zone_candidates(domain_name: str) -> List[str]:
+    clean = re.sub(r"^(https?://)?(www\.)?", "", (domain_name or "").strip().lower()).split("/")[0]
+    parts = [p for p in clean.split(".") if p]
+    if len(parts) <= 2:
+        return [clean] if clean else []
+    # Tạo danh sách ứng viên từ cụ thể -> root (VD: a.b.domain.io.vn -> b.domain.io.vn -> domain.io.vn)
+    candidates: List[str] = []
+    for i in range(len(parts) - 1):
+        cand = ".".join(parts[i:])
+        if cand and "." in cand and cand not in candidates:
+            candidates.append(cand)
+    # Ưu tiên thử root đoán trước để giảm số lần gọi API
+    guessed_root = _extract_root_domain(clean)
+    if guessed_root in candidates:
+        candidates.remove(guessed_root)
+        candidates.insert(0, guessed_root)
+    return candidates
 
 
 async def _get_allowed_domains(db, current_user: dict) -> List[Dict[str, Any]]:
@@ -219,20 +238,20 @@ async def connect_cloudflare(req: CFConnectRequest, current_user: dict = Depends
     if not verify_res.get("success"):
         raise HTTPException(status_code=400, detail="Cloudflare API Token không hợp lệ hoặc đã hết hạn")
 
-    # 2. Tìm Zone ID theo domain nếu chưa nhập thủ công
+    # 2. Tìm Zone ID theo domain (hỗ trợ cả subdomain nhiều cấp & tên miền .io.vn, .id.vn, .com.vn...)
     zone_id = (req.zone_id or "").strip()
-    zone_name = _extract_root_domain(target["domain_name"])
+    zone_name = target["domain_name"]
     zone_info = {}
 
     if not zone_id:
-        z_res = _cf_request(token, "GET", f"/zones?name={urllib.parse.quote(zone_name)}")
-        zones = z_res.get("result") or []
+        zones = []
+        for cand in _domain_zone_candidates(target["domain_name"]):
+            z_res = _cf_request(token, "GET", f"/zones?name={urllib.parse.quote(cand)}")
+            zones = z_res.get("result") or []
+            if zones:
+                break
         if not zones:
-            # Thử tìm theo full domain_name
-            z_res2 = _cf_request(token, "GET", f"/zones?name={urllib.parse.quote(target['domain_name'])}")
-            zones = z_res2.get("result") or []
-        if not zones:
-            raise HTTPException(status_code=404, detail=f"Không tìm thấy Zone '{zone_name}' trong tài khoản Cloudflare của Token này. Bạn có thể nhập Zone ID thủ công.")
+            raise HTTPException(status_code=404, detail=f"Không tìm thấy Zone phù hợp cho '{target['domain_name']}' trong tài khoản Cloudflare của Token này. Bạn có thể nhập Zone ID thủ công.")
         zone_id = zones[0]["id"]
         zone_name = zones[0]["name"]
         zone_info = zones[0]
