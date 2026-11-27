@@ -35,8 +35,9 @@ if (isset($_GET['logout'])) {
 // 2. Nhận token đăng nhập 1 lần từ URL query hoặc POST
 $token = $_GET['token'] ?? $_POST['token'] ?? '';
 if (empty($token)) {
-    header('HTTP/1.1 400 Bad Request');
-    die('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Lỗi SSO phpMyAdmin</title></head><body style="font-family:sans-serif;text-align:center;padding:50px;"><h2>❌ Lỗi xác thực Single Sign-On</h2><p>Thiếu mã token đăng nhập một lần (SSO token).</p><p><a href="index.php">Chuyển đến màn hình đăng nhập phpMyAdmin chuẩn</a></p></body></html>');
+    setcookie('SignonSession', '', time() - 42000, '/');
+    header('Location: index.php');
+    exit;
 }
 
 // 3. Xác minh Token với backend PressPanel nội bộ (đọc port từ presspanel.conf)
