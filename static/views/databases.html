@@ -946,18 +946,23 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
                                         <label class="block font-bold text-slate-300 mb-1">Tên Database (Database Name):</label>
                                         <div class="flex items-center rounded-xl bg-[#1e293b] border border-slate-700 overflow-hidden focus-within:border-emerald-500">
                                             <span class="px-3 py-2.5 bg-slate-900/90 text-emerald-400 font-mono text-xs border-r border-slate-700 shrink-0 select-none">
-                                                {{ (newDb.domain_id ? (domains.find(x => x.id === newDb.domain_id)?.domain_name || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 16).toLowerCase() : (currentUser?.username || 'user').replace(/[^a-zA-Z0-9]/g, '').slice(0, 16).toLowerCase()) }}_
+                                                {{ (newDb.domain_id ? (domains.find(x => x.id === newDb.domain_id)?.domain_name || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : (currentUser?.username || 'user').replace(/[^a-zA-Z0-9]/g, '').toLowerCase()) }}_
                                             </span>
                                             <input type="text" v-model="newDb.db_name" placeholder="myblog" required
                                                 class="w-full px-3 py-2.5 bg-transparent text-white font-mono text-xs focus:outline-none">
                                         </div>
-                                        <p class="text-[10px] text-slate-500 mt-1">Tự động gắn tiền tố <code class="text-emerald-400">{application_username}_{tên db}</code>, chỉ gồm chữ cái, số và dấu gạch dưới.</p>
+                                        <p class="text-[10px] text-slate-500 mt-1">Tự động gắn tiền tố đầy đủ <code class="text-emerald-400">{username}_{tên db}</code>, chỉ gồm chữ cái, số và dấu gạch dưới.</p>
                                     </div>
 
                                     <div>
                                         <label class="block font-bold text-slate-300 mb-1">Tên Người Dùng CSDL (Database User):</label>
-                                        <input type="text" v-model="newDb.db_user" placeholder="usr_myblog" required
-                                            class="w-full px-3.5 py-2.5 rounded-xl bg-[#1e293b] border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-emerald-500">
+                                        <div class="flex items-center rounded-xl bg-[#1e293b] border border-slate-700 overflow-hidden focus-within:border-emerald-500">
+                                            <span class="px-3 py-2.5 bg-slate-900/90 text-emerald-400 font-mono text-xs border-r border-slate-700 shrink-0 select-none">
+                                                {{ (newDb.domain_id ? (domains.find(x => x.id === newDb.domain_id)?.domain_name || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : (currentUser?.username || 'user').replace(/[^a-zA-Z0-9]/g, '').toLowerCase()) }}_
+                                            </span>
+                                            <input type="text" v-model="newDb.db_user" placeholder="myuser" required
+                                                class="w-full px-3 py-2.5 bg-transparent text-white font-mono text-xs focus:outline-none">
+                                        </div>
                                     </div>
 
                                     <div>

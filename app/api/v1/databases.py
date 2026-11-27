@@ -229,13 +229,13 @@ async def create_database(req: DatabaseCreateRequest, current_user: dict = Depen
     """Tạo database mới (MySQL / MariaDB / Mongo / Redis / PgSQL)"""
     db = await get_db_connection()
     
-    # 1. Kiểm tra tên hợp lệ & áp dụng rule {application_username}_{db_name}
+    # 1. Kiểm tra tên hợp lệ & áp dụng rule {full_application_username}_{name} cho cả Database và Database User
     raw_name = req.db_name.strip()
-    clean_user = req.db_user.strip()
-    if not raw_name or not clean_user:
+    raw_user = req.db_user.strip()
+    if not raw_name or not raw_user:
         raise HTTPException(status_code=400, detail="Tên CSDL và Tên User không được để trống")
 
-    if not re.match(r'^[a-zA-Z0-9_]+$', raw_name) or not re.match(r'^[a-zA-Z0-9_]+$', clean_user):
+    if not re.match(r'^[a-zA-Z0-9_]+$', raw_name) or not re.match(r'^[a-zA-Z0-9_]+$', raw_user):
         raise HTTPException(status_code=400, detail="Tên Database và User chỉ được chứa chữ cái, số và dấu gạch dưới")
 
     app_username = ""
@@ -243,14 +243,19 @@ async def create_database(req: DatabaseCreateRequest, current_user: dict = Depen
         dom_cur = await db.execute("SELECT domain_name FROM domains WHERE id = ?", (req.domain_id,))
         dom_row = await dom_cur.fetchone()
         if dom_row and dom_row["domain_name"]:
-            app_username = re.sub(r'[^a-zA-Z0-9]', '', str(dom_row["domain_name"]))[:16].lower()
+            app_username = re.sub(r'[^a-zA-Z0-9]', '', str(dom_row["domain_name"])).lower()
     if not app_username and current_user.get("username"):
-        app_username = re.sub(r'[^a-zA-Z0-9]', '', str(current_user["username"]))[:16].lower()
+        app_username = re.sub(r'[^a-zA-Z0-9]', '', str(current_user["username"])).lower()
 
     if app_username and not raw_name.startswith(f"{app_username}_"):
         clean_name = f"{app_username}_{raw_name}"[:64]
     else:
         clean_name = raw_name[:64]
+
+    if app_username and not raw_user.startswith(f"{app_username}_"):
+        clean_user = f"{app_username}_{raw_user}"[:64]
+    else:
+        clean_user = raw_user[:64]
 
     # 2. Thực thi tạo database trên MySQL
     if req.db_type == "mysql":
