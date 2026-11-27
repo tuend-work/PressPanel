@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import logging
 import subprocess
 import asyncio
 from typing import List, Dict, Any, Optional
@@ -8,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from app.api.deps import get_current_user
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/apps", tags=["App Store & Software Manager"])
 
 PRESSPANEL_BASE = "/opt/presspanel"
@@ -2620,10 +2622,11 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
                 content = re.sub(r"(http\s*\{)", rf"\1\n    client_max_body_size {req.maxBodySize};", content)
 
     # Lưu file URL Rewrite riêng cho Nginx nếu có truyền vào
+    uid = os.getuid()
     if ws == "nginx" and req.rewriteRules is not None:
         rw_path = "/etc/nginx/conf.d/00_rewrite.conf"
-        rw_tmp = "/tmp/wpc_nginx_rewrite.tmp"
-        rw_bak = "/tmp/wpc_nginx_rewrite.bak"
+        rw_tmp = f"/tmp/wpc_nginx_rewrite_{uid}.tmp"
+        rw_bak = f"/tmp/wpc_nginx_rewrite_{uid}.bak"
         rw_text = req.rewriteRules.strip()
         # Tự động làm sạch mẫu mặc định cũ vốn chứa block location {} không hợp lệ trong http {}
         if rw_text.startswith("# Global URL Rewrite & Location Directives for Nginx (/etc/nginx/conf.d/00_rewrite.conf)"):
@@ -2663,7 +2666,7 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
 
     # 2. Lưu file cấu hình Protocols (HTTP/1.1, HTTP/2, HTTP/3, Early Hints, Header Inherit, ECH)
     proto_file = "/etc/nginx/conf.d/00_wp_protocols.conf"
-    proto_bak = "/tmp/wpc_nginx_proto.bak"
+    proto_bak = f"/tmp/wpc_nginx_proto_{uid}.bak"
     if ws == "nginx" and (req.http2Enabled is not None or req.http3Enabled is not None or req.earlyHintsEnabled is not None or req.headerInheritEnabled is not None):
         try:
             if os.path.exists(proto_file):
@@ -2693,7 +2696,7 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
                     "}"
                 ])
             
-            proto_tmp = "/tmp/wpc_nginx_proto.tmp"
+            proto_tmp = f"/tmp/wpc_nginx_proto_{uid}.tmp"
             with open(proto_tmp, "w", encoding="utf-8") as pf:
                 pf.write("\n".join(p_lines) + "\n")
             try:
@@ -2723,7 +2726,7 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
                         v_new = re.sub(r"^(\s*)(listen\s+(?:\[::\]:)?443\s+quic[^;]*;)", rf"\1# \2", v_new, flags=re.MULTILINE)
                         v_new = re.sub(r"^(\s*)(add_header\s+Alt-Svc\s+'h3=\":443\";\s*ma=86400'\s+always;)", rf"\1# \2", v_new, flags=re.MULTILINE)
                     if v_new != v_orig:
-                        v_tmp = f"/tmp/wpc_vhost_{v_base}.tmp"
+                        v_tmp = f"/tmp/wpc_vhost_{uid}_{v_base}.tmp"
                         with open(v_tmp, "w", encoding="utf-8") as vf:
                             vf.write(v_new)
                         try:
@@ -2738,7 +2741,7 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
 
     # 3. Lưu file cấu hình Dynamic Rate Limiting & User Bandwidth Shaping
     rate_file = "/etc/nginx/conf.d/00_wp_rate_limiting.conf"
-    rate_bak = "/tmp/wpc_nginx_rate.bak"
+    rate_bak = f"/tmp/wpc_nginx_rate_{uid}.bak"
     if ws == "nginx" and (req.dynamicRateLimitEnabled is not None or req.userGroupRateMap is not None or req.fastcgiLimitRate is not None or req.proxyLimitRate is not None):
         try:
             if os.path.exists(rate_file):
@@ -2765,7 +2768,7 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
                     f"proxy_limit_rate {proxy_rate};\n"
                 )
 
-            rate_tmp = "/tmp/wpc_nginx_rate.tmp"
+            rate_tmp = f"/tmp/wpc_nginx_rate_{uid}.tmp"
             with open(rate_tmp, "w", encoding="utf-8") as rf:
                 rf.write(rate_body)
             try:
@@ -2777,7 +2780,7 @@ async def save_webserver_settings(req: WebserverSettingsUpdateRequest, current_u
             logger.error(f"Lỗi lưu 00_wp_rate_limiting.conf: {re_err}")
 
     # Ghi file cấu hình an toàn
-    tmp_path = f"/tmp/wpc_{ws}_main_conf.tmp"
+    tmp_path = f"/tmp/wpc_{ws}_main_conf_{uid}.tmp"
     try:
         with open(tmp_path, "w", encoding="utf-8") as f:
             f.write(content)
