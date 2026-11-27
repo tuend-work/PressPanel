@@ -4033,31 +4033,29 @@
                         </div>
                     </div>
 
-                    <!-- Horizontal Tabs matching Image 2 -->
-                    <div class="bg-[#131720] border-b border-[#232b36] px-4 flex items-center space-x-1 overflow-x-auto custom-scrollbar shrink-0 pt-2">
-                        <button v-for="tab in [
-                            { id: 'registration', label: 'Registration' },
-                            { id: 'general', label: 'General' },
-                            { id: 'log', label: 'Log' },
-                            { id: 'security', label: 'Security' },
-                            { id: 'external_app', label: 'External App' },
-                            { id: 'script_handler', label: 'Script Handler' },
-                            { id: 'rewrite', label: 'Rewrite' },
-                            { id: 'context', label: 'Context' },
-                            { id: 'ssl', label: 'SSL' },
-                            { id: 'websocket', label: 'Web Socket Proxy' },
-                            { id: 'modules', label: 'Modules' },
-                            { id: 'raw_config', label: 'Raw Config' }
-                        ]" :key="tab.id"
-                            @click="setDomainVhostTab(selectedVhostDomain?.id, tab.id)"
-                            :class="getDomainVhostTab(selectedVhostDomain?.id) === tab.id ? 'border-b-2 border-emerald-400 text-emerald-400 font-bold bg-[#1a212d]' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'"
-                            class="px-3 py-2 text-xs font-medium transition whitespace-nowrap rounded-t-lg">
-                            {{ tab.label }}
-                        </button>
-                    </div>
+                    <!-- Body: 2 Columns Layout (aaPanel-style Left Menu + Content) -->
+                    <div class="flex-1 flex min-h-0 bg-[#0f131a]">
+                        <!-- Left Sidebar Menu (7 Essential Tabs) -->
+                        <div class="w-48 bg-[#131720] border-r border-[#232b36] p-2 space-y-1 shrink-0 text-xs font-medium overflow-y-auto custom-scrollbar">
+                            <button type="button" v-for="tab in [
+                                { id: 'registration', label: 'Tổng quan', icon: '📋' },
+                                { id: 'general', label: 'Cấu hình chung', icon: '⚙️' },
+                                { id: 'rewrite', label: 'URL Rewrite', icon: '🔀' },
+                                { id: 'security', label: 'Bảo mật', icon: '🛡️' },
+                                { id: 'ssl', label: 'SSL / HTTPS', icon: '🔒' },
+                                { id: 'log', label: 'Nhật ký (Log)', icon: '📜' },
+                                { id: 'raw_config', label: 'File Config', icon: '📝' }
+                            ]" :key="tab.id"
+                                @click="setDomainVhostTab(selectedVhostDomain?.id, tab.id)"
+                                :class="getDomainVhostTab(selectedVhostDomain?.id) === tab.id ? 'bg-[#1e2633] text-emerald-400 font-bold border-l-2 border-emerald-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'"
+                                class="w-full text-left px-3 py-2.5 rounded-xl transition flex items-center space-x-2">
+                                <span>{{ tab.icon }}</span>
+                                <span>{{ tab.label }}</span>
+                            </button>
+                        </div>
 
-                    <!-- Tab Contents Area -->
-                    <div class="flex-1 p-5 overflow-y-auto custom-scrollbar space-y-4">
+                        <!-- Tab Contents Area -->
+                        <div class="flex-1 p-5 overflow-y-auto custom-scrollbar space-y-4">
                         <!-- TAB 1: REGISTRATION -->
                         <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'registration'" class="space-y-4">
                             <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
@@ -4300,82 +4298,7 @@
                             </div>
                         </div>
 
-                        <!-- TAB 5: EXTERNAL APP -->
-                        <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'external_app'" class="space-y-4">
-                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
-                                <div class="flex items-center justify-between border-b border-[#232b36] pb-2">
-                                    <h4 class="font-bold text-white text-sm">External Application (LSAPI Processor / FastCGI Backend)</h4>
-                                    <span class="text-[11px] text-emerald-400">Tùy biến tài nguyên thực thi PHP</span>
-                                </div>
-                                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
-                                    <div class="flex items-center justify-between">
-                                        <span class="font-mono font-bold text-cyan-300">
-                                            {{ selectedVhostDomain?.webserver === 'ols' ? ('lsphp_' + (selectedVhostDomain?.domain_name?.replace(/[^a-zA-Z0-9]/g, '')?.slice(0, 16))) : ('php' + (selectedVhostDomain?.php_version || '8.2') + '-fpm-' + (selectedVhostDomain?.domain_name?.replace(/[^a-zA-Z0-9]/g, '')?.slice(0, 16))) }}
-                                        </span>
-                                        <span class="text-[10px] px-2 py-0.5 rounded font-mono bg-blue-500/20 text-blue-300 font-bold">
-                                            {{ selectedVhostDomain?.webserver === 'ols' ? 'LiteSpeed SAPI (lsapi)' : 'Nginx FastCGI' }}
-                                        </span>
-                                    </div>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs pt-2">
-                                        <div>
-                                            <label class="text-slate-400 text-[11px] block mb-1">Max Connections (LSAPI_CHILDREN):</label>
-                                            <input type="number" v-model="getDomainVhostSettings(selectedVhostDomain?.id).maxConns" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
-                                        </div>
-                                        <div>
-                                            <label class="text-slate-400 text-[11px] block mb-1">Memory Soft Limit:</label>
-                                            <input type="text" v-model="getDomainVhostSettings(selectedVhostDomain?.id).memSoftLimit" placeholder="1024M" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
-                                        </div>
-                                        <div>
-                                            <label class="text-slate-400 text-[11px] block mb-1">Memory Hard Limit:</label>
-                                            <input type="text" v-model="getDomainVhostSettings(selectedVhostDomain?.id).memHardLimit" placeholder="2048M" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
-                                        </div>
-                                        <div>
-                                            <label class="text-slate-400 text-[11px] block mb-1">Process Soft Limit:</label>
-                                            <input type="number" v-model="getDomainVhostSettings(selectedVhostDomain?.id).procSoftLimit" placeholder="200" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
-                                        </div>
-                                        <div>
-                                            <label class="text-slate-400 text-[11px] block mb-1">Process Hard Limit:</label>
-                                            <input type="number" v-model="getDomainVhostSettings(selectedVhostDomain?.id).procHardLimit" placeholder="300" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="pt-3 border-t border-[#232b36] flex justify-end">
-                                    <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
-                                        class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
-                                        <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
-                                        <span v-else>💾</span>
-                                        <span>Lưu Thiết Lập External App</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- TAB 6: SCRIPT HANDLER -->
-                        <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'script_handler'" class="space-y-4">
-                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
-                                <h4 class="font-bold text-white text-sm">Script Handler Mappings</h4>
-                                <table class="w-full text-left text-xs">
-                                    <thead>
-                                        <tr class="border-b border-slate-800 text-slate-400">
-                                            <th class="py-2 px-3">Suffix</th>
-                                            <th class="py-2 px-3">Handler Type</th>
-                                            <th class="py-2 px-3">Handler Name</th>
-                                            <th class="py-2 px-3">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="font-mono text-[11px]">
-                                        <tr class="border-b border-slate-800/50">
-                                            <td class="py-2.5 px-3 text-cyan-300 font-bold">php</td>
-                                            <td class="py-2.5 px-3">{{ selectedVhostDomain?.webserver === 'ols' ? 'lsapi' : 'fastcgi' }}</td>
-                                            <td class="py-2.5 px-3 text-slate-300">{{ selectedVhostDomain?.webserver === 'ols' ? 'lsapi:lsphp_' + (selectedVhostDomain?.domain_name?.replace(/[^a-zA-Z0-9]/g, '')?.slice(0, 16)) : 'php-fpm pool' }}</td>
-                                            <td class="py-2.5 px-3 text-emerald-400 font-bold">● Active</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- TAB 7: REWRITE -->
+                        <!-- TAB 5: REWRITE -->
                         <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'rewrite'" class="space-y-4">
                             <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
                                 <div class="flex items-center justify-between border-b border-[#232b36] pb-2">
@@ -4427,28 +4350,7 @@
                             </div>
                         </div>
 
-                        <!-- TAB 8: CONTEXT -->
-                        <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'context'" class="space-y-4">
-                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
-                                <h4 class="font-bold text-white text-sm">Context & Location Blocks</h4>
-                                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-                                    <div class="flex items-center justify-between font-mono font-bold text-cyan-300">
-                                        <span>context / { type null }</span>
-                                        <span class="text-emerald-400 text-[10px]">Default Root</span>
-                                    </div>
-                                    <p class="text-[11px] text-slate-400">location: $DOC_ROOT/ | allow: * | addDefaultCharset: off</p>
-                                </div>
-                                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-                                    <div class="flex items-center justify-between font-mono font-bold text-cyan-300">
-                                        <span>context /.well-known/</span>
-                                        <span class="text-blue-400 text-[10px]">ACME SSL</span>
-                                    </div>
-                                    <p class="text-[11px] text-slate-400">Tự động cho phép Let's Encrypt / Certbot xác thực tên miền.</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- TAB 9: SSL -->
+                        <!-- TAB 6: SSL -->
                         <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'ssl'" class="space-y-4">
                             <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-3">
                                 <h4 class="font-bold text-white text-sm flex items-center gap-2">
@@ -4475,77 +4377,7 @@
                             </div>
                         </div>
 
-                        <!-- TAB 10: WEBSOCKET PROXY -->
-                        <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'websocket'" class="space-y-4">
-                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
-                                <div class="flex items-center justify-between border-b border-[#232b36] pb-2">
-                                    <div>
-                                        <h4 class="font-bold text-white text-sm">Web Socket Proxy</h4>
-                                        <p class="text-[11px] text-slate-400 mt-0.5">Định tuyến kết nối WebSocket tới ứng dụng backend (Node.js, Python, Golang socket).</p>
-                                    </div>
-                                    <label class="flex items-center space-x-2 cursor-pointer">
-                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).wsEnabled" class="rounded text-emerald-500 bg-slate-950 border-slate-700">
-                                        <span class="text-white text-xs font-semibold">Bật Proxy</span>
-                                    </label>
-                                </div>
-                                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <div>
-                                            <label class="text-slate-400 text-[11px] block mb-1">WebSocket URI:</label>
-                                            <input type="text" v-model="getDomainVhostSettings(selectedVhostDomain?.id).wsUri" placeholder="/ws" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
-                                        </div>
-                                        <div>
-                                            <label class="text-slate-400 text-[11px] block mb-1">Target Address (IP:Port):</label>
-                                            <input type="text" v-model="getDomainVhostSettings(selectedVhostDomain?.id).wsTarget" placeholder="127.0.0.1:3000" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-emerald-500 focus:outline-none">
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="pt-3 border-t border-[#232b36] flex justify-end">
-                                    <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
-                                        class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
-                                        <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
-                                        <span v-else>💾</span>
-                                        <span>Lưu Thiết Lập WebSocket</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- TAB 11: MODULES -->
-                        <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'modules'" class="space-y-4">
-                            <div class="p-4 rounded-xl bg-[#141921] border border-[#232b36] space-y-4">
-                                <div class="flex items-center justify-between border-b border-[#232b36] pb-2">
-                                    <h4 class="font-bold text-white text-sm">Virtual Host Modules</h4>
-                                    <span class="text-[11px] text-emerald-400">Tối ưu bộ nhớ cache và trình duyệt</span>
-                                </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <label class="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-start justify-between cursor-pointer hover:border-slate-700 transition">
-                                        <div>
-                                            <span class="font-bold text-white block">⚡ LSCache / FastCGI Cache</span>
-                                            <span class="text-[11px] text-slate-400">Tối ưu cache trang tĩnh và dynamic WordPress</span>
-                                        </div>
-                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).lscacheEnabled" class="mt-1 rounded text-emerald-500 bg-slate-900 border-slate-700">
-                                    </label>
-                                    <label class="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-start justify-between cursor-pointer hover:border-slate-700 transition">
-                                        <div>
-                                            <span class="font-bold text-white block">💨 Browser Cache & Expire Headers</span>
-                                            <span class="text-[11px] text-slate-400">Header max-age=2592000 cho CSS, JS, Fonts, Images</span>
-                                        </div>
-                                        <input type="checkbox" v-model="getDomainVhostSettings(selectedVhostDomain?.id).browserCacheEnabled" class="mt-1 rounded text-emerald-500 bg-slate-900 border-slate-700">
-                                    </label>
-                                </div>
-                                <div class="pt-3 border-t border-[#232b36] flex justify-end">
-                                    <button @click="saveDomainVhostSettings(selectedVhostDomain)" :disabled="savingVhostConfig"
-                                        class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-600 font-bold text-white text-xs flex items-center space-x-1.5 shadow transition">
-                                        <span v-if="savingVhostConfig" class="animate-spin">⏳</span>
-                                        <span v-else>💾</span>
-                                        <span>Lưu Thiết Lập Modules</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- TAB 12: RAW CONFIG -->
+                        <!-- TAB 7: RAW CONFIG -->
                         <div v-if="getDomainVhostTab(selectedVhostDomain?.id) === 'raw_config'" class="flex-1 flex flex-col space-y-3 min-h-[420px]">
                             <div class="flex items-center justify-between">
                                 <span class="text-slate-400 font-mono text-[11px] truncate max-w-md">
@@ -4576,6 +4408,7 @@
                             </div>
                         </div>
 
+                        </div>
                     </div>
                 </div>
             </div>

@@ -298,7 +298,7 @@
                                                     W
                                                 </button>
                                                 <!-- Conf: Chỉ Admin mới có quyền mở VHost cấu hình trực tiếp -->
-                                                <button v-if="currentUser.role === 'admin'" @click="openDomainVhostModal(d)" title="Cấu hình Webserver VirtualHost (Nginx / OpenLiteSpeed) (Chỉ Admin)"
+                                                <button type="button" v-if="currentUser.role === 'admin'" @click="openDomainVhostModal(d)" title="Cấu hình Webserver VirtualHost (Nginx / OpenLiteSpeed) (Chỉ Admin)"
                                                     class="w-7 h-7 bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center transition"
                                                     style="padding: 0;">
                                                     <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>

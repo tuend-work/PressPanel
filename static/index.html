@@ -1061,7 +1061,7 @@ function showToast(message, type = 'success') {
                 'firewall.html', 'backups.html'
             ];
             try {
-                const assetVer = '0.5.206';
+                const assetVer = '0.5.207_' + Date.now();
                 const [viewContents, modalsHtml] = await Promise.all([
                     Promise.all(viewFiles.map(f => fetch('/static/views/' + f + '?v=' + assetVer).then(r => r.text()))),
                     fetch('/static/modals/modals.html?v=' + assetVer).then(r => r.text())
@@ -2146,6 +2146,7 @@ geo $limit_rate {
                 };
 
                 const openAppSettings = async (app) => {
+                    if (!app || !app.id) return;
                     selectedSettingApp.value = app;
                     appSettingTab.value = 'service';
                     selectedSwitchVersion.value = app.default_version || (app.versions && app.versions[0] ? app.versions[0].value : 'default');
@@ -5315,6 +5316,7 @@ geo $limit_rate {
                 const rebuildingVhost = ref(false);
 
                 const openDomainVhostModal = async (domain, initialTab = 'registration') => {
+                    if (!domain || !domain.id) return;
                     if (currentUser.value?.role !== 'admin') {
                         showAlert('Chỉ Quản trị viên (Admin) mới có quyền truy cập cấu hình Virtual Host trực tiếp.');
                         return;
