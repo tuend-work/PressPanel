@@ -5661,14 +5661,19 @@ if ($host ~* ^www\\.(.*)$) {
                 // ==========================================
                 const filesList = ref([]);
                 const fileCurrentPath = ref('');
+                const fileAbsolutePath = ref('');
                 const fileTargetUser = ref('');
                 const loadingFiles = ref(false);
+                const uploadingFiles = ref(false);
+                const isDraggingFiles = ref(false);
                 const selectedFileNames = ref([]);
                 const showEditFileModal = ref(false);
                 const editingFileName = ref('');
                 const editingFilePath = ref('');
                 const editingFileContent = ref('');
                 const savingFile = ref(false);
+                const editorWordWrap = ref(true);
+                const editorFontSize = ref(13);
                 const showCreateItemModal = ref(false);
                 const newItemType = ref('file'); // 'file' | 'folder'
                 const newItemName = ref('');
@@ -5708,6 +5713,24 @@ if ($host ~* ^www\\.(.*)$) {
                 const showChmodModal = ref(false);
                 const chmodTargetName = ref('');
                 const chmodMode = ref('755');
+                const chmodRecursive = ref(false);
+
+                // Delete Confirm States
+                const showDeleteConfirmModal = ref(false);
+                const deleteConfirmItems = ref([]);
+                const deleteUseRecycleBin = ref(true);
+                const deleteIsSingle = ref(false);
+
+                // Extract Archive States
+                const showExtractModal = ref(false);
+                const extractTargetName = ref('');
+                const extractDestSubdir = ref('');
+                const extractingFile = ref(false);
+
+                // Image Preview States
+                const showPreviewImageModal = ref(false);
+                const previewImageName = ref('');
+                const previewImageUrl = ref('');
 
                 // Search File Content
                 const showSearchContentModal = ref(false);
@@ -5862,9 +5885,9 @@ if ($host ~* ^www\\.(.*)$) {
                     }
                 };
 
-                const handleFileUpload = async (event) => {
-                    const files = event.target.files;
+                const uploadFileList = async (files) => {
                     if (!files || files.length === 0) return;
+                    uploadingFiles.value = true;
                     const formData = new FormData();
                     for (let i = 0; i < files.length; i++) {
                         formData.append('files', files[i]);
@@ -5880,7 +5903,7 @@ if ($host ~* ^www\\.(.*)$) {
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            showAlert(data.message || 'Tải lên tệp tin thành công!');
+                            showToast(data.message || 'Tải lên tệp tin thành công!');
                             fetchFilesList(fileCurrentPath.value);
                         } else {
                             showAlert('Lỗi tải lên: ' + (data.detail || 'Không thể tải lên tệp'));
@@ -5888,7 +5911,21 @@ if ($host ~* ^www\\.(.*)$) {
                     } catch (e) {
                         showAlert('Lỗi kết nối tải lên: ' + e.message);
                     } finally {
-                        event.target.value = '';
+                        uploadingFiles.value = false;
+                    }
+                };
+
+                const handleFileUpload = async (event) => {
+                    const files = event.target.files;
+                    await uploadFileList(files);
+                    event.target.value = '';
+                };
+
+                const handleDropUpload = async (event) => {
+                    isDraggingFiles.value = false;
+                    const files = event.dataTransfer?.files;
+                    if (files && files.length > 0) {
+                        await uploadFileList(files);
                     }
                 };
 
@@ -5940,14 +5977,26 @@ if ($host ~* ^www\\.(.*)$) {
                     }
                 };
 
-                const confirmBatchDelete = async () => {
+                const requestBatchDelete = () => {
                     if (selectedFileNames.value.length === 0) {
                         showAlert('Vui lòng chọn ít nhất một mục để xóa!');
                         return;
                     }
-                    if (!confirm(`Bạn có chắc chắn muốn chuyển ${selectedFileNames.value.length} mục đã chọn vào Thùng rác (Recycle Bin)?`)) {
-                        return;
-                    }
+                    deleteConfirmItems.value = [...selectedFileNames.value];
+                    deleteUseRecycleBin.value = true;
+                    deleteIsSingle.value = false;
+                    showDeleteConfirmModal.value = true;
+                };
+
+                const requestDeleteItem = (itemName) => {
+                    deleteConfirmItems.value = [itemName];
+                    deleteUseRecycleBin.value = true;
+                    deleteIsSingle.value = true;
+                    showDeleteConfirmModal.value = true;
+                };
+
+                const confirmDeleteExecution = async () => {
+                    if (deleteConfirmItems.value.length === 0) return;
                     try {
                         const res = await fetch('/api/v1/files/batch-delete', {
                             method: 'POST',
@@ -5957,17 +6006,18 @@ if ($host ~* ^www\\.(.*)$) {
                             },
                             body: JSON.stringify({
                                 current_path: fileCurrentPath.value,
-                                items: selectedFileNames.value,
-                                use_recycle_bin: true,
+                                items: deleteConfirmItems.value,
+                                use_recycle_bin: deleteUseRecycleBin.value,
                                 target_user: fileTargetUser.value || undefined
                             })
                         });
                         const data = await res.json();
                         if (res.ok) {
+                            showDeleteConfirmModal.value = false;
                             selectedFileNames.value = [];
                             fetchFilesList(fileCurrentPath.value);
                             fetchRecycleBinCount();
-                            showAlert(data.message || 'Đã chuyển vào Thùng rác thành công!');
+                            showToast(data.message || 'Đã xóa thành công!');
                         } else {
                             showAlert('Lỗi: ' + (data.detail || 'Không thể xóa'));
                         }
@@ -5975,6 +6025,8 @@ if ($host ~* ^www\\.(.*)$) {
                         showAlert('Lỗi kết nối: ' + e.message);
                     }
                 };
+
+                const confirmBatchDelete = requestBatchDelete;
 
                 const fetchRecycleBinCount = async () => {
                     try {
@@ -6096,8 +6148,21 @@ if ($host ~* ^www\\.(.*)$) {
 
                 const openChmodModal = (name, currentMode = '755') => {
                     chmodTargetName.value = name;
-                    chmodMode.value = currentMode || '755';
+                    chmodMode.value = (currentMode || '755').toString().padStart(3, '0').slice(-3);
+                    chmodRecursive.value = false;
                     showChmodModal.value = true;
+                };
+
+                const chmodDigit = (idx) => {
+                    const m = (chmodMode.value || '755').padStart(3, '0');
+                    const n = parseInt(m[idx], 10);
+                    return isNaN(n) ? 0 : n;
+                };
+
+                const toggleChmodBit = (idx, bit) => {
+                    const digits = [chmodDigit(0), chmodDigit(1), chmodDigit(2)];
+                    digits[idx] = digits[idx] ^ bit;
+                    chmodMode.value = digits.join('');
                 };
 
                 const handleBatchChmod = () => {
@@ -6109,14 +6174,15 @@ if ($host ~* ^www\\.(.*)$) {
                 };
 
                 const confirmChmod = async () => {
-                    if (!chmodMode.value.trim()) {
-                        showAlert('Vui lòng nhập mã phân quyền!');
+                    const m = chmodMode.value.trim();
+                    if (!/^[0-7]{3}$/.test(m)) {
+                        showAlert('Mã phân quyền không hợp lệ (chỉ nhập 3 chữ số từ 0-7, ví dụ 755 hoặc 644)!');
                         return;
                     }
                     const targets = chmodTargetName.value.split(',').map(s => s.trim()).filter(Boolean);
                     try {
                         for (const item of targets) {
-                            await fetch('/api/v1/files/chmod', {
+                            const res = await fetch('/api/v1/files/chmod', {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
@@ -6125,16 +6191,130 @@ if ($host ~* ^www\\.(.*)$) {
                                 body: JSON.stringify({
                                     current_path: fileCurrentPath.value,
                                     name: item,
-                                    mode: chmodMode.value.trim(),
+                                    mode: m,
+                                    recursive: chmodRecursive.value,
                                     target_user: fileTargetUser.value || undefined
                                 })
                             });
+                            if (!res.ok) {
+                                const err = await res.json().catch(() => ({}));
+                                throw new Error(err.detail || 'Chmod thất bại');
+                            }
                         }
                         showChmodModal.value = false;
                         fetchFilesList(fileCurrentPath.value);
-                        showAlert('Áp dụng phân quyền thành công!');
+                        showToast('Áp dụng phân quyền thành công!');
                     } catch (e) {
                         showAlert('Lỗi phân quyền: ' + e.message);
+                    }
+                };
+
+                const handleFixPermissions = async () => {
+                    if (!confirm('Chuẩn hóa toàn bộ thư mục con thành 755, tệp tin thành 644 và đồng bộ chủ sở hữu trong thư mục hiện tại?')) return;
+                    try {
+                        const res = await fetch('/api/v1/files/fix-permissions', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                current_path: fileCurrentPath.value,
+                                target_user: fileTargetUser.value || undefined
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showToast(data.message || 'Chuẩn hóa quyền thành công!');
+                            fetchFilesList(fileCurrentPath.value);
+                        } else {
+                            showAlert('Lỗi: ' + (data.detail || 'Không thể chuẩn hóa quyền'));
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối: ' + e.message);
+                    }
+                };
+
+                const openExtractModal = (name) => {
+                    extractTargetName.value = name;
+                    extractDestSubdir.value = '';
+                    showExtractModal.value = true;
+                };
+
+                const confirmExtractArchive = async () => {
+                    if (!extractTargetName.value) return;
+                    extractingFile.value = true;
+                    try {
+                        const res = await fetch('/api/v1/files/extract', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({
+                                current_path: fileCurrentPath.value,
+                                name: extractTargetName.value,
+                                dest_subdir: extractDestSubdir.value.trim(),
+                                target_user: fileTargetUser.value || undefined
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showExtractModal.value = false;
+                            fetchFilesList(fileCurrentPath.value);
+                            showAlert(data.message || 'Giải nén thành công!');
+                        } else {
+                            showAlert('Lỗi giải nén: ' + (data.detail || 'Không thể giải nén'));
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi kết nối: ' + e.message);
+                    } finally {
+                        extractingFile.value = false;
+                    }
+                };
+
+                const openPreviewImage = async (fileName) => {
+                    const cleanName = fileName.replace(/^\/+/, '');
+                    const filePath = (!cleanName.includes('/') && fileCurrentPath.value) ? `${fileCurrentPath.value}/${cleanName}` : cleanName;
+                    const targetUserParam = fileTargetUser.value ? `&target_user=${encodeURIComponent(fileTargetUser.value)}` : '';
+                    previewImageName.value = cleanName.split('/').pop() || cleanName;
+                    if (previewImageUrl.value) {
+                        window.URL.revokeObjectURL(previewImageUrl.value);
+                        previewImageUrl.value = '';
+                    }
+                    showPreviewImageModal.value = true;
+                    try {
+                        const res = await fetch(`/api/v1/files/download?inline=true&path=${encodeURIComponent(filePath)}${targetUserParam}`, {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const blob = await res.blob();
+                            previewImageUrl.value = window.URL.createObjectURL(blob);
+                        } else {
+                            showAlert('Không thể tải xem trước ảnh.');
+                            showPreviewImageModal.value = false;
+                        }
+                    } catch (e) {
+                        showAlert('Lỗi xem ảnh: ' + e.message);
+                        showPreviewImageModal.value = false;
+                    }
+                };
+
+                const closePreviewImage = () => {
+                    showPreviewImageModal.value = false;
+                    if (previewImageUrl.value) {
+                        window.URL.revokeObjectURL(previewImageUrl.value);
+                        previewImageUrl.value = '';
+                    }
+                };
+
+                const copyFileAbsPath = async () => {
+                    if (!fileAbsolutePath.value) return;
+                    try {
+                        await navigator.clipboard.writeText(fileAbsolutePath.value);
+                        showToast('Đã copy đường dẫn: ' + fileAbsolutePath.value);
+                    } catch (e) {
+                        showAlert(fileAbsolutePath.value);
                     }
                 };
 
@@ -6260,6 +6440,8 @@ if ($host ~* ^www\\.(.*)$) {
                     loadingFiles.value = true;
                     fileCurrentPath.value = subpath;
                     selectedFileNames.value = [];
+                    folderSizes.value = {};
+                    totalCalculatedSize.value = '';
                     try {
                         const targetUserParam = fileTargetUser.value ? `&target_user=${encodeURIComponent(fileTargetUser.value)}` : '';
                         let url = `/api/v1/files/list?path=${encodeURIComponent(subpath)}${targetUserParam}`;
@@ -6272,11 +6454,17 @@ if ($host ~* ^www\\.(.*)$) {
                         if (res.ok) {
                             const data = await res.json();
                             filesList.value = data.items || [];
+                            fileAbsolutePath.value = data.absolute_path || '';
                             if (data.target_user && !fileTargetUser.value) {
                                 fileTargetUser.value = data.target_user;
                             }
+                            if (fileCurrentPage.value > maxFilePages.value) {
+                                fileCurrentPage.value = 1;
+                            }
                         } else {
+                            const err = await res.json().catch(() => ({}));
                             filesList.value = [];
+                            if (err.detail) showAlert(err.detail);
                         }
                     } catch (e) {
                         console.error('Lỗi tải tệp tin:', e);
@@ -6287,6 +6475,10 @@ if ($host ~* ^www\\.(.*)$) {
                         refreshLucideIcons();
                     }
                 };
+
+                watch([filePageSize, fileSearchQuery], () => {
+                    fileCurrentPage.value = 1;
+                });
 
                 const enterDirectory = (folderName) => {
                     const next = fileCurrentPath.value ? `${fileCurrentPath.value}/${folderName}` : folderName;
@@ -6325,10 +6517,12 @@ if ($host ~* ^www\\.(.*)$) {
                             editingFileContent.value = data.content || '';
                         } else {
                             const errData = await res.json().catch(() => null);
-                            editingFileContent.value = `// Không thể đọc nội dung tệp này${errData?.detail ? ': ' + errData.detail : ''}`;
+                            showEditFileModal.value = false;
+                            showAlert(errData?.detail || 'Không thể mở tệp này trong trình soạn thảo.');
                         }
                     } catch (e) {
-                        editingFileContent.value = '// Lỗi: ' + e.message;
+                        showEditFileModal.value = false;
+                        showAlert('Lỗi đọc tệp: ' + e.message);
                     }
                     refreshLucideIcons();
                 };
@@ -10151,16 +10345,21 @@ if ($host ~* ^www\\.(.*)$) {
                     showComingSoon, comingSoonFeature, showComingSoonModal,
                     handleWPSSO, installSSL, showSslModal, selectedSslDomain, sslTab, sslVerifyMethod, sslForm, sslPrivateKey, sslCertificate, sslInfo, installingSSL, openSslModal, handleInstallLetsEncrypt, handleInstallZeroSSL, handleSaveManualSSL, handleRenewSSL, handleDisableSSL, handleWPClone, handleWPSecure, openFileManager,
                     fetchSystemStatus, restartPanel, refreshLucideIcons,
-                    filesList, fileCurrentPath, fileTargetUser, loadingFiles, pathParts,
+                    filesList, fileCurrentPath, fileAbsolutePath, fileTargetUser, loadingFiles, uploadingFiles, isDraggingFiles, pathParts,
                     selectedFileNames, isAllFilesSelected, toggleSelectAllFiles,
                     fileViewMode, fileSearchQuery, fileSearchSubdir, filePageSize, fileCurrentPage, fileGotoInput,
                     fileSortKey, fileSortOrder, filteredFiles, paginatedFiles, maxFilePages, directoryCount, fileCount,
                     sortFilesBy, handleFileSearch, calculateFolderSize, calculateTotalDirectorySize, folderSizes, totalCalculatedSize,
-                    handleFileUpload, handleBatchAction, handlePasteClipboard, confirmBatchDelete, handleBatchChmod,
+                    handleFileUpload, handleDropUpload, handleBatchAction, handlePasteClipboard, confirmBatchDelete, requestBatchDelete, requestDeleteItem,
+                    showDeleteConfirmModal, deleteConfirmItems, deleteUseRecycleBin, deleteIsSingle, confirmDeleteExecution,
+                    handleBatchChmod, handleFixPermissions, copyFileAbsPath,
                     showRecycleBinModal, recycleBinItems, recycleBinCount, loadingRecycleBin, fetchRecycleBinCount, fetchRecycleBinList, openRecycleBinModal, restoreRecycleItem, emptyRecycleBinAction,
                     showRemoteDownloadModal, remoteDownloadUrl, remoteDownloadName, downloadingRemote, handleRemoteDownload,
                     showRenameModal, renameOldName, renameNewName, openRenameModal, confirmRename,
-                    showChmodModal, chmodTargetName, chmodMode, openChmodModal, confirmChmod,
+                    showChmodModal, chmodTargetName, chmodMode, chmodRecursive, chmodDigit, toggleChmodBit, openChmodModal, confirmChmod,
+                    showExtractModal, extractTargetName, extractDestSubdir, extractingFile, openExtractModal, confirmExtractArchive,
+                    showPreviewImageModal, previewImageName, previewImageUrl, openPreviewImage, closePreviewImage,
+                    editorWordWrap, editorFontSize,
                     showSearchContentModal, searchContentQuery, searchContentCaseSensitive, searchContentResults, searchingContent, handleSearchContentSubmit, openFileFromSearchResult,
                     clipboardAction, clipboardSrcPath, clipboardItems, downloadSingleFile,
                     showCompressModal, compressArchiveName, compressFormat, compressingFiles,
