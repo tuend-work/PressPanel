@@ -1277,16 +1277,50 @@ async def get_resource_monitor(
 
     website_series.sort(key=lambda x: x["current_cpu"], reverse=True)
 
-    # Đảm bảo Tổng CPU của Server (cpu_series) tại mọi mốc thời gian luôn >= tổng CPU của tất cả website cộng lại
-    if target_scope == "server" and website_series:
-        for p_i in range(len(cpu_series)):
-            ws_sum_at_p = sum(ws["cpu"][p_i] for ws in website_series if len(ws["cpu"]) > p_i)
-            if ws_sum_at_p > cpu_series[p_i]:
-                cpu_series[p_i] = round(ws_sum_at_p, 1)
+    # Đảm bảo Tổng CPU/RAM/Disk của Server tại mọi mốc thời gian luôn >= tổng các website cộng lại
+    # và bổ sung đường "Hệ thống & App khác" (OS, MariaDB, Nginx, Redis, Panel...) để biểu đồ phản ánh 100% thực tế
+    if target_scope == "server":
+        n_pts = len(cpu_series)
+        sys_cpu_pts = []
+        sys_ram_pts = []
+        sys_disk_pts = []
+        for p_i in range(n_pts):
+            ws_cpu_sum = sum(ws["cpu"][p_i] for ws in website_series if len(ws["cpu"]) > p_i)
+            ws_ram_sum = sum(ws["ram"][p_i] for ws in website_series if len(ws["ram"]) > p_i)
+            ws_disk_sum = sum(ws["disk"][p_i] for ws in website_series if len(ws["disk"]) > p_i)
+            if ws_cpu_sum > cpu_series[p_i]:
+                cpu_series[p_i] = round(ws_cpu_sum, 1)
+            if ws_ram_sum > ram_series[p_i]:
+                ram_series[p_i] = int(ws_ram_sum)
+            if ws_disk_sum > disk_series[p_i]:
+                disk_series[p_i] = round(ws_disk_sum, 2)
+            sys_cpu_pts.append(round(max(0.0, cpu_series[p_i] - ws_cpu_sum), 1))
+            sys_ram_pts.append(int(max(0, ram_series[p_i] - ws_ram_sum)))
+            sys_disk_pts.append(round(max(0.0, disk_series[p_i] - ws_disk_sum), 2))
 
         total_curr_ws_cpu = sum(ws["current_cpu"] for ws in website_series)
         if total_curr_ws_cpu > base_cpu:
             base_cpu = round(total_curr_ws_cpu, 1)
+
+        curr_sys_cpu = sys_cpu_pts[-1] if sys_cpu_pts else round(max(0.0, base_cpu - total_curr_ws_cpu), 1)
+        curr_sys_ram = sys_ram_pts[-1] if sys_ram_pts else int(max(0, base_ram_mb - sum(ws["current_ram_mb"] for ws in website_series)))
+        curr_sys_disk = sys_disk_pts[-1] if sys_disk_pts else round(max(0.0, base_disk_gb - sum(ws["current_disk_gb"] for ws in website_series)), 2)
+
+        website_series.append({
+            "id": "system_other",
+            "domain_name": "Hệ thống & App khác",
+            "color": "#94a3b8",
+            "current_cpu": curr_sys_cpu,
+            "current_ram_mb": curr_sys_ram,
+            "current_ram_pct": round((curr_sys_ram / max(1, total_ram_mb)) * 100, 1),
+            "current_disk_mb": round(curr_sys_disk * 1024, 1),
+            "current_disk_gb": curr_sys_disk,
+            "current_disk_pct": round((curr_sys_disk / max(0.1, total_disk_gb)) * 100, 1),
+            "cpu": sys_cpu_pts,
+            "ram": sys_ram_pts,
+            "disk": sys_disk_pts,
+            "is_system_other": True
+        })
 
     # 5. Phân tích Top IP Requests từ web log
     ip_stats = []
