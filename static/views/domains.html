@@ -49,11 +49,6 @@
                                     <i data-lucide="plus" class="w-4 h-4 mr-1"></i><span>Thêm Website & Khách Hàng</span>
                                 </button>
 
-                                <button v-if="(currentUser.role === 'reseller' || isHostingUser) && !isWebUser" @click="currentTab = 'service_plans'"
-                                    class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-300 dark:text-slate-200 border border-slate-800/80 dark:border-slate-700 font-semibold text-xs transition flex items-center space-x-1.5">
-                                    <i data-lucide="package" class="w-4 h-4 mr-1"></i><span>Quản Lý Website Plans</span>
-                                </button>
-
                                 <!-- Server Webserver Badge (Tầng Server) -->
                                 <div class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 text-slate-300 border border-slate-700/80 text-xs font-mono font-medium">
                                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
