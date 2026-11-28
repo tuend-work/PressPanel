@@ -269,7 +269,6 @@ async def terminal_websocket(
             # Kiểm tra xem có phải lệnh resize window không: json format {"resize": [cols, rows]}
             if msg.startswith('{"resize":') and msg.endswith('}'):
                 try:
-                    import json
                     rdata = json.loads(msg)
                     cols, rows = rdata["resize"]
                     # ioctl set window size
