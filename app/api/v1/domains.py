@@ -1590,10 +1590,12 @@ async def save_domain_php_ini(
         f"max_input_vars = {max_vars}",
         f"display_errors = {disp_err}",
         f"date.timezone = {tz}",
-        f"opcache.enable = {op_en}",
         f"opcache.validate_timestamps = {op_val}",
         f"opcache.revalidate_freq = {op_freq}",
     ]
+    if op_en == "0":
+        # PHP chỉ cho phép tắt opcache.enable=0 trong .user.ini; bật=1 phải qua system ini (tránh warning)
+        lines.append("opcache.enable = 0")
 
     # Cập nhật 99-presspanel-opcache.ini cho các chỉ thị PHP_INI_SYSTEM của phiên bản PHP đang dùng
     pver = str(domain["php_version"] or "8.2").strip()
