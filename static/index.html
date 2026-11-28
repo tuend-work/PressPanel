@@ -155,6 +155,9 @@ function showToast(message, type = 'success') {
         .swal2-popup, .swal2-styled, .swal2-input {
             border-radius: 7px !important;
         }
+        /* Keep tables strictly bounded inside their containers */
+        main { min-width: 0; }
+        .overflow-x-auto { max-width: 100%; }
 
         /* Dark Mode (Default) Theme Styles */
         html.dark, body.dark {

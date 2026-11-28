@@ -735,89 +735,91 @@ define( 'WP_REDIS_PATH', '{{ userRedis.socket_path || ('/home/' + currentUser.us
 
                                     <!-- D. UNIFIED DATABASE LIST TABLE -->
                                     <div class="bg-[#181d24] rounded-lg overflow-hidden border border-[#2b3543]">
-                                        <table class="w-full text-left text-xs text-slate-300">
-                                            <thead class="bg-[#1f2631] border-b border-[#2b3543] text-xs font-semibold text-slate-300">
-                                                <tr>
-                                                    <th class="py-3 px-4 w-10 text-center">
-                                                        <input type="checkbox" :checked="isAllDbsSelected" @change="toggleSelectAllDbs" class="rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-0">
-                                                    </th>
-                                                    <th class="py-3 px-4">Tên Cơ Sở Dữ Liệu</th>
-                                                    <th class="py-3 px-4">Sao Lưu</th>
-                                                    <th class="py-3 px-4">Người Dùng DB</th>
-                                                    <th class="py-3 px-4">Website</th>
-                                                    <th class="py-3 px-4">Bảng Mã / Engine</th>
-                                                    <th class="py-3 px-4">Dung Lượng</th>
-                                                    <th class="py-3 px-4 text-right">Thao Tác</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody class="divide-y divide-[#26303d]">
-                                                <tr v-if="filteredDatabases.length === 0">
-                                                    <td colspan="8" class="py-12 text-center text-slate-400">
-                                                        <div class="text-2xl mb-2 text-slate-500">
-                                                            <span v-if="dbTypeTab === 'mysql'">🐬</span>
-                                                            <span v-else-if="dbTypeTab === 'sqlserver'">🗄️</span>
-                                                            <span v-else-if="dbTypeTab === 'mongodb'">🍃</span>
-                                                            <span v-else-if="dbTypeTab === 'pgsql'">🐘</span>
-                                                            <span v-else>🗄️</span>
-                                                        </div>
-                                                        <div class="font-semibold text-slate-300">
-                                                            <span v-if="dbTypeTab === 'mysql'">Chưa có CSDL MySQL/MariaDB nào</span>
-                                                            <span v-else-if="dbTypeTab === 'sqlserver'">Chưa có CSDL Microsoft SQL Server nào</span>
-                                                            <span v-else-if="dbTypeTab === 'mongodb'">Chưa có CSDL MongoDB nào</span>
-                                                            <span v-else-if="dbTypeTab === 'pgsql'">Chưa có CSDL PostgreSQL nào</span>
-                                                            <span v-else>Chưa có CSDL nào</span>
-                                                        </div>
-                                                        <div class="text-[11px] text-slate-500 mt-1">Bấm nút "Thêm Cơ Sở Dữ Liệu" ở thanh công cụ phía trên để khởi tạo CSDL đầu tiên.</div>
-                                                    </td>
-                                                </tr>
-                                                <tr v-for="db in filteredDatabases" :key="'db_' + db.id" class="hover:bg-[#1f2631]/60 transition">
-                                                    <td class="py-3 px-4 text-center">
-                                                        <input type="checkbox" :value="db.id" v-model="selectedDbIds" class="rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-0">
-                                                    </td>
-                                                    <td class="py-3 px-4 font-mono font-bold text-white">
-                                                        <div class="flex items-center space-x-2">
-                                                            <span class="w-2 h-2 rounded-full shrink-0"
-                                                                :class="dbTypeTab === 'mysql' ? 'bg-emerald-400' : (dbTypeTab === 'sqlserver' ? 'bg-red-400' : (dbTypeTab === 'mongodb' ? 'bg-green-400' : 'bg-indigo-400'))"></span>
-                                                            <span>{{ db.db_name }}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td class="py-3 px-4">
-                                                        <span v-if="db.backup_enabled" class="px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 text-[10px] font-semibold">
-                                                            Đã bật
-                                                        </span>
-                                                        <span v-else class="text-slate-400 text-xs">
-                                                            No backup set
-                                                        </span>
-                                                    </td>
-                                                    <td class="py-3 px-4 font-mono text-slate-300">
-                                                        {{ db.db_user }}
-                                                    </td>
-                                                    <td class="py-3 px-4 font-medium text-emerald-400">
-                                                        {{ db.domain_name }}
-                                                    </td>
-                                                    <td class="py-3 px-4 font-mono text-[11px] text-slate-400">
-                                                        {{ db.charset || 'utf8mb4' }}
-                                                    </td>
-                                                    <td class="py-3 px-4 font-mono text-[11px] text-slate-300">
-                                                        {{ db.size_mb }} MB
-                                                    </td>
-                                                    <td class="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
-                                                        <button @click="handleManageDb(db)" class="px-2.5 py-1 rounded bg-[#242c38] hover:bg-[#2e3746] text-amber-300 text-xs font-medium border border-[#374357] transition" title="Quản lý CSDL">
-                                                            Quản lý
-                                                        </button>
-                                                        <button @click="handleBackupDatabase(db)" class="px-2.5 py-1 rounded bg-[#242c38] hover:bg-[#2e3746] text-slate-300 text-xs font-medium border border-[#374357] transition" title="Xuất file sao lưu">
-                                                            Backup
-                                                        </button>
-                                                        <button @click="alert('Tối ưu hóa bảng và chỉ mục CSDL ' + db.db_name + ' thành công!')" class="px-2.5 py-1 rounded bg-[#242c38] hover:bg-[#2e3746] text-emerald-400 text-xs font-medium border border-[#374357] transition" title="Kiểm tra & Tối ưu bảng">
-                                                            Tối ưu
-                                                        </button>
-                                                        <button @click="handleDeleteDatabase(db)" class="px-2.5 py-1 rounded bg-[#242c38] hover:bg-rose-950/60 text-rose-400 text-xs font-medium border border-[#374357] transition" title="Xóa CSDL">
-                                                            Xóa
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
+                                        <div class="overflow-x-auto w-full custom-scrollbar">
+                                            <table class="w-full text-left text-xs text-slate-300">
+                                                <thead class="bg-[#1f2631] border-b border-[#2b3543] text-[11px] font-semibold text-slate-300">
+                                                    <tr>
+                                                        <th class="py-2.5 px-2.5 w-9 text-center">
+                                                            <input type="checkbox" :checked="isAllDbsSelected" @change="toggleSelectAllDbs" class="rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-0">
+                                                        </th>
+                                                        <th class="py-2.5 px-2.5">Tên Cơ Sở Dữ Liệu</th>
+                                                        <th class="py-2.5 px-2.5 whitespace-nowrap">Sao Lưu</th>
+                                                        <th class="py-2.5 px-2.5">Người Dùng DB</th>
+                                                        <th class="py-2.5 px-2.5">Website</th>
+                                                        <th class="py-2.5 px-2.5 hidden xl:table-cell">Bảng Mã</th>
+                                                        <th class="py-2.5 px-2.5 whitespace-nowrap">Dung Lượng</th>
+                                                        <th class="py-2.5 px-3 text-right whitespace-nowrap">Thao Tác</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-[#26303d]">
+                                                    <tr v-if="filteredDatabases.length === 0">
+                                                        <td colspan="8" class="py-12 text-center text-slate-400">
+                                                            <div class="text-2xl mb-2 text-slate-500">
+                                                                <span v-if="dbTypeTab === 'mysql'">🐬</span>
+                                                                <span v-else-if="dbTypeTab === 'sqlserver'">🗄️</span>
+                                                                <span v-else-if="dbTypeTab === 'mongodb'">🍃</span>
+                                                                <span v-else-if="dbTypeTab === 'pgsql'">🐘</span>
+                                                                <span v-else>🗄️</span>
+                                                            </div>
+                                                            <div class="font-semibold text-slate-300">
+                                                                <span v-if="dbTypeTab === 'mysql'">Chưa có CSDL MySQL/MariaDB nào</span>
+                                                                <span v-else-if="dbTypeTab === 'sqlserver'">Chưa có CSDL Microsoft SQL Server nào</span>
+                                                                <span v-else-if="dbTypeTab === 'mongodb'">Chưa có CSDL MongoDB nào</span>
+                                                                <span v-else-if="dbTypeTab === 'pgsql'">Chưa có CSDL PostgreSQL nào</span>
+                                                                <span v-else>Chưa có CSDL nào</span>
+                                                            </div>
+                                                            <div class="text-[11px] text-slate-500 mt-1">Bấm nút "Thêm Cơ Sở Dữ Liệu" ở thanh công cụ phía trên để khởi tạo CSDL đầu tiên.</div>
+                                                        </td>
+                                                    </tr>
+                                                    <tr v-for="db in filteredDatabases" :key="'db_' + db.id" class="hover:bg-[#1f2631]/60 transition">
+                                                        <td class="py-2.5 px-2.5 text-center">
+                                                            <input type="checkbox" :value="db.id" v-model="selectedDbIds" class="rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-0">
+                                                        </td>
+                                                        <td class="py-2.5 px-2.5 font-mono font-bold text-white max-w-[180px] sm:max-w-[220px]">
+                                                            <div class="flex items-center space-x-2 min-w-0">
+                                                                <span class="w-2 h-2 rounded-full shrink-0"
+                                                                    :class="dbTypeTab === 'mysql' ? 'bg-emerald-400' : (dbTypeTab === 'sqlserver' ? 'bg-red-400' : (dbTypeTab === 'mongodb' ? 'bg-green-400' : 'bg-indigo-400'))"></span>
+                                                                <span class="truncate" :title="db.db_name">{{ db.db_name }}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td class="py-2.5 px-2.5 whitespace-nowrap">
+                                                            <span v-if="db.backup_enabled" class="px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 text-[10px] font-semibold">
+                                                                Đã bật
+                                                            </span>
+                                                            <span v-else class="text-slate-400 text-[11px]">
+                                                                No backup
+                                                            </span>
+                                                        </td>
+                                                        <td class="py-2.5 px-2.5 font-mono text-slate-300 max-w-[170px]">
+                                                            <div class="truncate" :title="db.db_user">{{ db.db_user }}</div>
+                                                        </td>
+                                                        <td class="py-2.5 px-2.5 font-medium text-emerald-400 max-w-[150px]">
+                                                            <div class="truncate" :title="db.domain_name">{{ db.domain_name }}</div>
+                                                        </td>
+                                                        <td class="py-2.5 px-2.5 font-mono text-[11px] text-slate-400 hidden xl:table-cell max-w-[140px]">
+                                                            <div class="truncate" :title="db.charset || 'utf8mb4'">{{ db.charset || 'utf8mb4' }}</div>
+                                                        </td>
+                                                        <td class="py-2.5 px-2.5 font-mono text-[11px] text-slate-300 whitespace-nowrap">
+                                                            {{ db.size_mb }} MB
+                                                        </td>
+                                                        <td class="py-2.5 px-3 text-right space-x-1 whitespace-nowrap">
+                                                            <button @click="handleManageDb(db)" class="px-2 py-1 rounded bg-[#242c38] hover:bg-[#2e3746] text-amber-300 text-[11px] font-medium border border-[#374357] transition" title="Quản lý CSDL">
+                                                                Quản lý
+                                                            </button>
+                                                            <button @click="handleBackupDatabase(db)" class="px-2 py-1 rounded bg-[#242c38] hover:bg-[#2e3746] text-slate-300 text-[11px] font-medium border border-[#374357] transition" title="Xuất file sao lưu">
+                                                                Backup
+                                                            </button>
+                                                            <button @click="alert('Tối ưu hóa bảng và chỉ mục CSDL ' + db.db_name + ' thành công!')" class="px-2 py-1 rounded bg-[#242c38] hover:bg-[#2e3746] text-emerald-400 text-[11px] font-medium border border-[#374357] transition" title="Kiểm tra & Tối ưu bảng">
+                                                                Tối ưu
+                                                            </button>
+                                                            <button @click="handleDeleteDatabase(db)" class="px-2 py-1 rounded bg-[#242c38] hover:bg-rose-950/60 text-rose-400 text-[11px] font-medium border border-[#374357] transition" title="Xóa CSDL">
+                                                                Xóa
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 </div>
                                 </template>
