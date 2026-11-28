@@ -3948,30 +3948,43 @@
                         <button @click="showEditCustomerModal = false" class="text-slate-400 hover:text-white text-xl leading-none p-1.5 rounded-lg hover:bg-slate-800 transition">&times;</button>
                     </div>
 
-                    <form @submit.prevent="handleSaveCustomerEdit" class="space-y-4 text-xs">
-                        <div class="grid grid-cols-2 gap-3">
+                    <form @submit.prevent="handleSaveCustomerEdit" class="space-y-4 text-xs max-h-[80vh] overflow-y-auto custom-scrollbar pr-1">
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                             <div>
-                                <label class="block font-medium text-slate-300 mb-1.5">Username (Cố định)</label>
+                                <label class="block font-medium text-slate-300 mb-1">Username (Cố định)</label>
                                 <input type="text" :value="editingCustomer.username" disabled
-                                    class="w-full px-3.5 py-2 rounded-xl bg-[#141820] border border-[#262f3c] text-slate-500 font-mono text-xs cursor-not-allowed">
+                                    class="w-full px-3 py-2 rounded-xl bg-[#141820] border border-[#262f3c] text-slate-400 font-mono text-xs cursor-not-allowed">
                             </div>
                             <div>
-                                <label class="block font-medium text-slate-300 mb-1.5">Họ và Tên</label>
-                                <input type="text" v-model="editingCustomer.full_name" placeholder="Ví dụ: Nguyễn Văn A"
-                                    class="w-full px-3.5 py-2 rounded-xl bg-[#1a212d] border border-[#2c3647] text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-xs">
+                                <label class="block font-medium text-slate-300 mb-1">Trạng thái</label>
+                                <select v-model="editingCustomer.status"
+                                    class="w-full px-3 py-2 rounded-xl bg-[#1a212d] border border-[#2c3647] text-white text-xs">
+                                    <option value="active">Hoạt động (Active)</option>
+                                    <option value="suspended">Tạm khóa (Suspended)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-medium text-slate-300 mb-1">Gói hiện tại</label>
+                                <input type="text" :value="editingCustomer.package_name || 'Mặc định'" disabled
+                                    class="w-full px-3 py-2 rounded-xl bg-[#141820] border border-[#262f3c] text-blue-300 text-xs cursor-not-allowed">
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
-                                <label class="block font-medium text-slate-300 mb-1.5">Email Khách Hàng</label>
-                                <input type="email" v-model="editingCustomer.email" required placeholder="name@domain.com"
-                                    class="w-full px-3.5 py-2 rounded-xl bg-[#1a212d] border border-[#2c3647] text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-xs">
+                                <label class="block font-medium text-slate-300 mb-1">Họ và Tên</label>
+                                <input type="text" v-model="editingCustomer.full_name" placeholder="Ví dụ: Nguyễn Văn A"
+                                    class="w-full px-3 py-2 rounded-xl bg-[#1a212d] border border-[#2c3647] text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-xs">
                             </div>
                             <div>
-                                <label class="block font-medium text-slate-300 mb-1.5">Số Điện Thoại</label>
+                                <label class="block font-medium text-slate-300 mb-1">Email Khách Hàng</label>
+                                <input type="email" v-model="editingCustomer.email" required placeholder="name@domain.com"
+                                    class="w-full px-3 py-2 rounded-xl bg-[#1a212d] border border-[#2c3647] text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-xs">
+                            </div>
+                            <div>
+                                <label class="block font-medium text-slate-300 mb-1">Số Điện Thoại</label>
                                 <input type="tel" v-model="editingCustomer.phone" placeholder="0912345678"
-                                    class="w-full px-3.5 py-2 rounded-xl bg-[#1a212d] border border-[#2c3647] text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-xs">
+                                    class="w-full px-3 py-2 rounded-xl bg-[#1a212d] border border-[#2c3647] text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-xs">
                             </div>
                         </div>
 
@@ -3980,7 +3993,7 @@
                             <div class="flex flex-wrap items-center justify-between gap-2">
                                 <span class="font-bold text-blue-300 flex items-center gap-1.5">
                                     <span>⚡</span>
-                                    <span>Chỉnh Tài Nguyên Riêng (Cgroups v2 &amp; Quota)</span>
+                                    <span>Thông Số Tài Nguyên &amp; Giới Hạn Hiện Tại</span>
                                 </span>
                                 <div class="flex items-center gap-1 text-[10px]">
                                     <button type="button" @click="editingCustomer.cpu_pct=100; editingCustomer.mem_mb=1024; editingCustomer.disk_mb=5120" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">1C/1G/5G</button>
@@ -3988,31 +4001,49 @@
                                     <button type="button" @click="editingCustomer.cpu_pct=400; editingCustomer.mem_mb=4096; editingCustomer.disk_mb=20480" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">4C/4G/20G</button>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">CPU Limit (%)</label>
                                     <input type="number" v-model.number="editingCustomer.cpu_pct" min="10" max="12800" required
-                                        class="w-full px-3 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
                                 </div>
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">RAM Limit (MB)</label>
                                     <input type="number" v-model.number="editingCustomer.mem_mb" min="128" max="524288" required
-                                        class="w-full px-3 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
                                 </div>
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">Disk Quota (MB)</label>
                                     <input type="number" v-model.number="editingCustomer.disk_mb" min="100" max="5000000" required
-                                        class="w-full px-3 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
                                 </div>
                                 <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">I/O Weight (10-1000)</label>
+                                    <label class="block text-[11px] text-slate-400 mb-1">I/O Weight</label>
                                     <input type="number" v-model.number="editingCustomer.io_weight" min="10" max="1000" required
-                                        class="w-full px-3 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
                                 </div>
                                 <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Max Processes (PIDs)</label>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Max PIDs</label>
                                     <input type="number" v-model.number="editingCustomer.pids_max" min="20" max="50000" required
-                                        class="w-full px-3 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Max Domains ({{ editingCustomer.domain_count || 0 }} dùng)</label>
+                                    <input type="number" v-model.number="editingCustomer.max_domains" min="1" max="1000" required
+                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Max Databases ({{ editingCustomer.db_count || 0 }} dùng)</label>
+                                    <input type="number" v-model.number="editingCustomer.max_databases" min="0" max="1000" required
+                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Quyền SSH</label>
+                                    <select v-model="editingCustomer.allow_ssh"
+                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white">
+                                        <option :value="true">Cho phép</option>
+                                        <option :value="false">Tắt SSH</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -4515,17 +4546,29 @@
 
                     <!-- Body -->
                     <form @submit.prevent="handleSaveDomainEdit" class="p-6 space-y-4 text-xs max-h-[82vh] overflow-y-auto custom-scrollbar">
-                        <!-- Domain info preview -->
-                        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+                        <!-- Domain info preview (Full Current State) -->
+                        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 grid grid-cols-2 sm:grid-cols-3 gap-3">
                             <div>
-                                <div class="text-[10px] text-slate-400">Linux Isolated User</div>
+                                <div class="text-[10px] text-slate-400">Linux User</div>
                                 <div class="font-bold text-slate-700 dark:text-slate-200 font-mono text-xs">{{ selectedEditDomain?.owner_username }}</div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] text-slate-400">Webserver / Plan</div>
+                                <div class="font-bold text-slate-700 dark:text-slate-200 text-xs uppercase">{{ selectedEditDomain?.webserver || 'ols' }} • <span class="normal-case text-blue-400">{{ selectedEditDomain?.plan_name }}</span></div>
                             </div>
                             <div class="text-right">
                                 <div class="text-[10px] text-slate-400">Trạng thái</div>
-                                <span :class="selectedEditDomain?.status === 'suspended' ? 'text-rose-500 bg-rose-500/10' : 'text-emerald-500 bg-emerald-500/10'" class="px-2 py-0.5 rounded-full font-semibold text-[11px]">
+                                <select v-if="currentUser.role === 'admin' || currentUser.role === 'reseller'" v-model="editDomainForm.status"
+                                    class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-xs font-semibold text-white">
+                                    <option value="active">Active</option>
+                                    <option value="suspended">Suspended</option>
+                                </select>
+                                <span v-else :class="selectedEditDomain?.status === 'suspended' ? 'text-rose-500 bg-rose-500/10' : 'text-emerald-500 bg-emerald-500/10'" class="px-2 py-0.5 rounded-full font-semibold text-[11px]">
                                     ● {{ selectedEditDomain?.status === 'suspended' ? 'Suspended' : 'Active' }}
                                 </span>
+                            </div>
+                            <div class="col-span-2 sm:col-span-3 pt-1.5 border-t border-slate-800/70 text-[10px] text-slate-400 font-mono truncate">
+                                DocRoot: <span class="text-slate-300">{{ selectedEditDomain?.document_root }}</span>
                             </div>
                         </div>
 
@@ -4584,50 +4627,57 @@
                             </select>
                         </div>
 
-                        <!-- 3. Custom Resource Limits for Web Application -->
+                        <!-- 3. Custom Resource Limits for Web Application (Always Visible Current Values) -->
                         <div v-if="currentUser.role === 'admin' || currentUser.role === 'reseller'"
                             class="p-4 rounded-xl bg-blue-500/10 border border-blue-500/25 space-y-3">
                             <div class="flex flex-wrap items-center justify-between gap-2">
-                                <label class="flex items-center gap-2 font-bold text-blue-400 cursor-pointer select-none">
-                                    <input type="checkbox" v-model="editDomainForm.use_custom_limits" class="w-4 h-4 accent-blue-500">
-                                    <span>⚡ Chỉnh Tài Nguyên Riêng Cho Web App</span>
-                                </label>
-                                <div v-if="editDomainForm.use_custom_limits" class="flex items-center gap-1 text-[10px]">
-                                    <button type="button" @click="editDomainForm.cpu_pct=100; editDomainForm.mem_mb=1024; editDomainForm.disk_mb=5120" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">1C/1G</button>
-                                    <button type="button" @click="editDomainForm.cpu_pct=200; editDomainForm.mem_mb=2048; editDomainForm.disk_mb=10240" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">2C/2G</button>
-                                    <button type="button" @click="editDomainForm.cpu_pct=400; editDomainForm.mem_mb=4096; editDomainForm.disk_mb=20480" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">4C/4G</button>
+                                <div class="flex items-center gap-2 font-bold text-blue-400">
+                                    <span>⚡ Thông Số Tài Nguyên Hiện Tại</span>
+                                    <span v-if="editDomainForm.use_custom_limits" class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px]">Tùy chỉnh riêng</span>
+                                    <span v-else class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px]">Theo Plan/User</span>
+                                </div>
+                                <div class="flex items-center gap-1 text-[10px]">
+                                    <button type="button" @click="editDomainForm.use_custom_limits=true; editDomainForm.cpu_pct=100; editDomainForm.mem_mb=1024; editDomainForm.disk_mb=5120" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">1C/1G</button>
+                                    <button type="button" @click="editDomainForm.use_custom_limits=true; editDomainForm.cpu_pct=200; editDomainForm.mem_mb=2048; editDomainForm.disk_mb=10240" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">2C/2G</button>
+                                    <button type="button" @click="editDomainForm.use_custom_limits=true; editDomainForm.cpu_pct=400; editDomainForm.mem_mb=4096; editDomainForm.disk_mb=20480" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">4C/4G</button>
                                 </div>
                             </div>
-                            <div v-if="editDomainForm.use_custom_limits" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">CPU Limit (%)</label>
-                                    <input type="number" v-model.number="editDomainForm.cpu_pct" min="10" max="12800" required
+                                    <input type="number" v-model.number="editDomainForm.cpu_pct" @input="editDomainForm.use_custom_limits = true" min="10" max="12800" required
                                         class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">RAM Limit (MB)</label>
-                                    <input type="number" v-model.number="editDomainForm.mem_mb" min="128" max="524288" required
+                                    <input type="number" v-model.number="editDomainForm.mem_mb" @input="editDomainForm.use_custom_limits = true" min="128" max="524288" required
                                         class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">Disk Quota (MB)</label>
-                                    <input type="number" v-model.number="editDomainForm.disk_mb" min="100" max="5000000" required
+                                    <input type="number" v-model.number="editDomainForm.disk_mb" @input="editDomainForm.use_custom_limits = true" min="100" max="5000000" required
                                         class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">I/O Weight (10-1000)</label>
-                                    <input type="number" v-model.number="editDomainForm.io_weight" min="10" max="1000" required
+                                    <input type="number" v-model.number="editDomainForm.io_weight" @input="editDomainForm.use_custom_limits = true" min="10" max="1000" required
                                         class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">Max Processes (PIDs)</label>
-                                    <input type="number" v-model.number="editDomainForm.pids_max" min="20" max="50000" required
+                                    <input type="number" v-model.number="editDomainForm.pids_max" @input="editDomainForm.use_custom_limits = true" min="20" max="50000" required
+                                        class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Max Databases ({{ selectedEditDomain?.db_count || 0 }} dùng)</label>
+                                    <input type="number" v-model.number="editDomainForm.max_databases" @input="editDomainForm.use_custom_limits = true" min="0" max="1000" required
                                         class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
                             </div>
-                            <p v-else class="text-[10.5px] text-slate-400">
-                                Đang áp dụng theo Website Plan / Hosting User ({{ editDomainForm.cpu_pct }}% CPU, {{ editDomainForm.mem_mb }}MB RAM, {{ editDomainForm.disk_mb }}MB Disk). Tick vào ô trên để cấu hình riêng.
-                            </p>
+                            <label class="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer select-none pt-1">
+                                <input type="checkbox" v-model="editDomainForm.use_custom_limits" class="w-3.5 h-3.5 accent-blue-500">
+                                <span>Lưu cấu hình giới hạn riêng cho Web Application này (Bỏ tick để quay về mặc định theo Website Plan / Hosting User)</span>
+                            </label>
                         </div>
 
                         <!-- 4. SSH Access -->

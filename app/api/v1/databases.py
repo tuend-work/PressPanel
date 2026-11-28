@@ -229,6 +229,77 @@ async def create_database(req: DatabaseCreateRequest, current_user: dict = Depen
     """Tạo database mới (MySQL / MariaDB / Mongo / Redis / PgSQL)"""
     db = await get_db_connection()
     
+    # 0. Kiểm tra quyền sở hữu domain_id (chống IDOR) và giới hạn max_databases
+    target_owner_id = current_user["id"]
+    effective_domain_id = current_user.get("web_domain_id") or req.domain_id
+
+    if current_user.get("web_domain_id"):
+        if req.domain_id and int(req.domain_id) != int(current_user["web_domain_id"]):
+            await db.close()
+            raise HTTPException(status_code=403, detail="Bạn chỉ được phép tạo cơ sở dữ liệu cho Web Application hiện tại.")
+        effective_domain_id = int(current_user["web_domain_id"])
+
+    if effective_domain_id:
+        dom_chk = await db.execute("""
+            SELECT d.id, d.user_id, d.domain_name,
+                   COALESCE(d.max_databases, p_dom.max_databases, u.max_databases, p_u.max_databases, 10) as dom_max_db,
+                   u.parent_id,
+                   COALESCE(u.max_databases, p_u.max_databases, 10) as user_max_db
+            FROM domains d
+            JOIN users u ON d.user_id = u.id
+            LEFT JOIN packages p_dom ON d.package_id = p_dom.id
+            LEFT JOIN packages p_u ON u.package_id = p_u.id
+            WHERE d.id = ?
+        """, (effective_domain_id,))
+        dom_info = await dom_chk.fetchone()
+        if not dom_info:
+            await db.close()
+            raise HTTPException(status_code=404, detail="Không tìm thấy Web Application chỉ định.")
+        if current_user["role"] == "reseller" and dom_info["user_id"] != current_user["id"] and dom_info["parent_id"] != current_user["id"]:
+            await db.close()
+            raise HTTPException(status_code=403, detail="Bạn không có quyền tạo cơ sở dữ liệu cho website này.")
+        elif current_user["role"] not in ("admin", "reseller") and not current_user.get("web_domain_id") and dom_info["user_id"] != current_user["id"]:
+            await db.close()
+            raise HTTPException(status_code=403, detail="Bạn không có quyền tạo cơ sở dữ liệu cho website này.")
+        target_owner_id = dom_info["user_id"]
+
+        if current_user["role"] != "admin":
+            cnt_dom_cur = await db.execute("SELECT COUNT(*) FROM databases WHERE domain_id = ?", (effective_domain_id,))
+            dom_db_count = (await cnt_dom_cur.fetchone())[0]
+            dom_limit = int(dom_info["dom_max_db"] or 0)
+            if dom_db_count >= dom_limit:
+                await db.close()
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Web Application '{dom_info['domain_name']}' đã đạt giới hạn tối đa {dom_limit} cơ sở dữ liệu (hiện có {dom_db_count}/{dom_limit})."
+                )
+            cnt_usr_cur = await db.execute("SELECT COUNT(*) FROM databases WHERE user_id = ?", (target_owner_id,))
+            usr_db_count = (await cnt_usr_cur.fetchone())[0]
+            usr_limit = int(dom_info["user_max_db"] or 0)
+            if usr_db_count >= usr_limit:
+                await db.close()
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Tài khoản đã đạt giới hạn tối đa {usr_limit} cơ sở dữ liệu (hiện có {usr_db_count}/{usr_limit})."
+                )
+    elif current_user["role"] != "admin":
+        usr_chk = await db.execute("""
+            SELECT COALESCE(u.max_databases, p.max_databases, 10) as user_max_db
+            FROM users u
+            LEFT JOIN packages p ON u.package_id = p.id
+            WHERE u.id = ?
+        """, (current_user["id"],))
+        u_row = await usr_chk.fetchone()
+        usr_limit = int(u_row["user_max_db"] if u_row and u_row["user_max_db"] is not None else 10)
+        cnt_usr_cur = await db.execute("SELECT COUNT(*) FROM databases WHERE user_id = ?", (current_user["id"],))
+        usr_db_count = (await cnt_usr_cur.fetchone())[0]
+        if usr_db_count >= usr_limit:
+            await db.close()
+            raise HTTPException(
+                status_code=403,
+                detail=f"Tài khoản đã đạt giới hạn tối đa {usr_limit} cơ sở dữ liệu (hiện có {usr_db_count}/{usr_limit})."
+            )
+
     # 1. Kiểm tra tên hợp lệ & áp dụng rule {full_application_username}_{name} cho cả Database và Database User
     raw_name = req.db_name.strip()
     raw_user = req.db_user.strip()
@@ -288,7 +359,7 @@ FLUSH PRIVILEGES;
         cursor = await db.execute("""
             INSERT INTO databases (user_id, db_name, db_user, db_type, domain_id, charset, description, backup_enabled)
             VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-        """, (current_user["id"], clean_name, clean_user, req.db_type, req.domain_id, req.charset, req.description))
+        """, (target_owner_id, clean_name, clean_user, req.db_type, effective_domain_id, req.charset, req.description))
         await db.commit()
         db_id = cursor.lastrowid
     except Exception as e:

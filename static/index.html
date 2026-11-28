@@ -3361,8 +3361,8 @@ geo $limit_rate {
                 const showEditDomainModal = ref(false);
                 const selectedEditDomain = ref(null);
                 const editDomainForm = ref({
-                    php_version: '8.2', package_id: null, allow_ssh: false, rate_limit: '0',
-                    use_custom_limits: false, cpu_pct: 100, mem_mb: 1024, disk_mb: 5120, io_weight: 100, pids_max: 100
+                    php_version: '8.2', package_id: null, allow_ssh: false, rate_limit: '0', status: 'active',
+                    use_custom_limits: false, cpu_pct: 100, mem_mb: 1024, disk_mb: 5120, io_weight: 100, pids_max: 100, max_databases: 10
                 });
                 const savingDomainEdit = ref(false);
 
@@ -3371,18 +3371,21 @@ geo $limit_rate {
                     selectedEditDomain.value = domain;
                     const hasCustom = domain.custom_cpu_pct !== null && domain.custom_cpu_pct !== undefined
                         || domain.custom_mem_mb !== null && domain.custom_mem_mb !== undefined
-                        || domain.custom_disk_mb !== null && domain.custom_disk_mb !== undefined;
+                        || domain.custom_disk_mb !== null && domain.custom_disk_mb !== undefined
+                        || domain.custom_max_databases !== null && domain.custom_max_databases !== undefined;
                     editDomainForm.value = {
                         php_version: domain.php_version || '8.2',
                         package_id: domain.package_id || null,
                         allow_ssh: !!domain.allow_ssh,
                         rate_limit: domain.rate_limit || '0',
+                        status: domain.status || 'active',
                         use_custom_limits: !!hasCustom,
-                        cpu_pct: domain.cpu_pct || 100,
-                        mem_mb: domain.mem_mb || 1024,
-                        disk_mb: domain.disk_mb || 5120,
-                        io_weight: domain.io_weight || 100,
-                        pids_max: domain.pids_max || 100
+                        cpu_pct: domain.cpu_pct ?? 100,
+                        mem_mb: domain.mem_mb ?? 1024,
+                        disk_mb: domain.disk_mb ?? 5120,
+                        io_weight: domain.io_weight ?? 100,
+                        pids_max: domain.pids_max ?? 100,
+                        max_databases: domain.max_databases ?? 10
                     };
                     showEditDomainModal.value = true;
                     if (servicePlans.value.length === 0) {
@@ -3395,9 +3398,10 @@ geo $limit_rate {
                     if (!pid) return;
                     const found = (websitePlans.value || []).find(p => p.id === pid);
                     if (found) {
-                        editDomainForm.value.cpu_pct = found.cpu_pct || 100;
-                        editDomainForm.value.mem_mb = found.mem_mb || 1024;
-                        editDomainForm.value.disk_mb = found.disk_mb || 5120;
+                        editDomainForm.value.cpu_pct = found.cpu_pct ?? 100;
+                        editDomainForm.value.mem_mb = found.mem_mb ?? 1024;
+                        editDomainForm.value.disk_mb = found.disk_mb ?? 5120;
+                        editDomainForm.value.max_databases = found.max_databases ?? 10;
                         if (found.rate_limit !== undefined) editDomainForm.value.rate_limit = found.rate_limit || '0';
                     }
                 };
@@ -3413,12 +3417,14 @@ geo $limit_rate {
                         if (currentUser.value.role === 'admin' || currentUser.value.role === 'reseller') {
                             payload.package_id = editDomainForm.value.package_id;
                             payload.rate_limit = editDomainForm.value.rate_limit || '0';
+                            payload.status = editDomainForm.value.status || 'active';
                             if (editDomainForm.value.use_custom_limits) {
                                 payload.cpu_pct = parseInt(editDomainForm.value.cpu_pct) || 100;
                                 payload.mem_mb = parseInt(editDomainForm.value.mem_mb) || 1024;
                                 payload.disk_mb = parseInt(editDomainForm.value.disk_mb) || 5120;
                                 payload.io_weight = parseInt(editDomainForm.value.io_weight) || 100;
                                 payload.pids_max = parseInt(editDomainForm.value.pids_max) || 100;
+                                payload.max_databases = parseInt(editDomainForm.value.max_databases) || 0;
                             } else {
                                 payload.reset_custom_limits = true;
                             }
@@ -3985,11 +3991,18 @@ geo $limit_rate {
                     email: '',
                     phone: '',
                     password: '',
+                    status: 'active',
+                    package_name: '',
+                    domain_count: 0,
+                    db_count: 0,
                     cpu_pct: 100,
                     mem_mb: 1024,
                     disk_mb: 5120,
                     io_weight: 100,
-                    pids_max: 100
+                    pids_max: 100,
+                    max_domains: 10,
+                    max_databases: 10,
+                    allow_ssh: true
                 });
 
                 const openEditCustomerModal = (customer) => {
@@ -4000,11 +4013,18 @@ geo $limit_rate {
                         email: customer.email || '',
                         phone: customer.phone || '',
                         password: '',
-                        cpu_pct: customer.cpu_pct || 100,
-                        mem_mb: customer.mem_mb || 1024,
-                        disk_mb: customer.disk_mb || 5120,
-                        io_weight: customer.io_weight || 100,
-                        pids_max: customer.pids_max || 100
+                        status: customer.status || 'active',
+                        package_name: customer.package_name || 'Mặc định',
+                        domain_count: customer.domain_count || 0,
+                        db_count: customer.db_count || 0,
+                        cpu_pct: customer.cpu_pct ?? 100,
+                        mem_mb: customer.mem_mb ?? 1024,
+                        disk_mb: customer.disk_mb ?? 5120,
+                        io_weight: customer.io_weight ?? 100,
+                        pids_max: customer.pids_max ?? 100,
+                        max_domains: customer.max_domains ?? 10,
+                        max_databases: customer.max_databases ?? 10,
+                        allow_ssh: customer.allow_ssh !== undefined ? !!customer.allow_ssh : true
                     };
                     showEditCustomerModal.value = true;
                 };
@@ -4017,11 +4037,15 @@ geo $limit_rate {
                             full_name: editingCustomer.value.full_name,
                             email: editingCustomer.value.email,
                             phone: editingCustomer.value.phone,
+                            status: editingCustomer.value.status,
                             cpu_pct: parseInt(editingCustomer.value.cpu_pct) || 100,
                             mem_mb: parseInt(editingCustomer.value.mem_mb) || 1024,
                             disk_mb: parseInt(editingCustomer.value.disk_mb) || 5120,
                             io_weight: parseInt(editingCustomer.value.io_weight) || 100,
-                            pids_max: parseInt(editingCustomer.value.pids_max) || 100
+                            pids_max: parseInt(editingCustomer.value.pids_max) || 100,
+                            max_domains: parseInt(editingCustomer.value.max_domains) || 1,
+                            max_databases: parseInt(editingCustomer.value.max_databases) || 0,
+                            allow_ssh: !!editingCustomer.value.allow_ssh
                         };
                         if (editingCustomer.value.password) {
                             payload.password = editingCustomer.value.password;
@@ -9486,89 +9510,6 @@ if ($host ~* ^www\\.(.*)$) {
                         xFrameOptions: vhost.xFrameOptions || 'SAMEORIGIN'
                     };
                     showWebsiteSecurityModal.value = true;
-                    refreshLucideIcons();
-                };
-
-                const saveWebsiteSecurity = async () => {
-                    if (!selectedSecurityDomain.value) return;
-                    savingWebsiteSecurity.value = true;
-                    try {
-                        const vhost = getDomainVhostSettings(selectedSecurityDomain.value.id);
-                        Object.assign(vhost, websiteSecuritySettings.value);
-                        await saveDomainVhostSettings(selectedSecurityDomain.value);
-                        Swal.fire({ icon: 'success', title: 'Thành công', text: 'Cập nhật thiết lập bảo mật website thành công!' });
-                        showWebsiteSecurityModal.value = false;
-                    } catch (e) {
-                        Swal.fire({ icon: 'error', title: 'Lỗi', text: e.message });
-                    } finally {
-                        savingWebsiteSecurity.value = false;
-                    }
-                };
-
-                watch(currentTab, (newTab) => {
-                    if (newTab === 'service_plans' && currentUser.value?.role !== 'admin') {
-                        currentTab.value = 'dashboard';
-                        window.location.hash = 'dashboard';
-                        return;
-                    }
-                    if (window.location.hash.replace('#', '') !== newTab) {
-                        window.location.hash = newTab;
-                    }
-                    if (newTab === 'files') {
-                        fetchFilesList(fileCurrentPath.value || '');
-                    }
-                    if (newTab === 'profile') {
-                        fetchUserProfile();
-                    }
-                    if (newTab === 'databases') {
-                        fetchDatabasesList();
-                    }
-                    if (newTab === 'wp') {
-                        fetchWpInstances();
-                    }
-                    if (newTab === 'crons') {
-                        fetchCrons();
-                    }
-                    if (newTab === 'monitoring') {
-                        fetchResourceMonitorData();
-                    }
-                    if (newTab === 'backups') {
-                        fetchBackups();
-                    }
-                    if (newTab === 'apps') {
-                        fetchAppsList();
-                    }
-                    if (newTab === 'customers') {
-                        fetchCustomers();
-                        fetchServicePlans();
-                    }
-                    setTimeout(refreshLucideIcons, 50);
-                    setTimeout(refreshLucideIcons, 250);
-                });
-
-                watch(domainCategoryFilter, () => {
-                    setTimeout(refreshLucideIcons, 50);
-                    setTimeout(refreshLucideIcons, 200);
-                });
-
-                watch(showCronModal, () => { refreshLucideIcons(); });
-                watch(showCronOutputModal, () => { refreshLucideIcons(); });
-                watch(showWebsiteRewriteModal, () => { refreshLucideIcons(); });
-                watch(showWebsiteLogsModal, () => { refreshLucideIcons(); });
-                watch(showWebsiteSecurityModal, () => { refreshLucideIcons(); });
-
-                watch(showMessagesBox, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showAddCustomerModal, () => {
-                    refreshLucideIcons();
-                });
-
-                watch(showEditCustomerModal, () => {
-                    refreshLucideIcons();
-                });
-
                 watch(showAddDomainModal, () => {
                     refreshLucideIcons();
                 });

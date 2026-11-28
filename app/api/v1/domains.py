@@ -291,20 +291,22 @@ class DomainUpdateRequest(BaseModel):
     package_id: Optional[int] = None
     allow_ssh: Optional[bool] = None
     rate_limit: Optional[str] = None
+    status: Optional[str] = None
     cpu_pct: Optional[int] = Field(None, ge=10, le=12800)
     mem_mb: Optional[int] = Field(None, ge=128, le=524288)
     disk_mb: Optional[int] = Field(None, ge=100, le=5000000)
     io_weight: Optional[int] = Field(None, ge=10, le=1000)
     pids_max: Optional[int] = Field(None, ge=20, le=50000)
+    max_databases: Optional[int] = Field(None, ge=0, le=1000)
     reset_custom_limits: bool = False
 
 
 async def _ensure_domain_resource_columns(db):
-    """Đảm bảo bảng domains có các cột tùy chỉnh tài nguyên riêng (cpu_pct, mem_mb, disk_mb, io_weight, pids_max)."""
+    """Đảm bảo bảng domains có các cột tùy chỉnh tài nguyên riêng (cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_databases)."""
     try:
         cur = await db.execute("PRAGMA table_info(domains)")
         cols = {r[1] for r in await cur.fetchall()}
-        for col_name in ("cpu_pct", "mem_mb", "disk_mb", "io_weight", "pids_max"):
+        for col_name in ("cpu_pct", "mem_mb", "disk_mb", "io_weight", "pids_max", "max_databases"):
             if col_name not in cols:
                 await db.execute(f"ALTER TABLE domains ADD COLUMN {col_name} INTEGER DEFAULT NULL")
         await db.commit()
@@ -348,7 +350,7 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
                u.username as owner_username, 
                u.email as owner_email, 
                CASE 
-                   WHEN d.cpu_pct IS NOT NULL OR d.mem_mb IS NOT NULL OR d.disk_mb IS NOT NULL THEN 'Tùy chỉnh riêng'
+                   WHEN d.cpu_pct IS NOT NULL OR d.mem_mb IS NOT NULL OR d.disk_mb IS NOT NULL OR d.max_databases IS NOT NULL THEN 'Tùy chỉnh riêng'
                    WHEN p_dom.id IS NOT NULL AND p_dom.plan_type = 'website' THEN p_dom.name
                    ELSE 'Mặc định (Theo Hosting User)'
                END as plan_name,
@@ -358,11 +360,13 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
                d.disk_mb as custom_disk_mb,
                d.io_weight as custom_io_weight,
                d.pids_max as custom_pids_max,
+               d.max_databases as custom_max_databases,
                COALESCE(d.cpu_pct, p_dom.cpu_pct, p.cpu_pct, 100) as cpu_pct,
                COALESCE(d.mem_mb, p_dom.mem_mb, p.mem_mb, 1024) as mem_mb,
                COALESCE(d.disk_mb, p_dom.disk_mb, p.disk_mb, 5120) as disk_mb,
                COALESCE(d.io_weight, p_dom.io_weight, p.io_weight, 100) as io_weight,
                COALESCE(d.pids_max, p_dom.pids_max, p.pids_max, 100) as pids_max,
+               COALESCE(d.max_databases, p_dom.max_databases, u.max_databases, p.max_databases, 10) as max_databases,
                COALESCE(d.rate_limit, p_dom.rate_limit, '0') as rate_limit,
                COALESCE(d.status, 'active') as status,
                COALESCE(d.is_system, 0) as is_system,
@@ -711,8 +715,8 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
     db = await get_db_connection()
     await _ensure_domain_resource_columns(db)
     cur = await db.execute("""
-        SELECT d.id, d.domain_name, d.user_id, d.php_version, d.package_id, d.allow_ssh, d.webserver, d.rate_limit,
-               d.cpu_pct as d_cpu, d.mem_mb as d_mem, d.disk_mb as d_disk, d.io_weight as d_io, d.pids_max as d_pids,
+        SELECT d.id, d.domain_name, d.user_id, d.php_version, d.package_id, d.allow_ssh, d.webserver, d.rate_limit, d.status,
+               d.cpu_pct as d_cpu, d.mem_mb as d_mem, d.disk_mb as d_disk, d.io_weight as d_io, d.pids_max as d_pids, d.max_databases as d_max_db,
                u.username as owner_username, u.parent_id, u.role as owner_role,
                u.cpu_pct as parent_cpu, u.mem_mb as parent_mem, u.disk_mb as parent_disk
         FROM domains d
@@ -761,11 +765,15 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
             pass
 
     new_rate_limit = dom.get("rate_limit", "0") or "0"
+    new_status = dom.get("status", "active") or "active"
+    if req.status in ("active", "suspended") and current_user["role"] in ("admin", "reseller"):
+        new_status = req.status
     new_d_cpu = dom.get("d_cpu")
     new_d_mem = dom.get("d_mem")
     new_d_disk = dom.get("d_disk")
     new_d_io = dom.get("d_io")
     new_d_pids = dom.get("d_pids")
+    new_d_max_db = dom.get("d_max_db")
     apply_res_sync = False
 
     if req.reset_custom_limits:
@@ -774,6 +782,7 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
         new_d_disk = None
         new_d_io = None
         new_d_pids = None
+        new_d_max_db = None
         apply_res_sync = True
 
     if req.package_id != dom["package_id"] and req.package_id is not None:
@@ -806,6 +815,8 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
     if req.pids_max is not None:
         new_d_pids = req.pids_max
         apply_res_sync = True
+    if req.max_databases is not None:
+        new_d_max_db = req.max_databases
 
     if req.rate_limit is not None:
         new_rate_limit = req.rate_limit.strip() or "0"
@@ -817,10 +828,10 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
 
     await db.execute("""
         UPDATE domains 
-        SET php_version = ?, package_id = ?, allow_ssh = ?, rate_limit = ?,
-            cpu_pct = ?, mem_mb = ?, disk_mb = ?, io_weight = ?, pids_max = ?
+        SET php_version = ?, package_id = ?, allow_ssh = ?, rate_limit = ?, status = ?,
+            cpu_pct = ?, mem_mb = ?, disk_mb = ?, io_weight = ?, pids_max = ?, max_databases = ?
         WHERE id = ?
-    """, (new_php, new_pkg_id, new_ssh, new_rate_limit, new_d_cpu, new_d_mem, new_d_disk, new_d_io, new_d_pids, domain_id))
+    """, (new_php, new_pkg_id, new_ssh, new_rate_limit, new_status, new_d_cpu, new_d_mem, new_d_disk, new_d_io, new_d_pids, new_d_max_db, domain_id))
     await db.commit()
 
     # Áp dụng giới hạn Cgroup v2 & Disk Quota xuống hệ điều hành nếu có thay đổi tài nguyên

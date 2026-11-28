@@ -40,21 +40,43 @@ class CustomerDeleteRequest(BaseModel):
 class CustomerChangePlan(BaseModel):
     package_id: int
 
+async def _ensure_user_resource_columns(db):
+    """Đảm bảo bảng users có đầy đủ cột tùy chỉnh tài nguyên riêng."""
+    try:
+        cur = await db.execute("PRAGMA table_info(users)")
+        cols = {r[1] for r in await cur.fetchall()}
+        if "max_domains" not in cols:
+            await db.execute("ALTER TABLE users ADD COLUMN max_domains INTEGER DEFAULT NULL")
+        if "max_databases" not in cols:
+            await db.execute("ALTER TABLE users ADD COLUMN max_databases INTEGER DEFAULT NULL")
+        if "allow_ssh" not in cols:
+            await db.execute("ALTER TABLE users ADD COLUMN allow_ssh INTEGER DEFAULT NULL")
+        await db.commit()
+    except Exception:
+        pass
+
+
 @router.get("/customers")
 async def list_customers(current_user: dict = Depends(get_current_user)):
     """
-    Lấy danh sách các tài khoản Customer (kèm số lượng domains, tên gói plan của từng customer).
+    Lấy danh sách các tài khoản Customer (kèm số lượng domains, databases, tên gói plan và toàn bộ giới hạn tài nguyên).
     Admin xem được tất cả customer; Reseller chỉ xem được customer của mình.
     """
     db = await get_db_connection()
+    await _ensure_user_resource_columns(db)
     if current_user["role"] == "admin":
         cursor = await db.execute("""
             SELECT u.id, u.username, u.email, COALESCE(u.full_name, '') as full_name, COALESCE(u.phone, '') as phone,
                    u.role, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb,
                    COALESCE(u.io_weight, 100) as io_weight, COALESCE(u.pids_max, 100) as pids_max,
+                   COALESCE(u.max_domains, p.max_domains, 10) as max_domains,
+                   COALESCE(u.max_databases, p.max_databases, 10) as max_databases,
+                   COALESCE(u.allow_ssh, p.allow_ssh, 1) as allow_ssh,
+                   COALESCE(u.rate_limit, p.rate_limit, '0') as rate_limit,
                    u.status, u.created_at,
                    p.name as package_name,
-                   (SELECT COUNT(*) FROM domains d WHERE d.user_id = u.id) as domain_count
+                   (SELECT COUNT(*) FROM domains d WHERE d.user_id = u.id) as domain_count,
+                   (SELECT COUNT(*) FROM databases db_t WHERE db_t.user_id = u.id) as db_count
             FROM users u
             LEFT JOIN packages p ON u.package_id = p.id
             WHERE u.role IN ('user', 'reseller') AND u.username != 'admin'
@@ -65,9 +87,14 @@ async def list_customers(current_user: dict = Depends(get_current_user)):
             SELECT u.id, u.username, u.email, COALESCE(u.full_name, '') as full_name, COALESCE(u.phone, '') as phone,
                    u.role, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb,
                    COALESCE(u.io_weight, 100) as io_weight, COALESCE(u.pids_max, 100) as pids_max,
+                   COALESCE(u.max_domains, p.max_domains, 10) as max_domains,
+                   COALESCE(u.max_databases, p.max_databases, 10) as max_databases,
+                   COALESCE(u.allow_ssh, p.allow_ssh, 1) as allow_ssh,
+                   COALESCE(u.rate_limit, p.rate_limit, '0') as rate_limit,
                    u.status, u.created_at,
                    p.name as package_name,
-                   (SELECT COUNT(*) FROM domains d WHERE d.user_id = u.id) as domain_count
+                   (SELECT COUNT(*) FROM domains d WHERE d.user_id = u.id) as domain_count,
+                   (SELECT COUNT(*) FROM databases db_t WHERE db_t.user_id = u.id) as db_count
             FROM users u
             LEFT JOIN packages p ON u.package_id = p.id
             WHERE u.role IN ('user', 'reseller') AND u.parent_id = ?
@@ -713,11 +740,17 @@ class CustomerAdminEditRequest(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     password: Optional[str] = None
+    status: Optional[str] = None
+    package_id: Optional[int] = None
     cpu_pct: Optional[int] = Field(None, ge=10, le=12800)
     mem_mb: Optional[int] = Field(None, ge=128, le=524288)
     disk_mb: Optional[int] = Field(None, ge=100, le=5000000)
     io_weight: Optional[int] = Field(None, ge=10, le=1000)
     pids_max: Optional[int] = Field(None, ge=20, le=50000)
+    max_domains: Optional[int] = Field(None, ge=1, le=1000)
+    max_databases: Optional[int] = Field(None, ge=0, le=1000)
+    allow_ssh: Optional[bool] = None
+    rate_limit: Optional[str] = None
 
 @router.get("/profile")
 async def get_user_profile(current_user: dict = Depends(get_current_user)):
@@ -977,11 +1010,12 @@ async def change_username(req: UsernameChangeRequest, current_user: dict = Depen
 
 @router.put("/customers/{target_id}/edit")
 async def admin_edit_customer(target_id: int, req: CustomerAdminEditRequest, current_user: dict = Depends(require_role("admin", "reseller"))):
-    """Modify User: Admin hoặc Reseller chỉnh sửa thông tin, mật khẩu và tài nguyên riêng (CPU, RAM, Disk, I/O, PIDs) của User"""
+    """Modify User: Admin hoặc Reseller chỉnh sửa toàn bộ thông tin, gói, trạng thái, mật khẩu và tài nguyên riêng của User"""
     db = await get_db_connection()
+    await _ensure_user_resource_columns(db)
     try:
         cur = await db.execute("""
-            SELECT id, username, parent_id, role,
+            SELECT id, username, parent_id, role, status, package_id,
                    COALESCE(cpu_pct, 100) as cpu_pct, COALESCE(mem_mb, 1024) as mem_mb,
                    COALESCE(disk_mb, 5120) as disk_mb, COALESCE(io_weight, 100) as io_weight,
                    COALESCE(pids_max, 100) as pids_max
@@ -1012,6 +1046,12 @@ async def admin_edit_customer(target_id: int, req: CustomerAdminEditRequest, cur
         if req.phone is not None:
             updates.append("phone = ?")
             params.append(req.phone.strip())
+        if req.status in ("active", "suspended") and target["role"] != "admin":
+            updates.append("status = ?")
+            params.append(req.status)
+        if req.package_id is not None:
+            updates.append("package_id = ?")
+            params.append(req.package_id)
         if req.password:
             if len(req.password) < 6:
                 raise HTTPException(status_code=400, detail="Mật khẩu phải có ít nhất 6 ký tự")
@@ -1050,6 +1090,18 @@ async def admin_edit_customer(target_id: int, req: CustomerAdminEditRequest, cur
             updates.append("pids_max = ?")
             params.append(new_pids)
             res_changed = True
+        if req.max_domains is not None:
+            updates.append("max_domains = ?")
+            params.append(req.max_domains)
+        if req.max_databases is not None:
+            updates.append("max_databases = ?")
+            params.append(req.max_databases)
+        if req.allow_ssh is not None:
+            updates.append("allow_ssh = ?")
+            params.append(1 if req.allow_ssh else 0)
+        if req.rate_limit is not None:
+            updates.append("rate_limit = ?")
+            params.append(req.rate_limit.strip() or "0")
 
         if updates:
             params.append(target_id)
