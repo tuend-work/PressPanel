@@ -1481,47 +1481,64 @@ async def extract_archive(
     """Giải nén an toàn (.zip, .tar, .tar.gz, .tgz) có chống Zip Slip, Symlink Escape & Zip Bomb."""
     base_dir, work_dir = await resolve_base_and_target(current_user, req.target_user, req.current_path)
     archive_path = resolve_safe_subitem(work_dir, req.name, base_dir)
-    if not os.path.isfile(archive_path):
+    if not check_is_file_privileged(archive_path):
         raise HTTPException(status_code=404, detail="Không tìm thấy tệp nén để giải nén.")
 
     extract_dir = work_dir
     if req.dest_subdir and req.dest_subdir.strip():
         sub_clean = _validate_single_name(req.dest_subdir.strip(), "Thư mục giải nén")
         extract_dir = resolve_safe_child(work_dir, sub_clean, base_dir)
-        os.makedirs(extract_dir, exist_ok=True)
-    real_extract = os.path.realpath(extract_dir)
-    _assert_within_base(real_extract, base_dir, follow_symlinks=True)
+    _assert_within_base(os.path.abspath(extract_dir), base_dir, follow_symlinks=False)
 
     low = archive_path.lower()
+    if not (low.endswith(".zip") or low.endswith((".tar.gz", ".tgz", ".tar"))):
+        raise HTTPException(status_code=400, detail="Chỉ hỗ trợ giải nén định dạng .zip, .tar.gz, .tgz và .tar.")
+
     extracted_count = 0
     total_size = 0
+    tmp_extract_dir = tempfile.mkdtemp(prefix="pp_ext_")
+    tmp_archive_copy: Optional[str] = None
 
     try:
+        # Nếu tiến trình panel không đủ quyền đọc trực tiếp file nén của user -> copy tạm qua sudo
+        readable_archive = archive_path
+        try:
+            with open(archive_path, "rb"):
+                pass
+        except PermissionError:
+            tmp_fd, tmp_archive_copy = tempfile.mkstemp(prefix="pp_arcread_")
+            os.close(tmp_fd)
+            proc_cp = subprocess.run(["sudo", "cp", archive_path, tmp_archive_copy], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if proc_cp.returncode != 0:
+                raise HTTPException(status_code=403, detail="Không có quyền đọc tệp nén này.")
+            subprocess.run(["sudo", "chmod", "644", tmp_archive_copy], check=False)
+            readable_archive = tmp_archive_copy
+
+        real_tmp = os.path.realpath(tmp_extract_dir)
         if low.endswith(".zip"):
-            with zipfile.ZipFile(archive_path, "r") as zf:
+            with zipfile.ZipFile(readable_archive, "r") as zf:
                 infos = zf.infolist()
                 if len(infos) > MAX_EXTRACT_ENTRIES:
                     raise HTTPException(status_code=400, detail=f"File nén chứa quá nhiều mục (> {MAX_EXTRACT_ENTRIES}).")
                 for zi in infos:
-                    if zi.filename.startswith("/") or "\\" in zi.filename.replace("\\", "/").split("/")[0:1]:
-                        pass
                     norm = zi.filename.replace("\\", "/").lstrip("/")
-                    if not norm or any(seg in ("", ".", "..") for seg in norm.split("/") if seg):
-                        if any(seg == ".." for seg in norm.split("/")):
-                            raise HTTPException(status_code=403, detail=f"Phát hiện Zip Slip nguy hiểm trong file nén: {zi.filename}")
-                    # Bỏ qua symlink bên trong zip (Unix mode 0120000)
+                    if not norm:
+                        continue
+                    if any(seg == ".." for seg in norm.split("/")):
+                        raise HTTPException(status_code=403, detail=f"Phát hiện Zip Slip nguy hiểm trong file nén: {zi.filename}")
                     unix_mode = (zi.external_attr >> 16) & 0o170000
                     if unix_mode == 0o120000:
                         continue
 
-                    target_m = os.path.abspath(os.path.join(real_extract, norm))
+                    target_m = os.path.abspath(os.path.join(real_tmp, norm))
                     try:
-                        Path(target_m).relative_to(Path(real_extract))
+                        Path(target_m).relative_to(Path(real_tmp))
                     except ValueError:
                         raise HTTPException(status_code=403, detail=f"Phát hiện Zip Slip vượt thư mục đích: {zi.filename}")
 
                     if zi.is_dir():
                         os.makedirs(target_m, exist_ok=True)
+                        os.chmod(target_m, 0o755)
                     else:
                         total_size += zi.file_size
                         if total_size > MAX_EXTRACT_BYTES:
@@ -1531,10 +1548,9 @@ async def extract_archive(
                             shutil.copyfileobj(src_f, out_f)
                         os.chmod(target_m, 0o644)
                         extracted_count += 1
-
-        elif low.endswith((".tar.gz", ".tgz", ".tar")):
+        else:
             tmode = "r:gz" if low.endswith((".tar.gz", ".tgz")) else "r:"
-            with tarfile.open(archive_path, tmode) as tf:
+            with tarfile.open(readable_archive, tmode) as tf:
                 members = tf.getmembers()
                 if len(members) > MAX_EXTRACT_ENTRIES:
                     raise HTTPException(status_code=400, detail=f"File nén chứa quá nhiều mục (> {MAX_EXTRACT_ENTRIES}).")
@@ -1542,16 +1558,19 @@ async def extract_archive(
                     if m.issym() or m.islnk() or m.isdev() or m.ischr() or m.isblk() or m.isfifo():
                         continue
                     norm = m.name.replace("\\", "/").lstrip("./")
-                    if not norm or any(seg == ".." for seg in norm.split("/")):
+                    if not norm:
+                        continue
+                    if any(seg == ".." for seg in norm.split("/")):
                         raise HTTPException(status_code=403, detail=f"Phát hiện đường dẫn nguy hiểm trong file tar: {m.name}")
-                    target_m = os.path.abspath(os.path.join(real_extract, norm))
+                    target_m = os.path.abspath(os.path.join(real_tmp, norm))
                     try:
-                        Path(target_m).relative_to(Path(real_extract))
+                        Path(target_m).relative_to(Path(real_tmp))
                     except ValueError:
                         raise HTTPException(status_code=403, detail=f"Phát hiện Tar Slip vượt thư mục đích: {m.name}")
 
                     if m.isdir():
                         os.makedirs(target_m, exist_ok=True)
+                        os.chmod(target_m, 0o755)
                     elif m.isfile():
                         total_size += m.size
                         if total_size > MAX_EXTRACT_BYTES:
@@ -1563,10 +1582,20 @@ async def extract_archive(
                                 shutil.copyfileobj(fobj, out_f)
                             os.chmod(target_m, 0o644)
                             extracted_count += 1
-        else:
-            raise HTTPException(status_code=400, detail="Chỉ hỗ trợ giải nén định dạng .zip, .tar.gz, .tgz và .tar.")
 
-        sync_owner(real_extract)
+        # Đảm bảo thư mục đích tồn tại & chuyển kết quả từ tmp_extract_dir sang extract_dir (hỗ trợ sudo fallback)
+        try:
+            os.makedirs(extract_dir, exist_ok=True)
+            shutil.copytree(tmp_extract_dir, extract_dir, dirs_exist_ok=True)
+        except PermissionError:
+            proc_mk = subprocess.run(["sudo", "mkdir", "-p", extract_dir], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if proc_mk.returncode != 0:
+                raise HTTPException(status_code=500, detail=f"Không thể tạo thư mục đích: {proc_mk.stderr}")
+            proc_cp = subprocess.run(["sudo", "cp", "-a", f"{tmp_extract_dir}/.", extract_dir], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if proc_cp.returncode != 0:
+                raise HTTPException(status_code=500, detail=f"Không thể sao chép tệp giải nén vào thư mục đích: {proc_cp.stderr}")
+
+        sync_owner(extract_dir)
         return {
             "status": "ok",
             "message": f"Đã giải nén thành công {extracted_count} tệp tin ({format_bytes(total_size)})!",
@@ -1576,6 +1605,11 @@ async def extract_archive(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi giải nén: {str(e)}")
+    finally:
+        if os.path.exists(tmp_extract_dir):
+            shutil.rmtree(tmp_extract_dir, ignore_errors=True)
+        if tmp_archive_copy and os.path.exists(tmp_archive_copy):
+            os.remove(tmp_archive_copy)
 
 
 @router.post("/search-content")
