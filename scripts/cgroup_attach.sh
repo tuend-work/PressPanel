@@ -107,8 +107,12 @@ enforce_hosting_user() {
     local cg_wpc_dir="/sys/fs/cgroup/wpc/reseller_${reseller_id}/user_${h_user}"
     local cg_wpc_flat="/sys/fs/cgroup/wpc/user_${h_user}"
 
-    # 1. Tạo thư mục Cgroup trần cha của Hosting User
+    # 1. Tạo thư mục Cgroup trần cha của Hosting User & kích hoạt controllers cho cấp reseller
     mkdir -p "$cg_dir" "$cg_flat" "$cg_wpc_dir" "$cg_wpc_flat" 2>/dev/null || true
+    for c in cpu memory io pids; do
+        echo "+$c" > "/sys/fs/cgroup/presspanel/reseller_${reseller_id}/cgroup.subtree_control" 2>/dev/null || true
+        echo "+$c" > "/sys/fs/cgroup/wpc/reseller_${reseller_id}/cgroup.subtree_control" 2>/dev/null || true
+    done
 
     # 2. Thiết lập trần cha (Hard Ceiling của gói Hosting): CPU và RAM
     local cpu_max="$((cpu_pct * 1000)) 100000"
