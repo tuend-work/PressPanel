@@ -67,6 +67,13 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
                 fi
             done
         fi
+        if [ -d "/var/lib/lxcfs/sys/devices/system/cpu" ]; then
+            for sc in online possible present; do
+                if [ -e "/var/lib/lxcfs/sys/devices/system/cpu/$sc" ] && [ -e "/sys/devices/system/cpu/$sc" ]; then
+                    mount --bind "/var/lib/lxcfs/sys/devices/system/cpu/$sc" "/sys/devices/system/cpu/$sc" 2>/dev/null || true
+                fi
+            done
+        fi
 
         # 3. Cách ly /home: Ảo hóa tmpfs sạch, chỉ hiển thị đúng thư mục của user này
         MNT_TMP_HOME="/run/cage_home_$$"
