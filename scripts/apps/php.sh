@@ -118,13 +118,14 @@ case "$ACTION" in
 ; PressPanel Default OPcache Optimization
 opcache.enable=1
 opcache.enable_cli=0
-opcache.memory_consumption=256
-opcache.interned_strings_buffer=32
+opcache.memory_consumption=128
+opcache.interned_strings_buffer=16
 opcache.max_accelerated_files=20000
 opcache.validate_timestamps=1
-opcache.revalidate_freq=2
+opcache.revalidate_freq=60
 opcache.save_comments=1
-realpath_cache_size=4096K
+opcache.jit_buffer_size=0
+realpath_cache_size=2048K
 realpath_cache_ttl=600
 EOF
                 fi
@@ -246,13 +247,14 @@ EOF
 ; PressPanel Default OPcache Optimization
 opcache.enable=1
 opcache.enable_cli=0
-opcache.memory_consumption=256
-opcache.interned_strings_buffer=32
+opcache.memory_consumption=128
+opcache.interned_strings_buffer=16
 opcache.max_accelerated_files=20000
 opcache.validate_timestamps=1
-opcache.revalidate_freq=2
+opcache.revalidate_freq=60
 opcache.save_comments=1
-realpath_cache_size=4096K
+opcache.jit_buffer_size=0
+realpath_cache_size=2048K
 realpath_cache_ttl=600
 EOF
                 fi

@@ -142,10 +142,10 @@ setup_ols_vhost_php() {
             -e "s|{{EXT_USER}}|$username|g" \
             -e "s|{{EXT_GROUP}}|$username|g" \
             -e "s|{{UMASK_LINE}}||g" \
-            -e "s|{{MAX_IDLE_LINE}}|  maxIdleTime             60|g" \
+            -e "s|{{MAX_IDLE_LINE}}|\n  maxIdleTime             60|g" \
             -e "s|{{PRIORITY}}|0|g" \
-            -e "s|{{MEM_SOFT_LIMIT}}|256M|g" \
-            -e "s|{{MEM_HARD_LIMIT}}|512M|g" \
+            -e "s|{{MEM_SOFT_LIMIT}}|512M|g" \
+            -e "s|{{MEM_HARD_LIMIT}}|1024M|g" \
             -e "s|{{PROC_SOFT_LIMIT}}|50|g" \
             -e "s|{{PROC_HARD_LIMIT}}|100|g" \
             -e "s|{{NOTES_LINE}}||g" \
@@ -173,8 +173,8 @@ extprocessor lsphp_${username} {
   extGroup                ${username}
   maxIdleTime             60
   priority                0
-  memSoftLimit            256M
-  memHardLimit            512M
+  memSoftLimit            512M
+  memHardLimit            1024M
   procSoftLimit           50
   procHardLimit           100
 }

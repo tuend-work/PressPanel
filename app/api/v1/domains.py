@@ -3462,8 +3462,8 @@ async def get_domain_lsapi_service(
         "run_on": 1,
         "max_idle_time": 60,
         "priority": 0,
-        "mem_soft_limit": "256M",
-        "mem_hard_limit": "512M",
+        "mem_soft_limit": "512M",
+        "mem_hard_limit": "1024M",
         "proc_soft_limit": 50,
         "proc_hard_limit": 100,
         "env_custom": ""
