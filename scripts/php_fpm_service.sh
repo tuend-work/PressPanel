@@ -299,8 +299,9 @@ ProtectClock=yes
 ProtectHostname=yes
 RestrictSUIDSGID=yes
 LockPersonality=yes
-ReadWritePaths=/run/php /tmp /var/tmp -/home/%i
-InaccessiblePaths=-/root -/boot -/opt/presspanel -/opt/wpc -/etc/nginx -/usr/local/lsws/conf -/var/log -/swapfile -/sys/class/dmi -/sys/firmware
+TemporaryFileSystem=/var/log:mode=755
+ReadWritePaths=/run/php -/home/%i
+InaccessiblePaths=-/root -/boot -/opt/presspanel -/opt/wpc -/etc/nginx -/usr/local/lsws/conf -/swapfile -/sys/class/dmi -/sys/firmware
 
 [Install]
 WantedBy=multi-user.target
