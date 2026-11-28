@@ -758,7 +758,7 @@ function showToast(message, type = 'success') {
                                     </button>
 
                                     <!-- File Manager -->
-                                    <button @click="openFileManager()" :class="navClass('files')">
+                                    <button v-if="!isHostingUser" @click="openFileManager()" :class="navClass('files')">
                                         <div class="flex items-center space-x-3">
                                             <i data-lucide="folder" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
                                             <span>Files Manager</span>
@@ -1176,7 +1176,7 @@ function showToast(message, type = 'success') {
                     if (currentUser.value?.role !== 'admin' && !isHostingUser.value && chosen === 'service_plans') {
                         chosen = 'domains';
                     }
-                    if (isHostingUser.value && ['mail'].includes(chosen)) {
+                    if (isHostingUser.value && ['mail', 'files'].includes(chosen)) {
                         chosen = 'domains';
                     }
                     return chosen;
