@@ -388,6 +388,132 @@
                                 </div>
                             </div>
 
+                            <!-- Cấu hình Zend OPcache & JIT -->
+                            <div class="p-3.5 rounded-xl bg-slate-800/50 border border-slate-700/70 space-y-3">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-slate-200">⚡ Cấu hình Zend OPcache &amp; JIT</span>
+                                        <span class="text-[10px] px-2 py-0.5 rounded font-semibold"
+                                            :class="domainPhpIni.opcache_enable === '1' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'">
+                                            {{ domainPhpIni.opcache_enable === '1' ? 'Đang bật' : 'Đang tắt' }}
+                                        </span>
+                                    </div>
+                                    <div class="flex flex-wrap items-center gap-1.5">
+                                        <span class="text-[10px] text-slate-400">Mẫu:</span>
+                                        <button type="button" @click="applyOpcachePreset('standard')"
+                                            class="px-2 py-1 rounded bg-slate-700/70 hover:bg-indigo-600/40 text-slate-200 border border-slate-600/60 text-[10px] font-semibold transition">
+                                            Tiêu chuẩn
+                                        </button>
+                                        <button type="button" @click="applyOpcachePreset('wordpress')"
+                                            class="px-2 py-1 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[10px] font-semibold transition">
+                                            WordPress (Khuyên dùng)
+                                        </button>
+                                        <button type="button" @click="applyOpcachePreset('high_perf')"
+                                            class="px-2 py-1 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[10px] font-semibold transition">
+                                            Hiệu năng cao
+                                        </button>
+                                        <button type="button" @click="applyOpcachePreset('off')"
+                                            class="px-2 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[10px] font-semibold transition">
+                                            Tắt
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                                    <!-- opcache.enable -->
+                                    <div class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-700/60 space-y-1">
+                                        <label class="text-[11px] font-bold text-slate-300 block">opcache.enable</label>
+                                        <select v-model="domainPhpIni.opcache_enable"
+                                            class="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                            <option value="1">1 — Bật (Khuyên dùng)</option>
+                                            <option value="0">0 — Tắt</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- opcache.memory_consumption -->
+                                    <div class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-700/60 space-y-1">
+                                        <div class="flex justify-between items-center">
+                                            <label class="text-[11px] font-bold text-slate-300">memory_consumption</label>
+                                            <span class="text-[10px] text-slate-400">RAM (MB)</span>
+                                        </div>
+                                        <input type="text" v-model="domainPhpIni.opcache_memory_consumption"
+                                            class="w-full px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                        <div class="flex gap-1">
+                                            <button v-for="v in ['128', '256', '512']" :key="'ocm_' + v" type="button"
+                                                @click="domainPhpIni.opcache_memory_consumption = v"
+                                                class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 hover:bg-indigo-600/40 text-slate-300 font-mono transition">
+                                                {{ v }}M
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- opcache.interned_strings_buffer -->
+                                    <div class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-700/60 space-y-1">
+                                        <div class="flex justify-between items-center">
+                                            <label class="text-[11px] font-bold text-slate-300">interned_strings_buffer</label>
+                                            <span class="text-[10px] text-slate-400">MB</span>
+                                        </div>
+                                        <input type="text" v-model="domainPhpIni.opcache_interned_strings_buffer"
+                                            class="w-full px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                        <div class="flex gap-1">
+                                            <button v-for="v in ['16', '32', '64']" :key="'ocs_' + v" type="button"
+                                                @click="domainPhpIni.opcache_interned_strings_buffer = v"
+                                                class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 hover:bg-indigo-600/40 text-slate-300 font-mono transition">
+                                                {{ v }}M
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- opcache.max_accelerated_files -->
+                                    <div class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-700/60 space-y-1">
+                                        <div class="flex justify-between items-center">
+                                            <label class="text-[11px] font-bold text-slate-300">max_accelerated_files</label>
+                                            <span class="text-[10px] text-slate-400">Số file</span>
+                                        </div>
+                                        <input type="text" v-model="domainPhpIni.opcache_max_accelerated_files"
+                                            class="w-full px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                        <div class="flex gap-1">
+                                            <button v-for="v in ['10000', '20000', '40000']" :key="'ocf_' + v" type="button"
+                                                @click="domainPhpIni.opcache_max_accelerated_files = v"
+                                                class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 hover:bg-indigo-600/40 text-slate-300 font-mono transition">
+                                                {{ v }}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- opcache.revalidate_freq -->
+                                    <div class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-700/60 space-y-1">
+                                        <div class="flex justify-between items-center">
+                                            <label class="text-[11px] font-bold text-slate-300">revalidate_freq</label>
+                                            <span class="text-[10px] text-slate-400">Giây</span>
+                                        </div>
+                                        <input type="text" v-model="domainPhpIni.opcache_revalidate_freq"
+                                            class="w-full px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                        <div class="flex gap-1">
+                                            <button v-for="v in ['2', '10', '60']" :key="'ocr_' + v" type="button"
+                                                @click="domainPhpIni.opcache_revalidate_freq = v"
+                                                class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 hover:bg-indigo-600/40 text-slate-300 font-mono transition">
+                                                {{ v }}s
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- opcache.jit_buffer_size & validate_timestamps -->
+                                    <div class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-700/60 space-y-1">
+                                        <div class="flex justify-between items-center">
+                                            <label class="text-[11px] font-bold text-slate-300">jit_buffer_size</label>
+                                            <span class="text-[10px] text-slate-400">PHP 8+ JIT</span>
+                                        </div>
+                                        <select v-model="domainPhpIni.opcache_jit_buffer_size"
+                                            class="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                            <option value="0">0 — Tắt JIT (Ổn định nhất)</option>
+                                            <option value="64M">64M — JIT Tracing (Khuyên dùng)</option>
+                                            <option value="128M">128M — JIT Hiệu năng cao</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Chỉ thị tùy chỉnh nâng cao -->
                             <details class="p-3 rounded-xl bg-slate-800/40 border border-slate-700/60 group">
                                 <summary class="font-bold text-slate-300 cursor-pointer hover:text-white flex items-center justify-between">

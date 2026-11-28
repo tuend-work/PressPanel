@@ -1365,6 +1365,13 @@ class DomainPhpIniUpdate(BaseModel):
     max_input_vars: str = "3000"
     display_errors: str = "Off"
     date_timezone: str = "Asia/Ho_Chi_Minh"
+    opcache_enable: str = "1"
+    opcache_memory_consumption: str = "256"
+    opcache_interned_strings_buffer: str = "32"
+    opcache_max_accelerated_files: str = "20000"
+    opcache_validate_timestamps: str = "1"
+    opcache_revalidate_freq: str = "2"
+    opcache_jit_buffer_size: str = "0"
     custom_directives: Optional[str] = ""
 
 @router.get("/{domain_id}/php-ini")
@@ -1408,9 +1415,53 @@ async def get_domain_php_ini(
         "max_input_time": "300",
         "max_input_vars": "3000",
         "display_errors": "Off",
-        "date_timezone": "Asia/Ho_Chi_Minh"
+        "date_timezone": "Asia/Ho_Chi_Minh",
+        "opcache_enable": "1",
+        "opcache_memory_consumption": "256",
+        "opcache_interned_strings_buffer": "32",
+        "opcache_max_accelerated_files": "20000",
+        "opcache_validate_timestamps": "1",
+        "opcache_revalidate_freq": "2",
+        "opcache_jit_buffer_size": "0"
     }
     custom_lines = []
+
+    opcache_key_map = {
+        "opcache.enable": "opcache_enable",
+        "opcache.memory_consumption": "opcache_memory_consumption",
+        "opcache.interned_strings_buffer": "opcache_interned_strings_buffer",
+        "opcache.max_accelerated_files": "opcache_max_accelerated_files",
+        "opcache.validate_timestamps": "opcache_validate_timestamps",
+        "opcache.revalidate_freq": "opcache_revalidate_freq",
+        "opcache.jit_buffer_size": "opcache_jit_buffer_size",
+    }
+
+    def _norm_bool_num(val: str) -> str:
+        return "0" if str(val).strip().lower() in ("0", "off", "false") else "1"
+
+    # Đọc cấu hình OPcache hệ thống (PHP_INI_SYSTEM) của phiên bản PHP đang dùng
+    pver = str(domain["php_version"] or "8.2").strip()
+    pver_nodot = pver.replace(".", "")
+    for oc_path in [
+        f"/etc/php/{pver}/fpm/users/{isolated_user}/conf.d/99-presspanel-opcache.ini",
+        f"/etc/php/{pver}/fpm/conf.d/99-presspanel-opcache.ini",
+        f"/etc/opt/remi/php{pver_nodot}/php.d/99-presspanel-opcache.ini",
+        f"/usr/local/lsws/lsphp{pver_nodot}/etc/php/{pver}/mods-available/99-presspanel-opcache.ini",
+        f"/usr/local/lsws/lsphp{pver_nodot}/etc/php.d/99-presspanel-opcache.ini",
+    ]:
+        oc_content = read_file_privileged(oc_path)
+        if oc_content:
+            for line in oc_content.splitlines():
+                stripped = line.strip()
+                if not stripped or stripped.startswith(";") or stripped.startswith("#") or "=" not in stripped:
+                    continue
+                k, v = stripped.split("=", 1)
+                k = k.strip()
+                v = v.strip().strip('"').strip("'")
+                if k in opcache_key_map:
+                    dk = opcache_key_map[k]
+                    directives[dk] = _norm_bool_num(v) if dk in ("opcache_enable", "opcache_validate_timestamps") else v
+            break
 
     if os.path.exists(ini_path):
         try:
@@ -1425,6 +1476,9 @@ async def get_domain_php_ini(
                         v = v.strip().strip('"').strip("'")
                         if k == "date.timezone":
                             directives["date_timezone"] = v
+                        elif k in opcache_key_map:
+                            dk = opcache_key_map[k]
+                            directives[dk] = _norm_bool_num(v) if dk in ("opcache_enable", "opcache_validate_timestamps") else v
                         elif k in directives:
                             directives[k] = v
                         else:
@@ -1443,6 +1497,9 @@ async def get_domain_php_ini(
                         k, v = parts[1], parts[2]
                         if k == "date.timezone":
                             directives["date_timezone"] = v
+                        elif k in opcache_key_map:
+                            dk = opcache_key_map[k]
+                            directives[dk] = _norm_bool_num(v) if dk in ("opcache_enable", "opcache_validate_timestamps") else v
                         elif k in directives:
                             directives[k] = v
                         else:
@@ -1500,6 +1557,20 @@ async def save_domain_php_ini(
     disp_err = "On" if req.display_errors.lower() in ("on", "1", "true") else "Off"
     tz = clean_val(req.date_timezone) or "Asia/Ho_Chi_Minh"
 
+    def clean_digits(val: str, default: str) -> str:
+        d = re.sub(r'[^0-9]', '', str(val or ""))
+        return d if d else default
+
+    op_en = "0" if str(req.opcache_enable).strip().lower() in ("0", "off", "false") else "1"
+    op_mem = clean_digits(req.opcache_memory_consumption, "256")
+    op_str = clean_digits(req.opcache_interned_strings_buffer, "32")
+    op_files = clean_digits(req.opcache_max_accelerated_files, "20000")
+    op_val = "0" if str(req.opcache_validate_timestamps).strip().lower() in ("0", "off", "false") else "1"
+    op_freq = clean_digits(req.opcache_revalidate_freq, "2")
+    jit_raw = re.sub(r'[^0-9mMgG]', '', str(req.opcache_jit_buffer_size or "0"))
+    op_jit_buf = jit_raw if jit_raw else "0"
+    op_jit_mode = "off" if op_jit_buf in ("0", "0M", "0m") else "tracing"
+
     lines = [
         f"; WPCloud Generated PHP Configuration for {clean_domain}",
         f"; Updated at runtime via WPCloud Panel",
@@ -1511,7 +1582,46 @@ async def save_domain_php_ini(
         f"max_input_vars = {max_vars}",
         f"display_errors = {disp_err}",
         f"date.timezone = {tz}",
+        f"opcache.enable = {op_en}",
+        f"opcache.validate_timestamps = {op_val}",
+        f"opcache.revalidate_freq = {op_freq}",
     ]
+
+    # Cập nhật 99-presspanel-opcache.ini cho các chỉ thị PHP_INI_SYSTEM của phiên bản PHP đang dùng
+    pver = str(domain["php_version"] or "8.2").strip()
+    pver_nodot = pver.replace(".", "")
+    opcache_ini_content = "\n".join([
+        "; PressPanel OPcache & JIT Optimization",
+        f"opcache.enable={op_en}",
+        "opcache.enable_cli=0",
+        f"opcache.memory_consumption={op_mem}",
+        f"opcache.interned_strings_buffer={op_str}",
+        f"opcache.max_accelerated_files={op_files}",
+        f"opcache.validate_timestamps={op_val}",
+        f"opcache.revalidate_freq={op_freq}",
+        "opcache.save_comments=1",
+        f"opcache.jit={op_jit_mode}",
+        f"opcache.jit_buffer_size={op_jit_buf}",
+        ""
+    ])
+    tmp_oc = f"/tmp/wpc_opcache_{clean_domain}.ini"
+    try:
+        with open(tmp_oc, "w", encoding="utf-8") as f:
+            f.write(opcache_ini_content)
+        os.chmod(tmp_oc, 0o644)
+        import subprocess
+        oc_targets = [
+            f"/etc/php/{pver}/fpm/conf.d",
+            f"/etc/php/{pver}/mods-available",
+            f"/etc/php/{pver}/fpm/users/{isolated_user}/conf.d",
+            f"/etc/opt/remi/php{pver_nodot}/php.d",
+            f"/usr/local/lsws/lsphp{pver_nodot}/etc/php/{pver}/mods-available",
+            f"/usr/local/lsws/lsphp{pver_nodot}/etc/php.d",
+        ]
+        copy_cmds = " ".join([f'[ -d "{d}" ] && cp -f "{tmp_oc}" "{d}/99-presspanel-opcache.ini" || true;' for d in oc_targets])
+        subprocess.run(["sudo", "bash", "-c", copy_cmds], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10, check=False)
+    except Exception:
+        pass
 
     if req.custom_directives:
         lines.append("")

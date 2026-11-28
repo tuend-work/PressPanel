@@ -102,7 +102,7 @@ case "$ACTION" in
             mkdir -p /run/php /var/run/php
             chown -R www-data:www-data /run/php /var/run/php 2>/dev/null || true
 
-            # Tự động tối ưu php.ini cơ bản
+            # Tự động tối ưu php.ini cơ bản & bật OPcache mặc định
             PHP_INI="/etc/php/${VERSION_CLEAN}/fpm/php.ini"
             if [ -f "$PHP_INI" ]; then
                 sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 128M/' "$PHP_INI" || true
@@ -110,6 +110,25 @@ case "$ACTION" in
                 sed -i 's/^memory_limit = .*/memory_limit = 512M/' "$PHP_INI" || true
                 sed -i 's/^max_execution_time = .*/max_execution_time = 300/' "$PHP_INI" || true
                 sed -i 's/^max_input_time = .*/max_input_time = 300/' "$PHP_INI" || true
+            fi
+
+            for ocdir in "/etc/php/${VERSION_CLEAN}/fpm/conf.d" "/etc/php/${VERSION_CLEAN}/mods-available" "/usr/local/lsws/lsphp${LSPHP_NUM}/etc/php/${VERSION_CLEAN}/mods-available" "/usr/local/lsws/lsphp${LSPHP_NUM}/etc/php.d"; do
+                if [ -d "$ocdir" ]; then
+                    cat << 'EOF' > "${ocdir}/99-presspanel-opcache.ini"
+; PressPanel Default OPcache Optimization
+opcache.enable=1
+opcache.enable_cli=0
+opcache.memory_consumption=256
+opcache.interned_strings_buffer=32
+opcache.max_accelerated_files=20000
+opcache.validate_timestamps=1
+opcache.revalidate_freq=2
+opcache.save_comments=1
+EOF
+                fi
+            done
+            if [ -d "/etc/php/${VERSION_CLEAN}/fpm/conf.d" ] && [ -f "/etc/php/${VERSION_CLEAN}/mods-available/99-presspanel-opcache.ini" ]; then
+                ln -sf "/etc/php/${VERSION_CLEAN}/mods-available/99-presspanel-opcache.ini" "/etc/php/${VERSION_CLEAN}/fpm/conf.d/99-presspanel-opcache.ini" 2>/dev/null || true
             fi
 
             # Cấu hình drop-in override cho PHP-FPM để tự động gán worker vào Cgroup v2 của user khi start/reload
@@ -209,7 +228,7 @@ EOF
             chown -R www-data:www-data /run/php /var/run/php 2>/dev/null || \
             chown -R nobody:nobody /run/php /var/run/php 2>/dev/null || true
 
-            # 6. Tối ưu php.ini Remi
+            # 6. Tối ưu php.ini Remi & bật OPcache mặc định
             REMI_INI="/etc/opt/remi/${PHP_PKG_PREFIX}/php.ini"
             if [ -f "$REMI_INI" ]; then
                 sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 128M/' "$REMI_INI" || true
@@ -218,6 +237,22 @@ EOF
                 sed -i 's/^max_execution_time = .*/max_execution_time = 300/' "$REMI_INI" || true
                 sed -i 's/^max_input_time = .*/max_input_time = 300/' "$REMI_INI" || true
             fi
+
+            for ocdir in "/etc/opt/remi/${PHP_PKG_PREFIX}/php.d" "/usr/local/lsws/lsphp${LSPHP_NUM}/etc/php.d"; do
+                if [ -d "$ocdir" ]; then
+                    cat << 'EOF' > "${ocdir}/99-presspanel-opcache.ini"
+; PressPanel Default OPcache Optimization
+opcache.enable=1
+opcache.enable_cli=0
+opcache.memory_consumption=256
+opcache.interned_strings_buffer=32
+opcache.max_accelerated_files=20000
+opcache.validate_timestamps=1
+opcache.revalidate_freq=2
+opcache.save_comments=1
+EOF
+                fi
+            done
 
             # 7. Cấu hình cgroup drop-in override
             PHP_OVERRIDE_DIR="/etc/systemd/system/${PHP_PKG_PREFIX}-php-fpm.service.d"

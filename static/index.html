@@ -1382,6 +1382,13 @@ function showToast(message, type = 'success') {
                     max_input_vars: '3000',
                     display_errors: 'Off',
                     date_timezone: 'Asia/Ho_Chi_Minh',
+                    opcache_enable: '1',
+                    opcache_memory_consumption: '256',
+                    opcache_interned_strings_buffer: '32',
+                    opcache_max_accelerated_files: '20000',
+                    opcache_validate_timestamps: '1',
+                    opcache_revalidate_freq: '2',
+                    opcache_jit_buffer_size: '0',
                     custom_directives: '',
                     user_ini_path: '',
                     file_exists: false
@@ -4735,6 +4742,13 @@ geo $limit_rate {
                                 max_input_vars: domainPhpIni.value.max_input_vars,
                                 display_errors: domainPhpIni.value.display_errors,
                                 date_timezone: domainPhpIni.value.date_timezone,
+                                opcache_enable: domainPhpIni.value.opcache_enable,
+                                opcache_memory_consumption: domainPhpIni.value.opcache_memory_consumption,
+                                opcache_interned_strings_buffer: domainPhpIni.value.opcache_interned_strings_buffer,
+                                opcache_max_accelerated_files: domainPhpIni.value.opcache_max_accelerated_files,
+                                opcache_validate_timestamps: domainPhpIni.value.opcache_validate_timestamps,
+                                opcache_revalidate_freq: domainPhpIni.value.opcache_revalidate_freq,
+                                opcache_jit_buffer_size: domainPhpIni.value.opcache_jit_buffer_size,
                                 custom_directives: domainPhpIni.value.custom_directives
                             })
                         });
@@ -4777,6 +4791,36 @@ geo $limit_rate {
                         domainPhpIni.value.max_input_time = '600';
                         domainPhpIni.value.max_input_vars = '10000';
                         domainPhpIni.value.display_errors = 'Off';
+                    }
+                };
+
+                const applyOpcachePreset = (preset) => {
+                    if (preset === 'standard') {
+                        domainPhpIni.value.opcache_enable = '1';
+                        domainPhpIni.value.opcache_memory_consumption = '128';
+                        domainPhpIni.value.opcache_interned_strings_buffer = '16';
+                        domainPhpIni.value.opcache_max_accelerated_files = '10000';
+                        domainPhpIni.value.opcache_validate_timestamps = '1';
+                        domainPhpIni.value.opcache_revalidate_freq = '2';
+                        domainPhpIni.value.opcache_jit_buffer_size = '0';
+                    } else if (preset === 'wordpress') {
+                        domainPhpIni.value.opcache_enable = '1';
+                        domainPhpIni.value.opcache_memory_consumption = '256';
+                        domainPhpIni.value.opcache_interned_strings_buffer = '32';
+                        domainPhpIni.value.opcache_max_accelerated_files = '20000';
+                        domainPhpIni.value.opcache_validate_timestamps = '1';
+                        domainPhpIni.value.opcache_revalidate_freq = '2';
+                        domainPhpIni.value.opcache_jit_buffer_size = '64M';
+                    } else if (preset === 'high_perf') {
+                        domainPhpIni.value.opcache_enable = '1';
+                        domainPhpIni.value.opcache_memory_consumption = '512';
+                        domainPhpIni.value.opcache_interned_strings_buffer = '64';
+                        domainPhpIni.value.opcache_max_accelerated_files = '40000';
+                        domainPhpIni.value.opcache_validate_timestamps = '1';
+                        domainPhpIni.value.opcache_revalidate_freq = '60';
+                        domainPhpIni.value.opcache_jit_buffer_size = '128M';
+                    } else if (preset === 'off') {
+                        domainPhpIni.value.opcache_enable = '0';
                     }
                 };
 
@@ -10444,7 +10488,7 @@ if ($host ~* ^www\\.(.*)$) {
                     loadingVhostConfig, savingVhostConfig, rebuildingVhost, openDomainVhostModal,
                     fetchDomainVhostConfig, saveDomainVhostConfig, rebuildDomainVhost, applyVhostRewritePreset,
                     openChangePhpModal, confirmChangePhp,
-                    phpModalTab, domainPhpIni, loadingDomainPhpIni, savingDomainPhpIni, applyPhpPreset, loadDomainPhpIni, saveDomainPhpIni,
+                    phpModalTab, domainPhpIni, loadingDomainPhpIni, savingDomainPhpIni, applyPhpPreset, applyOpcachePreset, loadDomainPhpIni, saveDomainPhpIni,
                     domainPhpExtensions, loadingDomainPhpExtensions, savingDomainPhpExtensions, loadDomainPhpExtensions, saveDomainPhpExtensions, applyPhpExtPreset,
                     domainFpmData, loadingDomainFpm, savingDomainFpm, resettingDomainFpm, controllingFpm, fpmConfigMode, applyFpmPreset, loadDomainFpmSettings, saveDomainFpmSettings, resetDomainFpmSettings, controlDomainFpm,
                     domainLsapiData, loadingDomainLsapi, savingDomainLsapi, resettingDomainLsapi, controllingLsapi, lsapiConfigMode, applyLsapiPreset, loadDomainLsapiSettings, saveDomainLsapiSettings, resetDomainLsapiSettings, controlDomainLsapi,

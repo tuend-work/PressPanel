@@ -1455,10 +1455,10 @@ EOF_NGX_SUSP
 
                     EXT_BLOCK="\n; --- PRESSPANEL PHP EXTENSIONS CONFIGURATION ---"
                     OP_ENABLE=$(grep -E "^opcache.enable" "$DOC_ROOT/.user.ini" 2>/dev/null | awk -F'=' '{print $2}' | tr -d ' ' || true)
-                    if [ "$OP_ENABLE" = "1" ] || [ "$OP_ENABLE" = "On" ] || [ "$OP_ENABLE" = "on" ]; then
-                        EXT_BLOCK="${EXT_BLOCK}\nphp_admin_flag[opcache.enable] = on"
-                    else
+                    if [ "$OP_ENABLE" = "0" ] || [ "$OP_ENABLE" = "Off" ] || [ "$OP_ENABLE" = "off" ] || [ "$OP_ENABLE" = "false" ]; then
                         EXT_BLOCK="${EXT_BLOCK}\nphp_admin_flag[opcache.enable] = off"
+                    else
+                        EXT_BLOCK="${EXT_BLOCK}\nphp_admin_flag[opcache.enable] = on"
                     fi
 
                     XD_MODE=$(grep -E "^xdebug.mode" "$DOC_ROOT/.user.ini" 2>/dev/null | awk -F'=' '{print $2}' | tr -d ' ' || true)
