@@ -10,7 +10,7 @@ import time
 import json
 import re
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, HTTPException, status
 from app.core.security import decode_token
 from app.api.deps import get_current_user
 from app.db.session import get_db_connection
@@ -19,6 +19,8 @@ router = APIRouter(prefix="/terminal", tags=["SSH Web Terminal"])
 
 @router.post("/ticket")
 async def create_terminal_ticket(current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") != "admin" and not current_user.get("web_domain_id"):
+        raise HTTPException(status_code=403, detail="Tài khoản Hosting User không có quyền sử dụng Web Terminal SSH.")
     now = time.time()
     ticket = secrets.token_urlsafe(24)
     db = await get_db_connection()

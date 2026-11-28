@@ -1634,6 +1634,8 @@ async def get_metrics_settings(current_user: dict = Depends(get_current_user)):
     """
     Lấy thông tin cấu hình lưu trữ lịch sử metrics vào SQLite DB
     """
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Admin mới có quyền xem cấu hình Metrics hệ thống.")
     db = await get_db_connection()
     c_cfg = await db.execute("SELECT key, value FROM system_settings WHERE key IN ('metrics_history_enabled', 'metrics_retention_days')")
     rows = await c_cfg.fetchall()

@@ -488,6 +488,9 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
 
 @router.post("/")
 async def create_domain(req: DomainCreate, current_user: dict = Depends(get_current_user)):
+    if current_user.get("web_domain_id") or current_user.get("role") == "application":
+        raise HTTPException(status_code=403, detail="Tài khoản Web Application không có quyền tạo thêm Website mới.")
+
     clean_domain = re.sub(r"^(https?://)?(www\.)?", "", req.domain_name.strip().lower()).rstrip("/")
     # Kiểm tra cấu trúc FQDN hợp lệ: không chứa ký tự lạ, không có .. hay khoảng trắng
     if not clean_domain or not re.match(r"^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$", clean_domain):
@@ -506,6 +509,20 @@ async def create_domain(req: DomainCreate, current_user: dict = Depends(get_curr
 
     db = await get_db_connection()
     try:
+        # Kiểm tra giới hạn max_domains cho Hosting User / Reseller
+        if current_user["role"] != "admin":
+            lim_cur = await db.execute("""
+                SELECT COALESCE(u.max_domains, p.max_domains, 10) as max_dom
+                FROM users u LEFT JOIN packages p ON u.package_id = p.id
+                WHERE u.id = ?
+            """, (current_user["id"],))
+            lim_row = await lim_cur.fetchone()
+            max_dom = int(lim_row["max_dom"] if lim_row and lim_row["max_dom"] is not None else 10)
+            cnt_cur = await db.execute("SELECT COUNT(*) FROM domains WHERE user_id = ?", (current_user["id"],))
+            cur_cnt = (await cnt_cur.fetchone())[0]
+            if cur_cnt >= max_dom:
+                raise HTTPException(status_code=403, detail=f"Tài khoản đã đạt giới hạn tối đa {max_dom} Website ({cur_cnt}/{max_dom}). Vui lòng nâng cấp gói hoặc điều chỉnh hạn mức!")
+
         # TỰ ĐỘNG CHỌN WEBSERVER TẦNG SERVER:
         active_ws = req.webserver or "ols"
         ws_cur = await db.execute("SELECT webserver FROM domains ORDER BY id DESC LIMIT 1")
@@ -1002,11 +1019,10 @@ async def rename_domain(
         if not dom:
             raise HTTPException(status_code=404, detail="Không tìm thấy website")
 
-        # Kiểm tra phân quyền
-        if current_user["role"] == "reseller" and dom["user_id"] != current_user["id"] and dom["parent_id"] != current_user["id"]:
-            raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
-        elif current_user["role"] == "user" and dom["user_id"] != current_user["id"]:
-            raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
+        # Kiểm tra phân quyền (Admin, Hosting User sở hữu, hoặc Reseller cha; chặn Web Application User)
+        if current_user.get("web_domain_id") or current_user.get("role") == "application":
+            raise HTTPException(status_code=403, detail="Tài khoản Web Application không có quyền đổi tên miền.")
+        _check_domain_access(dom, current_user)
 
         old_domain = dom["domain_name"]
         if old_domain == clean_new_domain:

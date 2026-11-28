@@ -556,25 +556,47 @@ async def scan_wordpress_instances(current_user: dict = Depends(get_current_user
 
     return {"status": "ok", "discovered": discovered, "message": f"Quét hoàn tất, phát hiện/cập nhật {discovered} website WordPress"}
 
+async def _fetch_wp_instance_authorized(instance_id: int, current_user: dict) -> dict:
+    """Lấy thông tin WordPress instance kèm kiểm tra chặt chẽ quyền sở hữu (Admin / Reseller / Hosting User / Web App)."""
+    db = await get_db_connection()
+    try:
+        cursor = await db.execute("""
+            SELECT w.*, d.domain_name, d.document_root, d.user_id as domain_user_id,
+                   u.username as owner_username, u.parent_id as owner_parent_id
+            FROM wp_instances w
+            JOIN domains d ON w.domain_id = d.id
+            JOIN users u ON d.user_id = u.id
+            WHERE w.id = ?
+        """, (instance_id,))
+        row = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+
+    inst = dict(row)
+    role = current_user.get("role")
+    if role == "admin":
+        return inst
+    if current_user.get("web_domain_id"):
+        if int(inst["domain_id"]) != int(current_user["web_domain_id"]):
+            raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập WordPress instance này")
+        return inst
+    if role == "reseller":
+        if inst["domain_user_id"] != current_user["id"] and inst["owner_parent_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập WordPress instance này")
+        return inst
+    if inst["domain_user_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập WordPress instance này")
+    return inst
+
 @router.get("/{instance_id}/detail")
 async def get_wordpress_detail(instance_id: int, current_user: dict = Depends(get_current_user)):
     """Lấy thông tin chi tiết đầy đủ của 1 website WordPress (Site Weight, Security, Defines, Optimize)"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
 
-    if current_user["role"] != "admin" and inst["user_id"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập website này")
 
     docroot = inst["document_root"] or resolve_target_dir(inst["owner_username"], inst["domain_name"])
     cfg = parse_wp_config_file(docroot)
@@ -974,11 +996,12 @@ async def get_magic_login_user_sso(instance_id: int, user_id: int, current_user:
     if not row:
         raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
 
-    is_allowed = (
-        current_user["role"] == "admin"
-        or row["user_id"] == current_user["id"]
-        or (current_user.get("web_domain_id") and current_user.get("web_domain_id") == row["domain_id"])
-    )
+    if current_user["role"] == "admin":
+        is_allowed = True
+    elif current_user.get("web_domain_id"):
+        is_allowed = int(current_user["web_domain_id"]) == int(row["domain_id"])
+    else:
+        is_allowed = (row["user_id"] == current_user["id"])
     if not is_allowed:
         raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập website này")
 
@@ -1006,19 +1029,7 @@ async def get_magic_login_user_sso(instance_id: int, user_id: int, current_user:
 @router.get("/{instance_id}/plugins")
 async def list_plugins(instance_id: int, current_user: dict = Depends(get_current_user)):
     """Lấy danh sách Plugin đã cài đặt trực tiếp từ file headers và active_plugins trong database"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     docroot = inst["document_root"] or resolve_target_dir(inst["owner_username"], inst["domain_name"])
     plugins_dir = os.path.join(docroot, "wp-content", "plugins")
@@ -1083,19 +1094,7 @@ async def reinstall_plugin_clean(instance_id: int, req: WPPluginReinstallRequest
     - Phân quyền an toàn chuẩn Linux
     - Tuyệt đối không chạy WP hooks gây lỗi hay tái kích hoạt virus!
     """
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     uname = inst["owner_username"]
     domain = inst["domain_name"]
@@ -1120,19 +1119,7 @@ async def install_plugin(instance_id: int, req: WPPluginInstallRequest, current_
 @router.post("/{instance_id}/plugins/toggle")
 async def toggle_plugin(instance_id: int, req: WPPluginToggleRequest, current_user: dict = Depends(get_current_user)):
     """Bật / Tắt Plugin bằng cách cập nhật trực tiếp DB active_plugins mà không nạp WP hook"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     docroot = inst["document_root"] or resolve_target_dir(inst["owner_username"], inst["domain_name"])
     cfg = parse_wp_config_file(docroot)
@@ -1176,19 +1163,7 @@ async def toggle_plugin(instance_id: int, req: WPPluginToggleRequest, current_us
 @router.post("/{instance_id}/plugins/delete")
 async def delete_plugin(instance_id: int, req: WPPluginReinstallRequest, current_user: dict = Depends(get_current_user)):
     """Xoá sạch thư mục Plugin khỏi máy chủ"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     uname = inst["owner_username"]
     domain = inst["domain_name"]
@@ -1207,19 +1182,7 @@ async def delete_plugin(instance_id: int, req: WPPluginReinstallRequest, current
 @router.get("/{instance_id}/themes")
 async def list_themes(instance_id: int, current_user: dict = Depends(get_current_user)):
     """Lấy danh sách Giao diện (Themes) đã cài đặt và trạng thái Active"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     docroot = inst["document_root"] or resolve_target_dir(inst["owner_username"], inst["domain_name"])
     themes_dir = os.path.join(docroot, "wp-content", "themes")
@@ -1275,19 +1238,7 @@ async def list_themes(instance_id: int, current_user: dict = Depends(get_current
 @router.post("/{instance_id}/themes/activate")
 async def activate_theme(instance_id: int, req: WPThemeActionRequest, current_user: dict = Depends(get_current_user)):
     """Kích hoạt Theme bằng cách cập nhật template và stylesheet trong MariaDB"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     docroot = inst["document_root"] or resolve_target_dir(inst["owner_username"], inst["domain_name"])
     cfg = parse_wp_config_file(docroot)
@@ -1304,19 +1255,7 @@ async def activate_theme(instance_id: int, req: WPThemeActionRequest, current_us
 @router.post("/{instance_id}/themes/reinstall")
 async def reinstall_theme_clean(instance_id: int, req: WPThemeActionRequest, current_user: dict = Depends(get_current_user)):
     """Làm sạch và cài đặt lại Theme từ ZIP trực tiếp"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     uname = inst["owner_username"]
     domain = inst["domain_name"]
@@ -1336,19 +1275,7 @@ async def reinstall_theme_clean(instance_id: int, req: WPThemeActionRequest, cur
 @router.get("/{instance_id}/users")
 async def list_wp_users(instance_id: int, current_user: dict = Depends(get_current_user)):
     """Lấy danh sách người dùng WordPress trực tiếp từ MariaDB không nạp WP Core"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     docroot = inst["document_root"] or resolve_target_dir(inst["owner_username"], inst["domain_name"])
     cfg = parse_wp_config_file(docroot)
@@ -1400,19 +1327,7 @@ async def create_wp_user(instance_id: int, req: WPUserCreateRequest, current_use
     if not req.user_pass or len(req.user_pass) < 6:
         raise HTTPException(status_code=400, detail="Mật khẩu phải có ít nhất 6 ký tự")
 
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     docroot = inst["document_root"] or resolve_target_dir(inst["owner_username"], inst["domain_name"])
     cfg = parse_wp_config_file(docroot)
@@ -1449,19 +1364,7 @@ async def create_wp_user(instance_id: int, req: WPUserCreateRequest, current_use
 @router.post("/{instance_id}/users/modify")
 async def modify_wp_user(instance_id: int, req: WPUserModifyRequest, current_user: dict = Depends(get_current_user)):
     """Chỉnh sửa thông tin người dùng (Email, Password, Role) trực tiếp trong MariaDB"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     docroot = inst["document_root"] or resolve_target_dir(inst["owner_username"], inst["domain_name"])
     cfg = parse_wp_config_file(docroot)
@@ -1500,19 +1403,8 @@ async def modify_wp_user(instance_id: int, req: WPUserModifyRequest, current_use
 @router.post("/{instance_id}/lockdown")
 async def toggle_lockdown(instance_id: int, current_user: dict = Depends(get_current_user)):
     """Bật / Tắt chế độ WordPress Lockdown (chattr +i/-i và chmod khoá file core/config)"""
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
     db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-
-    if not inst:
-        await db.close()
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
 
     is_currently_locked = inst["is_locked"]
     new_locked = 0 if is_currently_locked else 1
@@ -1536,19 +1428,7 @@ async def toggle_lockdown(instance_id: int, current_user: dict = Depends(get_cur
 @router.post("/{instance_id}/fixperms")
 async def fix_permissions(instance_id: int, current_user: dict = Depends(get_current_user)):
     """Khôi phục phân quyền chuẩn Linux (755 dir, 644 file, 600 wp-config.php)"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     res = await run_gatekeeper("wp", "fixperms", inst["owner_username"], inst["domain_name"])
     if res.get("status") == "error":
@@ -1559,19 +1439,7 @@ async def fix_permissions(instance_id: int, current_user: dict = Depends(get_cur
 @router.post("/{instance_id}/defines/save")
 async def save_wp_define(instance_id: int, req: WPDefineSaveRequest, current_user: dict = Depends(get_current_user)):
     """Cập nhật giá trị WP Define trong wp-config.php an toàn"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     enable_str = "1" if req.enable else "0"
     res = await run_gatekeeper(
@@ -1586,19 +1454,7 @@ async def save_wp_define(instance_id: int, req: WPDefineSaveRequest, current_use
 @router.post("/{instance_id}/wpc-optimize/toggle")
 async def toggle_wpc_optimize(instance_id: int, req: WPCOptimizeToggleRequest, current_user: dict = Depends(get_current_user)):
     """Bật / Tắt từng module trong bộ WPC Optimize MU-Plugins"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     file_name = req.file_name.strip()
     if not file_name.startswith("wpc-optimize-") or not file_name.endswith(".php"):
@@ -1617,19 +1473,7 @@ async def toggle_wpc_optimize(instance_id: int, req: WPCOptimizeToggleRequest, c
 @router.post("/{instance_id}/db-cleanup")
 async def cleanup_database(instance_id: int, current_user: dict = Depends(get_current_user)):
     """Dọn dẹp rác cơ sở dữ liệu: Revisions, Auto-drafts, Spam comments, Transients và Tối ưu bảng"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     res = await run_gatekeeper("wp", "db_cleanup", inst["owner_username"], inst["domain_name"])
     if res.get("status") == "error":
@@ -1649,19 +1493,7 @@ async def get_php_error_logs(
     current_user: dict = Depends(get_current_user)
 ):
     """Đọc và lọc log lỗi PHP / debug.log của website theo thời gian và mức độ lỗi"""
-    db = await get_db_connection()
-    cursor = await db.execute("""
-        SELECT w.*, d.domain_name, u.username as owner_username
-        FROM wp_instances w
-        JOIN domains d ON w.domain_id = d.id
-        JOIN users u ON d.user_id = u.id
-        WHERE w.id = ?
-    """, (instance_id,))
-    inst = await cursor.fetchone()
-    await db.close()
-
-    if not inst:
-        raise HTTPException(status_code=404, detail="Không tìm thấy WordPress instance")
+    inst = await _fetch_wp_instance_authorized(instance_id, current_user)
 
     docroot = inst["document_root"] or resolve_target_dir(inst["owner_username"], inst["domain_name"])
     log_candidates = [

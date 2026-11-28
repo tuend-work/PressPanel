@@ -1064,6 +1064,8 @@ async def check_app_update(app_id: str, current_user: dict = Depends(get_current
 @router.get("/service-logs")
 async def get_service_logs(app_id: str, lines: int = 100, current_user: dict = Depends(get_current_user)):
     """Lấy nhật ký lỗi (error log) thời gian thực của ứng dụng dịch vụ"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Admin mới có quyền xem nhật ký dịch vụ máy chủ.")
     app = next((a for a in SUPPORTED_APPS if a["id"] == app_id), None)
     if not app:
         raise HTTPException(status_code=404, detail="Ứng dụng không tồn tại")
@@ -1461,6 +1463,8 @@ APP_CONFIG_PATHS = {
 @router.get("/config")
 async def get_app_config(app_id: str, file_type: str = "main", current_user: dict = Depends(get_current_user)):
     """Đọc file cấu hình thực tế của ứng dụng để hiển thị trong Popup Settings (hỗ trợ cả OpenResty, MariaDB, Redis, php.ini và pool www.conf)"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Admin mới có quyền đọc cấu hình dịch vụ máy chủ.")
     found_path = resolve_app_config_path(app_id, file_type)
 
     content = ""
@@ -2898,6 +2902,8 @@ DEFAULT_BUILD_ARGS = {
 @router.get("/{app_id}/build-settings")
 async def get_app_build_settings(app_id: str, current_user: dict = Depends(get_current_user)):
     """Lấy các đối số biên dịch từ nguồn của ứng dụng"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Admin mới có quyền xem cấu hình biên dịch.")
     clean_id = app_id.lower()
     if clean_id.startswith("php"):
         def_key = "php"
