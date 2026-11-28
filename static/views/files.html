@@ -37,7 +37,7 @@
                 <div class="flex items-center flex-nowrap whitespace-nowrap select-text">
                     <button type="button" @click="fetchFilesList('')"
                         class="hover:text-blue-400 transition hover:underline select-text font-semibold text-emerald-300">
-                        {{ (currentUser.role === 'admin' && !fileTargetUser) ? '/home' : ('/home/' + (fileTargetUser || currentUser.username)) }}
+                        {{ (currentUser.role === 'admin' && !fileTargetUser) ? '/' : ('/home/' + (fileTargetUser || currentUser.username)) }}
                     </button>
                     <template v-for="(part, idx) in pathParts" :key="idx">
                         <span class="text-slate-500 select-text">/</span>
