@@ -54,6 +54,20 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
         # nhưng tuyệt đối KHÔNG THỂ xem trộm tiến trình của root hoặc các website user khác
         mount -o remount,hidepid=2 /proc 2>/dev/null || mount -t proc -o hidepid=2 proc /proc 2>/dev/null || mount -t proc proc /proc 2>/dev/null || true
 
+        # 2.5 Gắn tiến trình vào Cgroup v2 của user & ảo hóa /proc (cpuinfo, meminfo, stat, loadavg...) qua LXCFS
+        # để htop, top, free, nproc chỉ hiển thị đúng tài nguyên CPU/RAM được cấp cho user
+        USER_CG_DIR=$(find /sys/fs/cgroup/presspanel /sys/fs/cgroup/wpc /sys/fs/cgroup/presspanel.slice -maxdepth 4 -type d \( -name "site_${TARGET_USER}" -o -name "user_${TARGET_USER}" -o -name "presspanel-user-${TARGET_USER}.slice" -o -name "presspanel-hosting_${TARGET_USER}.slice" \) 2>/dev/null | head -n 1 || true)
+        if [ -n "$USER_CG_DIR" ] && [ -f "$USER_CG_DIR/cgroup.procs" ]; then
+            echo $$ > "$USER_CG_DIR/cgroup.procs" 2>/dev/null || true
+        fi
+        if [ -d "/var/lib/lxcfs/proc" ]; then
+            for lf in meminfo cpuinfo stat uptime loadavg diskstats swaps; do
+                if [ -e "/var/lib/lxcfs/proc/$lf" ] && [ -e "/proc/$lf" ]; then
+                    mount --bind "/var/lib/lxcfs/proc/$lf" "/proc/$lf" 2>/dev/null || true
+                fi
+            done
+        fi
+
         # 3. Cách ly /home: Ảo hóa tmpfs sạch, chỉ hiển thị đúng thư mục của user này
         MNT_TMP_HOME="/run/cage_home_$$"
         mkdir -p "$MNT_TMP_HOME"

@@ -53,10 +53,11 @@ if [[ "$OS_ID" =~ ^(debian|ubuntu)$ ]]; then
     apt-get upgrade -y || true
     echo "[+] Đang cài đặt các gói công cụ nền tảng..."
     apt-get install -y build-essential gcc make python3 python3-venv python3-pip \
-                       sqlite3 libsqlite3-dev curl wget git quota certbot ipset fail2ban \
+                       sqlite3 libsqlite3-dev curl wget git quota certbot ipset fail2ban lxcfs \
                        software-properties-common lsb-release ca-certificates apt-transport-https || \
     apt-get install -y build-essential gcc make python3 python3-venv python3-pip \
                        sqlite3 libsqlite3-dev curl wget git quota ipset fail2ban software-properties-common
+    systemctl enable --now lxcfs 2>/dev/null || true
 
     # Cấu hình Ondřej PPA cho Ubuntu hoặc Sury cho Debian để sẵn sàng cài đặt mọi phiên bản PHP
     if [ "$OS_ID" = "ubuntu" ]; then
