@@ -285,6 +285,22 @@ Restart=always
 RestartSec=3
 TimeoutSec=15
 Slice=presspanel-user-%i.slice
+# Bước B: Cách ly PHP-FPM vào CageFS bằng Systemd Mount Namespace
+ProtectSystem=strict
+ProtectHome=tmpfs
+BindPaths=-/home/%i
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ReadWritePaths=/run/php /tmp /var/tmp -/home/%i
+InaccessiblePaths=-/root -/boot -/opt/presspanel -/opt/wpc -/etc/nginx -/usr/local/lsws/conf -/var/log -/swapfile -/sys/class/dmi -/sys/firmware
 
 [Install]
 WantedBy=multi-user.target

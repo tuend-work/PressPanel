@@ -7,6 +7,7 @@
 set -euo pipefail
 
 TARGET_USER="${1:-}"
+EXEC_CMD="${2:-}"
 if [ -z "$TARGET_USER" ] || [[ ! "$TARGET_USER" =~ ^[a-zA-Z0-9_.-]{1,32}$ ]]; then
     echo "[-] Thieu tham so hoac username khong hop le cho cage terminal: '$TARGET_USER'"
     exit 1
@@ -46,6 +47,7 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
     exec $UNSHARE_BIN /bin/bash -c '
         TARGET_USER="$1"
         REAL_HOME="$2"
+        EXEC_CMD="${3:-}"
 
         # 1. Cách ly mount event không lan ngược ra namespace cha
         mount --make-rprivate / 2>/dev/null || true
@@ -213,15 +215,27 @@ EOF
         T_UID=$(id -u "$TARGET_USER" 2>/dev/null || echo "")
         T_GID=$(id -g "$TARGET_USER" 2>/dev/null || echo "")
         if command -v setpriv &>/dev/null && [ -n "$T_UID" ] && [ -n "$T_GID" ]; then
-            exec chroot "$CAGE" /usr/bin/setpriv --reuid="$T_UID" --regid="$T_GID" --init-groups /usr/bin/env -i \
-                HOME="$REAL_HOME" USER="$TARGET_USER" LOGNAME="$TARGET_USER" \
-                SHELL=/bin/bash TERM="${TERM:-xterm-256color}" \
-                PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" LANG="${LANG:-en_US.UTF-8}" \
-                /bin/bash -c "cd \"$REAL_HOME\" 2>/dev/null || cd /; exec /bin/bash --login"
+            if [ -n "$EXEC_CMD" ]; then
+                exec chroot "$CAGE" /usr/bin/setpriv --reuid="$T_UID" --regid="$T_GID" --init-groups /usr/bin/env -i \
+                    HOME="$REAL_HOME" USER="$TARGET_USER" LOGNAME="$TARGET_USER" \
+                    SHELL=/bin/bash TERM="${TERM:-xterm-256color}" \
+                    PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" LANG="${LANG:-en_US.UTF-8}" \
+                    /bin/bash -c "cd \"$REAL_HOME\" 2>/dev/null || cd /; exec /bin/bash -c \"\$1\"" _ "$EXEC_CMD"
+            else
+                exec chroot "$CAGE" /usr/bin/setpriv --reuid="$T_UID" --regid="$T_GID" --init-groups /usr/bin/env -i \
+                    HOME="$REAL_HOME" USER="$TARGET_USER" LOGNAME="$TARGET_USER" \
+                    SHELL=/bin/bash TERM="${TERM:-xterm-256color}" \
+                    PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" LANG="${LANG:-en_US.UTF-8}" \
+                    /bin/bash -c "cd \"$REAL_HOME\" 2>/dev/null || cd /; exec /bin/bash --login"
+            fi
         else
-            exec chroot "$CAGE" /bin/su -l "$TARGET_USER" -s /bin/bash
+            if [ -n "$EXEC_CMD" ]; then
+                exec chroot "$CAGE" /bin/su -l "$TARGET_USER" -s /bin/bash -c "$EXEC_CMD"
+            else
+                exec chroot "$CAGE" /bin/su -l "$TARGET_USER" -s /bin/bash
+            fi
         fi
-    ' _ "$TARGET_USER" "$REAL_HOME"
+    ' _ "$TARGET_USER" "$REAL_HOME" "$EXEC_CMD"
 else
     # Fallback tiêu chuẩn nếu môi trường không hỗ trợ unshare
     cd "$REAL_HOME" 2>/dev/null || cd /
