@@ -1,0 +1,284 @@
+                <!-- VIEW: TRANG TẠO / CHỈNH SỬA GÓI DỊCH VỤ (SERVICE PLAN EDITOR) -->
+                <div v-if="currentTab === 'plan_editor'" class="space-y-5 max-w-4xl mx-auto pb-12">
+                    <!-- Header Bar -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 bg-[#151c2c] border border-slate-800 rounded-xl p-4 shadow-lg">
+                        <div class="flex items-center gap-3">
+                            <button type="button" @click="closePlanEditor"
+                                class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
+                                <span>←</span> Quay lại
+                            </button>
+                            <div>
+                                <h2 class="text-base sm:text-lg font-bold text-white">
+                                    {{ planEditorMode === 'edit' ? 'Chỉnh sửa Gói: ' + (editPlanForm.name || '') : 'Tạo Gói Dịch Vụ Mới' }}
+                                </h2>
+                                <p class="text-[11px] text-slate-400">Thiết lập hạn mức tài nguyên CPU, RAM, I/O, Inodes, MySQL và dịch vụ theo từng nhóm</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="closePlanEditor"
+                                class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">
+                                Hủy
+                            </button>
+                            <button type="button" @click="planEditorMode === 'edit' ? handleUpdatePlan() : handleAddPlan()"
+                                :disabled="creatingPlan || updatingPlan"
+                                class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold shadow transition">
+                                {{ (creatingPlan || updatingPlan) ? 'Đang lưu...' : (planEditorMode === 'edit' ? 'Lưu Thay Đổi' : 'Tạo Gói Ngay') }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <form @submit.prevent="planEditorMode === 'edit' ? handleUpdatePlan() : handleAddPlan()" class="space-y-5 text-xs">
+                        <!-- NHÓM 1: THÔNG TIN CHUNG -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-4 py-3 bg-slate-900/70 border-b border-slate-800 flex items-center gap-2">
+                                <span class="text-blue-400 font-bold">1. Thông tin chung</span>
+                            </div>
+                            <div class="px-4 divide-y divide-slate-800/70">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">Tên Gói Dịch Vụ</label>
+                                        <span class="text-[11px] text-slate-400">Tên hiển thị của User Package hoặc Website Plan</span>
+                                    </div>
+                                    <input type="text" v-model="activePlanForm.name" required placeholder="VD: WordPress Pro 10GB"
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500">
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">Cấp Độ Gói</label>
+                                        <span class="text-[11px] text-slate-400">User Package cấp cho tài khoản Hosting; Website Plan cấp cho từng Web App</span>
+                                    </div>
+                                    <select v-model="activePlanForm.plan_type" :disabled="planEditorMode === 'edit' || isHostingUser"
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white disabled:opacity-60">
+                                        <option value="user" v-if="!isHostingUser">User Package (Cấp cho Hosting User)</option>
+                                        <option value="website">Website Plan (Cấp cho từng Website)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NHÓM 2: TÀI NGUYÊN PHẦN CỨNG & I/O -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-4 py-3 bg-slate-900/70 border-b border-slate-800 flex items-center justify-between">
+                                <span class="text-emerald-400 font-bold">2. Tài nguyên Phần cứng &amp; I/O (Cgroup v2 / Quota)</span>
+                            </div>
+                            <div class="px-4 divide-y divide-slate-800/70">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">Giới hạn CPU (%)</label>
+                                        <span class="text-[11px] text-slate-400">100% = 1 vCPU Core cố định (cpuset + cpu.max)</span>
+                                    </div>
+                                    <input type="number" v-model.number="activePlanForm.cpu_pct" min="10" max="12800" required
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">Giới hạn RAM (MB)</label>
+                                        <span class="text-[11px] text-slate-400">≈ {{ ((activePlanForm.mem_mb || 0) / 1024).toFixed(1) }} GB (memory.max)</span>
+                                    </div>
+                                    <input type="number" v-model.number="activePlanForm.mem_mb" min="128" max="524288" required
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">Dung lượng Ổ cứng (MB)</label>
+                                        <span class="text-[11px] text-slate-400">≈ {{ ((activePlanForm.disk_mb || 0) / 1024).toFixed(1) }} GB</span>
+                                    </div>
+                                    <input type="number" v-model.number="activePlanForm.disk_mb" min="100" max="5000000" required
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">Số lượng File tối đa (Inodes)</label>
+                                        <span class="text-[11px] text-slate-400">Hiện tại: {{ (activePlanForm.max_inodes || 0).toLocaleString() }} inodes</span>
+                                    </div>
+                                    <input type="number" v-model.number="activePlanForm.max_inodes" min="1000" max="10000000" required
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">Tốc độ Đọc/Ghi Đĩa (IO MB/s)</label>
+                                        <span class="text-[11px] text-slate-400">Giới hạn băng thông đĩa Cgroup v2 (io.max rbps/wbps)</span>
+                                    </div>
+                                    <input type="number" v-model.number="activePlanForm.io_mbps" min="1" max="5000" required
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">Giới hạn IOPS (Read/Write)</label>
+                                        <span class="text-[11px] text-slate-400">Số thao tác đọc/ghi đĩa mỗi giây (io.max riops/wiops)</span>
+                                    </div>
+                                    <input type="number" v-model.number="activePlanForm.iops_limit" min="50" max="500000" required
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">Băng thông tháng (MB)</label>
+                                        <span class="text-[11px] text-slate-400">Nhập 0 để không giới hạn băng thông</span>
+                                    </div>
+                                    <input type="number" v-model.number="activePlanForm.bandwidth_mb" min="0"
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NHÓM 3: GIỚI HẠN MYSQL RESOURCE CONTROLLER -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-4 py-3 bg-slate-900/70 border-b border-slate-800 flex items-center gap-2">
+                                <span class="text-cyan-400 font-bold">3. Giới hạn MySQL Resource Controller</span>
+                            </div>
+                            <div class="px-4 divide-y divide-slate-800/70">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">MAX_USER_CONNECTIONS</label>
+                                        <span class="text-[11px] text-slate-400">Số kết nối MySQL đồng thời tối đa cho mỗi DB User</span>
+                                    </div>
+                                    <input type="number" v-model.number="activePlanForm.mysql_max_user_connections" min="2" max="500" required
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">MAX_STATEMENT_TIME (Giây)</label>
+                                        <span class="text-[11px] text-slate-400">Thời gian chạy tối đa cho 1 câu truy vấn SQL (quá hạn sẽ tự ngắt)</span>
+                                    </div>
+                                    <input type="number" v-model.number="activePlanForm.mysql_max_statement_time" min="1" max="3600" required
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">MAX_QUERIES_PER_HOUR</label>
+                                        <span class="text-[11px] text-slate-400">Tổng số truy vấn tối đa mỗi giờ (0 = Không giới hạn)</span>
+                                    </div>
+                                    <input type="number" v-model.number="activePlanForm.mysql_max_queries_per_hour" min="0" max="10000000" required
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">MAX_UPDATES_PER_HOUR</label>
+                                        <span class="text-[11px] text-slate-400">Số lệnh ghi INSERT/UPDATE/DELETE tối đa mỗi giờ (0 = Không giới hạn)</span>
+                                    </div>
+                                    <input type="number" v-model.number="activePlanForm.mysql_max_updates_per_hour" min="0" max="10000000" required
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">MAX_CONNECTIONS_PER_HOUR</label>
+                                        <span class="text-[11px] text-slate-400">Số lượt mở kết nối mới tối đa mỗi giờ (0 = Không giới hạn)</span>
+                                    </div>
+                                    <input type="number" v-model.number="activePlanForm.mysql_max_connections_per_hour" min="0" max="1000000" required
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NHÓM 4: GIỚI HẠN WEBSITE, DATABASE & DỊCH VỤ -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-4 py-3 bg-slate-900/70 border-b border-slate-800 flex items-center gap-2">
+                                <span class="text-indigo-400 font-bold">4. Giới hạn Website, Database &amp; Dịch vụ</span>
+                            </div>
+                            <div class="px-4 divide-y divide-slate-800/70">
+                                <template v-if="activePlanForm.plan_type !== 'website'">
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                        <div>
+                                            <label class="font-semibold text-slate-200 block">Tổng số Website / Domain</label>
+                                            <span class="text-[11px] text-slate-400">Số lượng tên miền tối đa user được thêm</span>
+                                        </div>
+                                        <input type="number" v-model.number="activePlanForm.max_domains" min="1" max="1000" required
+                                            class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                    </div>
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                        <label class="font-semibold text-slate-200">Số Website WordPress</label>
+                                        <input type="number" v-model.number="activePlanForm.max_wp_sites" min="0" max="1000"
+                                            class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                    </div>
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                        <label class="font-semibold text-slate-200">Số Website PHP (Thuần / Laravel)</label>
+                                        <input type="number" v-model.number="activePlanForm.max_php_sites" min="0" max="1000"
+                                            class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                    </div>
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                        <label class="font-semibold text-slate-200">Số Website Node.js</label>
+                                        <input type="number" v-model.number="activePlanForm.max_nodejs_sites" min="0" max="1000"
+                                            class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                    </div>
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                        <label class="font-semibold text-slate-200">Số Website Python</label>
+                                        <input type="number" v-model.number="activePlanForm.max_python_sites" min="0" max="1000"
+                                            class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                    </div>
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                        <label class="font-semibold text-slate-200">Số Website Go (Golang)</label>
+                                        <input type="number" v-model.number="activePlanForm.max_go_sites" min="0" max="1000"
+                                            class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                    </div>
+                                </template>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <label class="font-semibold text-slate-200">Số Database MySQL</label>
+                                    <input type="number" v-model.number="activePlanForm.max_databases" min="0" max="1000" required
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <label class="font-semibold text-slate-200">Số Database MongoDB</label>
+                                    <input type="number" v-model.number="activePlanForm.max_mongo_dbs" min="0" max="1000"
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <label class="font-semibold text-slate-200">Số Tài khoản FTP</label>
+                                    <input type="number" v-model.number="activePlanForm.max_ftp_accounts" min="0" max="1000"
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">Quyền truy cập SSH / Terminal</label>
+                                        <span class="text-[11px] text-slate-400">Chạy trong lồng cách ly CageFS</span>
+                                    </div>
+                                    <select v-model="activePlanForm.allow_ssh"
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white">
+                                        <option :value="true">Cho phép</option>
+                                        <option :value="false">Tắt SSH</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NHÓM 5: TỐC ĐỘ MẠNG / RATE LIMIT -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-4 py-3 bg-slate-900/70 border-b border-slate-800 flex items-center gap-2">
+                                <span class="text-amber-400 font-bold">5. Tốc độ Băng thông / Rate Limit (Nginx FastCGI)</span>
+                            </div>
+                            <div class="px-4 divide-y divide-slate-800/70">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <div>
+                                        <label class="font-semibold text-slate-200 block">Mẫu Rate Limit</label>
+                                        <span class="text-[11px] text-slate-400">Tự động cập nhật <code>set $limit_rate</code> vào Nginx vhost của các website dùng gói này</span>
+                                    </div>
+                                    <select v-model="activePlanForm.rate_limit"
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                        <option value="0">0 — Không giới hạn (Mặc định)</option>
+                                        <option value="512k">512k — 512 KB/s (~4 Mbps)</option>
+                                        <option value="1m">1m — 1 MB/s (~8 Mbps)</option>
+                                        <option value="5m">5m — 5 MB/s (~40 Mbps)</option>
+                                        <option value="10m">10m — 10 MB/s (~80 Mbps)</option>
+                                        <option value="50m">50m — 50 MB/s (~400 Mbps)</option>
+                                    </select>
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                                    <label class="font-semibold text-slate-200">Giá trị tùy chỉnh (VD: 2m, 500k, 0)</label>
+                                    <input type="text" v-model="activePlanForm.rate_limit" placeholder="0"
+                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-amber-300 font-mono">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom Save Bar -->
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" @click="closePlanEditor"
+                                class="px-4 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition">
+                                Hủy &amp; Quay lại
+                            </button>
+                            <button type="submit" :disabled="creatingPlan || updatingPlan"
+                                class="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold shadow transition">
+                                {{ (creatingPlan || updatingPlan) ? 'Đang lưu...' : (planEditorMode === 'edit' ? 'Lưu Thay Đổi' : 'Tạo Gói Ngay') }}
+                            </button>
+                        </div>
+                    </form>
+                </div>

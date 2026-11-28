@@ -72,6 +72,11 @@ async def list_customers(current_user: dict = Depends(get_current_user)):
                    COALESCE(u.io_mbps, p.io_mbps, 50) as io_mbps,
                    COALESCE(u.iops_limit, p.iops_limit, 2000) as iops_limit,
                    COALESCE(u.inode_limit, p.max_inodes, 250000) as inode_limit,
+                   COALESCE(u.mysql_max_user_connections, p.mysql_max_user_connections, 25) as mysql_max_user_connections,
+                   COALESCE(u.mysql_max_queries_per_hour, p.mysql_max_queries_per_hour, 0) as mysql_max_queries_per_hour,
+                   COALESCE(u.mysql_max_updates_per_hour, p.mysql_max_updates_per_hour, 0) as mysql_max_updates_per_hour,
+                   COALESCE(u.mysql_max_connections_per_hour, p.mysql_max_connections_per_hour, 0) as mysql_max_connections_per_hour,
+                   COALESCE(u.mysql_max_statement_time, p.mysql_max_statement_time, 15) as mysql_max_statement_time,
                    COALESCE(u.max_domains, p.max_domains, 10) as max_domains,
                    COALESCE(u.max_databases, p.max_databases, 10) as max_databases,
                    COALESCE(u.allow_ssh, p.allow_ssh, 1) as allow_ssh,
@@ -93,6 +98,11 @@ async def list_customers(current_user: dict = Depends(get_current_user)):
                    COALESCE(u.io_mbps, p.io_mbps, 50) as io_mbps,
                    COALESCE(u.iops_limit, p.iops_limit, 2000) as iops_limit,
                    COALESCE(u.inode_limit, p.max_inodes, 250000) as inode_limit,
+                   COALESCE(u.mysql_max_user_connections, p.mysql_max_user_connections, 25) as mysql_max_user_connections,
+                   COALESCE(u.mysql_max_queries_per_hour, p.mysql_max_queries_per_hour, 0) as mysql_max_queries_per_hour,
+                   COALESCE(u.mysql_max_updates_per_hour, p.mysql_max_updates_per_hour, 0) as mysql_max_updates_per_hour,
+                   COALESCE(u.mysql_max_connections_per_hour, p.mysql_max_connections_per_hour, 0) as mysql_max_connections_per_hour,
+                   COALESCE(u.mysql_max_statement_time, p.mysql_max_statement_time, 15) as mysql_max_statement_time,
                    COALESCE(u.max_domains, p.max_domains, 10) as max_domains,
                    COALESCE(u.max_databases, p.max_databases, 10) as max_databases,
                    COALESCE(u.allow_ssh, p.allow_ssh, 1) as allow_ssh,
@@ -491,6 +501,11 @@ class PlanCreate(BaseModel):
     rate_limit: str = Field("0", max_length=32)
     io_mbps: int = Field(50, ge=1, le=5000)
     iops_limit: int = Field(2000, ge=50, le=500000)
+    mysql_max_user_connections: int = Field(25, ge=2, le=500)
+    mysql_max_queries_per_hour: int = Field(0, ge=0, le=10000000)
+    mysql_max_updates_per_hour: int = Field(0, ge=0, le=10000000)
+    mysql_max_connections_per_hour: int = Field(0, ge=0, le=1000000)
+    mysql_max_statement_time: int = Field(15, ge=1, le=3600)
 
 class PlanUpdate(BaseModel):
     name: Optional[str] = None
@@ -514,6 +529,11 @@ class PlanUpdate(BaseModel):
     rate_limit: Optional[str] = None
     io_mbps: Optional[int] = None
     iops_limit: Optional[int] = None
+    mysql_max_user_connections: Optional[int] = None
+    mysql_max_queries_per_hour: Optional[int] = None
+    mysql_max_updates_per_hour: Optional[int] = None
+    mysql_max_connections_per_hour: Optional[int] = None
+    mysql_max_statement_time: Optional[int] = None
 
 @router.get("/plans")
 async def list_service_plans(
@@ -577,14 +597,16 @@ async def create_service_plan(req: PlanCreate, current_user: dict = Depends(requ
                 owner_id, name, package_type, plan_type, cpu_pct, mem_mb, disk_mb,
                 io_weight, pids_max, max_domains, max_databases, allow_ssh,
                 max_php_sites, max_wp_sites, max_nodejs_sites, max_python_sites, max_go_sites,
-                max_inodes, max_mysql_dbs, max_mongo_dbs, bandwidth_mb, max_ftp_accounts, rate_limit, io_mbps, iops_limit
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 100, 100, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                max_inodes, max_mysql_dbs, max_mongo_dbs, bandwidth_mb, max_ftp_accounts, rate_limit, io_mbps, iops_limit,
+                mysql_max_user_connections, mysql_max_queries_per_hour, mysql_max_updates_per_hour, mysql_max_connections_per_hour, mysql_max_statement_time
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 100, 100, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             current_user["id"], req.name, req.package_type, actual_plan_type, req.cpu_pct, req.mem_mb, req.disk_mb,
             actual_max_domains, req.max_databases, 1 if req.allow_ssh else 0,
             req.max_php_sites, req.max_wp_sites, req.max_nodejs_sites, req.max_python_sites, req.max_go_sites,
             req.max_inodes, req.max_mysql_dbs, req.max_mongo_dbs, req.bandwidth_mb, req.max_ftp_accounts,
-            (req.rate_limit or "0").strip(), req.io_mbps, req.iops_limit
+            (req.rate_limit or "0").strip(), req.io_mbps, req.iops_limit,
+            req.mysql_max_user_connections, req.mysql_max_queries_per_hour, req.mysql_max_updates_per_hour, req.mysql_max_connections_per_hour, req.mysql_max_statement_time
         ))
         await db.commit()
     except HTTPException:
@@ -679,6 +701,21 @@ async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict 
     if req.iops_limit is not None:
         updates.append("iops_limit = ?")
         params.append(req.iops_limit)
+    if req.mysql_max_user_connections is not None:
+        updates.append("mysql_max_user_connections = ?")
+        params.append(req.mysql_max_user_connections)
+    if req.mysql_max_queries_per_hour is not None:
+        updates.append("mysql_max_queries_per_hour = ?")
+        params.append(req.mysql_max_queries_per_hour)
+    if req.mysql_max_updates_per_hour is not None:
+        updates.append("mysql_max_updates_per_hour = ?")
+        params.append(req.mysql_max_updates_per_hour)
+    if req.mysql_max_connections_per_hour is not None:
+        updates.append("mysql_max_connections_per_hour = ?")
+        params.append(req.mysql_max_connections_per_hour)
+    if req.mysql_max_statement_time is not None:
+        updates.append("mysql_max_statement_time = ?")
+        params.append(req.mysql_max_statement_time)
 
     if updates:
         params.append(plan_id)
@@ -766,6 +803,11 @@ class CustomerAdminEditRequest(BaseModel):
     io_mbps: Optional[int] = Field(None, ge=1, le=5000)
     iops_limit: Optional[int] = Field(None, ge=50, le=500000)
     inode_limit: Optional[int] = Field(None, ge=1000, le=10000000)
+    mysql_max_user_connections: Optional[int] = Field(None, ge=2, le=500)
+    mysql_max_queries_per_hour: Optional[int] = Field(None, ge=0, le=10000000)
+    mysql_max_updates_per_hour: Optional[int] = Field(None, ge=0, le=10000000)
+    mysql_max_connections_per_hour: Optional[int] = Field(None, ge=0, le=1000000)
+    mysql_max_statement_time: Optional[int] = Field(None, ge=1, le=3600)
     max_domains: Optional[int] = Field(None, ge=1, le=1000)
     max_databases: Optional[int] = Field(None, ge=0, le=1000)
     allow_ssh: Optional[bool] = None
@@ -1121,6 +1163,21 @@ async def admin_edit_customer(target_id: int, req: CustomerAdminEditRequest, cur
             updates.append("inode_limit = ?")
             params.append(req.inode_limit)
             res_changed = True
+        if req.mysql_max_user_connections is not None:
+            updates.append("mysql_max_user_connections = ?")
+            params.append(req.mysql_max_user_connections)
+        if req.mysql_max_queries_per_hour is not None:
+            updates.append("mysql_max_queries_per_hour = ?")
+            params.append(req.mysql_max_queries_per_hour)
+        if req.mysql_max_updates_per_hour is not None:
+            updates.append("mysql_max_updates_per_hour = ?")
+            params.append(req.mysql_max_updates_per_hour)
+        if req.mysql_max_connections_per_hour is not None:
+            updates.append("mysql_max_connections_per_hour = ?")
+            params.append(req.mysql_max_connections_per_hour)
+        if req.mysql_max_statement_time is not None:
+            updates.append("mysql_max_statement_time = ?")
+            params.append(req.mysql_max_statement_time)
         if req.max_domains is not None:
             updates.append("max_domains = ?")
             params.append(req.max_domains)

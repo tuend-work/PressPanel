@@ -1077,7 +1077,7 @@ function showToast(message, type = 'success') {
             // Tải động các modules HTML riêng biệt trước khi Vue mount để tối ưu tốc độ
             const viewFiles = [
                 'dashboard.html', 'domains.html', 'wp.html', 'apps.html',
-                'customers.html', 'service_plans.html', 'databases.html',
+                'customers.html', 'service_plans.html', 'plan_editor.html', 'databases.html',
                 'files.html', 'others.html', 'profile.html', 'crons.html', 'monitoring.html',
                 'firewall.html', 'backups.html', 'cloudflare.html'
             ];
@@ -1309,8 +1309,16 @@ function showToast(message, type = 'success') {
                     max_ftp_accounts: 5,
                     rate_limit: '0',
                     io_mbps: 50,
-                    iops_limit: 2000
+                    iops_limit: 2000,
+                    mysql_max_user_connections: 25,
+                    mysql_max_queries_per_hour: 0,
+                    mysql_max_updates_per_hour: 0,
+                    mysql_max_connections_per_hour: 0,
+                    mysql_max_statement_time: 15
                 });
+                const planEditorMode = ref('create');
+                const planEditorReturnTab = ref('customers');
+                const activePlanForm = computed(() => planEditorMode.value === 'edit' ? editPlanForm.value : newPlan.value);
                 const newPlan = ref({
                     name: '',
                     package_type: 'user',
@@ -1321,6 +1329,11 @@ function showToast(message, type = 'success') {
                     cpu_pct: 100,
                     io_mbps: 50,
                     iops_limit: 2000,
+                    mysql_max_user_connections: 25,
+                    mysql_max_queries_per_hour: 0,
+                    mysql_max_updates_per_hour: 0,
+                    mysql_max_connections_per_hour: 0,
+                    mysql_max_statement_time: 15,
                     max_domains: 10,
                     max_databases: 10,
                     allow_ssh: true,
@@ -1344,10 +1357,27 @@ function showToast(message, type = 'success') {
                     }
                 });
 
-                watch(showAddPlanModal, (val) => {
-                    if (val && isHostingUser.value) {
+                const openAddPlanPage = () => {
+                    if (isHostingUser.value) {
                         newPlan.value.plan_type = 'website';
                         newPlan.value.max_domains = 1;
+                    }
+                    if (currentTab.value !== 'plan_editor') {
+                        planEditorReturnTab.value = currentTab.value || 'customers';
+                    }
+                    planEditorMode.value = 'create';
+                    currentTab.value = 'plan_editor';
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                };
+
+                const closePlanEditor = () => {
+                    currentTab.value = planEditorReturnTab.value || 'customers';
+                };
+
+                watch(showAddPlanModal, (val) => {
+                    if (val) {
+                        showAddPlanModal.value = false;
+                        openAddPlanPage();
                     }
                 });
 
@@ -3678,6 +3708,7 @@ geo $limit_rate {
                         if (res.ok) {
                             showAlert(data.message || 'Tạo gói dịch vụ thành công!');
                             showAddPlanModal.value = false;
+                            currentTab.value = planEditorReturnTab.value || 'customers';
                             newPlan.value = {
                                 name: '',
                                 package_type: 'user',
@@ -3737,9 +3768,19 @@ geo $limit_rate {
                         max_mongo_dbs: plan.max_mongo_dbs ?? 2,
                         bandwidth_mb: plan.bandwidth_mb || 0,
                         max_ftp_accounts: plan.max_ftp_accounts ?? 5,
-                        rate_limit: plan.rate_limit || '0'
+                        rate_limit: plan.rate_limit || '0',
+                        mysql_max_user_connections: plan.mysql_max_user_connections ?? 25,
+                        mysql_max_queries_per_hour: plan.mysql_max_queries_per_hour ?? 0,
+                        mysql_max_updates_per_hour: plan.mysql_max_updates_per_hour ?? 0,
+                        mysql_max_connections_per_hour: plan.mysql_max_connections_per_hour ?? 0,
+                        mysql_max_statement_time: plan.mysql_max_statement_time ?? 15
                     };
-                    showEditPlanModal.value = true;
+                    if (currentTab.value !== 'plan_editor') {
+                        planEditorReturnTab.value = currentTab.value || 'customers';
+                    }
+                    planEditorMode.value = 'edit';
+                    currentTab.value = 'plan_editor';
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                 };
 
                 const handleUpdatePlan = async () => {
@@ -3758,6 +3799,7 @@ geo $limit_rate {
                         if (res.ok) {
                             showAlert(data.message || 'Cập nhật gói dịch vụ thành công!');
                             showEditPlanModal.value = false;
+                            currentTab.value = planEditorReturnTab.value || 'customers';
                             fetchServicePlans();
                         } else {
                             showAlert('Lỗi: ' + (data.detail || 'Không thể cập nhật gói'));
@@ -4036,6 +4078,11 @@ geo $limit_rate {
                     io_mbps: 50,
                     iops_limit: 2000,
                     inode_limit: 250000,
+                    mysql_max_user_connections: 25,
+                    mysql_max_queries_per_hour: 0,
+                    mysql_max_updates_per_hour: 0,
+                    mysql_max_connections_per_hour: 0,
+                    mysql_max_statement_time: 15,
                     max_domains: 10,
                     max_databases: 10,
                     allow_ssh: true
@@ -4061,6 +4108,11 @@ geo $limit_rate {
                         io_mbps: customer.io_mbps ?? 50,
                         iops_limit: customer.iops_limit ?? 2000,
                         inode_limit: customer.inode_limit ?? 250000,
+                        mysql_max_user_connections: customer.mysql_max_user_connections ?? 25,
+                        mysql_max_queries_per_hour: customer.mysql_max_queries_per_hour ?? 0,
+                        mysql_max_updates_per_hour: customer.mysql_max_updates_per_hour ?? 0,
+                        mysql_max_connections_per_hour: customer.mysql_max_connections_per_hour ?? 0,
+                        mysql_max_statement_time: customer.mysql_max_statement_time ?? 15,
                         max_domains: customer.max_domains ?? 10,
                         max_databases: customer.max_databases ?? 10,
                         allow_ssh: customer.allow_ssh !== undefined ? !!customer.allow_ssh : true
@@ -4085,6 +4137,11 @@ geo $limit_rate {
                             io_mbps: parseInt(editingCustomer.value.io_mbps) || 50,
                             iops_limit: parseInt(editingCustomer.value.iops_limit) || 2000,
                             inode_limit: parseInt(editingCustomer.value.inode_limit) || 250000,
+                            mysql_max_user_connections: parseInt(editingCustomer.value.mysql_max_user_connections) || 25,
+                            mysql_max_queries_per_hour: parseInt(editingCustomer.value.mysql_max_queries_per_hour) || 0,
+                            mysql_max_updates_per_hour: parseInt(editingCustomer.value.mysql_max_updates_per_hour) || 0,
+                            mysql_max_connections_per_hour: parseInt(editingCustomer.value.mysql_max_connections_per_hour) || 0,
+                            mysql_max_statement_time: parseInt(editingCustomer.value.mysql_max_statement_time) || 15,
                             max_domains: parseInt(editingCustomer.value.max_domains) || 1,
                             max_databases: parseInt(editingCustomer.value.max_databases) || 0,
                             allow_ssh: !!editingCustomer.value.allow_ssh
@@ -10492,6 +10549,7 @@ if ($host ~* ^www\\.(.*)$) {
                     servicePlans, showAddPlanModal, creatingPlan, newPlan, fetchServicePlans, handleAddPlan,
                     selectedPlanTab, filteredServicePlans, websitePlans, userPlans,
                     customersSubTab, showEditPlanModal, editingPlan, editPlanForm, updatingPlan, openEditPlanModal, handleUpdatePlan, handleDeletePlan,
+                    planEditorMode, activePlanForm, openAddPlanPage, closePlanEditor,
                     showChangePlanModal, selectedCustomerForPlan, targetPlanId, changingPlan, selectedPlanPreview,
                     openChangePlanModal, confirmChangePlan,
                     panelVersion, showUpdateModal, isUpdating, updateCompleted, updateCountdown, updateLogText, handlePanelUpdate, reloadNow,
