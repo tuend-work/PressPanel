@@ -3818,102 +3818,238 @@
                             </div>
                         </div>
 
-                        <!-- Custom Resource Limits for User -->
-                        <div class="p-4 rounded-xl bg-blue-950/20 border border-blue-500/25 space-y-3">
-                            <div class="flex flex-wrap items-center justify-between gap-2">
-                                <span class="font-bold text-blue-300 flex items-center gap-1.5">
-                                    <span>⚡</span>
-                                    <span>Thông Số Tài Nguyên &amp; Giới Hạn Hiện Tại</span>
-                                </span>
+                        <!-- WHM-style Resource Limits: nhóm theo mục, mỗi thuộc tính 1 hàng -->
+                        <!-- NHÓM: TÀI NGUYÊN HỆ THỐNG -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800 flex items-center justify-between">
+                                <h4 class="text-xs font-bold text-white flex items-center gap-2">⚡ Resources (CPU, RAM, Disk, I/O &amp; Inodes)</h4>
                                 <div class="flex items-center gap-1 text-[10px]">
                                     <button type="button" @click="editingCustomer.cpu_pct=100; editingCustomer.mem_mb=1024; editingCustomer.disk_mb=5120" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">1C/1G/5G</button>
                                     <button type="button" @click="editingCustomer.cpu_pct=200; editingCustomer.mem_mb=2048; editingCustomer.disk_mb=10240" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">2C/2G/10G</button>
                                     <button type="button" @click="editingCustomer.cpu_pct=400; editingCustomer.mem_mb=4096; editingCustomer.disk_mb=20480" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">4C/4G/20G</button>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">CPU Limit (%)</label>
-                                    <input type="number" v-model.number="editingCustomer.cpu_pct" min="10" max="12800" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                            <div class="px-5 divide-y divide-slate-800/70">
+                                <!-- CPU -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">CPU Limit (%)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_cpu" :checked="editingCustomer.cpu_pct < 1600" @change="editingCustomer.cpu_pct = 400" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.cpu_pct" :disabled="editingCustomer.cpu_pct >= 1600" min="10" max="1600" required
+                                                class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                            <input type="radio" name="eu_cpu" :checked="editingCustomer.cpu_pct >= 1600" @change="editingCustomer.cpu_pct = 1600" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">RAM Limit (MB)</label>
-                                    <input type="number" v-model.number="editingCustomer.mem_mb" min="128" max="524288" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                <!-- RAM -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">RAM Memory Limit (MB)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_mem" :checked="editingCustomer.mem_mb < 65536" @change="editingCustomer.mem_mb = 1024" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.mem_mb" :disabled="editingCustomer.mem_mb >= 65536" min="128" max="65536" required
+                                                class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                            <input type="radio" name="eu_mem" :checked="editingCustomer.mem_mb >= 65536" @change="editingCustomer.mem_mb = 65536" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Disk Quota (MB)</label>
-                                    <input type="number" v-model.number="editingCustomer.disk_mb" min="100" max="5000000" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                <!-- Disk -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">Disk Space Quota (MB)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_disk" :checked="editingCustomer.disk_mb < 500000" @change="editingCustomer.disk_mb = 10240" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.disk_mb" :disabled="editingCustomer.disk_mb >= 500000" min="100" max="500000" required
+                                                class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                            <input type="radio" name="eu_disk" :checked="editingCustomer.disk_mb >= 500000" @change="editingCustomer.disk_mb = 500000" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">I/O Weight</label>
+                                <!-- I/O Weight -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">I/O Weight (10–1000)</label>
                                     <input type="number" v-model.number="editingCustomer.io_weight" min="10" max="1000" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                        class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Max PIDs</label>
+                                <!-- Max PIDs -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">Max Processes (PIDs)</label>
                                     <input type="number" v-model.number="editingCustomer.pids_max" min="20" max="50000" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                        class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">IO Speed (MB/s)</label>
-                                    <input type="number" v-model.number="editingCustomer.io_mbps" min="1" max="5000" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                <!-- IO Speed -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">IO Read/Write Speed (MB/s)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_io" :checked="editingCustomer.io_mbps < 5000" @change="editingCustomer.io_mbps = 50" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.io_mbps" :disabled="editingCustomer.io_mbps >= 5000" min="1" max="5000" required
+                                                class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                            <input type="radio" name="eu_io" :checked="editingCustomer.io_mbps >= 5000" @change="editingCustomer.io_mbps = 5000" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">IOPS Limit</label>
-                                    <input type="number" v-model.number="editingCustomer.iops_limit" min="50" max="500000" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                <!-- IOPS -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">IOPS Limit (Read/Write)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_iops" :checked="editingCustomer.iops_limit < 500000" @change="editingCustomer.iops_limit = 2000" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.iops_limit" :disabled="editingCustomer.iops_limit >= 500000" min="50" max="500000" required
+                                                class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                            <input type="radio" name="eu_iops" :checked="editingCustomer.iops_limit >= 500000" @change="editingCustomer.iops_limit = 500000" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Max Inodes</label>
-                                    <input type="number" v-model.number="editingCustomer.inode_limit" min="1000" max="10000000" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                <!-- Inodes -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">Max Inodes (Số File)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_inode" :checked="editingCustomer.inode_limit < 10000000" @change="editingCustomer.inode_limit = 250000" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.inode_limit" :disabled="editingCustomer.inode_limit >= 10000000" min="1000" max="10000000" required
+                                                class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                            <input type="radio" name="eu_inode" :checked="editingCustomer.inode_limit >= 10000000" @change="editingCustomer.inode_limit = 10000000" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">MySQL Max Conns</label>
+                            </div>
+                        </div>
+
+                        <!-- NHÓM: MYSQL RESOURCE CONTROLLER -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800">
+                                <h4 class="text-xs font-bold text-white flex items-center gap-2">🗄️ MySQL Resource Controller</h4>
+                            </div>
+                            <div class="px-5 divide-y divide-slate-800/70">
+                                <!-- Max Connections -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">Max Connections (đồng thời)</label>
                                     <input type="number" v-model.number="editingCustomer.mysql_max_user_connections" min="2" max="500" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                        class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">MySQL Timeout (s)</label>
+                                <!-- Statement Timeout -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">Max Statement Time (giây)</label>
                                     <input type="number" v-model.number="editingCustomer.mysql_max_statement_time" min="1" max="3600" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                        class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">MySQL Queries/h</label>
-                                    <input type="number" v-model.number="editingCustomer.mysql_max_queries_per_hour" min="0" max="10000000" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                <!-- Queries/hour -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">Max Queries / giờ</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_mq" :checked="editingCustomer.mysql_max_queries_per_hour > 0" @change="(editingCustomer.mysql_max_queries_per_hour === 0) && (editingCustomer.mysql_max_queries_per_hour = 100000)" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.mysql_max_queries_per_hour" :disabled="editingCustomer.mysql_max_queries_per_hour === 0" min="1" max="10000000"
+                                                class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                            <input type="radio" name="eu_mq" :checked="editingCustomer.mysql_max_queries_per_hour === 0" @change="editingCustomer.mysql_max_queries_per_hour = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">MySQL Updates/h</label>
-                                    <input type="number" v-model.number="editingCustomer.mysql_max_updates_per_hour" min="0" max="10000000" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                <!-- Updates/hour -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">Max Updates / giờ</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_mu" :checked="editingCustomer.mysql_max_updates_per_hour > 0" @change="(editingCustomer.mysql_max_updates_per_hour === 0) && (editingCustomer.mysql_max_updates_per_hour = 50000)" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.mysql_max_updates_per_hour" :disabled="editingCustomer.mysql_max_updates_per_hour === 0" min="1" max="10000000"
+                                                class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                            <input type="radio" name="eu_mu" :checked="editingCustomer.mysql_max_updates_per_hour === 0" @change="editingCustomer.mysql_max_updates_per_hour = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">MySQL Conns/h</label>
-                                    <input type="number" v-model.number="editingCustomer.mysql_max_connections_per_hour" min="0" max="1000000" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                <!-- Connections/hour -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">Max Connections / giờ</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_mc" :checked="editingCustomer.mysql_max_connections_per_hour > 0" @change="(editingCustomer.mysql_max_connections_per_hour === 0) && (editingCustomer.mysql_max_connections_per_hour = 10000)" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.mysql_max_connections_per_hour" :disabled="editingCustomer.mysql_max_connections_per_hour === 0" min="1" max="1000000"
+                                                class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                            <input type="radio" name="eu_mc" :checked="editingCustomer.mysql_max_connections_per_hour === 0" @change="editingCustomer.mysql_max_connections_per_hour = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Max Domains ({{ editingCustomer.domain_count || 0 }} dùng)</label>
-                                    <input type="number" v-model.number="editingCustomer.max_domains" min="1" max="1000" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                            </div>
+                        </div>
+
+                        <!-- NHÓM: DOMAINS, DATABASES & SSH -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800">
+                                <h4 class="text-xs font-bold text-white flex items-center gap-2">🌐 Domains, Databases &amp; SSH</h4>
+                            </div>
+                            <div class="px-5 divide-y divide-slate-800/70">
+                                <!-- Max Domains -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">Max Domains <span class="font-normal text-slate-400">({{ editingCustomer.domain_count || 0 }} đang dùng)</span></label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_dom" :checked="editingCustomer.max_domains > 0" @change="(editingCustomer.max_domains === 0) && (editingCustomer.max_domains = 10)" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.max_domains" :disabled="editingCustomer.max_domains === 0" min="1" max="10000"
+                                                class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                            <input type="radio" name="eu_dom" :checked="editingCustomer.max_domains === 0" @change="editingCustomer.max_domains = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Max Databases ({{ editingCustomer.db_count || 0 }} dùng)</label>
-                                    <input type="number" v-model.number="editingCustomer.max_databases" min="0" max="1000" required
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                <!-- Max Databases -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">Max Databases <span class="font-normal text-slate-400">({{ editingCustomer.db_count || 0 }} đang dùng)</span></label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_db" :checked="editingCustomer.max_databases > 0" @change="(editingCustomer.max_databases === 0) && (editingCustomer.max_databases = 10)" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.max_databases" :disabled="editingCustomer.max_databases === 0" min="1" max="10000"
+                                                class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                            <input type="radio" name="eu_db" :checked="editingCustomer.max_databases === 0" @change="editingCustomer.max_databases = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Quyền SSH</label>
-                                    <select v-model="editingCustomer.allow_ssh"
-                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white">
-                                        <option :value="true">Cho phép</option>
-                                        <option :value="false">Tắt SSH</option>
-                                    </select>
+                                <!-- SSH Access -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200 text-xs">Quyền SSH</label>
+                                    <div class="flex items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                                            <input type="radio" name="eu_ssh" :checked="editingCustomer.allow_ssh" @change="editingCustomer.allow_ssh = true" class="accent-blue-500">
+                                            <span>Cho phép SSH</span>
+                                        </label>
+                                        <label class="inline-flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                                            <input type="radio" name="eu_ssh" :checked="!editingCustomer.allow_ssh" @change="editingCustomer.allow_ssh = false" class="accent-blue-500">
+                                            <span>Tắt SSH</span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -4497,71 +4633,148 @@
                             </select>
                         </div>
 
-                        <!-- 3. Custom Resource Limits for Web Application (Always Visible Current Values) -->
-                        <div v-if="currentUser.role === 'admin' || currentUser.role === 'reseller'"
-                            class="p-4 rounded-xl bg-blue-500/10 border border-blue-500/25 space-y-3">
-                            <div class="flex flex-wrap items-center justify-between gap-2">
-                                <div class="flex items-center gap-2 font-bold text-blue-400">
-                                    <span>⚡ Thông Số Tài Nguyên Hiện Tại</span>
-                                    <span v-if="editDomainForm.use_custom_limits" class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px]">Tùy chỉnh riêng</span>
-                                    <span v-else class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px]">Theo Plan/User</span>
+                        <!-- 3. Custom Resource Limits for Web Application (WHM-style rows) -->
+                        <div v-if="currentUser.role === 'admin' || currentUser.role === 'reseller'" class="space-y-4">
+
+                            <!-- NHÓM: TÀI NGUYÊN HỆ THỐNG -->
+                            <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                                <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800 flex items-center justify-between">
+                                    <h4 class="text-xs font-bold text-white flex items-center gap-2">
+                                        ⚡ Resources
+                                        <span v-if="editDomainForm.use_custom_limits" class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px]">Tùy chỉnh riêng</span>
+                                        <span v-else class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px]">Theo Plan/User</span>
+                                    </h4>
+                                    <div class="flex items-center gap-1 text-[10px]">
+                                        <button type="button" @click="editDomainForm.use_custom_limits=true; editDomainForm.cpu_pct=100; editDomainForm.mem_mb=1024; editDomainForm.disk_mb=5120" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">1C/1G</button>
+                                        <button type="button" @click="editDomainForm.use_custom_limits=true; editDomainForm.cpu_pct=200; editDomainForm.mem_mb=2048; editDomainForm.disk_mb=10240" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">2C/2G</button>
+                                        <button type="button" @click="editDomainForm.use_custom_limits=true; editDomainForm.cpu_pct=400; editDomainForm.mem_mb=4096; editDomainForm.disk_mb=20480" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">4C/4G</button>
+                                    </div>
                                 </div>
-                                <div class="flex items-center gap-1 text-[10px]">
-                                    <button type="button" @click="editDomainForm.use_custom_limits=true; editDomainForm.cpu_pct=100; editDomainForm.mem_mb=1024; editDomainForm.disk_mb=5120" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">1C/1G</button>
-                                    <button type="button" @click="editDomainForm.use_custom_limits=true; editDomainForm.cpu_pct=200; editDomainForm.mem_mb=2048; editDomainForm.disk_mb=10240" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">2C/2G</button>
-                                    <button type="button" @click="editDomainForm.use_custom_limits=true; editDomainForm.cpu_pct=400; editDomainForm.mem_mb=4096; editDomainForm.disk_mb=20480" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">4C/4G</button>
+                                <div class="px-5 divide-y divide-slate-800/70">
+                                    <!-- CPU -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200 text-xs">CPU Limit (%)</label>
+                                        <div class="flex flex-wrap items-center gap-4">
+                                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="ed_cpu" :checked="editDomainForm.cpu_pct < 1600" @change="editDomainForm.cpu_pct = 400; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                                <input type="number" v-model.number="editDomainForm.cpu_pct" :disabled="editDomainForm.cpu_pct >= 1600" @input="editDomainForm.use_custom_limits = true" min="10" max="1600" required
+                                                    class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                                <input type="radio" name="ed_cpu" :checked="editDomainForm.cpu_pct >= 1600" @change="editDomainForm.cpu_pct = 1600; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                                <span>Unlimited</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <!-- RAM -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200 text-xs">RAM Memory Limit (MB)</label>
+                                        <div class="flex flex-wrap items-center gap-4">
+                                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="ed_mem" :checked="editDomainForm.mem_mb < 65536" @change="editDomainForm.mem_mb = 1024; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                                <input type="number" v-model.number="editDomainForm.mem_mb" :disabled="editDomainForm.mem_mb >= 65536" @input="editDomainForm.use_custom_limits = true" min="128" max="65536" required
+                                                    class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                                <input type="radio" name="ed_mem" :checked="editDomainForm.mem_mb >= 65536" @change="editDomainForm.mem_mb = 65536; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                                <span>Unlimited</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <!-- Disk -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200 text-xs">Disk Space Quota (MB)</label>
+                                        <div class="flex flex-wrap items-center gap-4">
+                                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="ed_disk" :checked="editDomainForm.disk_mb < 500000" @change="editDomainForm.disk_mb = 10240; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                                <input type="number" v-model.number="editDomainForm.disk_mb" :disabled="editDomainForm.disk_mb >= 500000" @input="editDomainForm.use_custom_limits = true" min="100" max="500000" required
+                                                    class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                                <input type="radio" name="ed_disk" :checked="editDomainForm.disk_mb >= 500000" @change="editDomainForm.disk_mb = 500000; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                                <span>Unlimited</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <!-- I/O Weight -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200 text-xs">I/O Weight (10–1000)</label>
+                                        <input type="number" v-model.number="editDomainForm.io_weight" @input="editDomainForm.use_custom_limits = true" min="10" max="1000" required
+                                            class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
+                                    </div>
+                                    <!-- PIDs -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200 text-xs">Max Processes (PIDs)</label>
+                                        <input type="number" v-model.number="editDomainForm.pids_max" @input="editDomainForm.use_custom_limits = true" min="20" max="50000" required
+                                            class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
+                                    </div>
+                                    <!-- IO Speed -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200 text-xs">IO Read/Write Speed (MB/s)</label>
+                                        <div class="flex flex-wrap items-center gap-4">
+                                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="ed_io" :checked="editDomainForm.io_mbps < 5000" @change="editDomainForm.io_mbps = 50; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                                <input type="number" v-model.number="editDomainForm.io_mbps" :disabled="editDomainForm.io_mbps >= 5000" @input="editDomainForm.use_custom_limits = true" min="1" max="5000" required
+                                                    class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                                <input type="radio" name="ed_io" :checked="editDomainForm.io_mbps >= 5000" @change="editDomainForm.io_mbps = 5000; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                                <span>Unlimited</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <!-- IOPS -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200 text-xs">IOPS Limit (Read/Write)</label>
+                                        <div class="flex flex-wrap items-center gap-4">
+                                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="ed_iops" :checked="editDomainForm.iops_limit < 500000" @change="editDomainForm.iops_limit = 2000; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                                <input type="number" v-model.number="editDomainForm.iops_limit" :disabled="editDomainForm.iops_limit >= 500000" @input="editDomainForm.use_custom_limits = true" min="50" max="500000" required
+                                                    class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                                <input type="radio" name="ed_iops" :checked="editDomainForm.iops_limit >= 500000" @change="editDomainForm.iops_limit = 500000; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                                <span>Unlimited</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <!-- Inodes -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200 text-xs">Max Inodes (Số File)</label>
+                                        <div class="flex flex-wrap items-center gap-4">
+                                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="ed_inode" :checked="editDomainForm.inode_limit < 10000000" @change="editDomainForm.inode_limit = 250000; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                                <input type="number" v-model.number="editDomainForm.inode_limit" :disabled="editDomainForm.inode_limit >= 10000000" @input="editDomainForm.use_custom_limits = true" min="1000" max="10000000" required
+                                                    class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                                <input type="radio" name="ed_inode" :checked="editDomainForm.inode_limit >= 10000000" @change="editDomainForm.inode_limit = 10000000; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                                <span>Unlimited</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <!-- Max Databases -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200 text-xs">Max Databases <span class="font-normal text-slate-400">({{ selectedEditDomain?.db_count || 0 }} đang dùng)</span></label>
+                                        <div class="flex flex-wrap items-center gap-4">
+                                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="ed_db" :checked="editDomainForm.max_databases > 0" @change="(editDomainForm.max_databases === 0) && (editDomainForm.max_databases = 5); editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                                <input type="number" v-model.number="editDomainForm.max_databases" :disabled="editDomainForm.max_databases === 0" @input="editDomainForm.use_custom_limits = true" min="1" max="10000"
+                                                    class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
+                                                <input type="radio" name="ed_db" :checked="editDomainForm.max_databases === 0" @change="editDomainForm.max_databases = 0; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                                <span>Unlimited</span>
+                                            </label>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">CPU Limit (%)</label>
-                                    <input type="number" v-model.number="editDomainForm.cpu_pct" @input="editDomainForm.use_custom_limits = true" min="10" max="12800" required
-                                        class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">RAM Limit (MB)</label>
-                                    <input type="number" v-model.number="editDomainForm.mem_mb" @input="editDomainForm.use_custom_limits = true" min="128" max="524288" required
-                                        class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Disk Quota (MB)</label>
-                                    <input type="number" v-model.number="editDomainForm.disk_mb" @input="editDomainForm.use_custom_limits = true" min="100" max="5000000" required
-                                        class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">I/O Weight (10-1000)</label>
-                                    <input type="number" v-model.number="editDomainForm.io_weight" @input="editDomainForm.use_custom_limits = true" min="10" max="1000" required
-                                        class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Max Processes (PIDs)</label>
-                                    <input type="number" v-model.number="editDomainForm.pids_max" @input="editDomainForm.use_custom_limits = true" min="20" max="50000" required
-                                        class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">IO Speed (MB/s)</label>
-                                    <input type="number" v-model.number="editDomainForm.io_mbps" @input="editDomainForm.use_custom_limits = true" min="1" max="5000" required
-                                        class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">IOPS Limit</label>
-                                    <input type="number" v-model.number="editDomainForm.iops_limit" @input="editDomainForm.use_custom_limits = true" min="50" max="500000" required
-                                        class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Max Inodes</label>
-                                    <input type="number" v-model.number="editDomainForm.inode_limit" @input="editDomainForm.use_custom_limits = true" min="1000" max="10000000" required
-                                        class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Max Databases ({{ selectedEditDomain?.db_count || 0 }} dùng)</label>
-                                    <input type="number" v-model.number="editDomainForm.max_databases" @input="editDomainForm.use_custom_limits = true" min="0" max="1000" required
-                                        class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                            </div>
-                            <label class="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer select-none pt-1">
+
+                            <!-- Checkbox: lưu tùy chỉnh riêng -->
+                            <label class="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer select-none px-1">
                                 <input type="checkbox" v-model="editDomainForm.use_custom_limits" class="w-3.5 h-3.5 accent-blue-500">
-                                <span>Lưu cấu hình giới hạn riêng cho Web Application này (Bỏ tick để quay về mặc định theo Website Plan / Hosting User)</span>
+                                <span>Lưu cấu hình giới hạn riêng cho Web App này (bỏ tick để quay về mặc định theo Website Plan / Hosting User)</span>
                             </label>
                         </div>
 
