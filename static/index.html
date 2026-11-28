@@ -6778,16 +6778,27 @@ if ($host ~* ^www\\.(.*)$) {
 
                 const openFileManager = (path = '') => {
                     currentTab.value = 'files';
+                    const isAdmin = currentUser.value?.role === 'admin';
+                    const ownUser = currentUser.value?.username || '';
                     if (path) {
-                        // Trích xuất path tương đối từ document_root ví dụ: /home/clean_domain/httpdocs/domain.com -> httpdocs/domain.com
                         const match = path.match(/\/home\/([^\/]+)\/?(.*)/);
                         if (match) {
-                            fileTargetUser.value = match[1];
+                            if (!isAdmin && match[1] !== ownUser) {
+                                showAlert('Bạn chỉ có quyền quản lý tệp tin của chính user hiện tại. Hãy dùng chức năng Login as Web App User để truy cập tệp của Web Application.');
+                                fileTargetUser.value = '';
+                                fetchFilesList('');
+                                return;
+                            }
+                            fileTargetUser.value = isAdmin ? match[1] : '';
                             fetchFilesList(match[2] || '');
                             return;
                         } else if (!path.includes('/')) {
-                            // Trường hợp truyền thẳng username (ví dụ: domains[0]?.owner_username)
-                            fileTargetUser.value = path;
+                            if (!isAdmin && path !== ownUser) {
+                                fileTargetUser.value = '';
+                                fetchFilesList('');
+                                return;
+                            }
+                            fileTargetUser.value = isAdmin ? path : '';
                             fetchFilesList('');
                             return;
                         }

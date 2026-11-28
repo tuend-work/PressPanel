@@ -137,19 +137,18 @@ async def resolve_base_and_target(
 
     if user.get("role") == "admin":
         base_dir = f"/home/{clean_u}" if clean_u else "/home"
-    elif user.get("role") == "application" or user.get("web_domain_id"):
-        # Khóa cứng Web Application user vào thư mục của chính web user đó
-        web_u = user.get("username") or ""
-        if not web_u:
-            raise HTTPException(status_code=403, detail="Không xác định được thư mục Web Application.")
-        base_dir = f"/home/{web_u}"
-    elif clean_u and clean_u != user["username"]:
-        if await is_domain_owner(user["id"], clean_u):
-            base_dir = f"/home/{clean_u}"
-        else:
-            raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập thư mục của người dùng này.")
     else:
-        base_dir = f"/home/{user['username']}"
+        # Cô lập tuyệt đối: User nào chỉ được quản lý file của chính user đó
+        # (Hosting user muốn quản lý file của Web App phải dùng Login as Web App User)
+        own_u = user.get("username") or ""
+        if not own_u:
+            raise HTTPException(status_code=403, detail="Không xác định được thư mục người dùng.")
+        if clean_u and clean_u != own_u:
+            raise HTTPException(
+                status_code=403,
+                detail="Bạn chỉ được phép quản lý tệp tin của chính tài khoản hiện tại. Vui lòng dùng chức năng 'Login as Web App User' để truy cập tệp của Web Application."
+            )
+        base_dir = f"/home/{own_u}"
 
     clean_sub = (subpath or "").replace("\\", "/").lstrip("/")
     if "\x00" in clean_sub:

@@ -134,7 +134,7 @@
                     <i data-lucide="copy" class="w-3.5 h-3.5"></i>
                     <span>Clone Website</span>
                 </button>
-                <button type="button" @click.stop="openFileManager(inst.document_root)"
+                <button v-if="currentUser.role === 'admin' || isWebUser" type="button" @click.stop="openFileManager(inst.document_root)"
                     class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 transition inline-flex items-center gap-1.5">
                     <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
                     <span>File Manager</span>
