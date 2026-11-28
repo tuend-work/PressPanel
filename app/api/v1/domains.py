@@ -276,6 +276,16 @@ class DomainCreate(BaseModel):
     php_version: str = "8.2"
     install_wp: bool = False
     package_id: Optional[int] = None
+    app_type: str = "php"
+    node_port: Optional[int] = 3000
+    node_start: Optional[str] = "app.js"
+    proxy_target: Optional[str] = None
+    proxy_host: Optional[str] = "$host"
+    create_db: bool = False
+    db_type: str = "mysql"
+    db_name: Optional[str] = None
+    db_user: Optional[str] = None
+    db_password: Optional[str] = None
 
 class DomainBatchDeleteRequest(BaseModel):
     domain_ids: List[int]

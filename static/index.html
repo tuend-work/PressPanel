@@ -1404,7 +1404,12 @@ function showToast(message, type = 'success') {
                 const loginError = ref('');
                 const loggingIn = ref(false);
 
-                const newDomain = ref({ domain_name: '', webserver: 'ols', php_version: '8.2', install_wp: true, package_id: null });
+                const newDomain = ref({
+                    domain_name: '', webserver: 'ols', php_version: '8.2', install_wp: true, package_id: null,
+                    app_type: 'wordpress', node_port: 3000, node_start: 'app.js',
+                    proxy_target: 'http://127.0.0.1:3000', proxy_host: '$host',
+                    create_db: false, db_type: 'mysql', db_name: '', db_user: '', db_password: ''
+                });
 
                 // Tabs chi tiết cho Website & Modal đổi PHP
                 const activeDomainSubTab = ref({});
