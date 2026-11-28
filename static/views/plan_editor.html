@@ -1,4 +1,4 @@
-                <!-- VIEW: TRANG TẠO / CHỈNH SỬA GÓI DỊCH VỤ (SERVICE PLAN EDITOR) -->
+                <!-- VIEW: TRANG TẠO / CHỈNH SỬA GÓI DỊCH VỤ (SERVICE PLAN EDITOR - WHM STYLE) -->
                 <div v-if="currentTab === 'plan_editor'" class="space-y-5 max-w-4xl mx-auto pb-12">
                     <!-- Header Bar -->
                     <div class="flex flex-wrap items-center justify-between gap-3 bg-[#151c2c] border border-slate-800 rounded-xl p-4 shadow-lg">
@@ -11,7 +11,7 @@
                                 <h2 class="text-base sm:text-lg font-bold text-white">
                                     {{ planEditorMode === 'edit' ? 'Chỉnh sửa Gói: ' + (editPlanForm.name || '') : 'Tạo Gói Dịch Vụ Mới' }}
                                 </h2>
-                                <p class="text-[11px] text-slate-400">Thiết lập hạn mức tài nguyên CPU, RAM, I/O, Inodes, MySQL và dịch vụ theo từng nhóm</p>
+                                <p class="text-[11px] text-slate-400">Cấu hình tài nguyên theo từng nhóm (chọn giá trị cụ thể hoặc Unlimited)</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-2">
@@ -27,28 +27,22 @@
                         </div>
                     </div>
 
-                    <form @submit.prevent="planEditorMode === 'edit' ? handleUpdatePlan() : handleAddPlan()" class="space-y-5 text-xs">
+                    <form @submit.prevent="planEditorMode === 'edit' ? handleUpdatePlan() : handleAddPlan()" class="space-y-6 text-xs">
                         <!-- NHÓM 1: THÔNG TIN CHUNG -->
                         <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
-                            <div class="px-4 py-3 bg-slate-900/70 border-b border-slate-800 flex items-center gap-2">
-                                <span class="text-blue-400 font-bold">1. Thông tin chung</span>
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800">
+                                <h3 class="text-sm font-bold text-white">Thông tin gói (General)</h3>
                             </div>
-                            <div class="px-4 divide-y divide-slate-800/70">
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">Tên Gói Dịch Vụ</label>
-                                        <span class="text-[11px] text-slate-400">Tên hiển thị của User Package hoặc Website Plan</span>
-                                    </div>
+                            <div class="px-5 divide-y divide-slate-800/70">
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Tên Gói Dịch Vụ</label>
                                     <input type="text" v-model="activePlanForm.name" required placeholder="VD: WordPress Pro 10GB"
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500">
+                                        class="w-full max-w-sm px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500">
                                 </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">Cấp Độ Gói</label>
-                                        <span class="text-[11px] text-slate-400">User Package cấp cho tài khoản Hosting; Website Plan cấp cho từng Web App</span>
-                                    </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Cấp Độ Gói</label>
                                     <select v-model="activePlanForm.plan_type" :disabled="planEditorMode === 'edit' || isHostingUser"
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white disabled:opacity-60">
+                                        class="w-full max-w-sm px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white disabled:opacity-60">
                                         <option value="user" v-if="!isHostingUser">User Package (Cấp cho Hosting User)</option>
                                         <option value="website">Website Plan (Cấp cho từng Website)</option>
                                     </select>
@@ -56,215 +50,395 @@
                             </div>
                         </div>
 
-                        <!-- NHÓM 2: TÀI NGUYÊN PHẦN CỨNG & I/O -->
+                        <!-- NHÓM 2: RESOURCES (CGROUP V2 / QUOTA) -->
                         <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
-                            <div class="px-4 py-3 bg-slate-900/70 border-b border-slate-800 flex items-center justify-between">
-                                <span class="text-emerald-400 font-bold">2. Tài nguyên Phần cứng &amp; I/O (Cgroup v2 / Quota)</span>
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800">
+                                <h3 class="text-sm font-bold text-white">Resources (CPU, RAM, Disk, I/O &amp; Inodes)</h3>
                             </div>
-                            <div class="px-4 divide-y divide-slate-800/70">
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">Giới hạn CPU (%)</label>
-                                        <span class="text-[11px] text-slate-400">100% = 1 vCPU Core cố định (cpuset + cpu.max)</span>
+                            <div class="px-5 divide-y divide-slate-800/70">
+                                <!-- Disk Space Quota -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Disk Space Quota (MB)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_disk" :checked="activePlanForm.disk_mb < 500000" @change="activePlanForm.disk_mb = 5120" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.disk_mb" :disabled="activePlanForm.disk_mb >= 500000" min="100" max="500000" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_disk" :checked="activePlanForm.disk_mb >= 500000" @change="activePlanForm.disk_mb = 500000" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
                                     </div>
-                                    <input type="number" v-model.number="activePlanForm.cpu_pct" min="10" max="12800" required
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">Giới hạn RAM (MB)</label>
-                                        <span class="text-[11px] text-slate-400">≈ {{ ((activePlanForm.mem_mb || 0) / 1024).toFixed(1) }} GB (memory.max)</span>
+
+                                <!-- Monthly Bandwidth -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Monthly Bandwidth Limit (MB)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_bw" :checked="activePlanForm.bandwidth_mb > 0" @change="if (!activePlanForm.bandwidth_mb) activePlanForm.bandwidth_mb = 102400" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.bandwidth_mb" :disabled="!activePlanForm.bandwidth_mb" min="0"
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_bw" :checked="!activePlanForm.bandwidth_mb" @change="activePlanForm.bandwidth_mb = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
                                     </div>
-                                    <input type="number" v-model.number="activePlanForm.mem_mb" min="128" max="524288" required
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">Dung lượng Ổ cứng (MB)</label>
-                                        <span class="text-[11px] text-slate-400">≈ {{ ((activePlanForm.disk_mb || 0) / 1024).toFixed(1) }} GB</span>
+
+                                <!-- CPU Limit -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">CPU Limit (%)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_cpu" :checked="activePlanForm.cpu_pct < 1600" @change="activePlanForm.cpu_pct = 100" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.cpu_pct" :disabled="activePlanForm.cpu_pct >= 1600" min="10" max="1600" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_cpu" :checked="activePlanForm.cpu_pct >= 1600" @change="activePlanForm.cpu_pct = 1600" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
                                     </div>
-                                    <input type="number" v-model.number="activePlanForm.disk_mb" min="100" max="5000000" required
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">Số lượng File tối đa (Inodes)</label>
-                                        <span class="text-[11px] text-slate-400">Hiện tại: {{ (activePlanForm.max_inodes || 0).toLocaleString() }} inodes</span>
+
+                                <!-- RAM Limit -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">RAM Memory Limit (MB)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_mem" :checked="activePlanForm.mem_mb < 65536" @change="activePlanForm.mem_mb = 1024" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.mem_mb" :disabled="activePlanForm.mem_mb >= 65536" min="128" max="65536" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_mem" :checked="activePlanForm.mem_mb >= 65536" @change="activePlanForm.mem_mb = 65536" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
                                     </div>
-                                    <input type="number" v-model.number="activePlanForm.max_inodes" min="1000" max="10000000" required
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">Tốc độ Đọc/Ghi Đĩa (IO MB/s)</label>
-                                        <span class="text-[11px] text-slate-400">Giới hạn băng thông đĩa Cgroup v2 (io.max rbps/wbps)</span>
+
+                                <!-- Max Inodes -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Inodes (Files Limit)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_inodes" :checked="activePlanForm.max_inodes < 10000000" @change="activePlanForm.max_inodes = 250000" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.max_inodes" :disabled="activePlanForm.max_inodes >= 10000000" min="1000" max="10000000" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_inodes" :checked="activePlanForm.max_inodes >= 10000000" @change="activePlanForm.max_inodes = 10000000" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
                                     </div>
-                                    <input type="number" v-model.number="activePlanForm.io_mbps" min="1" max="5000" required
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">Giới hạn IOPS (Read/Write)</label>
-                                        <span class="text-[11px] text-slate-400">Số thao tác đọc/ghi đĩa mỗi giây (io.max riops/wiops)</span>
+
+                                <!-- IO Speed (MB/s) -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Disk I/O Speed (MB/s)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_iombps" :checked="activePlanForm.io_mbps < 5000" @change="activePlanForm.io_mbps = 50" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.io_mbps" :disabled="activePlanForm.io_mbps >= 5000" min="1" max="5000" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_iombps" :checked="activePlanForm.io_mbps >= 5000" @change="activePlanForm.io_mbps = 5000" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
                                     </div>
-                                    <input type="number" v-model.number="activePlanForm.iops_limit" min="50" max="500000" required
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">Băng thông tháng (MB)</label>
-                                        <span class="text-[11px] text-slate-400">Nhập 0 để không giới hạn băng thông</span>
+
+                                <!-- IOPS Limit -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Disk IOPS Limit (Read/Write)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_iops" :checked="activePlanForm.iops_limit < 500000" @change="activePlanForm.iops_limit = 2000" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.iops_limit" :disabled="activePlanForm.iops_limit >= 500000" min="50" max="500000" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_iops" :checked="activePlanForm.iops_limit >= 500000" @change="activePlanForm.iops_limit = 500000" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
                                     </div>
-                                    <input type="number" v-model.number="activePlanForm.bandwidth_mb" min="0"
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+
+                                <!-- Nginx Rate Limit -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Network Rate Limit (Nginx)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_rate" :checked="activePlanForm.rate_limit && activePlanForm.rate_limit !== '0'" @change="if (!activePlanForm.rate_limit || activePlanForm.rate_limit === '0') activePlanForm.rate_limit = '5m'" class="accent-blue-500">
+                                            <input type="text" v-model="activePlanForm.rate_limit" :disabled="!activePlanForm.rate_limit || activePlanForm.rate_limit === '0'" placeholder="5m"
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_rate" :checked="!activePlanForm.rate_limit || activePlanForm.rate_limit === '0'" @change="activePlanForm.rate_limit = '0'" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- NHÓM 3: GIỚI HẠN MYSQL RESOURCE CONTROLLER -->
+                        <!-- NHÓM 3: WEBSITES, DATABASES & SERVICES -->
                         <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
-                            <div class="px-4 py-3 bg-slate-900/70 border-b border-slate-800 flex items-center gap-2">
-                                <span class="text-cyan-400 font-bold">3. Giới hạn MySQL Resource Controller</span>
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800">
+                                <h3 class="text-sm font-bold text-white">Domains, Databases &amp; Services</h3>
                             </div>
-                            <div class="px-4 divide-y divide-slate-800/70">
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">MAX_USER_CONNECTIONS</label>
-                                        <span class="text-[11px] text-slate-400">Số kết nối MySQL đồng thời tối đa cho mỗi DB User</span>
+                            <div class="px-5 divide-y divide-slate-800/70">
+                                <!-- Max FTP Accounts -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max FTP Accounts</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_ftp" :checked="activePlanForm.max_ftp_accounts > 0" @change="if (!activePlanForm.max_ftp_accounts) activePlanForm.max_ftp_accounts = 5" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.max_ftp_accounts" :disabled="!activePlanForm.max_ftp_accounts" min="0" max="1000"
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_ftp" :checked="!activePlanForm.max_ftp_accounts" @change="activePlanForm.max_ftp_accounts = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
                                     </div>
-                                    <input type="number" v-model.number="activePlanForm.mysql_max_user_connections" min="2" max="500" required
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">MAX_STATEMENT_TIME (Giây)</label>
-                                        <span class="text-[11px] text-slate-400">Thời gian chạy tối đa cho 1 câu truy vấn SQL (quá hạn sẽ tự ngắt)</span>
-                                    </div>
-                                    <input type="number" v-model.number="activePlanForm.mysql_max_statement_time" min="1" max="3600" required
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">MAX_QUERIES_PER_HOUR</label>
-                                        <span class="text-[11px] text-slate-400">Tổng số truy vấn tối đa mỗi giờ (0 = Không giới hạn)</span>
-                                    </div>
-                                    <input type="number" v-model.number="activePlanForm.mysql_max_queries_per_hour" min="0" max="10000000" required
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">MAX_UPDATES_PER_HOUR</label>
-                                        <span class="text-[11px] text-slate-400">Số lệnh ghi INSERT/UPDATE/DELETE tối đa mỗi giờ (0 = Không giới hạn)</span>
-                                    </div>
-                                    <input type="number" v-model.number="activePlanForm.mysql_max_updates_per_hour" min="0" max="10000000" required
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">MAX_CONNECTIONS_PER_HOUR</label>
-                                        <span class="text-[11px] text-slate-400">Số lượt mở kết nối mới tối đa mỗi giờ (0 = Không giới hạn)</span>
-                                    </div>
-                                    <input type="number" v-model.number="activePlanForm.mysql_max_connections_per_hour" min="0" max="1000000" required
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                            </div>
-                        </div>
 
-                        <!-- NHÓM 4: GIỚI HẠN WEBSITE, DATABASE & DỊCH VỤ -->
-                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
-                            <div class="px-4 py-3 bg-slate-900/70 border-b border-slate-800 flex items-center gap-2">
-                                <span class="text-indigo-400 font-bold">4. Giới hạn Website, Database &amp; Dịch vụ</span>
-                            </div>
-                            <div class="px-4 divide-y divide-slate-800/70">
+                                <!-- Max SQL Databases -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max SQL Databases</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_sqldb" :checked="activePlanForm.max_databases > 0" @change="if (!activePlanForm.max_databases) activePlanForm.max_databases = 10" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.max_databases" :disabled="!activePlanForm.max_databases" min="0" max="1000"
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_sqldb" :checked="!activePlanForm.max_databases" @change="activePlanForm.max_databases = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Max MongoDB Databases -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max MongoDB Databases</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_mongo" :checked="activePlanForm.max_mongo_dbs > 0" @change="if (!activePlanForm.max_mongo_dbs) activePlanForm.max_mongo_dbs = 2" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.max_mongo_dbs" :disabled="!activePlanForm.max_mongo_dbs" min="0" max="1000"
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_mongo" :checked="!activePlanForm.max_mongo_dbs" @change="activePlanForm.max_mongo_dbs = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+
                                 <template v-if="activePlanForm.plan_type !== 'website'">
-                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                        <div>
-                                            <label class="font-semibold text-slate-200 block">Tổng số Website / Domain</label>
-                                            <span class="text-[11px] text-slate-400">Số lượng tên miền tối đa user được thêm</span>
+                                    <!-- Max Domains -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200">Max Domains / Websites</label>
+                                        <div class="flex flex-wrap items-center gap-4">
+                                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="r_dom" :checked="activePlanForm.max_domains < 1000" @change="activePlanForm.max_domains = 10" class="accent-blue-500">
+                                                <input type="number" v-model.number="activePlanForm.max_domains" :disabled="activePlanForm.max_domains >= 1000" min="1" max="1000" required
+                                                    class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                                <input type="radio" name="r_dom" :checked="activePlanForm.max_domains >= 1000" @change="activePlanForm.max_domains = 1000" class="accent-blue-500">
+                                                <span>Unlimited</span>
+                                            </label>
                                         </div>
-                                        <input type="number" v-model.number="activePlanForm.max_domains" min="1" max="1000" required
-                                            class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
                                     </div>
-                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                        <label class="font-semibold text-slate-200">Số Website WordPress</label>
-                                        <input type="number" v-model.number="activePlanForm.max_wp_sites" min="0" max="1000"
-                                            class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+
+                                    <!-- Max WordPress Sites -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200">Max WordPress Sites</label>
+                                        <div class="flex flex-wrap items-center gap-4">
+                                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="r_wp" :checked="activePlanForm.max_wp_sites > 0" @change="if (!activePlanForm.max_wp_sites) activePlanForm.max_wp_sites = 5" class="accent-blue-500">
+                                                <input type="number" v-model.number="activePlanForm.max_wp_sites" :disabled="!activePlanForm.max_wp_sites" min="0" max="1000"
+                                                    class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                                <input type="radio" name="r_wp" :checked="!activePlanForm.max_wp_sites" @change="activePlanForm.max_wp_sites = 0" class="accent-blue-500">
+                                                <span>Unlimited</span>
+                                            </label>
+                                        </div>
                                     </div>
-                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                        <label class="font-semibold text-slate-200">Số Website PHP (Thuần / Laravel)</label>
-                                        <input type="number" v-model.number="activePlanForm.max_php_sites" min="0" max="1000"
-                                            class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+
+                                    <!-- Max PHP Sites -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200">Max PHP Sites</label>
+                                        <div class="flex flex-wrap items-center gap-4">
+                                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="r_php" :checked="activePlanForm.max_php_sites > 0" @change="if (!activePlanForm.max_php_sites) activePlanForm.max_php_sites = 10" class="accent-blue-500">
+                                                <input type="number" v-model.number="activePlanForm.max_php_sites" :disabled="!activePlanForm.max_php_sites" min="0" max="1000"
+                                                    class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                                <input type="radio" name="r_php" :checked="!activePlanForm.max_php_sites" @change="activePlanForm.max_php_sites = 0" class="accent-blue-500">
+                                                <span>Unlimited</span>
+                                            </label>
+                                        </div>
                                     </div>
-                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                        <label class="font-semibold text-slate-200">Số Website Node.js</label>
-                                        <input type="number" v-model.number="activePlanForm.max_nodejs_sites" min="0" max="1000"
-                                            class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+
+                                    <!-- Max Node.js Sites -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200">Max Node.js Applications</label>
+                                        <div class="flex flex-wrap items-center gap-4">
+                                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="r_node" :checked="activePlanForm.max_nodejs_sites > 0" @change="if (!activePlanForm.max_nodejs_sites) activePlanForm.max_nodejs_sites = 2" class="accent-blue-500">
+                                                <input type="number" v-model.number="activePlanForm.max_nodejs_sites" :disabled="!activePlanForm.max_nodejs_sites" min="0" max="1000"
+                                                    class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                                <input type="radio" name="r_node" :checked="!activePlanForm.max_nodejs_sites" @change="activePlanForm.max_nodejs_sites = 0" class="accent-blue-500">
+                                                <span>Unlimited</span>
+                                            </label>
+                                        </div>
                                     </div>
-                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                        <label class="font-semibold text-slate-200">Số Website Python</label>
-                                        <input type="number" v-model.number="activePlanForm.max_python_sites" min="0" max="1000"
-                                            class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+
+                                    <!-- Max Python Sites -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200">Max Python Applications</label>
+                                        <div class="flex flex-wrap items-center gap-4">
+                                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="r_py" :checked="activePlanForm.max_python_sites > 0" @change="if (!activePlanForm.max_python_sites) activePlanForm.max_python_sites = 2" class="accent-blue-500">
+                                                <input type="number" v-model.number="activePlanForm.max_python_sites" :disabled="!activePlanForm.max_python_sites" min="0" max="1000"
+                                                    class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                                <input type="radio" name="r_py" :checked="!activePlanForm.max_python_sites" @change="activePlanForm.max_python_sites = 0" class="accent-blue-500">
+                                                <span>Unlimited</span>
+                                            </label>
+                                        </div>
                                     </div>
-                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                        <label class="font-semibold text-slate-200">Số Website Go (Golang)</label>
-                                        <input type="number" v-model.number="activePlanForm.max_go_sites" min="0" max="1000"
-                                            class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
+
+                                    <!-- Max Go Sites -->
+                                    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                        <label class="font-semibold text-slate-200">Max Go Applications</label>
+                                        <div class="flex flex-wrap items-center gap-4">
+                                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                                <input type="radio" name="r_go" :checked="activePlanForm.max_go_sites > 0" @change="if (!activePlanForm.max_go_sites) activePlanForm.max_go_sites = 2" class="accent-blue-500">
+                                                <input type="number" v-model.number="activePlanForm.max_go_sites" :disabled="!activePlanForm.max_go_sites" min="0" max="1000"
+                                                    class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                                <input type="radio" name="r_go" :checked="!activePlanForm.max_go_sites" @change="activePlanForm.max_go_sites = 0" class="accent-blue-500">
+                                                <span>Unlimited</span>
+                                            </label>
+                                        </div>
                                     </div>
                                 </template>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <label class="font-semibold text-slate-200">Số Database MySQL</label>
-                                    <input type="number" v-model.number="activePlanForm.max_databases" min="0" max="1000" required
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <label class="font-semibold text-slate-200">Số Database MongoDB</label>
-                                    <input type="number" v-model.number="activePlanForm.max_mongo_dbs" min="0" max="1000"
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <label class="font-semibold text-slate-200">Số Tài khoản FTP</label>
-                                    <input type="number" v-model.number="activePlanForm.max_ftp_accounts" min="0" max="1000"
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
-                                </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">Quyền truy cập SSH / Terminal</label>
-                                        <span class="text-[11px] text-slate-400">Chạy trong lồng cách ly CageFS</span>
+
+                                <!-- SSH Access -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Shell / SSH Access (CageFS)</label>
+                                    <div class="flex items-center gap-5">
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-200">
+                                            <input type="radio" name="r_ssh" :checked="!!activePlanForm.allow_ssh" @change="activePlanForm.allow_ssh = true" class="accent-blue-500">
+                                            <span>Cho phép</span>
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_ssh" :checked="!activePlanForm.allow_ssh" @change="activePlanForm.allow_ssh = false" class="accent-blue-500">
+                                            <span>Tắt SSH</span>
+                                        </label>
                                     </div>
-                                    <select v-model="activePlanForm.allow_ssh"
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white">
-                                        <option :value="true">Cho phép</option>
-                                        <option :value="false">Tắt SSH</option>
-                                    </select>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- NHÓM 5: TỐC ĐỘ MẠNG / RATE LIMIT -->
+                        <!-- NHÓM 4: MYSQL RESOURCE CONTROLLER LIMITS -->
                         <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
-                            <div class="px-4 py-3 bg-slate-900/70 border-b border-slate-800 flex items-center gap-2">
-                                <span class="text-amber-400 font-bold">5. Tốc độ Băng thông / Rate Limit (Nginx FastCGI)</span>
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800">
+                                <h3 class="text-sm font-bold text-white">MySQL Resource Controller Limits</h3>
                             </div>
-                            <div class="px-4 divide-y divide-slate-800/70">
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <div>
-                                        <label class="font-semibold text-slate-200 block">Mẫu Rate Limit</label>
-                                        <span class="text-[11px] text-slate-400">Tự động cập nhật <code>set $limit_rate</code> vào Nginx vhost của các website dùng gói này</span>
+                            <div class="px-5 divide-y divide-slate-800/70">
+                                <!-- MAX_USER_CONNECTIONS -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Concurrent Connections</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_mconn" :checked="activePlanForm.mysql_max_user_connections < 500" @change="activePlanForm.mysql_max_user_connections = 25" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.mysql_max_user_connections" :disabled="activePlanForm.mysql_max_user_connections >= 500" min="2" max="500" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_mconn" :checked="activePlanForm.mysql_max_user_connections >= 500" @change="activePlanForm.mysql_max_user_connections = 500" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
                                     </div>
-                                    <select v-model="activePlanForm.rate_limit"
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono">
-                                        <option value="0">0 — Không giới hạn (Mặc định)</option>
-                                        <option value="512k">512k — 512 KB/s (~4 Mbps)</option>
-                                        <option value="1m">1m — 1 MB/s (~8 Mbps)</option>
-                                        <option value="5m">5m — 5 MB/s (~40 Mbps)</option>
-                                        <option value="10m">10m — 10 MB/s (~80 Mbps)</option>
-                                        <option value="50m">50m — 50 MB/s (~400 Mbps)</option>
-                                    </select>
                                 </div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                                    <label class="font-semibold text-slate-200">Giá trị tùy chỉnh (VD: 2m, 500k, 0)</label>
-                                    <input type="text" v-model="activePlanForm.rate_limit" placeholder="0"
-                                        class="w-full sm:w-80 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-amber-300 font-mono">
+
+                                <!-- MAX_STATEMENT_TIME -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Statement Time (Seconds)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_mtime" :checked="activePlanForm.mysql_max_statement_time < 3600" @change="activePlanForm.mysql_max_statement_time = 15" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.mysql_max_statement_time" :disabled="activePlanForm.mysql_max_statement_time >= 3600" min="1" max="3600" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_mtime" :checked="activePlanForm.mysql_max_statement_time >= 3600" @change="activePlanForm.mysql_max_statement_time = 3600" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- MAX_QUERIES_PER_HOUR -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Queries / Hour</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_mqh" :checked="activePlanForm.mysql_max_queries_per_hour > 0" @change="if (!activePlanForm.mysql_max_queries_per_hour) activePlanForm.mysql_max_queries_per_hour = 50000" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.mysql_max_queries_per_hour" :disabled="!activePlanForm.mysql_max_queries_per_hour" min="0" max="10000000"
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_mqh" :checked="!activePlanForm.mysql_max_queries_per_hour" @change="activePlanForm.mysql_max_queries_per_hour = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- MAX_UPDATES_PER_HOUR -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Updates / Hour</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_muh" :checked="activePlanForm.mysql_max_updates_per_hour > 0" @change="if (!activePlanForm.mysql_max_updates_per_hour) activePlanForm.mysql_max_updates_per_hour = 10000" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.mysql_max_updates_per_hour" :disabled="!activePlanForm.mysql_max_updates_per_hour" min="0" max="10000000"
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_muh" :checked="!activePlanForm.mysql_max_updates_per_hour" @change="activePlanForm.mysql_max_updates_per_hour = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- MAX_CONNECTIONS_PER_HOUR -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Connections / Hour</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="r_mch" :checked="activePlanForm.mysql_max_connections_per_hour > 0" @change="if (!activePlanForm.mysql_max_connections_per_hour) activePlanForm.mysql_max_connections_per_hour = 5000" class="accent-blue-500">
+                                            <input type="number" v-model.number="activePlanForm.mysql_max_connections_per_hour" :disabled="!activePlanForm.mysql_max_connections_per_hour" min="0" max="1000000"
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="r_mch" :checked="!activePlanForm.mysql_max_connections_per_hour" @change="activePlanForm.mysql_max_connections_per_hour = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
