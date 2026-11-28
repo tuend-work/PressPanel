@@ -72,14 +72,14 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
         MNT_TMP_SYS="/run/cage_sys_$$"
         mkdir -p "$MNT_TMP_SYS"
         if [ -e "/var/lib/lxcfs/proc/cpuinfo" ]; then
-            sed -E 's/^(model name[[:space:]]*:).*/\1 PressPanel Virtual vCPU/; s/^(vendor_id[[:space:]]*:).*/\1 PressPanel/; /^flags[[:space:]]*:/d; /^bugs[[:space:]]*:/d; /^microcode[[:space:]]*:/d' /var/lib/lxcfs/proc/cpuinfo > "$MNT_TMP_SYS/cpuinfo" 2>/dev/null || true
+            sed -E "s/^(model name[[:space:]]*:).*/\1 PressPanel Virtual vCPU/; s/^(vendor_id[[:space:]]*:).*/\1 PressPanel/; /^flags[[:space:]]*:/d; /^bugs[[:space:]]*:/d; /^microcode[[:space:]]*:/d" /var/lib/lxcfs/proc/cpuinfo > "$MNT_TMP_SYS/cpuinfo" 2>/dev/null || true
             [ -s "$MNT_TMP_SYS/cpuinfo" ] && mount --bind "$MNT_TMP_SYS/cpuinfo" /proc/cpuinfo 2>/dev/null || true
         fi
 
         # Ảo hóa /sys/devices/system/cpu chỉ giữ đúng số CPU được cấp (tránh htop/lscpu thấy cpu1 offline)
-        LXCFS_ONLINE=$(cat /var/lib/lxcfs/sys/devices/system/cpu/online 2>/dev/null | tr -d ' \n\r' || echo "0")
+        LXCFS_ONLINE=$(cat /var/lib/lxcfs/sys/devices/system/cpu/online 2>/dev/null | tr -d " \n\r" || echo "0")
         [ -z "$LXCFS_ONLINE" ] && LXCFS_ONLINE="0"
-        LXCFS_CNT=$(grep -c '^processor' "$MNT_TMP_SYS/cpuinfo" 2>/dev/null || echo "1")
+        LXCFS_CNT=$(grep -c "^processor" "$MNT_TMP_SYS/cpuinfo" 2>/dev/null || echo "1")
         [ "$LXCFS_CNT" -lt 1 ] && LXCFS_CNT=1
         LXCFS_RANGE="0"
         [ "$LXCFS_CNT" -gt 1 ] && LXCFS_RANGE="0-$((LXCFS_CNT - 1))"
