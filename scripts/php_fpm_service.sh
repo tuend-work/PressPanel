@@ -165,7 +165,7 @@ case "$ACTION" in
                 -e "s|{{WORKER_GRP}}|$WORKER_GRP|g" \
                 -e "s|{{LISTEN_MODE}}|0666|g" \
                 -e "s|{{LISTEN_BACKLOG}}|511|g" \
-                -e "s|{{PM_DIRECTIVES}}|pm = dynamic\npm.max_children = 20\npm.start_servers = 4\npm.min_spare_servers = 2\npm.max_spare_servers = 6\npm.process_idle_timeout = 60s\npm.max_requests = 2000|g" \
+                -e "s|{{PM_DIRECTIVES}}|$(if [ "$USERNAME" = "phpmyadmin" ] || [ "$USERNAME" = "roundcube" ] || [ "$USERNAME" = "webmail" ]; then echo 'pm = ondemand\npm.max_children = 10\npm.process_idle_timeout = 60s\npm.max_requests = 200'; else echo "pm = dynamic\npm.max_children = $(nproc 2>/dev/null || echo 2)\npm.start_servers = 1\npm.min_spare_servers = 1\npm.max_spare_servers = 1\npm.process_idle_timeout = 60s\npm.max_requests = 200"; fi)|g" \
                 -e "s|{{REQUEST_TERMINATE_TIMEOUT}}|0s|g" \
                 -e "s|{{REQUEST_SLOWLOG_TIMEOUT}}|0s|g" \
                 -e "s|{{SLOWLOG}}|/home/${USERNAME}/logs/php-fpm.slow.log|g" \
