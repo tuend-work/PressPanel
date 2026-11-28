@@ -645,12 +645,22 @@ async def get_file_content(
         raise HTTPException(status_code=404, detail="Không tìm thấy tệp tin.")
 
     raw_bytes: Optional[bytes] = None
+    tail_notice = b""
+    LOG_TAIL_BYTES = 512 * 1024
+    MAX_SAFE_EDIT_BYTES = 1024 * 1024
+    is_log_file = file_path.lower().endswith(".log")
     try:
         sz = os.path.getsize(file_path)
-        if sz > MAX_EDIT_FILE_BYTES:
-            raise HTTPException(status_code=413, detail=f"Tệp tin quá lớn ({format_bytes(sz)}). Trình soạn thảo chỉ hỗ trợ tối đa 5 MB.")
-        with open(file_path, "rb") as f:
-            raw_bytes = f.read(MAX_EDIT_FILE_BYTES + 1)
+        if is_log_file and sz > LOG_TAIL_BYTES:
+            with open(file_path, "rb") as f:
+                f.seek(-LOG_TAIL_BYTES, os.SEEK_END)
+                raw_bytes = f.read(LOG_TAIL_BYTES)
+            tail_notice = f"# [PressPanel] File log lớn ({format_bytes(sz)}), chỉ hiển thị 512 KB cuối cùng để tránh lag trình duyệt.\n".encode("utf-8")
+        elif sz > MAX_SAFE_EDIT_BYTES:
+            raise HTTPException(status_code=413, detail=f"Tệp tin quá lớn ({format_bytes(sz)}). Trình soạn thảo hỗ trợ tối đa 1 MB để tránh lag trình duyệt. Hãy dùng chức năng Tải xuống.")
+        else:
+            with open(file_path, "rb") as f:
+                raw_bytes = f.read(MAX_SAFE_EDIT_BYTES + 1)
     except HTTPException:
         raise
     except Exception:
@@ -659,17 +669,25 @@ async def get_file_content(
     if raw_bytes is None and platform.system() == "Linux":
         try:
             proc_sz = subprocess.run(["sudo", "stat", "-c", "%s", file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
-            if proc_sz.returncode == 0 and proc_sz.stdout.strip().isdigit():
-                sz = int(proc_sz.stdout.strip())
-                if sz > MAX_EDIT_FILE_BYTES:
-                    raise HTTPException(status_code=413, detail=f"Tệp tin quá lớn ({format_bytes(sz)}). Trình soạn thảo chỉ hỗ trợ tối đa 5 MB.")
-            proc = subprocess.run(["sudo", "cat", file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
-            if proc.returncode == 0:
-                raw_bytes = proc.stdout
+            sz = int(proc_sz.stdout.strip()) if (proc_sz.returncode == 0 and proc_sz.stdout.strip().isdigit()) else 0
+            if is_log_file and sz > LOG_TAIL_BYTES:
+                proc = subprocess.run(["sudo", "tail", "-c", str(LOG_TAIL_BYTES), file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+                if proc.returncode == 0:
+                    raw_bytes = proc.stdout
+                    tail_notice = f"# [PressPanel] File log lớn ({format_bytes(sz)}), chỉ hiển thị 512 KB cuối cùng để tránh lag trình duyệt.\n".encode("utf-8")
+            elif sz > MAX_SAFE_EDIT_BYTES:
+                raise HTTPException(status_code=413, detail=f"Tệp tin quá lớn ({format_bytes(sz)}). Trình soạn thảo hỗ trợ tối đa 1 MB để tránh lag trình duyệt. Hãy dùng chức năng Tải xuống.")
+            else:
+                proc = subprocess.run(["sudo", "cat", file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+                if proc.returncode == 0:
+                    raw_bytes = proc.stdout
         except HTTPException:
             raise
         except Exception:
             pass
+
+    if raw_bytes is not None and tail_notice:
+        raw_bytes = tail_notice + raw_bytes
 
     if raw_bytes is None:
         raise HTTPException(status_code=403, detail="Không có quyền đọc tệp tin này.")
