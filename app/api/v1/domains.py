@@ -1383,22 +1383,22 @@ async def change_domain_php(
     }
 
 class DomainPhpIniUpdate(BaseModel):
-    upload_max_filesize: str = "128M"
-    post_max_size: str = "128M"
-    memory_limit: str = "512M"
-    max_execution_time: str = "300"
-    max_input_time: str = "300"
-    max_input_vars: str = "3000"
+    upload_max_filesize: str = "1024M"
+    post_max_size: str = "1024M"
+    memory_limit: str = "128M"
+    max_execution_time: str = "60"
+    max_input_time: str = "60"
+    max_input_vars: str = "10000"
     display_errors: str = "Off"
     date_timezone: str = "Asia/Ho_Chi_Minh"
     opcache_enable: str = "1"
-    opcache_memory_consumption: str = "256"
-    opcache_interned_strings_buffer: str = "32"
-    opcache_max_accelerated_files: str = "20000"
+    opcache_memory_consumption: str = "128"
+    opcache_interned_strings_buffer: str = "64"
+    opcache_max_accelerated_files: str = "40000"
     opcache_validate_timestamps: str = "1"
-    opcache_revalidate_freq: str = "2"
+    opcache_revalidate_freq: str = "60"
     opcache_jit_buffer_size: str = "0"
-    realpath_cache_size: str = "4096K"
+    realpath_cache_size: str = "2048K"
     realpath_cache_ttl: str = "600"
     custom_directives: Optional[str] = ""
 
@@ -1436,22 +1436,22 @@ async def get_domain_php_ini(
     ini_path = os.path.join(doc_root, ".user.ini")
 
     directives = {
-        "upload_max_filesize": "128M",
-        "post_max_size": "128M",
-        "memory_limit": "512M",
-        "max_execution_time": "300",
-        "max_input_time": "300",
-        "max_input_vars": "3000",
+        "upload_max_filesize": "1024M",
+        "post_max_size": "1024M",
+        "memory_limit": "128M",
+        "max_execution_time": "60",
+        "max_input_time": "60",
+        "max_input_vars": "10000",
         "display_errors": "Off",
         "date_timezone": "Asia/Ho_Chi_Minh",
         "opcache_enable": "1",
-        "opcache_memory_consumption": "256",
-        "opcache_interned_strings_buffer": "32",
-        "opcache_max_accelerated_files": "20000",
+        "opcache_memory_consumption": "128",
+        "opcache_interned_strings_buffer": "64",
+        "opcache_max_accelerated_files": "40000",
         "opcache_validate_timestamps": "1",
-        "opcache_revalidate_freq": "2",
+        "opcache_revalidate_freq": "60",
         "opcache_jit_buffer_size": "0",
-        "realpath_cache_size": "4096K",
+        "realpath_cache_size": "2048K",
         "realpath_cache_ttl": "600"
     }
     custom_lines = []
@@ -2934,7 +2934,7 @@ async def get_domain_fpm_service(
             "WORKER_GRP": sock_group,
             "LISTEN_MODE": "0666",
             "LISTEN_BACKLOG": "511",
-            "PM_DIRECTIVES": "pm = dynamic\npm.max_children = 20\npm.start_servers = 4\npm.min_spare_servers = 2\npm.max_spare_servers = 6\npm.process_idle_timeout = 60s\npm.max_requests = 2000",
+            "PM_DIRECTIVES": f"pm = dynamic\npm.max_children = {os.cpu_count() or 2}\npm.start_servers = 1\npm.min_spare_servers = 1\npm.max_spare_servers = 1\npm.process_idle_timeout = 60s\npm.max_requests = 200",
             "REQUEST_TERMINATE_TIMEOUT": "0s",
             "REQUEST_SLOWLOG_TIMEOUT": "0s",
             "SLOWLOG": f"/home/{isolated_user}/logs/php-fpm.slow.log",
@@ -3249,11 +3249,11 @@ listen.group = {sock_group}
 listen.mode = 0666
 
 pm = dynamic
-pm.max_children = 10
-pm.start_servers = 2
+pm.max_children = {os.cpu_count() or 2}
+pm.start_servers = 1
 pm.min_spare_servers = 1
-pm.max_spare_servers = 3
-pm.max_requests = 500
+pm.max_spare_servers = 1
+pm.max_requests = 200
 request_terminate_timeout = 0s
 
 pm.status_path = /status-{isolated_user}
