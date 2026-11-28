@@ -61,22 +61,64 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
             echo $$ > "$USER_CG_DIR/cgroup.procs" 2>/dev/null || true
         fi
         if [ -d "/var/lib/lxcfs/proc" ]; then
-            for lf in meminfo cpuinfo stat uptime loadavg diskstats swaps slabinfo; do
+            for lf in meminfo stat uptime loadavg diskstats swaps slabinfo; do
                 if [ -e "/var/lib/lxcfs/proc/$lf" ] && [ -e "/proc/$lf" ]; then
                     mount --bind "/var/lib/lxcfs/proc/$lf" "/proc/$lf" 2>/dev/null || true
                 fi
             done
         fi
-        if [ -d "/var/lib/lxcfs/sys/devices/system/cpu" ]; then
-            for sc in online possible present; do
-                if [ -e "/var/lib/lxcfs/sys/devices/system/cpu/$sc" ] && [ -e "/sys/devices/system/cpu/$sc" ]; then
-                    mount --bind "/var/lib/lxcfs/sys/devices/system/cpu/$sc" "/sys/devices/system/cpu/$sc" 2>/dev/null || true
-                fi
+
+        # Ảo hóa /proc/cpuinfo: giữ đúng số core từ LXCFS nhưng ẩn model/vendor/flags của CPU vật lý
+        MNT_TMP_SYS="/run/cage_sys_$$"
+        mkdir -p "$MNT_TMP_SYS"
+        if [ -e "/var/lib/lxcfs/proc/cpuinfo" ]; then
+            sed -E 's/^(model name[[:space:]]*:).*/\1 PressPanel Virtual vCPU/; s/^(vendor_id[[:space:]]*:).*/\1 PressPanel/; /^flags[[:space:]]*:/d; /^bugs[[:space:]]*:/d; /^microcode[[:space:]]*:/d' /var/lib/lxcfs/proc/cpuinfo > "$MNT_TMP_SYS/cpuinfo" 2>/dev/null || true
+            [ -s "$MNT_TMP_SYS/cpuinfo" ] && mount --bind "$MNT_TMP_SYS/cpuinfo" /proc/cpuinfo 2>/dev/null || true
+        fi
+
+        # Ảo hóa /sys/devices/system/cpu chỉ giữ đúng số CPU được cấp (tránh htop/lscpu thấy cpu1 offline)
+        LXCFS_ONLINE=$(cat /var/lib/lxcfs/sys/devices/system/cpu/online 2>/dev/null | tr -d ' \n\r' || echo "0")
+        [ -z "$LXCFS_ONLINE" ] && LXCFS_ONLINE="0"
+        LXCFS_CNT=$(grep -c '^processor' "$MNT_TMP_SYS/cpuinfo" 2>/dev/null || echo "1")
+        [ "$LXCFS_CNT" -lt 1 ] && LXCFS_CNT=1
+        LXCFS_RANGE="0"
+        [ "$LXCFS_CNT" -gt 1 ] && LXCFS_RANGE="0-$((LXCFS_CNT - 1))"
+
+        if [ -d "/sys/devices/system/cpu" ]; then
+            mount -t tmpfs -o mode=755,size=1M tmpfs /sys/devices/system/cpu 2>/dev/null || true
+            echo "$LXCFS_RANGE" > /sys/devices/system/cpu/online 2>/dev/null || true
+            echo "$LXCFS_RANGE" > /sys/devices/system/cpu/possible 2>/dev/null || true
+            echo "$LXCFS_RANGE" > /sys/devices/system/cpu/present 2>/dev/null || true
+            echo "" > /sys/devices/system/cpu/offline 2>/dev/null || true
+            echo "$((LXCFS_CNT - 1))" > /sys/devices/system/cpu/kernel_max 2>/dev/null || true
+            i=0
+            while [ "$i" -lt "$LXCFS_CNT" ]; do
+                mkdir -p "/sys/devices/system/cpu/cpu${i}/topology" 2>/dev/null || true
+                echo "1" > "/sys/devices/system/cpu/cpu${i}/online" 2>/dev/null || true
+                echo "0" > "/sys/devices/system/cpu/cpu${i}/topology/physical_package_id" 2>/dev/null || true
+                echo "$i" > "/sys/devices/system/cpu/cpu${i}/topology/core_id" 2>/dev/null || true
+                i=$((i + 1))
             done
         fi
 
+        # Bọc lệnh lscpu trong cage để chỉ hiển thị tài nguyên ảo hóa của user
+        if [ -x /usr/bin/lscpu ]; then
+            cat << EOF > "$MNT_TMP_SYS/lscpu"
+#!/usr/bin/env bash
+echo "Architecture:                         \$(uname -m)"
+echo "CPU(s):                               ${LXCFS_CNT}"
+echo "On-line CPU(s) list:                  ${LXCFS_RANGE}"
+echo "Model name:                           PressPanel Virtual vCPU"
+echo "Thread(s) per core:                   1"
+echo "Core(s) per socket:                   ${LXCFS_CNT}"
+echo "Socket(s):                            1"
+EOF
+            chmod 755 "$MNT_TMP_SYS/lscpu" 2>/dev/null || true
+            mount --bind "$MNT_TMP_SYS/lscpu" /usr/bin/lscpu 2>/dev/null || true
+        fi
+
         # 2.6 Ẩn toàn bộ thông số phần cứng vật lý / ảo hóa / kernel của máy chủ chính
-        for sdir in /sys/firmware /sys/class/dmi /sys/devices/virtual/dmi /sys/hypervisor /sys/block /boot; do
+        for sdir in /sys/firmware /sys/class/dmi /sys/devices/virtual/dmi /sys/hypervisor /sys/block /sys/devices/system/node /boot; do
             [ -d "$sdir" ] && mount -t tmpfs -o mode=555,size=1M tmpfs "$sdir" 2>/dev/null || true
         done
         for pfile in /proc/interrupts /proc/iomem /proc/ioports /proc/modules /proc/cmdline /proc/version /proc/vmstat /proc/zoneinfo /proc/buddyinfo /proc/pagetypeinfo; do
