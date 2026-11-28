@@ -136,7 +136,7 @@ async def resolve_base_and_target(
     clean_u = "".join(c for c in target_user if c.isalnum() or c in ("_", "-")) if target_user else None
 
     if user.get("role") == "admin":
-        base_dir = f"/home/{clean_u}" if clean_u else "/home"
+        base_dir = f"/home/{clean_u}" if clean_u else "/"
     else:
         # Cô lập tuyệt đối: User nào chỉ được quản lý file của chính user đó
         # (Hosting user muốn quản lý file của Web App phải dùng Login as Web App User)
