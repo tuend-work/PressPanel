@@ -329,6 +329,23 @@ async def init_database():
                 await db.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
             except Exception:
                 pass
+
+        # Migration: Bổ sung các cột giới hạn I/O (MB/s, IOPS) và Inodes cho packages, users, domains
+        io_inode_cols = [
+            ("io_mbps", "INTEGER NOT NULL DEFAULT 50"),
+            ("iops_limit", "INTEGER NOT NULL DEFAULT 2000"),
+            ("inode_limit", "INTEGER NOT NULL DEFAULT 250000"),
+        ]
+        for col_name, col_type in io_inode_cols:
+            for tbl in ("packages", "users"):
+                try:
+                    await db.execute(f"ALTER TABLE {tbl} ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
+            try:
+                await db.execute(f"ALTER TABLE domains ADD COLUMN {col_name} INTEGER DEFAULT NULL")
+            except Exception:
+                pass
         
         # Migration: Bổ sung các cột mới cho bảng backups (status, destination_id, error_msg)
         for b_col, b_type in [("status", "TEXT NOT NULL DEFAULT 'success'"), ("destination_id", "INTEGER DEFAULT NULL"), ("error_msg", "TEXT")]:

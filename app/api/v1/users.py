@@ -69,6 +69,9 @@ async def list_customers(current_user: dict = Depends(get_current_user)):
             SELECT u.id, u.username, u.email, COALESCE(u.full_name, '') as full_name, COALESCE(u.phone, '') as phone,
                    u.role, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb,
                    COALESCE(u.io_weight, 100) as io_weight, COALESCE(u.pids_max, 100) as pids_max,
+                   COALESCE(u.io_mbps, p.io_mbps, 50) as io_mbps,
+                   COALESCE(u.iops_limit, p.iops_limit, 2000) as iops_limit,
+                   COALESCE(u.inode_limit, p.max_inodes, 250000) as inode_limit,
                    COALESCE(u.max_domains, p.max_domains, 10) as max_domains,
                    COALESCE(u.max_databases, p.max_databases, 10) as max_databases,
                    COALESCE(u.allow_ssh, p.allow_ssh, 1) as allow_ssh,
@@ -87,6 +90,9 @@ async def list_customers(current_user: dict = Depends(get_current_user)):
             SELECT u.id, u.username, u.email, COALESCE(u.full_name, '') as full_name, COALESCE(u.phone, '') as phone,
                    u.role, u.package_id, u.disk_mb, u.cpu_pct, u.mem_mb,
                    COALESCE(u.io_weight, 100) as io_weight, COALESCE(u.pids_max, 100) as pids_max,
+                   COALESCE(u.io_mbps, p.io_mbps, 50) as io_mbps,
+                   COALESCE(u.iops_limit, p.iops_limit, 2000) as iops_limit,
+                   COALESCE(u.inode_limit, p.max_inodes, 250000) as inode_limit,
                    COALESCE(u.max_domains, p.max_domains, 10) as max_domains,
                    COALESCE(u.max_databases, p.max_databases, 10) as max_databases,
                    COALESCE(u.allow_ssh, p.allow_ssh, 1) as allow_ssh,
@@ -483,6 +489,8 @@ class PlanCreate(BaseModel):
     bandwidth_mb: int = Field(0, ge=0)
     max_ftp_accounts: int = Field(5, ge=0, le=1000)
     rate_limit: str = Field("0", max_length=32)
+    io_mbps: int = Field(50, ge=1, le=5000)
+    iops_limit: int = Field(2000, ge=50, le=500000)
 
 class PlanUpdate(BaseModel):
     name: Optional[str] = None
@@ -504,6 +512,8 @@ class PlanUpdate(BaseModel):
     bandwidth_mb: Optional[int] = None
     max_ftp_accounts: Optional[int] = None
     rate_limit: Optional[str] = None
+    io_mbps: Optional[int] = None
+    iops_limit: Optional[int] = None
 
 @router.get("/plans")
 async def list_service_plans(
@@ -567,14 +577,14 @@ async def create_service_plan(req: PlanCreate, current_user: dict = Depends(requ
                 owner_id, name, package_type, plan_type, cpu_pct, mem_mb, disk_mb,
                 io_weight, pids_max, max_domains, max_databases, allow_ssh,
                 max_php_sites, max_wp_sites, max_nodejs_sites, max_python_sites, max_go_sites,
-                max_inodes, max_mysql_dbs, max_mongo_dbs, bandwidth_mb, max_ftp_accounts, rate_limit
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 100, 100, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                max_inodes, max_mysql_dbs, max_mongo_dbs, bandwidth_mb, max_ftp_accounts, rate_limit, io_mbps, iops_limit
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 100, 100, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             current_user["id"], req.name, req.package_type, actual_plan_type, req.cpu_pct, req.mem_mb, req.disk_mb,
             actual_max_domains, req.max_databases, 1 if req.allow_ssh else 0,
             req.max_php_sites, req.max_wp_sites, req.max_nodejs_sites, req.max_python_sites, req.max_go_sites,
             req.max_inodes, req.max_mysql_dbs, req.max_mongo_dbs, req.bandwidth_mb, req.max_ftp_accounts,
-            (req.rate_limit or "0").strip()
+            (req.rate_limit or "0").strip(), req.io_mbps, req.iops_limit
         ))
         await db.commit()
     except HTTPException:
@@ -663,6 +673,12 @@ async def update_service_plan(plan_id: int, req: PlanUpdate, current_user: dict 
     if req.rate_limit is not None:
         updates.append("rate_limit = ?")
         params.append(req.rate_limit.strip() or "0")
+    if req.io_mbps is not None:
+        updates.append("io_mbps = ?")
+        params.append(req.io_mbps)
+    if req.iops_limit is not None:
+        updates.append("iops_limit = ?")
+        params.append(req.iops_limit)
 
     if updates:
         params.append(plan_id)
@@ -747,6 +763,9 @@ class CustomerAdminEditRequest(BaseModel):
     disk_mb: Optional[int] = Field(None, ge=100, le=5000000)
     io_weight: Optional[int] = Field(None, ge=10, le=1000)
     pids_max: Optional[int] = Field(None, ge=20, le=50000)
+    io_mbps: Optional[int] = Field(None, ge=1, le=5000)
+    iops_limit: Optional[int] = Field(None, ge=50, le=500000)
+    inode_limit: Optional[int] = Field(None, ge=1000, le=10000000)
     max_domains: Optional[int] = Field(None, ge=1, le=1000)
     max_databases: Optional[int] = Field(None, ge=0, le=1000)
     allow_ssh: Optional[bool] = None
@@ -1089,6 +1108,18 @@ async def admin_edit_customer(target_id: int, req: CustomerAdminEditRequest, cur
             new_pids = req.pids_max
             updates.append("pids_max = ?")
             params.append(new_pids)
+            res_changed = True
+        if req.io_mbps is not None:
+            updates.append("io_mbps = ?")
+            params.append(req.io_mbps)
+            res_changed = True
+        if req.iops_limit is not None:
+            updates.append("iops_limit = ?")
+            params.append(req.iops_limit)
+            res_changed = True
+        if req.inode_limit is not None:
+            updates.append("inode_limit = ?")
+            params.append(req.inode_limit)
             res_changed = True
         if req.max_domains is not None:
             updates.append("max_domains = ?")

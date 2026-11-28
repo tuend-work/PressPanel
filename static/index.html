@@ -1307,7 +1307,9 @@ function showToast(message, type = 'success') {
                     max_mongo_dbs: 2,
                     bandwidth_mb: 0,
                     max_ftp_accounts: 5,
-                    rate_limit: '0'
+                    rate_limit: '0',
+                    io_mbps: 50,
+                    iops_limit: 2000
                 });
                 const newPlan = ref({
                     name: '',
@@ -1317,6 +1319,8 @@ function showToast(message, type = 'success') {
                     max_inodes: 250000,
                     mem_mb: 1024,
                     cpu_pct: 100,
+                    io_mbps: 50,
+                    iops_limit: 2000,
                     max_domains: 10,
                     max_databases: 10,
                     allow_ssh: true,
@@ -3374,7 +3378,8 @@ geo $limit_rate {
                 const selectedEditDomain = ref(null);
                 const editDomainForm = ref({
                     php_version: '8.2', package_id: null, allow_ssh: false, rate_limit: '0', status: 'active',
-                    use_custom_limits: false, cpu_pct: 100, mem_mb: 1024, disk_mb: 5120, io_weight: 100, pids_max: 100, max_databases: 10
+                    use_custom_limits: false, cpu_pct: 100, mem_mb: 1024, disk_mb: 5120, io_weight: 100, pids_max: 100,
+                    io_mbps: 50, iops_limit: 2000, inode_limit: 250000, max_databases: 10
                 });
                 const savingDomainEdit = ref(false);
 
@@ -3384,6 +3389,9 @@ geo $limit_rate {
                     const hasCustom = domain.custom_cpu_pct !== null && domain.custom_cpu_pct !== undefined
                         || domain.custom_mem_mb !== null && domain.custom_mem_mb !== undefined
                         || domain.custom_disk_mb !== null && domain.custom_disk_mb !== undefined
+                        || domain.custom_io_mbps !== null && domain.custom_io_mbps !== undefined
+                        || domain.custom_iops_limit !== null && domain.custom_iops_limit !== undefined
+                        || domain.custom_inode_limit !== null && domain.custom_inode_limit !== undefined
                         || domain.custom_max_databases !== null && domain.custom_max_databases !== undefined;
                     editDomainForm.value = {
                         php_version: domain.php_version || '8.2',
@@ -3397,6 +3405,9 @@ geo $limit_rate {
                         disk_mb: domain.disk_mb ?? 5120,
                         io_weight: domain.io_weight ?? 100,
                         pids_max: domain.pids_max ?? 100,
+                        io_mbps: domain.io_mbps ?? 50,
+                        iops_limit: domain.iops_limit ?? 2000,
+                        inode_limit: domain.inode_limit ?? 250000,
                         max_databases: domain.max_databases ?? 10
                     };
                     showEditDomainModal.value = true;
@@ -3413,6 +3424,9 @@ geo $limit_rate {
                         editDomainForm.value.cpu_pct = found.cpu_pct ?? 100;
                         editDomainForm.value.mem_mb = found.mem_mb ?? 1024;
                         editDomainForm.value.disk_mb = found.disk_mb ?? 5120;
+                        editDomainForm.value.io_mbps = found.io_mbps ?? 50;
+                        editDomainForm.value.iops_limit = found.iops_limit ?? 2000;
+                        editDomainForm.value.inode_limit = found.max_inodes ?? 250000;
                         editDomainForm.value.max_databases = found.max_databases ?? 10;
                         if (found.rate_limit !== undefined) editDomainForm.value.rate_limit = found.rate_limit || '0';
                     }
@@ -3436,6 +3450,9 @@ geo $limit_rate {
                                 payload.disk_mb = parseInt(editDomainForm.value.disk_mb) || 5120;
                                 payload.io_weight = parseInt(editDomainForm.value.io_weight) || 100;
                                 payload.pids_max = parseInt(editDomainForm.value.pids_max) || 100;
+                                payload.io_mbps = parseInt(editDomainForm.value.io_mbps) || 50;
+                                payload.iops_limit = parseInt(editDomainForm.value.iops_limit) || 2000;
+                                payload.inode_limit = parseInt(editDomainForm.value.inode_limit) || 250000;
                                 payload.max_databases = parseInt(editDomainForm.value.max_databases) || 0;
                             } else {
                                 payload.reset_custom_limits = true;
@@ -3681,7 +3698,9 @@ geo $limit_rate {
                                 max_mongo_dbs: 2,
                                 bandwidth_mb: 0,
                                 max_ftp_accounts: 5,
-                                rate_limit: '0'
+                                rate_limit: '0',
+                                io_mbps: 50,
+                                iops_limit: 2000
                             };
                             fetchServicePlans();
                         } else {
@@ -3704,6 +3723,8 @@ geo $limit_rate {
                         max_inodes: plan.max_inodes || 250000,
                         mem_mb: plan.mem_mb || 1024,
                         cpu_pct: plan.cpu_pct || 100,
+                        io_mbps: plan.io_mbps ?? 50,
+                        iops_limit: plan.iops_limit ?? 2000,
                         max_domains: plan.max_domains || 10,
                         max_databases: plan.max_databases || 10,
                         allow_ssh: !!plan.allow_ssh,
@@ -4012,6 +4033,9 @@ geo $limit_rate {
                     disk_mb: 5120,
                     io_weight: 100,
                     pids_max: 100,
+                    io_mbps: 50,
+                    iops_limit: 2000,
+                    inode_limit: 250000,
                     max_domains: 10,
                     max_databases: 10,
                     allow_ssh: true
@@ -4034,6 +4058,9 @@ geo $limit_rate {
                         disk_mb: customer.disk_mb ?? 5120,
                         io_weight: customer.io_weight ?? 100,
                         pids_max: customer.pids_max ?? 100,
+                        io_mbps: customer.io_mbps ?? 50,
+                        iops_limit: customer.iops_limit ?? 2000,
+                        inode_limit: customer.inode_limit ?? 250000,
                         max_domains: customer.max_domains ?? 10,
                         max_databases: customer.max_databases ?? 10,
                         allow_ssh: customer.allow_ssh !== undefined ? !!customer.allow_ssh : true
@@ -4055,6 +4082,9 @@ geo $limit_rate {
                             disk_mb: parseInt(editingCustomer.value.disk_mb) || 5120,
                             io_weight: parseInt(editingCustomer.value.io_weight) || 100,
                             pids_max: parseInt(editingCustomer.value.pids_max) || 100,
+                            io_mbps: parseInt(editingCustomer.value.io_mbps) || 50,
+                            iops_limit: parseInt(editingCustomer.value.iops_limit) || 2000,
+                            inode_limit: parseInt(editingCustomer.value.inode_limit) || 250000,
                             max_domains: parseInt(editingCustomer.value.max_domains) || 1,
                             max_databases: parseInt(editingCustomer.value.max_databases) || 0,
                             allow_ssh: !!editingCustomer.value.allow_ssh

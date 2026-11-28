@@ -1998,6 +1998,19 @@
                             </div>
                         </div>
 
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Tốc độ Đọc/Ghi Đĩa (IO MB/s)</label>
+                                <input type="number" v-model.number="newPlan.io_mbps" min="1" max="5000" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Giới hạn IOPS (Read/Write)</label>
+                                <input type="number" v-model.number="newPlan.iops_limit" min="50" max="500000" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                        </div>
+
                         <!-- Hạn mức số lượng website theo từng mã nguồn (Chỉ áp dụng cho User Package) -->
                         <div v-if="newPlan.plan_type !== 'website'" class="p-3 rounded-xl bg-slate-900/80 border border-slate-700/80 space-y-2.5">
                             <div class="flex justify-between items-center">
@@ -2165,6 +2178,19 @@
                                 <input type="number" v-model.number="editPlanForm.mem_mb" min="128" max="65536" required
                                     class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
                                 <span class="text-[10px] text-slate-500 font-mono mt-0.5 block">≈ {{ (editPlanForm.mem_mb / 1024).toFixed(1) }} GB</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Tốc độ Đọc/Ghi Đĩa (IO MB/s)</label>
+                                <input type="number" v-model.number="editPlanForm.io_mbps" min="1" max="5000" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-300 mb-1">Giới hạn IOPS (Read/Write)</label>
+                                <input type="number" v-model.number="editPlanForm.iops_limit" min="50" max="500000" required
+                                    class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
                             </div>
                         </div>
 
@@ -4201,6 +4227,21 @@
                                         class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
                                 </div>
                                 <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">IO Speed (MB/s)</label>
+                                    <input type="number" v-model.number="editingCustomer.io_mbps" min="1" max="5000" required
+                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">IOPS Limit</label>
+                                    <input type="number" v-model.number="editingCustomer.iops_limit" min="50" max="500000" required
+                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Max Inodes</label>
+                                    <input type="number" v-model.number="editingCustomer.inode_limit" min="1000" max="10000000" required
+                                        class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
+                                </div>
+                                <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">Max Domains ({{ editingCustomer.domain_count || 0 }} dùng)</label>
                                     <input type="number" v-model.number="editingCustomer.max_domains" min="1" max="1000" required
                                         class="w-full px-2.5 py-1.5 rounded bg-[#141820] border border-[#2c3647] text-white font-mono">
@@ -4839,6 +4880,21 @@
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">Max Processes (PIDs)</label>
                                     <input type="number" v-model.number="editDomainForm.pids_max" @input="editDomainForm.use_custom_limits = true" min="20" max="50000" required
+                                        class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">IO Speed (MB/s)</label>
+                                    <input type="number" v-model.number="editDomainForm.io_mbps" @input="editDomainForm.use_custom_limits = true" min="1" max="5000" required
+                                        class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">IOPS Limit</label>
+                                    <input type="number" v-model.number="editDomainForm.iops_limit" @input="editDomainForm.use_custom_limits = true" min="50" max="500000" required
+                                        class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Max Inodes</label>
+                                    <input type="number" v-model.number="editDomainForm.inode_limit" @input="editDomainForm.use_custom_limits = true" min="1000" max="10000000" required
                                         class="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
                                 </div>
                                 <div>

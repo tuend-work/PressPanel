@@ -297,16 +297,19 @@ class DomainUpdateRequest(BaseModel):
     disk_mb: Optional[int] = Field(None, ge=100, le=5000000)
     io_weight: Optional[int] = Field(None, ge=10, le=1000)
     pids_max: Optional[int] = Field(None, ge=20, le=50000)
+    io_mbps: Optional[int] = Field(None, ge=1, le=5000)
+    iops_limit: Optional[int] = Field(None, ge=50, le=500000)
+    inode_limit: Optional[int] = Field(None, ge=1000, le=10000000)
     max_databases: Optional[int] = Field(None, ge=0, le=1000)
     reset_custom_limits: bool = False
 
 
 async def _ensure_domain_resource_columns(db):
-    """Đảm bảo bảng domains có các cột tùy chỉnh tài nguyên riêng (cpu_pct, mem_mb, disk_mb, io_weight, pids_max, max_databases)."""
+    """Đảm bảo bảng domains có các cột tùy chỉnh tài nguyên riêng (cpu_pct, mem_mb, disk_mb, io_weight, pids_max, io_mbps, iops_limit, inode_limit, max_databases)."""
     try:
         cur = await db.execute("PRAGMA table_info(domains)")
         cols = {r[1] for r in await cur.fetchall()}
-        for col_name in ("cpu_pct", "mem_mb", "disk_mb", "io_weight", "pids_max", "max_databases"):
+        for col_name in ("cpu_pct", "mem_mb", "disk_mb", "io_weight", "pids_max", "io_mbps", "iops_limit", "inode_limit", "max_databases"):
             if col_name not in cols:
                 await db.execute(f"ALTER TABLE domains ADD COLUMN {col_name} INTEGER DEFAULT NULL")
         await db.commit()
@@ -360,12 +363,18 @@ async def list_domains(current_user: dict = Depends(get_current_user)):
                d.disk_mb as custom_disk_mb,
                d.io_weight as custom_io_weight,
                d.pids_max as custom_pids_max,
+               d.io_mbps as custom_io_mbps,
+               d.iops_limit as custom_iops_limit,
+               d.inode_limit as custom_inode_limit,
                d.max_databases as custom_max_databases,
                COALESCE(d.cpu_pct, p_dom.cpu_pct, p.cpu_pct, 100) as cpu_pct,
                COALESCE(d.mem_mb, p_dom.mem_mb, p.mem_mb, 1024) as mem_mb,
                COALESCE(d.disk_mb, p_dom.disk_mb, p.disk_mb, 5120) as disk_mb,
                COALESCE(d.io_weight, p_dom.io_weight, p.io_weight, 100) as io_weight,
                COALESCE(d.pids_max, p_dom.pids_max, p.pids_max, 100) as pids_max,
+               COALESCE(d.io_mbps, p_dom.io_mbps, u.io_mbps, p.io_mbps, 50) as io_mbps,
+               COALESCE(d.iops_limit, p_dom.iops_limit, u.iops_limit, p.iops_limit, 2000) as iops_limit,
+               COALESCE(d.inode_limit, p_dom.max_inodes, u.inode_limit, p.max_inodes, 250000) as inode_limit,
                COALESCE(d.max_databases, p_dom.max_databases, u.max_databases, p.max_databases, 10) as max_databases,
                COALESCE(d.rate_limit, p_dom.rate_limit, '0') as rate_limit,
                COALESCE(d.status, 'active') as status,
@@ -733,7 +742,8 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
     await _ensure_domain_resource_columns(db)
     cur = await db.execute("""
         SELECT d.id, d.domain_name, d.user_id, d.php_version, d.package_id, d.allow_ssh, d.webserver, d.rate_limit, d.status,
-               d.cpu_pct as d_cpu, d.mem_mb as d_mem, d.disk_mb as d_disk, d.io_weight as d_io, d.pids_max as d_pids, d.max_databases as d_max_db,
+               d.cpu_pct as d_cpu, d.mem_mb as d_mem, d.disk_mb as d_disk, d.io_weight as d_io, d.pids_max as d_pids,
+               d.io_mbps as d_io_mbps, d.iops_limit as d_iops_limit, d.inode_limit as d_inode_limit, d.max_databases as d_max_db,
                u.username as owner_username, u.parent_id, u.role as owner_role,
                u.cpu_pct as parent_cpu, u.mem_mb as parent_mem, u.disk_mb as parent_disk
         FROM domains d
@@ -753,7 +763,7 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
         if dom["user_id"] != current_user["id"] and current_user.get("web_domain_id") != domain_id:
             await db.close()
             raise HTTPException(status_code=403, detail="Bạn không có quyền quản lý website này")
-        if any(v is not None for v in (req.cpu_pct, req.mem_mb, req.disk_mb, req.io_weight, req.pids_max, req.package_id)) or req.reset_custom_limits:
+        if any(v is not None for v in (req.cpu_pct, req.mem_mb, req.disk_mb, req.io_weight, req.pids_max, req.io_mbps, req.iops_limit, req.inode_limit, req.package_id)) or req.reset_custom_limits:
             await db.close()
             raise HTTPException(status_code=403, detail="Chỉ Admin hoặc Reseller mới có quyền điều chỉnh tài nguyên Web Application.")
 
@@ -790,6 +800,9 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
     new_d_disk = dom.get("d_disk")
     new_d_io = dom.get("d_io")
     new_d_pids = dom.get("d_pids")
+    new_d_io_mbps = dom.get("d_io_mbps")
+    new_d_iops = dom.get("d_iops_limit")
+    new_d_inode = dom.get("d_inode_limit")
     new_d_max_db = dom.get("d_max_db")
     apply_res_sync = False
 
@@ -799,6 +812,9 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
         new_d_disk = None
         new_d_io = None
         new_d_pids = None
+        new_d_io_mbps = None
+        new_d_iops = None
+        new_d_inode = None
         new_d_max_db = None
         apply_res_sync = True
 
@@ -832,6 +848,15 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
     if req.pids_max is not None:
         new_d_pids = req.pids_max
         apply_res_sync = True
+    if req.io_mbps is not None:
+        new_d_io_mbps = req.io_mbps
+        apply_res_sync = True
+    if req.iops_limit is not None:
+        new_d_iops = req.iops_limit
+        apply_res_sync = True
+    if req.inode_limit is not None:
+        new_d_inode = req.inode_limit
+        apply_res_sync = True
     if req.max_databases is not None:
         new_d_max_db = req.max_databases
 
@@ -846,9 +871,10 @@ async def update_domain(domain_id: int, req: DomainUpdateRequest, current_user: 
     await db.execute("""
         UPDATE domains 
         SET php_version = ?, package_id = ?, allow_ssh = ?, rate_limit = ?, status = ?,
-            cpu_pct = ?, mem_mb = ?, disk_mb = ?, io_weight = ?, pids_max = ?, max_databases = ?
+            cpu_pct = ?, mem_mb = ?, disk_mb = ?, io_weight = ?, pids_max = ?,
+            io_mbps = ?, iops_limit = ?, inode_limit = ?, max_databases = ?
         WHERE id = ?
-    """, (new_php, new_pkg_id, new_ssh, new_rate_limit, new_status, new_d_cpu, new_d_mem, new_d_disk, new_d_io, new_d_pids, new_d_max_db, domain_id))
+    """, (new_php, new_pkg_id, new_ssh, new_rate_limit, new_status, new_d_cpu, new_d_mem, new_d_disk, new_d_io, new_d_pids, new_d_io_mbps, new_d_iops, new_d_inode, new_d_max_db, domain_id))
     await db.commit()
 
     # Áp dụng giới hạn Cgroup v2 & Disk Quota xuống hệ điều hành nếu có thay đổi tài nguyên

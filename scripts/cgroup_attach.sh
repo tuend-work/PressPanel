@@ -45,7 +45,12 @@ try:
     disk_sel = "COALESCE(disk_quota_mb, 0)" if "disk_quota_mb" in u_cols else "0"
 
     # Lấy thông tin hosting users (role user, reseller, admin)
-    cur.execute(f"SELECT id, username, parent_id, cpu_pct, mem_mb, {io_sel}, {iops_sel}, {inode_sel}, {disk_sel} FROM users WHERE status != 'deleted'")
+    cur.execute(f"""
+        SELECT u.id, u.username, u.parent_id, u.cpu_pct, u.mem_mb,
+               {io_sel}, {iops_sel}, {inode_sel}, {disk_sel}
+        FROM users u
+        WHERE u.status != 'deleted'
+    """)
     users = {}
     for r in cur.fetchall():
         uid, uname, parent, cpu, mem = r[0], r[1], r[2] or 1, r[3] or 100, r[4] or 1024
@@ -67,10 +72,14 @@ try:
         }
 
     # Lấy tất cả các website thuộc user và hạn mức riêng của website (nếu có package_id con)
-    cur.execute("""
+    cur.execute("PRAGMA table_info(domains)")
+    d_cols = {row[1] for row in cur.fetchall()}
+    d_cpu_sel = "COALESCE(d.cpu_pct, p_dom.cpu_pct, 0)" if "cpu_pct" in d_cols else "COALESCE(p_dom.cpu_pct, 0)"
+    d_mem_sel = "COALESCE(d.mem_mb, p_dom.mem_mb, 0)" if "mem_mb" in d_cols else "COALESCE(p_dom.mem_mb, 0)"
+    cur.execute(f"""
         SELECT d.user_id, d.domain_name,
-               COALESCE(p_dom.cpu_pct, 0) as dom_cpu,
-               COALESCE(p_dom.mem_mb, 0) as dom_mem
+               {d_cpu_sel} as dom_cpu,
+               {d_mem_sel} as dom_mem
         FROM domains d
         LEFT JOIN packages p_dom ON d.package_id = p_dom.id
     """)
