@@ -748,6 +748,15 @@ function showToast(message, type = 'success') {
                                         <span v-if="wpInstances.length > 0" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-300 border border-slate-700/80 font-medium">{{ wpInstances.length }}</span>
                                     </button>
 
+                                    <!-- Website Plans (Hosting User) -->
+                                    <button v-if="isHostingUser" @click="currentTab = 'service_plans'; fetchServicePlans();" :class="navClass('service_plans')">
+                                        <div class="flex items-center space-x-3">
+                                            <i data-lucide="package" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
+                                            <span>Website Plans</span>
+                                        </div>
+                                        <span v-if="websitePlans.length > 0" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-300 border border-slate-700/80 font-medium">{{ websitePlans.length }}</span>
+                                    </button>
+
                                     <!-- File Manager -->
                                     <button @click="openFileManager()" :class="navClass('files')">
                                         <div class="flex items-center space-x-3">
@@ -1164,7 +1173,7 @@ function showToast(message, type = 'success') {
                     if (isWebUser.value && (chosen === 'dashboard' || chosen === 'service_plans' || chosen === 'plan_editor' || chosen === 'customers' || chosen === 'apps' || chosen === 'firewall' || chosen === 'tools_settings')) {
                         chosen = 'domains';
                     }
-                    if (currentUser.value?.role !== 'admin' && chosen === 'service_plans') {
+                    if (currentUser.value?.role !== 'admin' && !isHostingUser.value && chosen === 'service_plans') {
                         chosen = 'domains';
                     }
                     if (isHostingUser.value && ['mail'].includes(chosen)) {
@@ -9707,7 +9716,7 @@ if ($host ~* ^www\\.(.*)$) {
                 };
 
                 watch(currentTab, (newTab) => {
-                    if (newTab === 'service_plans' && currentUser.value?.role !== 'admin') {
+                    if (newTab === 'service_plans' && currentUser.value?.role !== 'admin' && !isHostingUser.value) {
                         currentTab.value = 'dashboard';
                         window.location.hash = 'dashboard';
                         return;
