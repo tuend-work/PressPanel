@@ -13,8 +13,9 @@
                                     :class="domainCategoryFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'">{{ domains.length }}</span>
                             </button>
 
-                            <button @click="domainCategoryFilter = 'all'"
-                                class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/70 transition whitespace-nowrap">
+                            <button @click="domainCategoryFilter = 'php'"
+                                :class="domainCategoryFilter === 'php' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/70'"
+                                class="px-3 py-1.5 rounded-lg transition whitespace-nowrap">
                                 PHP Project
                             </button>
 
