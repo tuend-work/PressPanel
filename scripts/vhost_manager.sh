@@ -120,11 +120,14 @@ setup_ols_vhost_php() {
     [ ! -f "$ols_tpl" ] && ols_tpl="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/templates/vhost_ols/extprocessor.tpl"
 
     echo "" >> "$vh_conf"
+    local cpu_cnt
+    cpu_cnt=$(nproc 2>/dev/null || echo 2)
+    [ -z "$cpu_cnt" ] || [ "$cpu_cnt" -lt 1 ] 2>/dev/null && cpu_cnt=2
     if [ -f "$ols_tpl" ]; then
-        local env_str="  env                     LSAPI_CHILDREN=10\n  env                     PHP_INI_SCAN_DIR=/etc/php/${php_ver}/fpm/users/${username}/conf.d"
+        local env_str="  env                     PHP_LSAPI_CHILDREN=${cpu_cnt}\n  env                     LSAPI_AVOID_FORK=0\n  env                     PHP_LSAPI_MAX_REQUESTS=200\n  env                     PHP_INI_SCAN_DIR=/etc/php/${php_ver}/fpm/users/${username}/conf.d"
         sed \
             -e "s|{{USERNAME}}|$username|g" \
-            -e "s|{{MAX_CONNS}}|10|g" \
+            -e "s|{{MAX_CONNS}}|${cpu_cnt}|g" \
             -e "s|{{ENV_BLOCK}}|$env_str|g" \
             -e "s|{{INIT_TIMEOUT}}|60|g" \
             -e "s|{{RETRY_TIMEOUT}}|0|g" \
@@ -139,12 +142,12 @@ setup_ols_vhost_php() {
             -e "s|{{EXT_USER}}|$username|g" \
             -e "s|{{EXT_GROUP}}|$username|g" \
             -e "s|{{UMASK_LINE}}||g" \
-            -e "s|{{MAX_IDLE_LINE}}||g" \
+            -e "s|{{MAX_IDLE_LINE}}|  maxIdleTime             60|g" \
             -e "s|{{PRIORITY}}|0|g" \
-            -e "s|{{MEM_SOFT_LIMIT}}|1024M|g" \
-            -e "s|{{MEM_HARD_LIMIT}}|2048M|g" \
-            -e "s|{{PROC_SOFT_LIMIT}}|200|g" \
-            -e "s|{{PROC_HARD_LIMIT}}|300|g" \
+            -e "s|{{MEM_SOFT_LIMIT}}|256M|g" \
+            -e "s|{{MEM_HARD_LIMIT}}|512M|g" \
+            -e "s|{{PROC_SOFT_LIMIT}}|50|g" \
+            -e "s|{{PROC_HARD_LIMIT}}|100|g" \
             -e "s|{{NOTES_LINE}}||g" \
             "$ols_tpl" >> "$vh_conf"
     else
@@ -152,8 +155,10 @@ setup_ols_vhost_php() {
 extprocessor lsphp_${username} {
   type                    lsapi
   address                 uds://tmp/lshttpd/lsphp_${username}.sock
-  maxConns                10
-  env                     LSAPI_CHILDREN=10
+  maxConns                ${cpu_cnt}
+  env                     PHP_LSAPI_CHILDREN=${cpu_cnt}
+  env                     LSAPI_AVOID_FORK=0
+  env                     PHP_LSAPI_MAX_REQUESTS=200
   env                     PHP_INI_SCAN_DIR=/etc/php/${php_ver}/fpm/users/${username}/conf.d
   initTimeout             60
   retryTimeout            0
@@ -166,11 +171,12 @@ extprocessor lsphp_${username} {
   runOn                   1
   extUser                 ${username}
   extGroup                ${username}
+  maxIdleTime             60
   priority                0
-  memSoftLimit            1024M
-  memHardLimit            2048M
-  procSoftLimit           200
-  procHardLimit           300
+  memSoftLimit            256M
+  memHardLimit            512M
+  procSoftLimit           50
+  procHardLimit           100
 }
 EOF_LSPHP
     fi
