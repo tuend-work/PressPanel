@@ -184,9 +184,6 @@
                                                     <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/60 text-blue-700 dark:text-blue-300 font-medium text-xs">
                                                         <i data-lucide="package" class="w-3.5 h-3.5 shrink-0"></i>
                                                         <span class="truncate max-w-[130px]">{{ c.package_name || 'Standard Plan' }}</span>
-                                                        <button @click="openChangePlanModal(c)" title="Đổi gói hosting" class="ml-0.5 text-blue-500 hover:text-blue-700 dark:hover:text-blue-200 transition">
-                                                            <i data-lucide="edit-3" class="w-3 h-3"></i>
-                                                        </button>
                                                     </div>
                                                 </td>
 
@@ -247,14 +244,6 @@
                                                             class="h-7 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs border border-slate-200 dark:border-slate-700 transition flex items-center gap-1 shadow-sm">
                                                             <i data-lucide="sliders-horizontal" class="w-3 h-3 text-emerald-500"></i>
                                                             <span>Modify</span>
-                                                        </button>
-
-                                                        <!-- Change Plan -->
-                                                        <button @click="openChangePlanModal(c)"
-                                                            title="Đổi gói Hosting Plan"
-                                                            class="h-7 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs border border-slate-200 dark:border-slate-700 transition flex items-center gap-1 shadow-sm">
-                                                            <i data-lucide="package" class="w-3 h-3 text-blue-500"></i>
-                                                            <span>Gói</span>
                                                         </button>
 
                                                         <!-- Impersonate Login -->

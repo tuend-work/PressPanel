@@ -48,8 +48,14 @@
                                 </div>
                                 <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
                                     <label class="font-semibold text-slate-200">Gói hiện tại</label>
-                                    <input type="text" :value="editingCustomer.package_name || 'Mặc định'" disabled
-                                        class="w-full max-w-sm px-3 py-1.5 rounded bg-slate-900/70 border border-slate-800 text-blue-300 cursor-not-allowed">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <input type="text" :value="editingCustomer.package_name || 'Mặc định'" disabled
+                                            class="w-full max-w-xs px-3 py-1.5 rounded bg-slate-900/70 border border-slate-800 text-blue-300 cursor-not-allowed">
+                                        <button type="button" @click="openChangePlanModal(editingCustomer)"
+                                            class="px-3 py-1.5 rounded bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 font-semibold transition">
+                                            📦 Đổi Gói...
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
                                     <label class="font-semibold text-slate-200">Họ và Tên</label>
