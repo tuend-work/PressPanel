@@ -77,7 +77,7 @@
                                     <label class="font-semibold text-slate-200">Monthly Bandwidth Limit (MB)</label>
                                     <div class="flex flex-wrap items-center gap-4">
                                         <label class="inline-flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="r_bw" :checked="activePlanForm.bandwidth_mb > 0" @change="if (!activePlanForm.bandwidth_mb) activePlanForm.bandwidth_mb = 102400" class="accent-blue-500">
+                                            <input type="radio" name="r_bw" :checked="activePlanForm.bandwidth_mb > 0" @change="(!activePlanForm.bandwidth_mb) && (activePlanForm.bandwidth_mb = 102400)" class="accent-blue-500">
                                             <input type="number" v-model.number="activePlanForm.bandwidth_mb" :disabled="!activePlanForm.bandwidth_mb" min="0"
                                                 class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
                                         </label>
@@ -173,7 +173,7 @@
                                     <label class="font-semibold text-slate-200">Network Rate Limit (Nginx)</label>
                                     <div class="flex flex-wrap items-center gap-4">
                                         <label class="inline-flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="r_rate" :checked="activePlanForm.rate_limit && activePlanForm.rate_limit !== '0'" @change="if (!activePlanForm.rate_limit || activePlanForm.rate_limit === '0') activePlanForm.rate_limit = '5m'" class="accent-blue-500">
+                                            <input type="radio" name="r_rate" :checked="activePlanForm.rate_limit && activePlanForm.rate_limit !== '0'" @change="(!activePlanForm.rate_limit || activePlanForm.rate_limit === '0') && (activePlanForm.rate_limit = '5m')" class="accent-blue-500">
                                             <input type="text" v-model="activePlanForm.rate_limit" :disabled="!activePlanForm.rate_limit || activePlanForm.rate_limit === '0'" placeholder="5m"
                                                 class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
                                         </label>
@@ -197,7 +197,7 @@
                                     <label class="font-semibold text-slate-200">Max FTP Accounts</label>
                                     <div class="flex flex-wrap items-center gap-4">
                                         <label class="inline-flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="r_ftp" :checked="activePlanForm.max_ftp_accounts > 0" @change="if (!activePlanForm.max_ftp_accounts) activePlanForm.max_ftp_accounts = 5" class="accent-blue-500">
+                                            <input type="radio" name="r_ftp" :checked="activePlanForm.max_ftp_accounts > 0" @change="(!activePlanForm.max_ftp_accounts) && (activePlanForm.max_ftp_accounts = 5)" class="accent-blue-500">
                                             <input type="number" v-model.number="activePlanForm.max_ftp_accounts" :disabled="!activePlanForm.max_ftp_accounts" min="0" max="1000"
                                                 class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
                                         </label>
@@ -213,7 +213,7 @@
                                     <label class="font-semibold text-slate-200">Max SQL Databases</label>
                                     <div class="flex flex-wrap items-center gap-4">
                                         <label class="inline-flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="r_sqldb" :checked="activePlanForm.max_databases > 0" @change="if (!activePlanForm.max_databases) activePlanForm.max_databases = 10" class="accent-blue-500">
+                                            <input type="radio" name="r_sqldb" :checked="activePlanForm.max_databases > 0" @change="(!activePlanForm.max_databases) && (activePlanForm.max_databases = 10)" class="accent-blue-500">
                                             <input type="number" v-model.number="activePlanForm.max_databases" :disabled="!activePlanForm.max_databases" min="0" max="1000"
                                                 class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
                                         </label>
@@ -229,7 +229,7 @@
                                     <label class="font-semibold text-slate-200">Max MongoDB Databases</label>
                                     <div class="flex flex-wrap items-center gap-4">
                                         <label class="inline-flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="r_mongo" :checked="activePlanForm.max_mongo_dbs > 0" @change="if (!activePlanForm.max_mongo_dbs) activePlanForm.max_mongo_dbs = 2" class="accent-blue-500">
+                                            <input type="radio" name="r_mongo" :checked="activePlanForm.max_mongo_dbs > 0" @change="(!activePlanForm.max_mongo_dbs) && (activePlanForm.max_mongo_dbs = 2)" class="accent-blue-500">
                                             <input type="number" v-model.number="activePlanForm.max_mongo_dbs" :disabled="!activePlanForm.max_mongo_dbs" min="0" max="1000"
                                                 class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
                                         </label>
@@ -262,7 +262,7 @@
                                         <label class="font-semibold text-slate-200">Max WordPress Sites</label>
                                         <div class="flex flex-wrap items-center gap-4">
                                             <label class="inline-flex items-center gap-2 cursor-pointer">
-                                                <input type="radio" name="r_wp" :checked="activePlanForm.max_wp_sites > 0" @change="if (!activePlanForm.max_wp_sites) activePlanForm.max_wp_sites = 5" class="accent-blue-500">
+                                                <input type="radio" name="r_wp" :checked="activePlanForm.max_wp_sites > 0" @change="(!activePlanForm.max_wp_sites) && (activePlanForm.max_wp_sites = 5)" class="accent-blue-500">
                                                 <input type="number" v-model.number="activePlanForm.max_wp_sites" :disabled="!activePlanForm.max_wp_sites" min="0" max="1000"
                                                     class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
                                             </label>
@@ -278,7 +278,7 @@
                                         <label class="font-semibold text-slate-200">Max PHP Sites</label>
                                         <div class="flex flex-wrap items-center gap-4">
                                             <label class="inline-flex items-center gap-2 cursor-pointer">
-                                                <input type="radio" name="r_php" :checked="activePlanForm.max_php_sites > 0" @change="if (!activePlanForm.max_php_sites) activePlanForm.max_php_sites = 10" class="accent-blue-500">
+                                                <input type="radio" name="r_php" :checked="activePlanForm.max_php_sites > 0" @change="(!activePlanForm.max_php_sites) && (activePlanForm.max_php_sites = 10)" class="accent-blue-500">
                                                 <input type="number" v-model.number="activePlanForm.max_php_sites" :disabled="!activePlanForm.max_php_sites" min="0" max="1000"
                                                     class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
                                             </label>
@@ -294,7 +294,7 @@
                                         <label class="font-semibold text-slate-200">Max Node.js Applications</label>
                                         <div class="flex flex-wrap items-center gap-4">
                                             <label class="inline-flex items-center gap-2 cursor-pointer">
-                                                <input type="radio" name="r_node" :checked="activePlanForm.max_nodejs_sites > 0" @change="if (!activePlanForm.max_nodejs_sites) activePlanForm.max_nodejs_sites = 2" class="accent-blue-500">
+                                                <input type="radio" name="r_node" :checked="activePlanForm.max_nodejs_sites > 0" @change="(!activePlanForm.max_nodejs_sites) && (activePlanForm.max_nodejs_sites = 2)" class="accent-blue-500">
                                                 <input type="number" v-model.number="activePlanForm.max_nodejs_sites" :disabled="!activePlanForm.max_nodejs_sites" min="0" max="1000"
                                                     class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
                                             </label>
@@ -310,7 +310,7 @@
                                         <label class="font-semibold text-slate-200">Max Python Applications</label>
                                         <div class="flex flex-wrap items-center gap-4">
                                             <label class="inline-flex items-center gap-2 cursor-pointer">
-                                                <input type="radio" name="r_py" :checked="activePlanForm.max_python_sites > 0" @change="if (!activePlanForm.max_python_sites) activePlanForm.max_python_sites = 2" class="accent-blue-500">
+                                                <input type="radio" name="r_py" :checked="activePlanForm.max_python_sites > 0" @change="(!activePlanForm.max_python_sites) && (activePlanForm.max_python_sites = 2)" class="accent-blue-500">
                                                 <input type="number" v-model.number="activePlanForm.max_python_sites" :disabled="!activePlanForm.max_python_sites" min="0" max="1000"
                                                     class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
                                             </label>
@@ -326,7 +326,7 @@
                                         <label class="font-semibold text-slate-200">Max Go Applications</label>
                                         <div class="flex flex-wrap items-center gap-4">
                                             <label class="inline-flex items-center gap-2 cursor-pointer">
-                                                <input type="radio" name="r_go" :checked="activePlanForm.max_go_sites > 0" @change="if (!activePlanForm.max_go_sites) activePlanForm.max_go_sites = 2" class="accent-blue-500">
+                                                <input type="radio" name="r_go" :checked="activePlanForm.max_go_sites > 0" @change="(!activePlanForm.max_go_sites) && (activePlanForm.max_go_sites = 2)" class="accent-blue-500">
                                                 <input type="number" v-model.number="activePlanForm.max_go_sites" :disabled="!activePlanForm.max_go_sites" min="0" max="1000"
                                                     class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
                                             </label>
@@ -398,7 +398,7 @@
                                     <label class="font-semibold text-slate-200">Max Queries / Hour</label>
                                     <div class="flex flex-wrap items-center gap-4">
                                         <label class="inline-flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="r_mqh" :checked="activePlanForm.mysql_max_queries_per_hour > 0" @change="if (!activePlanForm.mysql_max_queries_per_hour) activePlanForm.mysql_max_queries_per_hour = 50000" class="accent-blue-500">
+                                            <input type="radio" name="r_mqh" :checked="activePlanForm.mysql_max_queries_per_hour > 0" @change="(!activePlanForm.mysql_max_queries_per_hour) && (activePlanForm.mysql_max_queries_per_hour = 50000)" class="accent-blue-500">
                                             <input type="number" v-model.number="activePlanForm.mysql_max_queries_per_hour" :disabled="!activePlanForm.mysql_max_queries_per_hour" min="0" max="10000000"
                                                 class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
                                         </label>
@@ -414,7 +414,7 @@
                                     <label class="font-semibold text-slate-200">Max Updates / Hour</label>
                                     <div class="flex flex-wrap items-center gap-4">
                                         <label class="inline-flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="r_muh" :checked="activePlanForm.mysql_max_updates_per_hour > 0" @change="if (!activePlanForm.mysql_max_updates_per_hour) activePlanForm.mysql_max_updates_per_hour = 10000" class="accent-blue-500">
+                                            <input type="radio" name="r_muh" :checked="activePlanForm.mysql_max_updates_per_hour > 0" @change="(!activePlanForm.mysql_max_updates_per_hour) && (activePlanForm.mysql_max_updates_per_hour = 10000)" class="accent-blue-500">
                                             <input type="number" v-model.number="activePlanForm.mysql_max_updates_per_hour" :disabled="!activePlanForm.mysql_max_updates_per_hour" min="0" max="10000000"
                                                 class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
                                         </label>
@@ -430,7 +430,7 @@
                                     <label class="font-semibold text-slate-200">Max Connections / Hour</label>
                                     <div class="flex flex-wrap items-center gap-4">
                                         <label class="inline-flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="r_mch" :checked="activePlanForm.mysql_max_connections_per_hour > 0" @change="if (!activePlanForm.mysql_max_connections_per_hour) activePlanForm.mysql_max_connections_per_hour = 5000" class="accent-blue-500">
+                                            <input type="radio" name="r_mch" :checked="activePlanForm.mysql_max_connections_per_hour > 0" @change="(!activePlanForm.mysql_max_connections_per_hour) && (activePlanForm.mysql_max_connections_per_hour = 5000)" class="accent-blue-500">
                                             <input type="number" v-model.number="activePlanForm.mysql_max_connections_per_hour" :disabled="!activePlanForm.mysql_max_connections_per_hour" min="0" max="1000000"
                                                 class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
                                         </label>
