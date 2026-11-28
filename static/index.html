@@ -9510,6 +9510,89 @@ if ($host ~* ^www\\.(.*)$) {
                         xFrameOptions: vhost.xFrameOptions || 'SAMEORIGIN'
                     };
                     showWebsiteSecurityModal.value = true;
+                    refreshLucideIcons();
+                };
+
+                const saveWebsiteSecurity = async () => {
+                    if (!selectedSecurityDomain.value) return;
+                    savingWebsiteSecurity.value = true;
+                    try {
+                        const vhost = getDomainVhostSettings(selectedSecurityDomain.value.id);
+                        Object.assign(vhost, websiteSecuritySettings.value);
+                        await saveDomainVhostSettings(selectedSecurityDomain.value);
+                        Swal.fire({ icon: 'success', title: 'Thành công', text: 'Cập nhật thiết lập bảo mật website thành công!' });
+                        showWebsiteSecurityModal.value = false;
+                    } catch (e) {
+                        Swal.fire({ icon: 'error', title: 'Lỗi', text: e.message });
+                    } finally {
+                        savingWebsiteSecurity.value = false;
+                    }
+                };
+
+                watch(currentTab, (newTab) => {
+                    if (newTab === 'service_plans' && currentUser.value?.role !== 'admin') {
+                        currentTab.value = 'dashboard';
+                        window.location.hash = 'dashboard';
+                        return;
+                    }
+                    if (window.location.hash.replace('#', '') !== newTab) {
+                        window.location.hash = newTab;
+                    }
+                    if (newTab === 'files') {
+                        fetchFilesList(fileCurrentPath.value || '');
+                    }
+                    if (newTab === 'profile') {
+                        fetchUserProfile();
+                    }
+                    if (newTab === 'databases') {
+                        fetchDatabasesList();
+                    }
+                    if (newTab === 'wp') {
+                        fetchWpInstances();
+                    }
+                    if (newTab === 'crons') {
+                        fetchCrons();
+                    }
+                    if (newTab === 'monitoring') {
+                        fetchResourceMonitorData();
+                    }
+                    if (newTab === 'backups') {
+                        fetchBackups();
+                    }
+                    if (newTab === 'apps') {
+                        fetchAppsList();
+                    }
+                    if (newTab === 'customers') {
+                        fetchCustomers();
+                        fetchServicePlans();
+                    }
+                    setTimeout(refreshLucideIcons, 50);
+                    setTimeout(refreshLucideIcons, 250);
+                });
+
+                watch(domainCategoryFilter, () => {
+                    setTimeout(refreshLucideIcons, 50);
+                    setTimeout(refreshLucideIcons, 200);
+                });
+
+                watch(showCronModal, () => { refreshLucideIcons(); });
+                watch(showCronOutputModal, () => { refreshLucideIcons(); });
+                watch(showWebsiteRewriteModal, () => { refreshLucideIcons(); });
+                watch(showWebsiteLogsModal, () => { refreshLucideIcons(); });
+                watch(showWebsiteSecurityModal, () => { refreshLucideIcons(); });
+
+                watch(showMessagesBox, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showAddCustomerModal, () => {
+                    refreshLucideIcons();
+                });
+
+                watch(showEditCustomerModal, () => {
+                    refreshLucideIcons();
+                });
+
                 watch(showAddDomainModal, () => {
                     refreshLucideIcons();
                 });
