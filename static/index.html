@@ -9564,12 +9564,14 @@ if ($host ~* ^www\\.(.*)$) {
                 };
 
                 const applyRewritePreset = (preset) => {
+                    const cleanSub = (websiteRewriteFolder.value || '').replace(/^\/+|\/+$/g, '');
+                    const base = cleanSub ? `/${cleanSub}/` : '/';
                     if (preset === 'wordpress') {
-                        rewriteRulesContent.value = `# BEGIN WordPress\n<IfModule mod_rewrite.c>\nRewriteEngine On\nRewriteBase /\nRewriteRule ^index\\.php$ - [L]\nRewriteCond %{REQUEST_FILENAME} !-f\nRewriteCond %{REQUEST_FILENAME} !-d\nRewriteRule . /index.php [L]\n</IfModule>\n# END WordPress\n`;
+                        rewriteRulesContent.value = `# BEGIN WordPress\n<IfModule mod_rewrite.c>\nRewriteEngine On\nRewriteBase ${base}\nRewriteRule ^index\\.php$ - [L]\nRewriteCond %{REQUEST_FILENAME} !-f\nRewriteCond %{REQUEST_FILENAME} !-d\nRewriteRule . ${base}index.php [L]\n</IfModule>\n# END WordPress\n`;
                     } else if (preset === 'laravel') {
                         rewriteRulesContent.value = `<IfModule mod_rewrite.c>\n    <IfModule mod_negotiation.c>\n        Options -MultiViews -Indexes\n    </IfModule>\n    RewriteEngine On\n    RewriteCond %{HTTP:Authorization} .\n    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]\n    RewriteCond %{REQUEST_FILENAME} !-d\n    RewriteCond %{REQUEST_FILENAME} !-f\n    RewriteRule ^ index.php [L]\n</IfModule>\n`;
                     } else if (preset === 'spa') {
-                        rewriteRulesContent.value = `<IfModule mod_rewrite.c>\n  RewriteEngine On\n  RewriteBase /\n  RewriteRule ^index\\.html$ - [L]\n  RewriteCond %{REQUEST_FILENAME} !-f\n  RewriteCond %{REQUEST_FILENAME} !-d\n  RewriteRule . /index.html [L]\n</IfModule>\n`;
+                        rewriteRulesContent.value = `<IfModule mod_rewrite.c>\n  RewriteEngine On\n  RewriteBase ${base}\n  RewriteRule ^index\\.html$ - [L]\n  RewriteCond %{REQUEST_FILENAME} !-f\n  RewriteCond %{REQUEST_FILENAME} !-d\n  RewriteRule . ${base}index.html [L]\n</IfModule>\n`;
                     }
                 };
 
