@@ -3,35 +3,44 @@
                     <!-- PHẦN 1: GIAO DIỆN DÀNH CHO ADMIN VÀ HOSTING USER (DẠNG CLEAN TABLE LIST)  -->
                     <!-- ========================================================================= -->
                     <template v-if="!isWebUser">
-<!-- Top Navigation Tabs (Phong cách dự án 1Panel/aaPanel như ảnh tham chiếu) -->
-                        <div class="flex items-center space-x-6 border-b border-slate-800/80 px-1 text-xs font-semibold overflow-x-auto">
+<!-- Top Navigation Tabs (Modern Pill Bar) -->
+                        <div class="inline-flex flex-wrap items-center gap-1.5 p-1.5 rounded-xl bg-slate-900/70 border border-slate-800/80 text-xs font-semibold">
                             <button @click="domainCategoryFilter = 'all'"
-                                :class="domainCategoryFilter === 'all' ? 'text-emerald-500 border-b-2 border-blue-500 pb-2.5 font-bold' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
-                                class="transition whitespace-nowrap">
+                                :class="domainCategoryFilter === 'all' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/70'"
+                                class="px-3 py-1.5 rounded-lg transition whitespace-nowrap flex items-center gap-1.5">
+                                <span>Tất cả</span>
+                                <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono"
+                                    :class="domainCategoryFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'">{{ domains.length }}</span>
+                            </button>
+
+                            <button @click="domainCategoryFilter = 'all'"
+                                class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/70 transition whitespace-nowrap">
                                 PHP Project
                             </button>
 
                             <button @click="showComingSoonModal('Node.js Project')"
-                                class="text-slate-500 hover:text-slate-300 pb-2.5 transition whitespace-nowrap">
+                                class="px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition whitespace-nowrap">
                                 Node.js Project
                             </button>
                             <button @click="showComingSoonModal('Proxy Project')"
-                                class="text-slate-500 hover:text-slate-300 pb-2.5 transition whitespace-nowrap">
+                                class="px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition whitespace-nowrap">
                                 Proxy Project
                             </button>
                             <button @click="showComingSoonModal('Go Project')"
-                                class="text-slate-500 hover:text-slate-300 pb-2.5 transition whitespace-nowrap">
+                                class="px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition whitespace-nowrap">
                                 Go Project
                             </button>
                             <button @click="showComingSoonModal('Python Project')"
-                                class="text-slate-500 hover:text-slate-300 pb-2.5 transition whitespace-nowrap">
+                                class="px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition whitespace-nowrap">
                                 Python Project
                             </button>
                             <button @click="domainCategoryFilter = 'system'; fetchDomains();"
-                                :class="domainCategoryFilter === 'system' ? 'text-emerald-500 border-b-2 border-blue-500 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-300 pb-2.5'"
-                                class="transition whitespace-nowrap flex items-center gap-1.5">
-                                <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-400 mr-1"></i><span>App Hệ Thống</span>
-                                <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/10 text-emerald-400 font-bold font-mono">{{ domains.filter(d => d.is_system === 1 || d.is_system === true).length }}</span>
+                                :class="domainCategoryFilter === 'system' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/70'"
+                                class="px-3 py-1.5 rounded-lg transition whitespace-nowrap flex items-center gap-1.5">
+                                <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-400"></i>
+                                <span>App Hệ Thống</span>
+                                <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono"
+                                    :class="domainCategoryFilter === 'system' ? 'bg-white/20 text-white' : 'bg-emerald-500/10 text-emerald-400'">{{ domains.filter(d => d.is_system === 1 || d.is_system === true).length }}</span>
                             </button>
                         </div>
 
