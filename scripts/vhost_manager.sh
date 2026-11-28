@@ -1461,8 +1461,6 @@ EOF_NGX_SUSP
                     OP_ENABLE=$(grep -E "^opcache.enable" "$DOC_ROOT/.user.ini" 2>/dev/null | awk -F'=' '{print $2}' | tr -d ' ' || true)
                     if [ "$OP_ENABLE" = "0" ] || [ "$OP_ENABLE" = "Off" ] || [ "$OP_ENABLE" = "off" ] || [ "$OP_ENABLE" = "false" ]; then
                         EXT_BLOCK="${EXT_BLOCK}\nphp_admin_flag[opcache.enable] = off"
-                    else
-                        EXT_BLOCK="${EXT_BLOCK}\nphp_admin_flag[opcache.enable] = on"
                     fi
 
                     XD_MODE=$(grep -E "^xdebug.mode" "$DOC_ROOT/.user.ini" 2>/dev/null | awk -F'=' '{print $2}' | tr -d ' ' || true)
