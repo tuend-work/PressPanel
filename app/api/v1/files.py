@@ -1587,11 +1587,11 @@ async def extract_archive(
         try:
             os.makedirs(extract_dir, exist_ok=True)
             shutil.copytree(tmp_extract_dir, extract_dir, dirs_exist_ok=True)
-        except PermissionError:
+        except (PermissionError, shutil.Error, OSError):
             proc_mk = subprocess.run(["sudo", "mkdir", "-p", extract_dir], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if proc_mk.returncode != 0:
                 raise HTTPException(status_code=500, detail=f"Không thể tạo thư mục đích: {proc_mk.stderr}")
-            proc_cp = subprocess.run(["sudo", "cp", "-a", f"{tmp_extract_dir}/.", extract_dir], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            proc_cp = subprocess.run(["sudo", "cp", "-rf", f"{tmp_extract_dir}/.", extract_dir], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if proc_cp.returncode != 0:
                 raise HTTPException(status_code=500, detail=f"Không thể sao chép tệp giải nén vào thư mục đích: {proc_cp.stderr}")
 
