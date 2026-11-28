@@ -2986,6 +2986,8 @@ async def save_domain_fpm_service(
     current_user: dict = Depends(get_current_user)
 ):
     """Lưu cấu hình và tự động reload PHP-FPM Service của website"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Admin mới có quyền chỉnh sửa cấu hình PHP-FPM Pool")
     db = await get_db_connection()
     cursor = await db.execute("""
         SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, d.php_extensions, u.username as owner_username, u.parent_id
@@ -3194,6 +3196,8 @@ async def reset_domain_fpm_service(
     current_user: dict = Depends(get_current_user)
 ):
     """Khôi phục cấu hình PHP-FPM của website về mặc định của hệ thống"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Admin mới có quyền khôi phục cấu hình PHP-FPM Pool")
     db = await get_db_connection()
     cursor = await db.execute("""
         SELECT d.id, d.domain_name, d.webserver, d.php_version, d.user_id, u.username as owner_username, u.parent_id
