@@ -34,19 +34,11 @@
             <!-- Address Bar (Full Copyable Path /home/user/... + Clickable Segments, No Extra Slash) -->
             <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0b1120] border border-slate-700 flex-1 overflow-x-auto min-w-0 font-mono text-[11px] text-slate-200 custom-scrollbar select-text">
                 <span class="text-emerald-400 shrink-0 mr-1" :title="'Scope: ' + (fileTargetUser || currentUser.username)">🔒</span>
-                <div class="flex items-center flex-nowrap whitespace-nowrap select-text">
-                    <button type="button" @click="fetchFilesList('')"
-                        class="hover:text-blue-400 transition hover:underline select-text font-semibold text-emerald-300">
-                        {{ (currentUser.role === 'admin' && !fileTargetUser) ? '/' : ('/home/' + (fileTargetUser || currentUser.username)) }}
-                    </button>
-                    <template v-for="(part, idx) in pathParts" :key="idx">
-                        <span class="text-slate-500 select-text">/</span>
-                        <button type="button" @click="navigateBreadcrumb(idx)"
-                            class="hover:text-blue-400 transition hover:underline select-text">
-                            {{ part }}
-                        </button>
-                    </template>
-                </div>
+                <input type="text"
+                    :value="fileAbsolutePath || ((currentUser.role === 'admin' && !fileTargetUser) ? '/' : ('/home/' + (fileTargetUser || currentUser.username)))"
+                    @keyup.enter="fetchFilesList($event.target.value.trim().replace(new RegExp('^' + ((currentUser.role === 'admin' && !fileTargetUser) ? '/' : ('/home/' + (fileTargetUser || currentUser.username) + '/?'))), '').replace(/^\/+/, ''))"
+                    placeholder="/path/to/folder"
+                    class="w-full bg-transparent text-emerald-300 font-mono text-[11px] focus:outline-none focus:text-white" />
 
                 <div class="ml-auto flex items-center gap-1.5 pl-2 shrink-0">
                     <button v-if="fileAbsolutePath" type="button" @click="copyFileAbsPath"
