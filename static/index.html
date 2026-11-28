@@ -748,11 +748,11 @@ function showToast(message, type = 'success') {
                                         <span v-if="wpInstances.length > 0" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-300 border border-slate-700/80 font-medium">{{ wpInstances.length }}</span>
                                     </button>
 
-                                    <!-- Website Plans (Hosting User) -->
+                                    <!-- Packages (Hosting User) -->
                                     <button v-if="isHostingUser" @click="currentTab = 'service_plans'; fetchServicePlans();" :class="navClass('service_plans')">
                                         <div class="flex items-center space-x-3">
                                             <i data-lucide="package" class="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors"></i>
-                                            <span>Website Plans</span>
+                                            <span>Packages</span>
                                         </div>
                                         <span v-if="websitePlans.length > 0" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-300 border border-slate-700/80 font-medium">{{ websitePlans.length }}</span>
                                     </button>
@@ -9428,24 +9428,6 @@ if ($host ~* ^www\\.(.*)$) {
                         disk_mb: 1024,
                         ssl_enabled: 0,
                         status: "active",
-                        installed: true,
-                        category: "system",
-                        app_type: "system_app",
-                        remarks: "Website User 'pma' con của Admin, cách ly Vhost, Pool & Cgroups v2 Port 888"
-                    },
-                    {
-                        id: 9002,
-                        domain_name: "pgadmin.sys",
-                        app_id: "pgadmin",
-                        site_title: "pgAdmin 4 (PostgreSQL Web GUI)",
-                        icon: "🐘",
-                        url_port: 5050,
-                        doc_root: "/var/lib/pgadmin",
-                        owner_username: "pgadmin",
-                        owner_group: "pgadmin",
-                        webserver: "Gunicorn / Python",
-                        engine: "Python WSGI Sandbox",
-                        php_version: "Python 3.x",
                         cpu_usage_pct: 0,
                         cpu_pct: 50,
                         mem_usage_mb: 65,
