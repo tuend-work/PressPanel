@@ -84,9 +84,9 @@
                         <div class="flex items-center gap-2">
                             <h3 class="text-sm font-bold text-white truncate">{{ inst.site_title || inst.domain_name }}</h3>
                         </div>
-                        <a :href="'https://' + inst.domain_name" target="_blank" @click.stop
+                        <a :href="'https://' + inst.domain_name + (inst.document_root && inst.document_root.includes('/public_html/') ? '/' + inst.document_root.split('/public_html/')[1] : '')" target="_blank" @click.stop
                             class="text-xs text-blue-400 hover:text-blue-300 hover:underline font-mono truncate inline-flex items-center gap-1 mt-0.5">
-                            <span>https://{{ inst.domain_name }}</span>
+                            <span>https://{{ inst.domain_name }}{{ inst.document_root && inst.document_root.includes('/public_html/') ? '/' + inst.document_root.split('/public_html/')[1] : '' }}</span>
                             <i data-lucide="external-link" class="w-3 h-3"></i>
                         </a>
                         <div class="text-[11px] text-slate-400 font-mono truncate flex items-center gap-1.5 mt-0.5">

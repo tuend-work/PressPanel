@@ -1006,14 +1006,21 @@ async def get_magic_login_user_sso(instance_id: int, user_id: int, current_user:
         raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập website này")
 
     linux_user = extract_linux_user(row["document_root"] or row["domain_docroot"] or "", row["domain_name"], row["owner_username"])
+    wp_docroot = (row["document_root"] or "").rstrip("/")
+    dom_docroot = (row["domain_docroot"] or "").rstrip("/")
+    sub_path = ""
+    if wp_docroot and dom_docroot and wp_docroot.startswith(dom_docroot + "/"):
+        sub_path = wp_docroot[len(dom_docroot) + 1:].strip("/")
+
     token = secrets.token_hex(16)
-    # Gọi C gatekeeper: wp sso_create <linux_user> <domain> <target_user_id> <token> <admin_user>
-    res = await run_gatekeeper("wp", "sso_create", linux_user, row["domain_name"], str(user_id), token, row["admin_user"] or "admin")
+    # Gọi C gatekeeper: wp sso_create <linux_user> <domain> <target_user_id> <token> <admin_user> [subfolder]
+    res = await run_gatekeeper("wp", "sso_create", linux_user, row["domain_name"], str(user_id), token, row["admin_user"] or "admin", sub_path)
     if res.get("status") == "error":
         raise HTTPException(status_code=400, detail=res.get("message", "Tạo liên kết Magic Login thất bại"))
 
     scheme = "https" if row["ssl_enabled"] else "http"
-    sso_url = f"{scheme}://{row['domain_name']}/?wpc_sso_token={token}"
+    url_prefix = f"{scheme}://{row['domain_name']}/{sub_path}" if sub_path else f"{scheme}://{row['domain_name']}"
+    sso_url = f"{url_prefix}/?wpc_sso_token={token}"
     return {
         "status": "ok",
         "sso_url": sso_url,

@@ -577,6 +577,12 @@ EOF_SCHEMA
         TARGET_USER_ID="${4:-0}"
         TOKEN="${5:-}"
         ADMIN_USER="${6:-admin}"
+        SUBFOLDER="${7:-}"
+        SUBFOLDER="${SUBFOLDER#/}"
+        SUBFOLDER="${SUBFOLDER%/}"
+        if [ -n "$SUBFOLDER" ] && [ -d "$TARGET_DIR/$SUBFOLDER" ]; then
+            TARGET_DIR="$TARGET_DIR/$SUBFOLDER"
+        fi
         NOW_TS=$(date +%s)
 
         if [ -z "$TOKEN" ]; then
