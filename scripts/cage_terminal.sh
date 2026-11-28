@@ -71,8 +71,11 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
         # Ảo hóa /proc/cpuinfo: giữ đúng số core từ LXCFS nhưng ẩn model/vendor/flags của CPU vật lý
         MNT_TMP_SYS="/run/cage_sys_$$"
         mkdir -p "$MNT_TMP_SYS"
+        mount -t tmpfs -o mode=755,size=1M tmpfs "$MNT_TMP_SYS" 2>/dev/null || true
         if [ -e "/var/lib/lxcfs/proc/cpuinfo" ]; then
-            sed -E "s/^(model name[[:space:]]*:).*/\1 PressPanel Virtual vCPU/; s/^(vendor_id[[:space:]]*:).*/\1 PressPanel/; /^flags[[:space:]]*:/d; /^bugs[[:space:]]*:/d; /^microcode[[:space:]]*:/d" /var/lib/lxcfs/proc/cpuinfo > "$MNT_TMP_SYS/cpuinfo" 2>/dev/null || true
+            LXCFS_PROC_CNT=$(grep -c "^processor" /var/lib/lxcfs/proc/cpuinfo 2>/dev/null || echo "1")
+            [ "$LXCFS_PROC_CNT" -lt 1 ] && LXCFS_PROC_CNT=1
+            sed -E "s/^(model name[[:space:]]*:).*/\1 PressPanel Virtual vCPU/; s/^(vendor_id[[:space:]]*:).*/\1 PressPanel/; s/^(siblings[[:space:]]*:).*/\1 ${LXCFS_PROC_CNT}/; s/^(cpu cores[[:space:]]*:).*/\1 ${LXCFS_PROC_CNT}/; /^flags[[:space:]]*:/d; /^bugs[[:space:]]*:/d; /^microcode[[:space:]]*:/d" /var/lib/lxcfs/proc/cpuinfo > "$MNT_TMP_SYS/cpuinfo" 2>/dev/null || true
             [ -s "$MNT_TMP_SYS/cpuinfo" ] && mount --bind "$MNT_TMP_SYS/cpuinfo" /proc/cpuinfo 2>/dev/null || true
         fi
 
