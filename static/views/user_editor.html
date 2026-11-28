@@ -1,0 +1,325 @@
+                <!-- VIEW: TRANG CHỈNH SỬA HOSTING USER (MODIFY USER - WHM STYLE) -->
+                <div v-if="currentTab === 'user_editor'" class="space-y-5 max-w-4xl mx-auto pb-12">
+                    <!-- Header Bar -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 bg-[#151c2c] border border-slate-800 rounded-xl p-4 shadow-lg">
+                        <div class="flex items-center gap-3">
+                            <button type="button" @click="closeUserEditor"
+                                class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
+                                <span>←</span> Quay lại
+                            </button>
+                            <div>
+                                <h2 class="text-base sm:text-lg font-bold text-white">
+                                    Modify User: <span class="text-blue-400 font-mono">@{{ editingCustomer.username }}</span>
+                                </h2>
+                                <p class="text-[11px] text-slate-400">Chỉnh sửa thông tin tài khoản, giới hạn tài nguyên &amp; MySQL Resource Controller</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="closeUserEditor"
+                                class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">
+                                Hủy
+                            </button>
+                            <button type="button" @click="handleSaveCustomerEdit" :disabled="savingCustomerEdit"
+                                class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold shadow transition">
+                                {{ savingCustomerEdit ? 'Đang Lưu...' : 'Lưu Modify User' }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <form @submit.prevent="handleSaveCustomerEdit" class="space-y-6 text-xs">
+                        <!-- NHÓM 1: THÔNG TIN TÀI KHOẢN -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800">
+                                <h3 class="text-sm font-bold text-white">Thông tin tài khoản (Account Info)</h3>
+                            </div>
+                            <div class="px-5 divide-y divide-slate-800/70">
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Username (Cố định)</label>
+                                    <input type="text" :value="editingCustomer.username" disabled
+                                        class="w-full max-w-sm px-3 py-1.5 rounded bg-slate-900/70 border border-slate-800 text-slate-400 font-mono cursor-not-allowed">
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Trạng thái</label>
+                                    <select v-model="editingCustomer.status"
+                                        class="w-full max-w-sm px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white">
+                                        <option value="active">Hoạt động (Active)</option>
+                                        <option value="suspended">Tạm khóa (Suspended)</option>
+                                    </select>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Gói hiện tại</label>
+                                    <input type="text" :value="editingCustomer.package_name || 'Mặc định'" disabled
+                                        class="w-full max-w-sm px-3 py-1.5 rounded bg-slate-900/70 border border-slate-800 text-blue-300 cursor-not-allowed">
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Họ và Tên</label>
+                                    <input type="text" v-model="editingCustomer.full_name" placeholder="Ví dụ: Nguyễn Văn A"
+                                        class="w-full max-w-sm px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500">
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Email Khách Hàng</label>
+                                    <input type="email" v-model="editingCustomer.email" required placeholder="name@domain.com"
+                                        class="w-full max-w-sm px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500">
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Số Điện Thoại</label>
+                                    <input type="tel" v-model="editingCustomer.phone" placeholder="0912345678"
+                                        class="w-full max-w-sm px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NHÓM 2: RESOURCES -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                                <h3 class="text-sm font-bold text-white">Resources (CPU, RAM, Disk, I/O &amp; Inodes)</h3>
+                                <div class="flex items-center gap-1 text-[10px]">
+                                    <button type="button" @click="editingCustomer.cpu_pct=100; editingCustomer.mem_mb=1024; editingCustomer.disk_mb=5120" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">1C/1G/5G</button>
+                                    <button type="button" @click="editingCustomer.cpu_pct=200; editingCustomer.mem_mb=2048; editingCustomer.disk_mb=10240" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">2C/2G/10G</button>
+                                    <button type="button" @click="editingCustomer.cpu_pct=400; editingCustomer.mem_mb=4096; editingCustomer.disk_mb=20480" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">4C/4G/20G</button>
+                                </div>
+                            </div>
+                            <div class="px-5 divide-y divide-slate-800/70">
+                                <!-- CPU -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">CPU Limit (%)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_cpu" :checked="editingCustomer.cpu_pct < 1600" @change="editingCustomer.cpu_pct = 400" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.cpu_pct" :disabled="editingCustomer.cpu_pct >= 1600" min="10" max="1600" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="eu_cpu" :checked="editingCustomer.cpu_pct >= 1600" @change="editingCustomer.cpu_pct = 1600" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <!-- RAM -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">RAM Memory Limit (MB)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_mem" :checked="editingCustomer.mem_mb < 65536" @change="editingCustomer.mem_mb = 1024" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.mem_mb" :disabled="editingCustomer.mem_mb >= 65536" min="128" max="65536" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="eu_mem" :checked="editingCustomer.mem_mb >= 65536" @change="editingCustomer.mem_mb = 65536" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <!-- Disk -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Disk Space Quota (MB)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_disk" :checked="editingCustomer.disk_mb < 500000" @change="editingCustomer.disk_mb = 10240" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.disk_mb" :disabled="editingCustomer.disk_mb >= 500000" min="100" max="500000" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="eu_disk" :checked="editingCustomer.disk_mb >= 500000" @change="editingCustomer.disk_mb = 500000" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <!-- I/O Weight -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">I/O Weight (10–1000)</label>
+                                    <input type="number" v-model.number="editingCustomer.io_weight" min="10" max="1000" required
+                                        class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <!-- Max PIDs -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Processes (PIDs)</label>
+                                    <input type="number" v-model.number="editingCustomer.pids_max" min="20" max="50000" required
+                                        class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <!-- IO Speed -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">IO Read/Write Speed (MB/s)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_io" :checked="editingCustomer.io_mbps < 5000" @change="editingCustomer.io_mbps = 50" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.io_mbps" :disabled="editingCustomer.io_mbps >= 5000" min="1" max="5000" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="eu_io" :checked="editingCustomer.io_mbps >= 5000" @change="editingCustomer.io_mbps = 5000" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <!-- IOPS -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">IOPS Limit (Read/Write)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_iops" :checked="editingCustomer.iops_limit < 500000" @change="editingCustomer.iops_limit = 2000" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.iops_limit" :disabled="editingCustomer.iops_limit >= 500000" min="50" max="500000" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="eu_iops" :checked="editingCustomer.iops_limit >= 500000" @change="editingCustomer.iops_limit = 500000" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <!-- Inodes -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Inodes (Số File)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_inode" :checked="editingCustomer.inode_limit < 10000000" @change="editingCustomer.inode_limit = 250000" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.inode_limit" :disabled="editingCustomer.inode_limit >= 10000000" min="1000" max="10000000" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="eu_inode" :checked="editingCustomer.inode_limit >= 10000000" @change="editingCustomer.inode_limit = 10000000" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NHÓM 3: MYSQL RESOURCE CONTROLLER -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800">
+                                <h3 class="text-sm font-bold text-white">MySQL Resource Controller</h3>
+                            </div>
+                            <div class="px-5 divide-y divide-slate-800/70">
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Connections (đồng thời)</label>
+                                    <input type="number" v-model.number="editingCustomer.mysql_max_user_connections" min="2" max="500" required
+                                        class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Statement Time (giây)</label>
+                                    <input type="number" v-model.number="editingCustomer.mysql_max_statement_time" min="1" max="3600" required
+                                        class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Queries / giờ</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_mq" :checked="editingCustomer.mysql_max_queries_per_hour > 0" @change="(editingCustomer.mysql_max_queries_per_hour === 0) && (editingCustomer.mysql_max_queries_per_hour = 100000)" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.mysql_max_queries_per_hour" :disabled="editingCustomer.mysql_max_queries_per_hour === 0" min="1" max="10000000"
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="eu_mq" :checked="editingCustomer.mysql_max_queries_per_hour === 0" @change="editingCustomer.mysql_max_queries_per_hour = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Updates / giờ</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_mu" :checked="editingCustomer.mysql_max_updates_per_hour > 0" @change="(editingCustomer.mysql_max_updates_per_hour === 0) && (editingCustomer.mysql_max_updates_per_hour = 50000)" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.mysql_max_updates_per_hour" :disabled="editingCustomer.mysql_max_updates_per_hour === 0" min="1" max="10000000"
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="eu_mu" :checked="editingCustomer.mysql_max_updates_per_hour === 0" @change="editingCustomer.mysql_max_updates_per_hour = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Connections / giờ</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_mc" :checked="editingCustomer.mysql_max_connections_per_hour > 0" @change="(editingCustomer.mysql_max_connections_per_hour === 0) && (editingCustomer.mysql_max_connections_per_hour = 10000)" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.mysql_max_connections_per_hour" :disabled="editingCustomer.mysql_max_connections_per_hour === 0" min="1" max="1000000"
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="eu_mc" :checked="editingCustomer.mysql_max_connections_per_hour === 0" @change="editingCustomer.mysql_max_connections_per_hour = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NHÓM 4: DOMAINS, DATABASES & SSH -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800">
+                                <h3 class="text-sm font-bold text-white">Domains, Databases &amp; SSH</h3>
+                            </div>
+                            <div class="px-5 divide-y divide-slate-800/70">
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Domains <span class="font-normal text-slate-400">({{ editingCustomer.domain_count || 0 }} đang dùng)</span></label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_dom" :checked="editingCustomer.max_domains > 0" @change="(editingCustomer.max_domains === 0) && (editingCustomer.max_domains = 10)" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.max_domains" :disabled="editingCustomer.max_domains === 0" min="1" max="10000"
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="eu_dom" :checked="editingCustomer.max_domains === 0" @change="editingCustomer.max_domains = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Databases <span class="font-normal text-slate-400">({{ editingCustomer.db_count || 0 }} đang dùng)</span></label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="eu_db" :checked="editingCustomer.max_databases > 0" @change="(editingCustomer.max_databases === 0) && (editingCustomer.max_databases = 10)" class="accent-blue-500">
+                                            <input type="number" v-model.number="editingCustomer.max_databases" :disabled="editingCustomer.max_databases === 0" min="1" max="10000"
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="eu_db" :checked="editingCustomer.max_databases === 0" @change="editingCustomer.max_databases = 0" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Quyền SSH</label>
+                                    <div class="flex items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer text-slate-300">
+                                            <input type="radio" name="eu_ssh" :checked="editingCustomer.allow_ssh" @change="editingCustomer.allow_ssh = true" class="accent-blue-500">
+                                            <span>Cho phép SSH</span>
+                                        </label>
+                                        <label class="inline-flex items-center gap-2 cursor-pointer text-slate-300">
+                                            <input type="radio" name="eu_ssh" :checked="!editingCustomer.allow_ssh" @change="editingCustomer.allow_ssh = false" class="accent-blue-500">
+                                            <span>Tắt SSH</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NHÓM 5: ĐỔI MẬT KHẨU -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800">
+                                <h3 class="text-sm font-bold text-amber-300">Đặt Lại Mật Khẩu (Password)</h3>
+                            </div>
+                            <div class="px-5 py-3">
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3">
+                                    <label class="font-semibold text-slate-200">Mật khẩu mới (để trống nếu không đổi)</label>
+                                    <input type="password" v-model="editingCustomer.password" placeholder="Nhập mật khẩu mới nếu cần đổi..."
+                                        class="w-full max-w-sm px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Footer Save Bar -->
+                        <div class="flex justify-end gap-3 pt-2">
+                            <button type="button" @click="closeUserEditor"
+                                class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition">
+                                Hủy
+                            </button>
+                            <button type="submit" :disabled="savingCustomerEdit"
+                                class="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold shadow transition">
+                                {{ savingCustomerEdit ? 'Đang Lưu...' : 'Lưu Modify User' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>

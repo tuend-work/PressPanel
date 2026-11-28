@@ -1077,7 +1077,7 @@ function showToast(message, type = 'success') {
             // Tải động các modules HTML riêng biệt trước khi Vue mount để tối ưu tốc độ
             const viewFiles = [
                 'dashboard.html', 'domains.html', 'wp.html', 'apps.html',
-                'customers.html', 'service_plans.html', 'plan_editor.html', 'databases.html',
+                'customers.html', 'user_editor.html', 'domain_editor.html', 'service_plans.html', 'plan_editor.html', 'databases.html',
                 'files.html', 'others.html', 'profile.html', 'crons.html', 'monitoring.html',
                 'firewall.html', 'backups.html', 'cloudflare.html'
             ];
@@ -1157,7 +1157,7 @@ function showToast(message, type = 'success') {
                     const hash = window.location.hash.replace('#', '').trim();
                     const validTabs = [
                         'dashboard', 'domains', 'mail', 'files', 'databases',
-                        'monitoring', 'wp', 'service_plans', 'plan_editor', 'customers',
+                        'monitoring', 'wp', 'service_plans', 'plan_editor', 'customers', 'user_editor', 'domain_editor',
                         'apps', 'firewall', 'backups', 'tools_settings', 'profile', 'crons', 'cloudflare'
                     ];
                     let chosen = validTabs.includes(hash) ? hash : (isWebUser.value ? 'domains' : 'dashboard');
@@ -3413,6 +3413,12 @@ geo $limit_rate {
                 });
                 const savingDomainEdit = ref(false);
 
+                const domainEditorReturnTab = ref('domains');
+                const closeDomainEditor = () => {
+                    showEditDomainModal.value = false;
+                    currentTab.value = domainEditorReturnTab.value || 'domains';
+                };
+
                 const openEditDomainModal = (domain) => {
                     if (!domain || !domain.id) return;
                     selectedEditDomain.value = domain;
@@ -3440,7 +3446,11 @@ geo $limit_rate {
                         inode_limit: domain.inode_limit ?? 250000,
                         max_databases: domain.max_databases ?? 10
                     };
-                    showEditDomainModal.value = true;
+                    showEditDomainModal.value = false;
+                    if (currentTab.value !== 'domain_editor') {
+                        domainEditorReturnTab.value = currentTab.value || 'domains';
+                    }
+                    currentTab.value = 'domain_editor';
                     if (servicePlans.value.length === 0) {
                         fetchServicePlans();
                     }
@@ -3498,7 +3508,7 @@ geo $limit_rate {
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            showEditDomainModal.value = false;
+                            closeDomainEditor();
                             showAlert(data.message || 'Đã cập nhật website thành công!');
                             fetchDomains();
                         } else {
@@ -3551,7 +3561,7 @@ geo $limit_rate {
                         const data = await res.json();
                         if (res.ok) {
                             showRenameDomainModal.value = false;
-                            if (showEditDomainModal.value) showEditDomainModal.value = false;
+                            if (currentTab.value === 'domain_editor') closeDomainEditor();
                             showAlert(data.message || `Đã đổi tên miền sang ${cleanName} thành công!`);
                             await fetchDomains();
                             refreshLucideIcons();
@@ -3686,6 +3696,8 @@ geo $limit_rate {
                 };
 
                 const filteredServicePlans = computed(() => {
+                    if (currentUser.value?.role === 'admin') return userPlans.value;
+                    if (isHostingUser.value) return websitePlans.value;
                     if (selectedPlanTab.value === 'all') return servicePlans.value;
                     return servicePlans.value.filter(p => (p.plan_type || 'user') === selectedPlanTab.value);
                 });
@@ -4088,6 +4100,12 @@ geo $limit_rate {
                     allow_ssh: true
                 });
 
+                const userEditorReturnTab = ref('customers');
+                const closeUserEditor = () => {
+                    showEditCustomerModal.value = false;
+                    currentTab.value = userEditorReturnTab.value || 'customers';
+                };
+
                 const openEditCustomerModal = (customer) => {
                     editingCustomer.value = {
                         id: customer.id,
@@ -4117,7 +4135,11 @@ geo $limit_rate {
                         max_databases: customer.max_databases ?? 10,
                         allow_ssh: customer.allow_ssh !== undefined ? !!customer.allow_ssh : true
                     };
-                    showEditCustomerModal.value = true;
+                    showEditCustomerModal.value = false;
+                    if (currentTab.value !== 'user_editor') {
+                        userEditorReturnTab.value = currentTab.value || 'customers';
+                    }
+                    currentTab.value = 'user_editor';
                 };
 
                 const handleSaveCustomerEdit = async () => {
@@ -4160,7 +4182,7 @@ geo $limit_rate {
                         const data = await res.json();
                         if (res.ok) {
                             showAlert(data.message || 'Cập nhật thông tin user thành công!');
-                            showEditCustomerModal.value = false;
+                            closeUserEditor();
                             fetchCustomers();
                         } else {
                             showAlert('Lỗi: ' + (data.detail || 'Không thể cập nhật thông tin user'));
@@ -10591,7 +10613,7 @@ if ($host ~* ^www\\.(.*)$) {
                     domainFpmData, loadingDomainFpm, savingDomainFpm, resettingDomainFpm, controllingFpm, fpmConfigMode, applyFpmPreset, loadDomainFpmSettings, saveDomainFpmSettings, resetDomainFpmSettings, controlDomainFpm,
                     domainLsapiData, loadingDomainLsapi, savingDomainLsapi, resettingDomainLsapi, controllingLsapi, lsapiConfigMode, applyLsapiPreset, loadDomainLsapiSettings, saveDomainLsapiSettings, resetDomainLsapiSettings, controlDomainLsapi,
                     navClass, handleLogin, handleLogout, fetchDomains, handleAddDomain, handleDeleteDomain, handleToggleDomainStatus,
-                    showEditDomainModal, selectedEditDomain, editDomainForm, savingDomainEdit, openEditDomainModal, onEditDomainPlanChange, handleSaveDomainEdit,
+                    showEditDomainModal, selectedEditDomain, editDomainForm, savingDomainEdit, openEditDomainModal, closeDomainEditor, onEditDomainPlanChange, handleSaveDomainEdit,
                     showRenameDomainModal, selectedRenameDomain, newDomainNameInput, renamingDomain, openRenameDomainModal, handleRenameDomain,
                     showDomainChangePlanModal, selectedDomainForPlan, targetDomainPlanId, changingDomainPlan, selectedDomainPlanPreview, openChangeDomainPlanModal, confirmChangeDomainPlan,
                     domainSearchQuery, domainCategoryFilter, filteredDomains,
@@ -10625,7 +10647,7 @@ if ($host ~* ^www\\.(.*)$) {
                     showTerminalModal, terminalConnected, terminalTargetUser, terminalHost,
                     terminalContainerRef, openWebTerminal, closeTerminal, reconnectTerminal,
                     handleTogglePlanSsh, handleToggleDomainSsh,
-                    showEditCustomerModal, savingCustomerEdit, editingCustomer, openEditCustomerModal, handleSaveCustomerEdit,
+                    showEditCustomerModal, savingCustomerEdit, editingCustomer, openEditCustomerModal, closeUserEditor, handleSaveCustomerEdit,
                     profileData, profileForm, passwordForm, showCurPass, showNewPass,
                     loadingProfile, savingProfile, savingPassword, profileSuccessMsg, profileErrorMsg,
                     passwordSuccessMsg, passwordErrorMsg, diskPercent, fetchUserProfile, handleUpdateProfile, handleChangePassword,

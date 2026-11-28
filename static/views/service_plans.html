@@ -9,35 +9,13 @@
                                     <span v-else>Quản Lý Website Plans</span>
                                 </h2>
                                 <p class="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                    <span v-if="currentUser.role === 'admin'">Quản lý User Packages (cấp cho Hosting Users) và Website Plans (cấp riêng cho từng Website con).</span>
+                                    <span v-if="currentUser.role === 'admin'">Quản lý User Packages (cấp cho Hosting Users).</span>
                                     <span v-else>Tạo và quản lý các gói tài nguyên Website Plan để phân bổ cho từng website của bạn (mỗi gói áp dụng 1 website).</span>
                                 </p>
                             </div>
                             <button @click="showAddPlanModal = true" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-medium text-xs text-white shadow-sm transition flex items-center space-x-1.5">
-                                <span v-if="currentUser.role === 'admin'">➕ Thêm Gói Dịch Vụ Mới</span>
+                                <span v-if="currentUser.role === 'admin'">➕ Thêm User Package Mới</span>
                                 <span v-else>➕ Tạo Website Plan Mới</span>
-                            </button>
-                        </div>
-
-                        <!-- Sub-Tabs cho Admin: Tất cả vs User Packages vs Website Plans -->
-                        <div v-if="currentUser.role === 'admin'" class="flex items-center space-x-2 border-b border-slate-800 pb-3">
-                            <button @click="selectedPlanTab = 'all'"
-                                :class="selectedPlanTab === 'all' ? 'bg-blue-600 text-white font-bold shadow' : 'bg-slate-800/80 text-slate-400 hover:text-white'"
-                                class="px-3 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
-                                <span>Tất Cả</span>
-                                <span class="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{{ servicePlans.length }}</span>
-                            </button>
-                            <button @click="selectedPlanTab = 'user'"
-                                :class="selectedPlanTab === 'user' ? 'bg-blue-600 text-white font-bold shadow' : 'bg-slate-800/80 text-slate-400 hover:text-white'"
-                                class="px-3 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
-                                <span>📦 Gói Hosting User</span>
-                                <span class="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{{ userPlans.length }}</span>
-                            </button>
-                            <button @click="selectedPlanTab = 'website'"
-                                :class="selectedPlanTab === 'website' ? 'bg-blue-600 text-white font-bold shadow' : 'bg-slate-800/80 text-slate-400 hover:text-white'"
-                                class="px-3 py-1.5 rounded-xl text-xs transition flex items-center space-x-1.5">
-                                <span>🌐 Gói Website</span>
-                                <span class="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{{ websitePlans.length }}</span>
                             </button>
                         </div>
 

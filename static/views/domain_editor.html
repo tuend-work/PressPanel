@@ -1,0 +1,282 @@
+                <!-- VIEW: TRANG CHỈNH SỬA WEB APPLICATION (MODIFY WEB APP - WHM STYLE) -->
+                <div v-if="currentTab === 'domain_editor'" class="space-y-5 max-w-4xl mx-auto pb-12">
+                    <!-- Header Bar -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 bg-[#151c2c] border border-slate-800 rounded-xl p-4 shadow-lg">
+                        <div class="flex items-center gap-3">
+                            <button type="button" @click="closeDomainEditor"
+                                class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
+                                <span>←</span> Quay lại
+                            </button>
+                            <div>
+                                <h2 class="text-base sm:text-lg font-bold text-white">
+                                    Modify Web Application: <span class="text-blue-400 font-mono">{{ selectedEditDomain?.domain_name }}</span>
+                                </h2>
+                                <p class="text-[11px] text-slate-400">Chỉnh sửa PHP, Website Plan, giới hạn tài nguyên riêng &amp; quyền SSH</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="closeDomainEditor"
+                                class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">
+                                Hủy
+                            </button>
+                            <button type="button" @click="handleSaveDomainEdit" :disabled="savingDomainEdit"
+                                class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold shadow transition">
+                                {{ savingDomainEdit ? 'Đang Lưu...' : 'Lưu Modify Web App' }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <form @submit.prevent="handleSaveDomainEdit" class="space-y-6 text-xs">
+                        <!-- NHÓM 1: THÔNG TIN WEB APPLICATION -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800 flex items-center justify-between">
+                                <h3 class="text-sm font-bold text-white">Thông tin Web Application (General)</h3>
+                                <button type="button" @click="openRenameDomainModal(selectedEditDomain)"
+                                    class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-[11px] transition">
+                                    🔄 Đổi Domain...
+                                </button>
+                            </div>
+                            <div class="px-5 divide-y divide-slate-800/70">
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Linux User</label>
+                                    <span class="font-mono text-slate-300">{{ selectedEditDomain?.owner_username }}</span>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Webserver / Plan hiện tại</label>
+                                    <span class="text-slate-300 uppercase">{{ selectedEditDomain?.webserver || 'ols' }} • <span class="normal-case text-blue-400">{{ selectedEditDomain?.plan_name }}</span></span>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Document Root</label>
+                                    <span class="font-mono text-slate-400 break-all">{{ selectedEditDomain?.document_root }}</span>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Trạng thái</label>
+                                    <select v-if="currentUser.role === 'admin' || currentUser.role === 'reseller'" v-model="editDomainForm.status"
+                                        class="w-full max-w-sm px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white">
+                                        <option value="active">Hoạt động (Active)</option>
+                                        <option value="suspended">Tạm khóa (Suspended)</option>
+                                    </select>
+                                    <span v-else :class="selectedEditDomain?.status === 'suspended' ? 'text-rose-400' : 'text-emerald-400'" class="font-semibold">
+                                        ● {{ selectedEditDomain?.status === 'suspended' ? 'Suspended' : 'Active' }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NHÓM 2: CẤU HÌNH PHP, BĂNG THÔNG & GÓI DỊCH VỤ -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800">
+                                <h3 class="text-sm font-bold text-white">Cấu hình PHP, Băng thông &amp; Website Plan</h3>
+                            </div>
+                            <div class="px-5 divide-y divide-slate-800/70">
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Phiên bản PHP</label>
+                                    <select v-model="editDomainForm.php_version" required
+                                        class="w-full max-w-sm px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white">
+                                        <option v-for="ver in ['7.4', '8.0', '8.1', '8.2', '8.3', '8.4', '8.5']" :key="'php_opt_' + ver" :value="ver">
+                                            PHP {{ ver }} {{ ver === '8.2' ? '(Mặc định)' : '' }}
+                                        </option>
+                                    </select>
+                                </div>
+                                <div v-if="currentUser.role === 'admin' || currentUser.role === 'reseller'" class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Băng thông Rate Limit (Nginx)</label>
+                                    <select v-model="editDomainForm.rate_limit"
+                                        class="w-full max-w-sm px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white">
+                                        <option value="0">Không giới hạn (Unlimited)</option>
+                                        <option value="512k">512 KB/s</option>
+                                        <option value="1m">1 MB/s</option>
+                                        <option value="2m">2 MB/s</option>
+                                        <option value="5m">5 MB/s</option>
+                                        <option value="10m">10 MB/s</option>
+                                    </select>
+                                </div>
+                                <div v-if="currentUser.role === 'admin' || currentUser.role === 'reseller'" class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Gói Dịch Vụ (Website Plan)</label>
+                                    <select v-model="editDomainForm.package_id" @change="onEditDomainPlanChange"
+                                        class="w-full max-w-sm px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white">
+                                        <option :value="null">-- Kế thừa gói mặc định của User --</option>
+                                        <option v-for="plan in websitePlans" :key="'edit_plan_' + plan.id" :value="plan.id">
+                                            {{ plan.name }} ({{ plan.cpu_pct }}% CPU, {{ plan.mem_mb }}M RAM, {{ (plan.disk_mb / 1024).toFixed(1) }}G Disk)
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NHÓM 3: RESOURCES -->
+                        <div v-if="currentUser.role === 'admin' || currentUser.role === 'reseller'" class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-sm font-bold text-white">Resources (CPU, RAM, Disk, I/O &amp; Inodes)</h3>
+                                    <span v-if="editDomainForm.use_custom_limits" class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px]">Tùy chỉnh riêng</span>
+                                    <span v-else class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px]">Theo Plan/User</span>
+                                </div>
+                                <div class="flex items-center gap-1 text-[10px]">
+                                    <button type="button" @click="editDomainForm.use_custom_limits=true; editDomainForm.cpu_pct=100; editDomainForm.mem_mb=1024; editDomainForm.disk_mb=5120" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">1C/1G</button>
+                                    <button type="button" @click="editDomainForm.use_custom_limits=true; editDomainForm.cpu_pct=200; editDomainForm.mem_mb=2048; editDomainForm.disk_mb=10240" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">2C/2G</button>
+                                    <button type="button" @click="editDomainForm.use_custom_limits=true; editDomainForm.cpu_pct=400; editDomainForm.mem_mb=4096; editDomainForm.disk_mb=20480" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">4C/4G</button>
+                                </div>
+                            </div>
+                            <div class="px-5 divide-y divide-slate-800/70">
+                                <!-- CPU -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">CPU Limit (%)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="ed_cpu" :checked="editDomainForm.cpu_pct < 1600" @change="editDomainForm.cpu_pct = 400; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                            <input type="number" v-model.number="editDomainForm.cpu_pct" :disabled="editDomainForm.cpu_pct >= 1600" @input="editDomainForm.use_custom_limits = true" min="10" max="1600" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="ed_cpu" :checked="editDomainForm.cpu_pct >= 1600" @change="editDomainForm.cpu_pct = 1600; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <!-- RAM -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">RAM Memory Limit (MB)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="ed_mem" :checked="editDomainForm.mem_mb < 65536" @change="editDomainForm.mem_mb = 1024; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                            <input type="number" v-model.number="editDomainForm.mem_mb" :disabled="editDomainForm.mem_mb >= 65536" @input="editDomainForm.use_custom_limits = true" min="128" max="65536" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="ed_mem" :checked="editDomainForm.mem_mb >= 65536" @change="editDomainForm.mem_mb = 65536; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <!-- Disk -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Disk Space Quota (MB)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="ed_disk" :checked="editDomainForm.disk_mb < 500000" @change="editDomainForm.disk_mb = 10240; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                            <input type="number" v-model.number="editDomainForm.disk_mb" :disabled="editDomainForm.disk_mb >= 500000" @input="editDomainForm.use_custom_limits = true" min="100" max="500000" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="ed_disk" :checked="editDomainForm.disk_mb >= 500000" @change="editDomainForm.disk_mb = 500000; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <!-- I/O Weight -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">I/O Weight (10–1000)</label>
+                                    <input type="number" v-model.number="editDomainForm.io_weight" @input="editDomainForm.use_custom_limits = true" min="10" max="1000" required
+                                        class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <!-- PIDs -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Processes (PIDs)</label>
+                                    <input type="number" v-model.number="editDomainForm.pids_max" @input="editDomainForm.use_custom_limits = true" min="20" max="50000" required
+                                        class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono">
+                                </div>
+                                <!-- IO Speed -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">IO Read/Write Speed (MB/s)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="ed_io" :checked="editDomainForm.io_mbps < 5000" @change="editDomainForm.io_mbps = 50; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                            <input type="number" v-model.number="editDomainForm.io_mbps" :disabled="editDomainForm.io_mbps >= 5000" @input="editDomainForm.use_custom_limits = true" min="1" max="5000" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="ed_io" :checked="editDomainForm.io_mbps >= 5000" @change="editDomainForm.io_mbps = 5000; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <!-- IOPS -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">IOPS Limit (Read/Write)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="ed_iops" :checked="editDomainForm.iops_limit < 500000" @change="editDomainForm.iops_limit = 2000; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                            <input type="number" v-model.number="editDomainForm.iops_limit" :disabled="editDomainForm.iops_limit >= 500000" @input="editDomainForm.use_custom_limits = true" min="50" max="500000" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="ed_iops" :checked="editDomainForm.iops_limit >= 500000" @change="editDomainForm.iops_limit = 500000; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <!-- Inodes -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Inodes (Số File)</label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="ed_inode" :checked="editDomainForm.inode_limit < 10000000" @change="editDomainForm.inode_limit = 250000; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                            <input type="number" v-model.number="editDomainForm.inode_limit" :disabled="editDomainForm.inode_limit >= 10000000" @input="editDomainForm.use_custom_limits = true" min="1000" max="10000000" required
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="ed_inode" :checked="editDomainForm.inode_limit >= 10000000" @change="editDomainForm.inode_limit = 10000000; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <!-- Max Databases -->
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3 py-3">
+                                    <label class="font-semibold text-slate-200">Max Databases <span class="font-normal text-slate-400">({{ selectedEditDomain?.db_count || 0 }} đang dùng)</span></label>
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="ed_db" :checked="editDomainForm.max_databases > 0" @change="(editDomainForm.max_databases === 0) && (editDomainForm.max_databases = 5); editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                            <input type="number" v-model.number="editDomainForm.max_databases" :disabled="editDomainForm.max_databases === 0" @input="editDomainForm.use_custom_limits = true" min="1" max="10000"
+                                                class="w-44 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white font-mono disabled:opacity-45">
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                            <input type="radio" name="ed_db" :checked="editDomainForm.max_databases === 0" @change="editDomainForm.max_databases = 0; editDomainForm.use_custom_limits = true" class="accent-blue-500">
+                                            <span>Unlimited</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <!-- Checkbox lưu tùy chỉnh riêng -->
+                                <div class="py-3">
+                                    <label class="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer select-none">
+                                        <input type="checkbox" v-model="editDomainForm.use_custom_limits" class="w-3.5 h-3.5 accent-blue-500">
+                                        <span>Lưu cấu hình giới hạn riêng cho Web App này (bỏ tick để quay về mặc định theo Website Plan / Hosting User)</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NHÓM 4: QUYỀN SSH -->
+                        <div class="bg-[#151c2c] border border-slate-800 rounded-xl overflow-hidden">
+                            <div class="px-5 py-3 bg-slate-900/70 border-b border-slate-800">
+                                <h3 class="text-sm font-bold text-white">Quyền SSH (Shell Access)</h3>
+                            </div>
+                            <div class="px-5 py-3">
+                                <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] items-center gap-3">
+                                    <label class="font-semibold text-slate-200">Cho phép đăng nhập SSH</label>
+                                    <div class="flex items-center gap-4">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer text-slate-300">
+                                            <input type="radio" name="ed_ssh" :checked="editDomainForm.allow_ssh" @change="editDomainForm.allow_ssh = true" class="accent-blue-500">
+                                            <span>Cho phép SSH</span>
+                                        </label>
+                                        <label class="inline-flex items-center gap-2 cursor-pointer text-slate-300">
+                                            <input type="radio" name="ed_ssh" :checked="!editDomainForm.allow_ssh" @change="editDomainForm.allow_ssh = false" class="accent-blue-500">
+                                            <span>Tắt SSH</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Footer Save Bar -->
+                        <div class="flex justify-end gap-3 pt-2">
+                            <button type="button" @click="closeDomainEditor"
+                                class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition">
+                                Hủy
+                            </button>
+                            <button type="submit" :disabled="savingDomainEdit"
+                                class="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold shadow transition">
+                                {{ savingDomainEdit ? 'Đang Lưu...' : 'Lưu Modify Web App' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
