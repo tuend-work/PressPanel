@@ -61,7 +61,7 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
             echo $$ > "$USER_CG_DIR/cgroup.procs" 2>/dev/null || true
         fi
         if [ -d "/var/lib/lxcfs/proc" ]; then
-            for lf in meminfo cpuinfo stat uptime loadavg diskstats swaps; do
+            for lf in meminfo cpuinfo stat uptime loadavg diskstats swaps slabinfo; do
                 if [ -e "/var/lib/lxcfs/proc/$lf" ] && [ -e "/proc/$lf" ]; then
                     mount --bind "/var/lib/lxcfs/proc/$lf" "/proc/$lf" 2>/dev/null || true
                 fi
@@ -74,6 +74,14 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
                 fi
             done
         fi
+
+        # 2.6 Ẩn toàn bộ thông số phần cứng vật lý / ảo hóa / kernel của máy chủ chính
+        for sdir in /sys/firmware /sys/class/dmi /sys/devices/virtual/dmi /sys/hypervisor /sys/block /boot; do
+            [ -d "$sdir" ] && mount -t tmpfs -o mode=555,size=1M tmpfs "$sdir" 2>/dev/null || true
+        done
+        for pfile in /proc/interrupts /proc/iomem /proc/ioports /proc/modules /proc/cmdline /proc/version /proc/vmstat /proc/zoneinfo /proc/buddyinfo /proc/pagetypeinfo; do
+            [ -e "$pfile" ] && mount --bind /dev/null "$pfile" 2>/dev/null || true
+        done
 
         # 3. Cách ly /home: Ảo hóa tmpfs sạch, chỉ hiển thị đúng thư mục của user này
         MNT_TMP_HOME="/run/cage_home_$$"

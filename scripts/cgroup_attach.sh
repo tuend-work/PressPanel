@@ -87,11 +87,45 @@ EOF
 # Đảm bảo cấu trúc Cgroup gốc
 init_cgroup_root() {
     mkdir -p /sys/fs/cgroup/presspanel /sys/fs/cgroup/wpc 2>/dev/null || true
-    for c in cpu memory io pids; do
+    for c in cpuset cpu memory io pids; do
         echo "+$c" > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true
         echo "+$c" > /sys/fs/cgroup/presspanel/cgroup.subtree_control 2>/dev/null || true
         echo "+$c" > /sys/fs/cgroup/wpc/cgroup.subtree_control 2>/dev/null || true
     done
+}
+
+# Tính danh sách CPU core được cấp theo % CPU (vd: 100% trên máy 2 core -> 1 core cố định)
+calc_cpuset_cpus() {
+    local pct="${1:-100}"
+    local seed="${2:-default}"
+    local total_cpus
+    total_cpus=$(nproc --all 2>/dev/null || echo 1)
+    [ "$total_cpus" -lt 1 ] && total_cpus=1
+    local need=$(( (pct + 99) / 100 ))
+    [ "$need" -lt 1 ] && need=1
+    if [ "$need" -ge "$total_cpus" ]; then
+        if [ "$total_cpus" -eq 1 ]; then
+            echo "0"
+        else
+            echo "0-$((total_cpus - 1))"
+        fi
+        return
+    fi
+    local hash_num
+    hash_num=$(printf '%s' "$seed" | cksum | awk '{print $1}')
+    local start=$(( hash_num % total_cpus ))
+    local list=""
+    local i=0
+    while [ "$i" -lt "$need" ]; do
+        local cid=$(( (start + i) % total_cpus ))
+        if [ -z "$list" ]; then
+            list="$cid"
+        else
+            list="${list},${cid}"
+        fi
+        i=$((i + 1))
+    done
+    echo "$list"
 }
 
 # Đồng bộ Cgroup cho một Hosting User cụ thể (Hỗ trợ Sub-cgroups phân cấp 2 tầng)
@@ -109,20 +143,23 @@ enforce_hosting_user() {
 
     # 1. Tạo thư mục Cgroup trần cha của Hosting User & kích hoạt controllers cho cấp reseller
     mkdir -p "$cg_dir" "$cg_flat" "$cg_wpc_dir" "$cg_wpc_flat" 2>/dev/null || true
-    for c in cpu memory io pids; do
+    for c in cpuset cpu memory io pids; do
         echo "+$c" > "/sys/fs/cgroup/presspanel/reseller_${reseller_id}/cgroup.subtree_control" 2>/dev/null || true
         echo "+$c" > "/sys/fs/cgroup/wpc/reseller_${reseller_id}/cgroup.subtree_control" 2>/dev/null || true
     done
 
-    # 2. Thiết lập trần cha (Hard Ceiling của gói Hosting): CPU và RAM
+    # 2. Thiết lập trần cha (Hard Ceiling của gói Hosting): CPU, CPUset và RAM
     local cpu_max="$((cpu_pct * 1000)) 100000"
     local mem_max="$((mem_mb * 1024 * 1024))"
+    local host_cpuset
+    host_cpuset=$(calc_cpuset_cpus "$cpu_pct" "$h_user")
 
     for d in "$cg_dir" "$cg_flat" "$cg_wpc_dir" "$cg_wpc_flat"; do
+        [ -f "$d/cpuset.cpus" ] && echo "$host_cpuset" > "$d/cpuset.cpus" 2>/dev/null || true
         [ -f "$d/cpu.max" ] && echo "$cpu_max" > "$d/cpu.max" 2>/dev/null || true
         [ -f "$d/memory.max" ] && echo "$mem_max" > "$d/memory.max" 2>/dev/null || true
         [ -f "$d/pids.max" ] && echo "150" > "$d/pids.max" 2>/dev/null || true
-        for c in cpu memory io pids; do
+        for c in cpuset cpu memory io pids; do
             echo "+$c" > "$d/cgroup.subtree_control" 2>/dev/null || true
         done
     done
@@ -165,6 +202,9 @@ enforce_hosting_user() {
             local sub_cg="$cg_dir/site_${s_user}"
             mkdir -p "$sub_cg" 2>/dev/null || true
 
+            local sub_cpuset
+            sub_cpuset=$(calc_cpuset_cpus "$sub_cpu" "$h_user")
+            [ -f "$sub_cg/cpuset.cpus" ] && echo "$sub_cpuset" > "$sub_cg/cpuset.cpus" 2>/dev/null || true
             [ -f "$sub_cg/cpu.max" ] && echo "$sub_cpu_max" > "$sub_cg/cpu.max" 2>/dev/null || true
             [ -f "$sub_cg/memory.max" ] && echo "$sub_mem_max" > "$sub_cg/memory.max" 2>/dev/null || true
             [ -f "$sub_cg/pids.max" ] && echo "100" > "$sub_cg/pids.max" 2>/dev/null || true
