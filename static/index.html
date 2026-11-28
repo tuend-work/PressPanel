@@ -9442,6 +9442,81 @@ if ($host ~* ^www\\.(.*)$) {
                         engine: "LSPHP / PHP-FPM 8.2",
                         php_version: "8.2",
                         cpu_usage_pct: 0,
+                        cpu_pct: 50,
+                        mem_usage_mb: 38,
+                        mem_mb: 512,
+                        disk_usage_mb: 42.1,
+                        disk_mb: 1024,
+                        ssl_enabled: 0,
+                        status: "stopped",
+                        installed: false,
+                        category: "system",
+                        app_type: "system_app",
+                        remarks: "Hộp thư Webmail Roundcube tích hợp IMAP/SMTP"
+                    }
+                ];
+
+                const systemWebsites = ref([...defaultSystemWebsites]);
+                const loadingSystemWebsites = ref(false);
+                const currentHostName = ref(window.location.hostname || 'localhost');
+
+                const fetchSystemWebsites = async () => {
+                    loadingSystemWebsites.value = true;
+                    try {
+                        const res = await fetch('/api/v1/apps/system-websites', {
+                            headers: { 'Authorization': `Bearer ${token.value}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            const list = data.websites || data.apps || [];
+                            if (list && list.length > 0) {
+                                systemWebsites.value = list;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Lỗi tải danh sách app hệ thống:', e);
+                    } finally {
+                        loadingSystemWebsites.value = false;
+                        refreshLucideIcons();
+                    }
+                };
+
+                const restartSystemWebsite = async (app) => {
+                    try {
+                        const res = await fetch(`/api/v1/apps/${app.id}/action`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token.value}`
+                            },
+                            body: JSON.stringify({ action: 'restart' })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            Swal.fire({ icon: 'success', title: 'Thành công', text: data.message || `Đã khởi động lại ${app.name || app.site_title}!`, timer: 2000, showConfirmButton: false });
+                            setTimeout(fetchSystemWebsites, 2000);
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Lỗi', text: data.detail || 'Không thể khởi động lại app.' });
+                        }
+                    } catch (e) {
+                        Swal.fire({ icon: 'error', title: 'Lỗi kết nối', text: e.message });
+                    }
+                };
+
+                const handleRestartSystemWebsite = restartSystemWebsite;
+
+                // ==========================================
+                // WEBSITE SUB-MODALS: REWRITE RULES, LOGS, SECURITY
+                // ==========================================
+                const showWebsiteRewriteModal = ref(false);
+                const selectedRewriteDomain = ref(null);
+                const rewriteRulesContent = ref('');
+                const loadingRewriteRules = ref(false);
+                const savingRewriteRules = ref(false);
+
+                const openWebsiteRewriteModal = async (domain) => {
+                    selectedRewriteDomain.value = domain;
+                    showWebsiteRewriteModal.value = true;
                     loadingRewriteRules.value = true;
                     try {
                         const res = await fetch(`/api/v1/domains/${domain.id}/rewrite-rules`, {
