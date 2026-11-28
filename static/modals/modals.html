@@ -1,170 +1,371 @@
-            <div v-if="showAddDomainModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-                <div class="glass rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative my-6 max-h-[90vh] overflow-y-auto custom-scrollbar">
-                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
+            <div v-if="showAddDomainModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+                <div class="bg-[#151c2c] border border-slate-800 rounded-2xl max-w-3xl w-full p-6 shadow-2xl relative my-6 max-h-[92vh] overflow-y-auto custom-scrollbar text-slate-200">
+                    <div class="flex justify-between items-center mb-5 pb-3 border-b border-slate-800">
                         <div>
-                            <h3 class="text-lg font-bold text-white">Thêm Website Mới</h3>
-                            <p class="text-[11px] text-slate-400">Chọn kiểu ứng dụng, cấu hình môi trường &amp; tạo Database đi kèm</p>
+                            <h3 class="text-base font-bold text-white">Thêm Website Mới</h3>
+                            <p class="text-[11px] text-slate-400">Chọn kiểu ứng dụng, cấu hình chi tiết môi trường &amp; tạo Database đi kèm</p>
                         </div>
                         <button @click="showAddDomainModal = false" class="text-slate-400 hover:text-white text-xl px-2">&times;</button>
                     </div>
 
                     <form @submit.prevent="handleAddDomain" class="space-y-5 text-xs">
                         <!-- SECTION 1: THÔNG TIN CƠ BẢN -->
-                        <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
-                            <div class="font-bold text-slate-200 text-xs flex items-center gap-1.5">
-                                <span>🌐</span> <span>1. Thông Tin Tên Miền &amp; Gói Tài Nguyên</span>
+                        <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">
+                            <div class="font-bold text-white text-xs flex items-center gap-2 pb-2 border-b border-slate-800/80">
+                                <span>🌐</span> <span>1. Thông Tin Tên Miền &amp; Tài Nguyên</span>
                             </div>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">Tên Miền (Domain)</label>
-                                    <input type="text" v-model="newDomain.domain_name" placeholder="example.com" required
-                                        class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
-                                </div>
-                                <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">Gói Tài Nguyên (Website Plan)</label>
-                                    <select v-model="newDomain.package_id" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500 font-mono text-xs">
-                                        <option :value="null">-- Mặc định (Theo hạn mức User) --</option>
-                                        <option v-for="p in websitePlans" :key="p.id" :value="p.id">
-                                            {{ p.name }} ({{ (p.disk_mb/1024).toFixed(1) }}G, {{ p.mem_mb }}M, {{ p.cpu_pct }}%)
-                                        </option>
-                                    </select>
-                                </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                <label class="font-semibold text-slate-300">Tên Miền (Domain) <span class="text-rose-400">*</span></label>
+                                <input type="text" v-model="newDomain.domain_name" placeholder="example.com" required
+                                    class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono">
                             </div>
-                            <div class="px-3 py-2 rounded-lg bg-slate-950/60 border border-slate-800/80 text-slate-300 flex items-center justify-between text-[11px]">
-                                <div class="flex items-center space-x-2">
-                                    <i data-lucide="server" class="w-3.5 h-3.5 text-blue-400"></i>
+                            <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                <label class="font-semibold text-slate-300">Gói Tài Nguyên</label>
+                                <select v-model="newDomain.package_id" class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white focus:outline-none focus:border-blue-500 font-mono">
+                                    <option :value="null">-- Mặc định (Theo hạn mức Hosting User) --</option>
+                                    <option v-for="p in websitePlans" :key="p.id" :value="p.id">
+                                        {{ p.name }} ({{ (p.disk_mb/1024).toFixed(1) }}G Disk, {{ p.mem_mb }}M RAM, {{ p.cpu_pct }}% CPU)
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                <label class="font-semibold text-slate-300">Máy Chủ Web</label>
+                                <div class="px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-800 text-slate-300 flex items-center justify-between">
                                     <span class="font-semibold text-white">{{ activeSystemWebserver === 'nginx' ? 'Nginx Web Server' : 'OpenLiteSpeed (LSWS)' }}</span>
+                                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">Tự động</span>
                                 </div>
-                                <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">Tự động</span>
                             </div>
                         </div>
 
-                        <!-- SECTION 2: KIỂU WEBSITE (APPLICATION TYPE) -->
-                        <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
-                            <div class="font-bold text-slate-200 text-xs flex items-center gap-1.5">
-                                <span>🧩</span> <span>2. Chọn Kiểu Website &amp; Bảng Điều Khiển</span>
+                        <!-- SECTION 2: KIỂU WEBSITE -->
+                        <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-4">
+                            <div class="font-bold text-white text-xs flex items-center gap-2 pb-2 border-b border-slate-800/80">
+                                <span>🧩</span> <span>2. Kiểu Website &amp; Cấu Hình Môi Trường</span>
                             </div>
+
                             <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
                                 <button type="button" @click="newDomain.app_type = 'wordpress'; newDomain.install_wp = true"
-                                    :class="newDomain.app_type === 'wordpress' ? 'bg-blue-600/20 border-blue-500 text-white' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white'"
+                                    :class="newDomain.app_type === 'wordpress' ? 'bg-blue-600/20 border-blue-500 text-white shadow' : 'bg-[#0f1420] border-slate-800 text-slate-400 hover:text-white'"
                                     class="p-2.5 rounded-xl border text-center transition">
                                     <div class="text-base mb-0.5">📝</div>
                                     <div class="font-bold text-[11px]">WordPress</div>
                                 </button>
                                 <button type="button" @click="newDomain.app_type = 'laravel'; newDomain.install_wp = false"
-                                    :class="newDomain.app_type === 'laravel' ? 'bg-rose-600/20 border-rose-500 text-white' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white'"
+                                    :class="newDomain.app_type === 'laravel' ? 'bg-rose-600/20 border-rose-500 text-white shadow' : 'bg-[#0f1420] border-slate-800 text-slate-400 hover:text-white'"
                                     class="p-2.5 rounded-xl border text-center transition">
                                     <div class="text-base mb-0.5">🔺</div>
                                     <div class="font-bold text-[11px]">Laravel</div>
                                 </button>
                                 <button type="button" @click="newDomain.app_type = 'php'; newDomain.install_wp = false"
-                                    :class="newDomain.app_type === 'php' ? 'bg-indigo-600/20 border-indigo-500 text-white' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white'"
+                                    :class="newDomain.app_type === 'php' ? 'bg-indigo-600/20 border-indigo-500 text-white shadow' : 'bg-[#0f1420] border-slate-800 text-slate-400 hover:text-white'"
                                     class="p-2.5 rounded-xl border text-center transition">
                                     <div class="text-base mb-0.5">🐘</div>
-                                    <div class="font-bold text-[11px]">PHP Thuần</div>
+                                    <div class="font-bold text-[11px]">PHP / Static</div>
                                 </button>
                                 <button type="button" @click="newDomain.app_type = 'nodejs'; newDomain.install_wp = false"
-                                    :class="newDomain.app_type === 'nodejs' ? 'bg-emerald-600/20 border-emerald-500 text-white' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white'"
+                                    :class="newDomain.app_type === 'nodejs' ? 'bg-emerald-600/20 border-emerald-500 text-white shadow' : 'bg-[#0f1420] border-slate-800 text-slate-400 hover:text-white'"
                                     class="p-2.5 rounded-xl border text-center transition">
                                     <div class="text-base mb-0.5">🟢</div>
                                     <div class="font-bold text-[11px]">Node.js</div>
                                 </button>
                                 <button type="button" @click="newDomain.app_type = 'proxy'; newDomain.install_wp = false"
-                                    :class="newDomain.app_type === 'proxy' ? 'bg-amber-600/20 border-amber-500 text-white' : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white'"
+                                    :class="newDomain.app_type === 'proxy' ? 'bg-amber-600/20 border-amber-500 text-white shadow' : 'bg-[#0f1420] border-slate-800 text-slate-400 hover:text-white'"
                                     class="p-2.5 rounded-xl border text-center transition">
                                     <div class="text-base mb-0.5">🔀</div>
                                     <div class="font-bold text-[11px]">Reverse Proxy</div>
                                 </button>
                             </div>
 
-                            <!-- Sub-panel: PHP / WP / Laravel -->
-                            <div v-if="['wordpress', 'laravel', 'php'].includes(newDomain.app_type)" class="pt-2 space-y-2">
-                                <div class="flex justify-between items-center">
+                            <!-- A. WORDPRESS -->
+                            <div v-if="newDomain.app_type === 'wordpress'" class="space-y-3 pt-1">
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
                                     <label class="font-semibold text-slate-300">Phiên Bản PHP</label>
-                                    <span v-if="installedPhpVersions.length" class="text-[10px] text-emerald-400 font-mono">
-                                        {{ installedPhpVersions.length }} phiên bản đã cài
-                                    </span>
+                                    <select v-model="newDomain.php_version" class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                        <option v-for="p in (installedPhpVersions.length ? installedPhpVersions : allPhpVersions)" :key="p.ver" :value="p.ver">
+                                            {{ p.label }} {{ p.handler ? '— ' + p.handler : '' }}
+                                        </option>
+                                    </select>
                                 </div>
-                                <select v-model="newDomain.php_version" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500 font-mono text-xs">
-                                    <option v-for="p in (installedPhpVersions.length ? installedPhpVersions : allPhpVersions)" :key="p.ver" :value="p.ver">
-                                        {{ p.label }} {{ p.handler ? '— ' + p.handler : '' }}
-                                    </option>
-                                </select>
-                                <p v-if="newDomain.app_type === 'wordpress'" class="text-[11px] text-blue-300">✨ Tự động cài đặt WordPress 1-Click &amp; bật bảng điều khiển WP Manager sau khi tạo.</p>
-                                <p v-if="newDomain.app_type === 'laravel'" class="text-[11px] text-rose-300">✨ Tự động cấu hình DocumentRoot /public &amp; Rewrite chuẩn Laravel.</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Tiêu Đề Website</label>
+                                    <input type="text" v-model="newDomain.wp_title" placeholder="My WordPress Site"
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white">
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Admin User / Pass</label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <input type="text" v-model="newDomain.wp_admin_user" placeholder="admin"
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                        <div class="flex gap-1">
+                                            <input type="text" v-model="newDomain.wp_admin_pass" placeholder="Mật khẩu WP Admin"
+                                                class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                            <button type="button" @click="newDomain.wp_admin_pass = Math.random().toString(36).slice(-10) + 'A1!'"
+                                                class="px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300" title="Tạo ngẫu nhiên">🎲</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Ngôn Ngữ &amp; Email</label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <select v-model="newDomain.wp_lang" class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white">
+                                            <option value="vi">Tiếng Việt (vi)</option>
+                                            <option value="en_US">English (en_US)</option>
+                                        </select>
+                                        <input type="email" v-model="newDomain.wp_admin_email" placeholder="admin@example.com"
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                    </div>
+                                </div>
                             </div>
 
-                            <!-- Sub-panel: Node.js -->
-                            <div v-if="newDomain.app_type === 'nodejs'" class="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">Port Ứng Dụng</label>
-                                    <input type="number" v-model.number="newDomain.node_port" min="1024" max="65535" placeholder="3000"
-                                        class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            <!-- B. LARAVEL -->
+                            <div v-if="newDomain.app_type === 'laravel'" class="space-y-3 pt-1">
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Phiên Bản PHP</label>
+                                    <select v-model="newDomain.php_version" class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                        <option v-for="p in (installedPhpVersions.length ? installedPhpVersions : allPhpVersions)" :key="p.ver" :value="p.ver">
+                                            {{ p.label }} {{ p.handler ? '— ' + p.handler : '' }}
+                                        </option>
+                                    </select>
                                 </div>
-                                <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">File / Lệnh Khởi Chạy</label>
-                                    <input type="text" v-model="newDomain.node_start" placeholder="app.js hoặc npm start"
-                                        class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Document Root</label>
+                                    <input type="text" v-model="newDomain.doc_root_sub" placeholder="/public"
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Git Repo (Tùy chọn)</label>
+                                    <input type="text" v-model="newDomain.git_url" placeholder="https://github.com/user/laravel-app.git"
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Queue Worker</label>
+                                    <label class="inline-flex items-center gap-2 cursor-pointer text-slate-300">
+                                        <input type="checkbox" v-model="newDomain.laravel_queue" class="accent-rose-500 w-4 h-4">
+                                        <span>Bật Supervisor Queue Worker (`php artisan queue:work`)</span>
+                                    </label>
                                 </div>
                             </div>
 
-                            <!-- Sub-panel: Reverse Proxy -->
-                            <div v-if="newDomain.app_type === 'proxy'" class="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">Target URL</label>
-                                    <input type="text" v-model="newDomain.proxy_target" placeholder="http://127.0.0.1:3000"
-                                        class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                            <!-- C. PHP THUẦN / STATIC -->
+                            <div v-if="newDomain.app_type === 'php'" class="space-y-3 pt-1">
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Phiên Bản PHP</label>
+                                    <select v-model="newDomain.php_version" class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                        <option v-for="p in (installedPhpVersions.length ? installedPhpVersions : allPhpVersions)" :key="p.ver" :value="p.ver">
+                                            {{ p.label }} {{ p.handler ? '— ' + p.handler : '' }}
+                                        </option>
+                                    </select>
                                 </div>
-                                <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">Send Host Header</label>
-                                    <input type="text" v-model="newDomain.proxy_host" placeholder="$host"
-                                        class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Document Root</label>
+                                    <input type="text" v-model="newDomain.doc_root_sub" placeholder="/ (mặc định public_html)"
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                </div>
+                            </div>
+
+                            <!-- D. NODE.JS PROJECT (DEFAULT & PM2 TABS NHƯ ẢNH) -->
+                            <div v-if="newDomain.app_type === 'nodejs'" class="space-y-3 pt-1">
+                                <div class="flex border-b border-slate-800 gap-1">
+                                    <button type="button" @click="newDomain.node_mode = 'default'"
+                                        :class="newDomain.node_mode === 'default' ? 'border-b-2 border-emerald-500 text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'"
+                                        class="px-4 py-2 text-xs transition">Default Project</button>
+                                    <button type="button" @click="newDomain.node_mode = 'pm2'"
+                                        :class="newDomain.node_mode === 'pm2' ? 'border-b-2 border-emerald-500 text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'"
+                                        class="px-4 py-2 text-xs transition">PM2 Project</button>
+                                </div>
+
+                                <!-- Default Node Project -->
+                                <template v-if="newDomain.node_mode === 'default'">
+                                    <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                        <label class="font-semibold text-slate-300">Run Directory (Path)</label>
+                                        <div class="flex gap-2">
+                                            <input type="text" v-model="newDomain.node_path" placeholder="/home/user/domains/example.com"
+                                                class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                            <input type="text" v-model="newDomain.git_url" placeholder="Git URL (tùy chọn)"
+                                                class="w-48 px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                        <label class="font-semibold text-slate-300">Project Name <span class="text-rose-400">*</span></label>
+                                        <input type="text" v-model="newDomain.node_name" placeholder="my-node-app"
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                        <label class="font-semibold text-slate-300">Run Opt (Startup)</label>
+                                        <div class="flex items-center gap-2">
+                                            <input type="text" v-model="newDomain.node_start" placeholder="npm start / node app.js"
+                                                class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                            <span class="text-[10px] text-slate-400 shrink-0">* package.json script</span>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                        <label class="font-semibold text-slate-300">Port &amp; Node Version</label>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <input type="number" v-model.number="newDomain.node_port" min="1024" max="65535" placeholder="3000"
+                                                class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                            <select v-model="newDomain.node_version" class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                                <option value="22">Node v22 LTS</option>
+                                                <option value="20">Node v20 LTS</option>
+                                                <option value="18">Node v18 LTS</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                        <label class="font-semibold text-slate-300">Remark</label>
+                                        <input type="text" v-model="newDomain.remark" placeholder="Ghi chú project..."
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white">
+                                    </div>
+                                </template>
+
+                                <!-- PM2 Node Project -->
+                                <template v-else>
+                                    <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                        <label class="font-semibold text-slate-300">Project Name <span class="text-rose-400">*</span></label>
+                                        <input type="text" v-model="newDomain.node_name" placeholder="my-pm2-app"
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                        <label class="font-semibold text-slate-300">Node Version &amp; Port</label>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <select v-model="newDomain.node_version" class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                                <option value="22">Node v22 LTS</option>
+                                                <option value="20">Node v20 LTS</option>
+                                                <option value="18">Node v18 LTS</option>
+                                            </select>
+                                            <input type="number" v-model.number="newDomain.node_port" min="1024" max="65535" placeholder="3000"
+                                                class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                        <label class="font-semibold text-slate-300">Startup File <span class="text-rose-400">*</span></label>
+                                        <input type="text" v-model="newDomain.node_start" placeholder="app.js hoặc ecosystem.config.cjs"
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                        <label class="font-semibold text-slate-300">Run Directory <span class="text-rose-400">*</span></label>
+                                        <input type="text" v-model="newDomain.node_path" placeholder="/home/user/domains/example.com"
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                        <label class="font-semibold text-slate-300">Cluster &amp; Memory Limit</label>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <input type="number" v-model.number="newDomain.pm2_cluster" min="1" max="32" placeholder="1 (instances)"
+                                                class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                            <div class="flex items-center gap-1.5">
+                                                <input type="number" v-model.number="newDomain.pm2_mem_mb" min="128" max="32768" placeholder="1024"
+                                                    class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                                <span class="text-slate-400 font-mono">MB</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                        <label class="font-semibold text-slate-300">Package Manager</label>
+                                        <div class="flex flex-wrap items-center gap-3">
+                                            <select v-model="newDomain.node_pkg_mgr" class="w-32 px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                                <option value="npm">npm</option>
+                                                <option value="pnpm">pnpm</option>
+                                                <option value="yarn">yarn</option>
+                                                <option value="bun">bun</option>
+                                            </select>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                                <input type="checkbox" v-model="newDomain.node_no_install" class="accent-emerald-500">
+                                                <span>Do not install node_modules</span>
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                                <input type="checkbox" v-model="newDomain.pm2_autorestart" class="accent-emerald-500">
+                                                <span>Auto Restart</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- E. REVERSE PROXY PROJECT (NHƯ ẢNH) -->
+                            <div v-if="newDomain.app_type === 'proxy'" class="space-y-3 pt-1">
+                                <div class="flex border-b border-slate-800 gap-1">
+                                    <button type="button" @click="newDomain.proxy_mode = 'default'"
+                                        :class="newDomain.proxy_mode === 'default' ? 'border-b-2 border-amber-500 text-amber-400 font-bold' : 'text-slate-400 hover:text-white'"
+                                        class="px-4 py-2 text-xs transition">Default project</button>
+                                    <button type="button" @click="newDomain.proxy_mode = 'supervisor'"
+                                        :class="newDomain.proxy_mode === 'supervisor' ? 'border-b-2 border-amber-500 text-amber-400 font-bold' : 'text-slate-400 hover:text-white'"
+                                        class="px-4 py-2 text-xs transition">Create with Supervisor</button>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Target <span class="text-rose-400">*</span></label>
+                                    <div class="flex gap-2">
+                                        <select v-model="newDomain.proxy_target_type" class="w-36 px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white">
+                                            <option value="url">URL address</option>
+                                            <option value="unix">UNIX socket</option>
+                                        </select>
+                                        <input type="text" v-model="newDomain.proxy_target"
+                                            :placeholder="newDomain.proxy_target_type === 'unix' ? '/run/app.sock' : 'http://127.0.0.1:3000'"
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Send Host</label>
+                                    <input type="text" v-model="newDomain.proxy_host" placeholder="$http_host"
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">URL Rewrite</label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <input type="text" v-model="newDomain.proxy_rewrite_from" placeholder="/aaa (tùy chọn)"
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                        <input type="text" v-model="newDomain.proxy_rewrite_to" placeholder="/bbb (tùy chọn)"
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Remark</label>
+                                    <input type="text" v-model="newDomain.remark" placeholder="Ghi chú Reverse Proxy..."
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white">
                                 </div>
                             </div>
                         </div>
 
                         <!-- SECTION 3: TẠO DATABASE KÈM THEO -->
-                        <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                        <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">
                             <div class="flex items-center justify-between">
-                                <label class="flex items-center gap-2 font-bold text-slate-200 cursor-pointer select-none">
+                                <label class="flex items-center gap-2 font-bold text-white cursor-pointer select-none">
                                     <input type="checkbox" v-model="newDomain.create_db" class="w-4 h-4 accent-blue-500 rounded">
                                     <span>🗄️ 3. Tạo Database Kèm Theo</span>
                                 </label>
-                                <span class="text-[10px] text-slate-400">Tùy chọn</span>
+                                <span class="text-[10px] text-slate-400">MySQL / MariaDB</span>
                             </div>
 
-                            <div v-if="newDomain.create_db" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                                <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">Kiểu Database</label>
-                                    <select v-model="newDomain.db_type" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white">
+                            <div v-if="newDomain.create_db" class="space-y-3 pt-2 border-t border-slate-800/80">
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Kiểu Database</label>
+                                    <select v-model="newDomain.db_type" class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white">
                                         <option value="mysql">MySQL / MariaDB</option>
                                     </select>
                                 </div>
-                                <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">Tên Database</label>
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Tên Database <span class="text-rose-400">*</span></label>
                                     <input type="text" v-model="newDomain.db_name" placeholder="db_example" required
-                                        class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
                                 </div>
-                                <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">Database User</label>
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Database User <span class="text-rose-400">*</span></label>
                                     <input type="text" v-model="newDomain.db_user" placeholder="user_example" required
-                                        class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                                        class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
                                 </div>
-                                <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">Mật Khẩu Database</label>
+                                <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] items-center gap-2.5">
+                                    <label class="font-semibold text-slate-300">Mật Khẩu <span class="text-rose-400">*</span></label>
                                     <div class="flex gap-1.5">
                                         <input type="text" v-model="newDomain.db_password" placeholder="Mật khẩu mạnh" required
-                                            class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono">
+                                            class="w-full px-3 py-2 rounded-lg bg-[#0f1420] border border-slate-700 text-white font-mono">
                                         <button type="button" @click="newDomain.db_password = Math.random().toString(36).slice(-10) + 'A1!'"
-                                            class="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 shrink-0" title="Tạo ngẫu nhiên">🎲</button>
+                                            class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 shrink-0" title="Tạo ngẫu nhiên">🎲</button>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="flex justify-end space-x-2 pt-2">
-                            <button type="button" @click="showAddDomainModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700">Hủy</button>
-                            <button type="submit" class="px-5 py-2 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-500 shadow-lg shadow-blue-500/20">Tạo Website</button>
+                            <button type="button" @click="showAddDomainModal = false" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-medium">Hủy</button>
+                            <button type="submit" class="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 shadow-lg shadow-blue-500/20">Tạo Website</button>
                         </div>
                     </form>
                 </div>
