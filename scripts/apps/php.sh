@@ -124,6 +124,8 @@ opcache.max_accelerated_files=20000
 opcache.validate_timestamps=1
 opcache.revalidate_freq=2
 opcache.save_comments=1
+realpath_cache_size=4096K
+realpath_cache_ttl=600
 EOF
                 fi
             done
@@ -250,6 +252,8 @@ opcache.max_accelerated_files=20000
 opcache.validate_timestamps=1
 opcache.revalidate_freq=2
 opcache.save_comments=1
+realpath_cache_size=4096K
+realpath_cache_ttl=600
 EOF
                 fi
             done

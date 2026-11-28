@@ -1372,6 +1372,8 @@ class DomainPhpIniUpdate(BaseModel):
     opcache_validate_timestamps: str = "1"
     opcache_revalidate_freq: str = "2"
     opcache_jit_buffer_size: str = "0"
+    realpath_cache_size: str = "4096K"
+    realpath_cache_ttl: str = "600"
     custom_directives: Optional[str] = ""
 
 @router.get("/{domain_id}/php-ini")
@@ -1422,7 +1424,9 @@ async def get_domain_php_ini(
         "opcache_max_accelerated_files": "20000",
         "opcache_validate_timestamps": "1",
         "opcache_revalidate_freq": "2",
-        "opcache_jit_buffer_size": "0"
+        "opcache_jit_buffer_size": "0",
+        "realpath_cache_size": "4096K",
+        "realpath_cache_ttl": "600"
     }
     custom_lines = []
 
@@ -1434,6 +1438,8 @@ async def get_domain_php_ini(
         "opcache.validate_timestamps": "opcache_validate_timestamps",
         "opcache.revalidate_freq": "opcache_revalidate_freq",
         "opcache.jit_buffer_size": "opcache_jit_buffer_size",
+        "realpath_cache_size": "realpath_cache_size",
+        "realpath_cache_ttl": "realpath_cache_ttl",
     }
 
     def _norm_bool_num(val: str) -> str:
@@ -1570,6 +1576,8 @@ async def save_domain_php_ini(
     jit_raw = re.sub(r'[^0-9mMgG]', '', str(req.opcache_jit_buffer_size or "0"))
     op_jit_buf = jit_raw if jit_raw else "0"
     op_jit_mode = "off" if op_jit_buf in ("0", "0M", "0m") else "tracing"
+    rp_size = re.sub(r'[^0-9kKmMgG]', '', str(req.realpath_cache_size or "4096K")) or "4096K"
+    rp_ttl = clean_digits(req.realpath_cache_ttl, "600")
 
     lines = [
         f"; WPCloud Generated PHP Configuration for {clean_domain}",
@@ -1602,6 +1610,8 @@ async def save_domain_php_ini(
         "opcache.save_comments=1",
         f"opcache.jit={op_jit_mode}",
         f"opcache.jit_buffer_size={op_jit_buf}",
+        f"realpath_cache_size={rp_size}",
+        f"realpath_cache_ttl={rp_ttl}",
         ""
     ])
     tmp_oc = f"/tmp/wpc_opcache_{clean_domain}.ini"

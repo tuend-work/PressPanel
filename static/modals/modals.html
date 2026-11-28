@@ -498,7 +498,7 @@
                                         </div>
                                     </div>
 
-                                    <!-- opcache.jit_buffer_size & validate_timestamps -->
+                                    <!-- opcache.jit_buffer_size -->
                                     <div class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-700/60 space-y-1">
                                         <div class="flex justify-between items-center">
                                             <label class="text-[11px] font-bold text-slate-300">jit_buffer_size</label>
@@ -510,6 +510,53 @@
                                             <option value="64M">64M — JIT Tracing (Khuyên dùng)</option>
                                             <option value="128M">128M — JIT Hiệu năng cao</option>
                                         </select>
+                                    </div>
+
+                                    <!-- opcache.validate_timestamps -->
+                                    <div class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-700/60 space-y-1">
+                                        <div class="flex justify-between items-center">
+                                            <label class="text-[11px] font-bold text-slate-300">validate_timestamps</label>
+                                            <span class="text-[10px] text-slate-400">Kiểm tra sửa file</span>
+                                        </div>
+                                        <select v-model="domainPhpIni.opcache_validate_timestamps"
+                                            class="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                            <option value="1">1 — Bật (Tự nhận code mới)</option>
+                                            <option value="0">0 — Tắt (Tối đa tốc độ)</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- realpath_cache_size -->
+                                    <div class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-700/60 space-y-1">
+                                        <div class="flex justify-between items-center">
+                                            <label class="text-[11px] font-bold text-slate-300">realpath_cache_size</label>
+                                            <span class="text-[10px] text-slate-400">Bộ nhớ Path</span>
+                                        </div>
+                                        <input type="text" v-model="domainPhpIni.realpath_cache_size"
+                                            class="w-full px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                        <div class="flex gap-1">
+                                            <button v-for="v in ['2048K', '4096K', '8192K']" :key="'rps_' + v" type="button"
+                                                @click="domainPhpIni.realpath_cache_size = v"
+                                                class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 hover:bg-indigo-600/40 text-slate-300 font-mono transition">
+                                                {{ v }}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- realpath_cache_ttl -->
+                                    <div class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-700/60 space-y-1">
+                                        <div class="flex justify-between items-center">
+                                            <label class="text-[11px] font-bold text-slate-300">realpath_cache_ttl</label>
+                                            <span class="text-[10px] text-slate-400">Giây</span>
+                                        </div>
+                                        <input type="text" v-model="domainPhpIni.realpath_cache_ttl"
+                                            class="w-full px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+                                        <div class="flex gap-1">
+                                            <button v-for="v in ['120', '300', '600']" :key="'rpt_' + v" type="button"
+                                                @click="domainPhpIni.realpath_cache_ttl = v"
+                                                class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 hover:bg-indigo-600/40 text-slate-300 font-mono transition">
+                                                {{ v }}s
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

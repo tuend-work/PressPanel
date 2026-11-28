@@ -1389,6 +1389,8 @@ function showToast(message, type = 'success') {
                     opcache_validate_timestamps: '1',
                     opcache_revalidate_freq: '2',
                     opcache_jit_buffer_size: '0',
+                    realpath_cache_size: '4096K',
+                    realpath_cache_ttl: '600',
                     custom_directives: '',
                     user_ini_path: '',
                     file_exists: false
@@ -4749,6 +4751,8 @@ geo $limit_rate {
                                 opcache_validate_timestamps: domainPhpIni.value.opcache_validate_timestamps,
                                 opcache_revalidate_freq: domainPhpIni.value.opcache_revalidate_freq,
                                 opcache_jit_buffer_size: domainPhpIni.value.opcache_jit_buffer_size,
+                                realpath_cache_size: domainPhpIni.value.realpath_cache_size,
+                                realpath_cache_ttl: domainPhpIni.value.realpath_cache_ttl,
                                 custom_directives: domainPhpIni.value.custom_directives
                             })
                         });
@@ -4803,6 +4807,8 @@ geo $limit_rate {
                         domainPhpIni.value.opcache_validate_timestamps = '1';
                         domainPhpIni.value.opcache_revalidate_freq = '2';
                         domainPhpIni.value.opcache_jit_buffer_size = '0';
+                        domainPhpIni.value.realpath_cache_size = '4096K';
+                        domainPhpIni.value.realpath_cache_ttl = '300';
                     } else if (preset === 'wordpress') {
                         domainPhpIni.value.opcache_enable = '1';
                         domainPhpIni.value.opcache_memory_consumption = '256';
@@ -4811,6 +4817,8 @@ geo $limit_rate {
                         domainPhpIni.value.opcache_validate_timestamps = '1';
                         domainPhpIni.value.opcache_revalidate_freq = '2';
                         domainPhpIni.value.opcache_jit_buffer_size = '64M';
+                        domainPhpIni.value.realpath_cache_size = '4096K';
+                        domainPhpIni.value.realpath_cache_ttl = '600';
                     } else if (preset === 'high_perf') {
                         domainPhpIni.value.opcache_enable = '1';
                         domainPhpIni.value.opcache_memory_consumption = '512';
@@ -4819,6 +4827,8 @@ geo $limit_rate {
                         domainPhpIni.value.opcache_validate_timestamps = '1';
                         domainPhpIni.value.opcache_revalidate_freq = '60';
                         domainPhpIni.value.opcache_jit_buffer_size = '128M';
+                        domainPhpIni.value.realpath_cache_size = '8192K';
+                        domainPhpIni.value.realpath_cache_ttl = '600';
                     } else if (preset === 'off') {
                         domainPhpIni.value.opcache_enable = '0';
                     }
