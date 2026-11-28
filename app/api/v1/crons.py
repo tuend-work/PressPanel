@@ -51,9 +51,14 @@ async def sync_user_crontab(username: str, db):
         "# Do not edit lines between PressPanel markers manually",
         "# ==================== PRESSPANEL-CRON-BEGIN ===================="
     ]
+    import shlex
     for j in jobs:
         cmd = j["command"].strip()
-        lines.append(f"{j['schedule']} {cmd}")
+        if os.path.exists("/usr/local/bin/presspanel-ssh-cage"):
+            wrapped_cmd = f"sudo -n /usr/local/bin/presspanel-ssh-cage --root-exec {shlex.quote(cmd)}"
+            lines.append(f"{j['schedule']} {wrapped_cmd}")
+        else:
+            lines.append(f"{j['schedule']} {cmd}")
     lines.append("# ==================== PRESSPANEL-CRON-END ====================\n")
 
     content = "\n".join(lines)

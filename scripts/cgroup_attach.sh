@@ -37,16 +37,32 @@ if not os.path.exists(db_path):
 try:
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
+    cur.execute("PRAGMA table_info(users)")
+    u_cols = {row[1] for row in cur.fetchall()}
+    io_sel = "COALESCE(io_mbps, 50)" if "io_mbps" in u_cols else "50"
+    iops_sel = "COALESCE(iops_limit, 2000)" if "iops_limit" in u_cols else "2000"
+    inode_sel = "COALESCE(inode_limit, 0)" if "inode_limit" in u_cols else "0"
+    disk_sel = "COALESCE(disk_quota_mb, 0)" if "disk_quota_mb" in u_cols else "0"
+
     # Lấy thông tin hosting users (role user, reseller, admin)
-    cur.execute("SELECT id, username, parent_id, cpu_pct, mem_mb FROM users WHERE status != 'deleted'")
+    cur.execute(f"SELECT id, username, parent_id, cpu_pct, mem_mb, {io_sel}, {iops_sel}, {inode_sel}, {disk_sel} FROM users WHERE status != 'deleted'")
     users = {}
     for r in cur.fetchall():
         uid, uname, parent, cpu, mem = r[0], r[1], r[2] or 1, r[3] or 100, r[4] or 1024
+        io_mbps = int(r[5] or 50)
+        iops = int(r[6] or 2000)
+        inodes = int(r[7] or 0)
+        disk_mb = int(r[8] or 0)
+        if inodes <= 0:
+            inodes = max(100000, disk_mb * 100) if disk_mb > 0 else 250000
         users[uid] = {
             "username": uname,
             "reseller_id": str(parent),
             "cpu": int(cpu),
             "mem": int(mem),
+            "io_mbps": io_mbps,
+            "iops": iops,
+            "inodes": inodes,
             "sites": {}
         }
 
@@ -74,11 +90,14 @@ try:
         r_id = u_info["reseller_id"]
         cpu = u_info["cpu"]
         mem = u_info["mem"]
+        io_mbps = u_info["io_mbps"]
+        iops = u_info["iops"]
+        inodes = u_info["inodes"]
         site_tokens = []
         for s_name, (s_c, s_m) in sorted(u_info["sites"].items()):
             site_tokens.append(f"{s_name}@{s_c}@{s_m}")
         sites_str = ",".join(site_tokens)
-        print(f"{u}:{r_id}:{cpu}:{mem}:{sites_str}")
+        print(f"{u}:{r_id}:{cpu}:{mem}:{sites_str}:{io_mbps}:{iops}:{inodes}")
 except Exception:
     pass
 EOF
@@ -128,6 +147,21 @@ calc_cpuset_cpus() {
     echo "$list"
 }
 
+# Nhận diện cặp MAJ:MIN của ổ đĩa gốc để áp dụng io.max
+detect_root_majmin() {
+    local src pk
+    src=$(findmnt -n -o SOURCE /home 2>/dev/null || findmnt -n -o SOURCE / 2>/dev/null || echo "")
+    [ -z "$src" ] && return
+    pk=$(lsblk -ndo PKNAME "$src" 2>/dev/null || true)
+    if [ -n "$pk" ]; then
+        lsblk -ndo MAJ:MIN "/dev/$pk" 2>/dev/null | tr -d ' ' || true
+    else
+        lsblk -ndo MAJ:MIN "$src" 2>/dev/null | tr -d ' ' || true
+    fi
+}
+ROOT_MAJMIN=$(detect_root_majmin)
+QUOTA_MOUNT=$(findmnt -n -o TARGET /home 2>/dev/null || echo "/")
+
 # Đồng bộ Cgroup cho một Hosting User cụ thể (Hỗ trợ Sub-cgroups phân cấp 2 tầng)
 enforce_hosting_user() {
     local h_user="$1"
@@ -135,6 +169,9 @@ enforce_hosting_user() {
     local cpu_pct="$3"
     local mem_mb="$4"
     local child_sites="$5"
+    local io_mbps="${6:-50}"
+    local iops_lim="${7:-2000}"
+    local inode_lim="${8:-250000}"
 
     local cg_dir="/sys/fs/cgroup/presspanel/reseller_${reseller_id}/user_${h_user}"
     local cg_flat="/sys/fs/cgroup/presspanel/user_${h_user}"
@@ -151,6 +188,7 @@ enforce_hosting_user() {
     # 2. Thiết lập trần cha (Hard Ceiling của gói Hosting): CPU, CPUset và RAM
     local cpu_max="$((cpu_pct * 1000)) 100000"
     local mem_max="$((mem_mb * 1024 * 1024))"
+    local io_bps="$((io_mbps * 1024 * 1024))"
     local host_cpuset
     host_cpuset=$(calc_cpuset_cpus "$cpu_pct" "$h_user")
 
@@ -159,10 +197,18 @@ enforce_hosting_user() {
         [ -f "$d/cpu.max" ] && echo "$cpu_max" > "$d/cpu.max" 2>/dev/null || true
         [ -f "$d/memory.max" ] && echo "$mem_max" > "$d/memory.max" 2>/dev/null || true
         [ -f "$d/pids.max" ] && echo "150" > "$d/pids.max" 2>/dev/null || true
+        if [ -n "$ROOT_MAJMIN" ] && [ -f "$d/io.max" ] && [ "$io_bps" -gt 0 ]; then
+            echo "$ROOT_MAJMIN rbps=$io_bps wbps=$io_bps riops=$iops_lim wiops=$iops_lim" > "$d/io.max" 2>/dev/null || true
+        fi
         for c in cpuset cpu memory io pids; do
             echo "+$c" > "$d/cgroup.subtree_control" 2>/dev/null || true
         done
     done
+
+    # Áp dụng Inode quota cho user nếu filesystem đã bật usrquota
+    if command -v setquota &>/dev/null && id "$h_user" &>/dev/null && [ "$inode_lim" -gt 0 ]; then
+        setquota -u "$h_user" 0 0 "$inode_lim" "$inode_lim" "$QUOTA_MOUNT" 2>/dev/null || true
+    fi
 
     # Thiết lập Systemd Slice tương ứng
     systemctl set-property "presspanel-hosting_${h_user}.slice" CPUQuota="${cpu_pct}%" MemoryMax="${mem_mb}M" TasksMax=150 2>/dev/null || true
@@ -208,6 +254,12 @@ enforce_hosting_user() {
             [ -f "$sub_cg/cpu.max" ] && echo "$sub_cpu_max" > "$sub_cg/cpu.max" 2>/dev/null || true
             [ -f "$sub_cg/memory.max" ] && echo "$sub_mem_max" > "$sub_cg/memory.max" 2>/dev/null || true
             [ -f "$sub_cg/pids.max" ] && echo "100" > "$sub_cg/pids.max" 2>/dev/null || true
+            if [ -n "$ROOT_MAJMIN" ] && [ -f "$sub_cg/io.max" ] && [ "$io_bps" -gt 0 ]; then
+                echo "$ROOT_MAJMIN rbps=$io_bps wbps=$io_bps riops=$iops_lim wiops=$iops_lim" > "$sub_cg/io.max" 2>/dev/null || true
+            fi
+            if command -v setquota &>/dev/null && id "$s_user" &>/dev/null && [ "$inode_lim" -gt 0 ]; then
+                setquota -u "$s_user" 0 0 "$inode_lim" "$inode_lim" "$QUOTA_MOUNT" 2>/dev/null || true
+            fi
 
             # Thu thập toàn bộ PID của website con này (LSPHP, PHP-FPM, pool worker)
             mapfile -t s_pids < <(
@@ -252,9 +304,9 @@ sync_all_cgroups() {
     mappings=$(fetch_user_mappings)
 
     if [ -n "$mappings" ]; then
-        while IFS=':' read -r u r_id cpu mem sites; do
+        while IFS=':' read -r u r_id cpu mem sites io_mbps iops inodes; do
             [ -n "$u" ] || continue
-            enforce_hosting_user "$u" "$r_id" "$cpu" "$mem" "$sites"
+            enforce_hosting_user "$u" "$r_id" "$cpu" "$mem" "$sites" "$io_mbps" "$iops" "$inodes"
         done <<< "$mappings"
     else
         # Fallback nếu DB chưa sẵn sàng: quét theo thư mục cgroup hiện có
@@ -290,9 +342,9 @@ if [ -n "$TARGET_USER" ]; then
     mappings=$(fetch_user_mappings)
     matched=0
     if [ -n "$mappings" ]; then
-        while IFS=':' read -r u r_id cpu mem sites; do
+        while IFS=':' read -r u r_id cpu mem sites io_mbps iops inodes; do
             if [ "$u" = "$TARGET_USER" ]; then
-                enforce_hosting_user "$u" "$r_id" "$cpu" "$mem" "$sites"
+                enforce_hosting_user "$u" "$r_id" "$cpu" "$mem" "$sites" "$io_mbps" "$iops" "$inodes"
                 matched=1
                 break
             fi
