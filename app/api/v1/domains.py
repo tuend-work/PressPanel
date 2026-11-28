@@ -4995,11 +4995,25 @@ async def rebuild_domain_vhost(domain_id: int, current_user: dict = Depends(get_
 
 class RewriteRulesRequest(BaseModel):
     rules: str
+    folder: Optional[str] = ""
+
+
+def _resolve_htaccess_path(doc_root: str, folder: str = "") -> tuple[str, str]:
+    clean_folder = (folder or "").strip().strip("/").replace("..", "")
+    target_dir = os.path.normpath(os.path.join(doc_root, clean_folder)) if clean_folder else doc_root
+    if not target_dir.startswith(os.path.normpath(doc_root)):
+        target_dir = doc_root
+        clean_folder = ""
+    return clean_folder, os.path.join(target_dir, ".htaccess")
 
 
 @router.get("/{domain_id}/rewrite-rules")
-async def get_domain_rewrite_rules(domain_id: int, current_user: dict = Depends(get_current_user)):
-    """Lấy quy tắc Rewrite (.htaccess) của website cho Webuser / Hosting user"""
+async def get_domain_rewrite_rules(
+    domain_id: int,
+    folder: str = Query("", description="Thư mục con tương đối trong docroot"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Lấy quy tắc Rewrite (.htaccess) và danh sách thư mục con trong docroot"""
     db = await get_db_connection()
     cursor = await db.execute("SELECT d.*, u.parent_id FROM domains d LEFT JOIN users u ON d.user_id = u.id WHERE d.id = ?", (domain_id,))
     domain = await cursor.fetchone()
@@ -5011,7 +5025,19 @@ async def get_domain_rewrite_rules(domain_id: int, current_user: dict = Depends(
 
     clean_domain = domain["domain_name"]
     isolated_user = domain_to_linux_user(clean_domain)
-    ht_path = f"/home/{isolated_user}/domains/{clean_domain}/public_html/.htaccess"
+    doc_root = domain["document_root"] or f"/home/{isolated_user}/domains/{clean_domain}/public_html"
+    clean_folder, ht_path = _resolve_htaccess_path(doc_root, folder)
+
+    folders = [""]
+    try:
+        if os.path.isdir(doc_root):
+            for entry in sorted(os.listdir(doc_root)):
+                full_p = os.path.join(doc_root, entry)
+                if os.path.isdir(full_p) and not entry.startswith("."):
+                    folders.append(entry)
+    except Exception:
+        pass
+
     content = ""
     if os.path.exists(ht_path):
         try:
@@ -5019,14 +5045,19 @@ async def get_domain_rewrite_rules(domain_id: int, current_user: dict = Depends(
                 content = f.read()
         except Exception:
             pass
-    if not content:
-        content = "# Rewrite rules\n<IfModule mod_rewrite.c>\nRewriteEngine On\nRewriteBase /\nRewriteRule ^index\\.php$ - [L]\nRewriteCond %{REQUEST_FILENAME} !-f\nRewriteCond %{REQUEST_FILENAME} !-d\nRewriteRule . /index.php [L]\n</IfModule>\n"
-    return {"status": "success", "rules": content, "path": ht_path}
+    if not content and platform.system() == "Linux":
+        try:
+            proc = subprocess.run(["sudo", "cat", ht_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+            if proc.returncode == 0:
+                content = proc.stdout
+        except Exception:
+            pass
+    return {"status": "success", "rules": content, "path": ht_path, "folder": clean_folder, "folders": folders}
 
 
 @router.post("/{domain_id}/rewrite-rules")
 async def save_domain_rewrite_rules(domain_id: int, req: RewriteRulesRequest, current_user: dict = Depends(get_current_user)):
-    """Lưu quy tắc Rewrite (.htaccess) an toàn trong docroot của website"""
+    """Lưu quy tắc Rewrite (.htaccess), đồng bộ vhost & khởi động lại LSPHP Pool"""
     db = await get_db_connection()
     cursor = await db.execute("SELECT d.*, u.parent_id FROM domains d JOIN users u ON d.user_id = u.id WHERE d.id = ?", (domain_id,))
     domain = await cursor.fetchone()
@@ -5038,31 +5069,41 @@ async def save_domain_rewrite_rules(domain_id: int, req: RewriteRulesRequest, cu
 
     clean_domain = domain["domain_name"]
     isolated_user = domain_to_linux_user(clean_domain)
-    doc_root = f"/home/{isolated_user}/domains/{clean_domain}/public_html"
-    ht_path = f"{doc_root}/.htaccess"
+    doc_root = domain["document_root"] or f"/home/{isolated_user}/domains/{clean_domain}/public_html"
+    _, ht_path = _resolve_htaccess_path(doc_root, req.folder or "")
+    target_dir = os.path.dirname(ht_path)
+    normalized_rules = req.rules.replace("\r\n", "\n")
 
     try:
-        os.makedirs(doc_root, exist_ok=True)
+        os.makedirs(target_dir, exist_ok=True)
         with open(ht_path, "w", encoding="utf-8") as f:
-            f.write(req.rules.replace("\r\n", "\n"))
-        subprocess.run(["chown", f"{isolated_user}:{isolated_user}", ht_path], check=False)
-        subprocess.run(["chmod", "644", ht_path], check=False)
-    except Exception as e:
-        pass
+            f.write(normalized_rules)
+    except Exception:
+        subprocess.run(["sudo", "mkdir", "-p", target_dir], check=False)
+        subprocess.run(["sudo", "tee", ht_path], input=normalized_rules, text=True, stdout=subprocess.DEVNULL, check=False)
+
+    subprocess.run(["sudo", "chown", f"{isolated_user}:{isolated_user}", ht_path], check=False)
+    subprocess.run(["sudo", "chmod", "644", ht_path], check=False)
 
     ws = domain["webserver"] or "ols"
     if ws == "ols":
-        try:
-            subprocess.run(["/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
-        except Exception:
-            pass
+        # Đảm bảo autoLoadHtaccess 1 trong vhconf.conf và khởi động lại LSPHP Pool + OLS
+        vh_conf = f"/usr/local/lsws/conf/vhosts/{clean_domain}/vhconf.conf"
+        if os.path.exists(vh_conf):
+            try:
+                with open(vh_conf, "r", encoding="utf-8", errors="ignore") as vf:
+                    vc = vf.read()
+                if "autoLoadHtaccess" not in vc:
+                    vc_new = vc + "\nrewrite  {\n  enable                  1\n  autoLoadHtaccess        1\n}\n"
+                    subprocess.run(["sudo", "tee", vh_conf], input=vc_new, text=True, stdout=subprocess.DEVNULL, check=False)
+            except Exception:
+                pass
+        subprocess.run(["sudo", "pkill", "-9", "-u", isolated_user, "-f", "lsphp"], check=False)
+        subprocess.run(["sudo", "/usr/local/lsws/bin/lswsctrl", "restart"], check=False)
     else:
-        try:
-            subprocess.run(["nginx", "-s", "reload"], check=False)
-        except Exception:
-            pass
+        subprocess.run(["sudo", "nginx", "-s", "reload"], check=False)
 
-    return {"status": "success", "message": "Đã lưu quy tắc Rewrite (.htaccess) và nạp lại Webserver thành công!"}
+    return {"status": "success", "path": ht_path, "message": "Đã lưu .htaccess, áp dụng VHost và khởi động lại LSPHP Pool thành công!"}
 
 
 @router.get("/{domain_id}/logs")

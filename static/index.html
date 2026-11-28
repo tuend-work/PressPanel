@@ -9533,20 +9533,27 @@ if ($host ~* ^www\\.(.*)$) {
                 const showWebsiteRewriteModal = ref(false);
                 const selectedRewriteDomain = ref(null);
                 const rewriteRulesContent = ref('');
+                const websiteRewritePath = ref('');
+                const websiteRewriteFolder = ref('');
+                const websiteRewriteFolders = ref(['']);
                 const loadingRewriteRules = ref(false);
                 const savingRewriteRules = ref(false);
 
-                const openWebsiteRewriteModal = async (domain) => {
+                const openWebsiteRewriteModal = async (domain, folder = '') => {
                     selectedRewriteDomain.value = domain;
+                    websiteRewriteFolder.value = folder || '';
                     showWebsiteRewriteModal.value = true;
                     loadingRewriteRules.value = true;
                     try {
-                        const res = await fetch(`/api/v1/domains/${domain.id}/rewrite-rules`, {
+                        const q = encodeURIComponent(websiteRewriteFolder.value);
+                        const res = await fetch(`/api/v1/domains/${domain.id}/rewrite-rules?folder=${q}`, {
                             headers: { 'Authorization': `Bearer ${token.value}` }
                         });
                         if (res.ok) {
                             const data = await res.json();
                             rewriteRulesContent.value = data.rules || '';
+                            websiteRewritePath.value = data.path || '';
+                            websiteRewriteFolders.value = data.folders && data.folders.length ? data.folders : [''];
                         }
                     } catch (e) {
                         console.error('Lỗi tải rewrite rules:', e);
@@ -9576,7 +9583,7 @@ if ($host ~* ^www\\.(.*)$) {
                                 'Content-Type': 'application/json',
                                 'Authorization': `Bearer ${token.value}`
                             },
-                            body: JSON.stringify({ rules: rewriteRulesContent.value })
+                            body: JSON.stringify({ rules: rewriteRulesContent.value, folder: websiteRewriteFolder.value })
                         });
                         const data = await res.json();
                         if (res.ok) {
@@ -10705,7 +10712,7 @@ if ($host ~* ^www\\.(.*)$) {
                     // System Websites
                     defaultSystemWebsites, systemWebsites, loadingSystemWebsites, fetchSystemWebsites, restartSystemWebsite, handleRestartSystemWebsite, currentHostName,
                     // Website Sub-modals: Rewrite, Logs, Security
-                    showWebsiteRewriteModal, selectedRewriteDomain, rewriteRulesContent,
+                    showWebsiteRewriteModal, selectedRewriteDomain, rewriteRulesContent, websiteRewritePath, websiteRewriteFolder, websiteRewriteFolders,
                     loadingRewriteRules, savingRewriteRules, openWebsiteRewriteModal,
                     applyRewritePreset, saveWebsiteRewriteRules,
                     showWebsiteLogsModal, selectedLogsDomain, websiteLogsTab, websiteLogsContent,
