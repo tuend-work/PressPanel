@@ -66,4 +66,4 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] Khởi động PressPanel Server tr�
 # 4. Thực thi Uvicorn với exec để systemd quản lý PID trực tiếp
 export PYTHONUNBUFFERED=1
 export PYTHONPATH="$INSTALL_DIR"
-exec "$PY_BIN" -m uvicorn app.main:app --host 0.0.0.0 --port "$PANEL_PORT" --workers 2
+exec "$PY_BIN" -m uvicorn app.main:app --host 0.0.0.0 --port "$PANEL_PORT" --workers 1
