@@ -57,6 +57,13 @@ if [[ "$OS_ID" =~ ^(debian|ubuntu)$ ]]; then
                        software-properties-common lsb-release ca-certificates apt-transport-https || \
     apt-get install -y build-essential gcc make python3 python3-venv python3-pip \
                        sqlite3 libsqlite3-dev curl wget git quota ipset fail2ban software-properties-common
+    mkdir -p /etc/systemd/system/lxcfs.service.d
+    cat << 'EOF' > /etc/systemd/system/lxcfs.service.d/cfs.conf
+[Service]
+ExecStart=
+ExecStart=/usr/bin/lxcfs --enable-cfs /var/lib/lxcfs
+EOF
+    systemctl daemon-reload 2>/dev/null || true
     systemctl enable --now lxcfs 2>/dev/null || true
 
     # Cấu hình Ondřej PPA cho Ubuntu hoặc Sury cho Debian để sẵn sàng cài đặt mọi phiên bản PHP
