@@ -173,9 +173,17 @@ if [ -x "/usr/bin/unshare" ] && [ "$EUID" -eq 0 ]; then
         # 9. Giới hạn tài nguyên tiến trình chống Fork Bomb
         ulimit -u 150 2>/dev/null || true
 
-        # 10. Chuyển vào thư mục home và spawn login shell
+        # 10. Chuyển vào thư mục home và spawn login shell (ưu tiên setpriv để không bị pam_systemd tách khỏi Cgroup v2)
         cd "$REAL_HOME" 2>/dev/null || cd /
-        if command -v runuser &>/dev/null; then
+        T_UID=$(id -u "$TARGET_USER" 2>/dev/null || echo "")
+        T_GID=$(id -g "$TARGET_USER" 2>/dev/null || echo "")
+        if command -v setpriv &>/dev/null && [ -n "$T_UID" ] && [ -n "$T_GID" ]; then
+            exec setpriv --reuid="$T_UID" --regid="$T_GID" --init-groups env -i \
+                HOME="$REAL_HOME" USER="$TARGET_USER" LOGNAME="$TARGET_USER" \
+                SHELL=/bin/bash TERM="${TERM:-xterm-256color}" \
+                PATH="/usr/local/bin:/usr/bin:/bin" LANG="${LANG:-en_US.UTF-8}" \
+                /bin/bash --login
+        elif command -v runuser &>/dev/null; then
             exec runuser -l "$TARGET_USER" -s /bin/bash
         elif [ -x /sbin/runuser ]; then
             exec /sbin/runuser -l "$TARGET_USER" -s /bin/bash
